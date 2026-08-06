@@ -55,8 +55,14 @@ cd app && flutter run              # mobile
 cd app && flutter run -d chrome    # web
 
 # Tests
-cd api && pytest
+cd api && .venv/Scripts/python -m pytest
 cd app && flutter test
+
+# Base de données — les migrations vivent dans supabase/migrations/,
+# convention attendue par le CLI et par l'intégration GitHub.
+supabase link --project-ref <ref>
+supabase db push                   # applique les migrations au projet distant
+supabase migration new <nom>       # nouvelle migration horodatée
 ```
 
 ## VII. Maintenance documentaire

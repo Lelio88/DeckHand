@@ -187,4 +187,53 @@ CREATE TABLE IF NOT EXISTS public.deck_cards (
 CREATE INDEX IF NOT EXISTS idx_deck_cards_deck   ON public.deck_cards (deck_id);
 CREATE INDEX IF NOT EXISTS idx_deck_cards_oracle ON public.deck_cards (oracle_id);
 
+-- ---------------------------------------------------------------------------
+-- Exposition via l'API de données
+-- ---------------------------------------------------------------------------
+-- Le projet Supabase est configuré SANS exposition automatique des nouvelles
+-- tables et AVEC activation automatique de la RLS. Double conséquence : chaque
+-- table doit recevoir explicitement ses privilèges *et* porter une policy,
+-- sinon elle reste totalement inaccessible depuis l'API.
+--
+-- Le rôle `service_role` contourne la RLS : l'ingestion serveur n'est pas
+-- concernée par ce qui suit.
+
+-- Catalogue : lecture publique assumée. Ces données viennent de Scryfall et ne
+-- contiennent rien de personnel.
+GRANT SELECT ON public.cards, public.card_prints, public.card_search_names,
+                public.deck_sources, public.decks, public.deck_cards,
+                public.card_cheapest_price
+    TO anon, authenticated;
+
+ALTER TABLE public.cards             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.card_prints       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.card_search_names ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.deck_sources      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.decks             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.deck_cards        ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY cards_public_read
+    ON public.cards FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY card_prints_public_read
+    ON public.card_prints FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY card_search_names_public_read
+    ON public.card_search_names FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY deck_sources_public_read
+    ON public.deck_sources FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY decks_public_read
+    ON public.decks FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY deck_cards_public_read
+    ON public.deck_cards FOR SELECT TO anon, authenticated USING (true);
+
+-- Sans `security_invoker`, une vue s'exécute avec les droits de son
+-- propriétaire et court-circuiterait donc la RLS des tables qu'elle lit.
+ALTER VIEW public.card_cheapest_price SET (security_invoker = true);
+
+-- Collections : accès complet pour un utilisateur authentifié, le périmètre
+-- étant restreint à ses propres lignes par les policies définies plus haut.
+GRANT SELECT, INSERT, UPDATE, DELETE
+    ON public.collections, public.collection_items
+    TO authenticated;
+GRANT USAGE, SELECT ON SEQUENCE public.collection_items_id_seq TO authenticated;
+
 COMMIT;
