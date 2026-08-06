@@ -1,4 +1,5 @@
-/// Écran de saisie de collection : on tape un nom, les cartes apparaissent.
+/// Écran de saisie de collection : on tape un nom, les cartes apparaissent, on
+/// les ajoute.
 ///
 /// La frappe est amortie avant d'atteindre le réseau : sans cela, « lightning »
 /// déclencherait neuf requêtes dont huit sans intérêt. Le délai est court pour
@@ -10,6 +11,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../collection/data/collection_repository.dart';
 import '../data/card_repository.dart';
 import '../domain/card_hit.dart';
 
@@ -47,86 +49,62 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
   Widget build(BuildContext context) {
     final results = ref.watch(cardSearchProvider(_query));
 
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Header(controller: _controller, onChanged: _onChanged),
-                Expanded(
-                  child: _query.isEmpty
-                      ? const _EmptyState()
-                      : results.when(
-                          data: (hits) => hits.isEmpty
-                              ? _NoMatch(query: _query)
-                              : _ResultList(hits: hits),
-                          loading: () => const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          error: (error, _) => _ErrorState(message: '$error'),
-                        ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SearchField(controller: _controller, onChanged: _onChanged),
+        Expanded(
+          child: _query.isEmpty
+              ? const _EmptyState()
+              : results.when(
+                  data: (hits) => hits.isEmpty
+                      ? _NoMatch(query: _query)
+                      : _ResultList(hits: hits),
+                  loading: () => const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  error: (error, _) => _ErrorState(message: '$error'),
                 ),
-              ],
-            ),
-          ),
         ),
-      ),
+      ],
     );
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.controller, required this.onChanged});
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.controller, required this.onChanged});
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('DeckHand', style: theme.textTheme.headlineMedium),
-          const SizedBox(height: 4),
-          Text(
-            'Cherchez une carte en français ou en anglais',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        autofocus: true,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Foudre, Sol Ring, contresort…',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: controller.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Effacer',
+                  onPressed: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                ),
+          filled: true,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
           ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: controller,
-            onChanged: onChanged,
-            autofocus: true,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: 'Foudre, Sol Ring, contresort…',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: controller.text.isEmpty
-                  ? null
-                  : IconButton(
-                      icon: const Icon(Icons.close),
-                      tooltip: 'Effacer',
-                      onPressed: () {
-                        controller.clear();
-                        onChanged('');
-                      },
-                    ),
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -140,7 +118,7 @@ class _ResultList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       itemCount: hits.length,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) => _CardTile(hit: hits[index]),
@@ -148,20 +126,64 @@ class _ResultList extends StatelessWidget {
   }
 }
 
-class _CardTile extends StatelessWidget {
+class _CardTile extends ConsumerStatefulWidget {
   const _CardTile({required this.hit});
 
   final CardHit hit;
 
   @override
+  ConsumerState<_CardTile> createState() => _CardTileState();
+}
+
+class _CardTileState extends ConsumerState<_CardTile> {
+  bool _busy = false;
+
+  Future<void> _add() async {
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final hit = widget.hit;
+
+    try {
+      final total = await ref.read(collectionRepositoryProvider).add(hit.oracleId);
+      ref.invalidate(collectionProvider);
+      if (!mounted) return;
+      // Sans cela les messages s'empilent et l'utilisateur lit un retour périmé :
+      // en ajoutant trois cartes d'affilée, la dernière notification affichée
+      // concernait encore la première carte.
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${hit.matchedName} ajoutée — vous en avez $total'),
+          duration: const Duration(seconds: 2),
+          action: SnackBarAction(
+            label: 'Annuler',
+            onPressed: () async {
+              await ref.read(collectionRepositoryProvider).remove(hit.oracleId);
+              ref.invalidate(collectionProvider);
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Ajout impossible : $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final hit = widget.hit;
     final theme = Theme.of(context);
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(14),
@@ -202,12 +224,29 @@ class _CardTile extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          Text(
-            hit.priceEur == null
-                ? '—'
-                : '${hit.priceEur!.toStringAsFixed(2)} €',
-            style: theme.textTheme.titleSmall,
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                hit.priceEur == null
+                    ? '—'
+                    : '${hit.priceEur!.toStringAsFixed(2)} €',
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(height: 4),
+              IconButton.filledTonal(
+                onPressed: _busy ? null : _add,
+                tooltip: 'Ajouter à ma collection',
+                icon: _busy
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add),
+              ),
+            ],
           ),
         ],
       ),
@@ -297,10 +336,7 @@ class _ErrorState extends StatelessWidget {
           children: [
             Icon(Icons.cloud_off, color: theme.colorScheme.error),
             const SizedBox(height: 12),
-            Text(
-              'La recherche a échoué.',
-              style: theme.textTheme.titleMedium,
-            ),
+            Text('La recherche a échoué.', style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
             Text(
               message,
