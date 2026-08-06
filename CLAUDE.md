@@ -61,6 +61,13 @@ cd app && flutter run -d chrome \
 cd api && .venv/Scripts/python -m pytest
 cd app && flutter test
 
+# Rafraîchir toutes les données (idempotent, saute ce qui n'a pas changé).
+# Les prix Scryfall dérivent chaque jour : sans cela, la valorisation de
+# collection et les coûts de complétion deviennent progressivement faux.
+cd api && .venv/Scripts/python -m app.ingestion.refresh
+#   --force        réingère le catalogue même s'il n'a pas changé
+#   --skip-decks   catalogue et empreintes uniquement
+
 # Base de données — les migrations vivent dans supabase/migrations/,
 # convention attendue par le CLI et par l'intégration GitHub.
 supabase link --project-ref <ref>
