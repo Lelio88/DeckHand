@@ -1,4 +1,9 @@
-/// Une ligne de collection : une carte et le nombre d'exemplaires possédés.
+/// Une ligne de collection : une carte, une édition, et le nombre d'exemplaires.
+///
+/// **Une carte possédée en deux éditions donne deux lignes.** C'est voulu : elles
+/// n'ont ni le même prix ni la même place dans une boîte. `printId` nul signifie
+/// « je possède cette carte, je n'ai pas dit laquelle » — un état de plein droit,
+/// puisqu'on saisit vite et qu'on précise plus tard.
 library;
 
 class CollectionEntry {
@@ -14,6 +19,10 @@ class CollectionEntry {
     this.unitPriceEur,
     this.linePriceEur,
     this.addedAt,
+    this.printId,
+    this.setCode,
+    this.setName,
+    this.collectorNumber,
   });
 
   final String oracleId;
@@ -27,7 +36,8 @@ class CollectionEntry {
   final String? typeLine;
   final int quantity;
 
-  /// Prix de l'impression la moins chère.
+  /// Prix unitaire : celui de l'édition possédée quand elle est connue, celui de
+  /// l'impression la moins chère sinon.
   final double? unitPriceEur;
 
   /// Prix unitaire multiplié par la quantité. Calculé côté base pour que
@@ -40,6 +50,21 @@ class CollectionEntry {
 
   /// Première fois que la carte est entrée en collection.
   final DateTime? addedAt;
+
+  /// Édition possédée. Nul tant qu'elle n'a pas été précisée.
+  final String? printId;
+  final String? setCode;
+  final String? setName;
+  final String? collectorNumber;
+
+  bool get hasPrinting => printId != null;
+
+  /// Édition telle qu'affichée : « Modern Horizons 2 · MH2 #123 ».
+  String? get printingLabel {
+    if (setCode == null) return null;
+    final number = collectorNumber == null ? '' : ' #$collectorNumber';
+    return '${setName ?? setCode!.toUpperCase()} · ${setCode!.toUpperCase()}$number';
+  }
 
   /// Nom à afficher : le français s'il existe, l'anglais sinon.
   String get displayName => printedName ?? name;
@@ -60,6 +85,10 @@ class CollectionEntry {
       addedAt: json['added_at'] == null
           ? null
           : DateTime.tryParse(json['added_at'] as String),
+      printId: json['print_id'] as String?,
+      setCode: json['set_code'] as String?,
+      setName: json['set_name'] as String?,
+      collectorNumber: json['collector_number'] as String?,
     );
   }
 }
@@ -74,6 +103,7 @@ class CollectionSummary {
     required this.totalCards,
     required this.distinctCards,
     required this.totalValueEur,
+    this.unspecifiedPrints = 0,
   });
 
   final int totalCards;
@@ -82,6 +112,10 @@ class CollectionSummary {
   /// Valeur totale. Les cartes sans cote connue comptent pour zéro : mieux vaut
   /// sous-estimer que d'inventer un prix.
   final double totalValueEur;
+
+  /// Exemplaires dont l'édition n'a pas été précisée. Sert à proposer de la
+  /// renseigner plutôt qu'à le reprocher : ne pas préciser reste légitime.
+  final int unspecifiedPrints;
 
   bool get isEmpty => totalCards == 0;
 
@@ -96,6 +130,7 @@ class CollectionSummary {
         totalCards: (json['total_cards'] as num?)?.toInt() ?? 0,
         distinctCards: (json['distinct_cards'] as num?)?.toInt() ?? 0,
         totalValueEur: (json['total_value_eur'] as num?)?.toDouble() ?? 0,
+        unspecifiedPrints: (json['unspecified_prints'] as num?)?.toInt() ?? 0,
       );
 }
 

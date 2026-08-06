@@ -16,6 +16,8 @@ import 'package:deckhand/src/features/auth/data/auth_repository.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
 import 'package:deckhand/src/features/collection/presentation/collection_screen.dart';
+import 'package:deckhand/src/features/printings/data/printing_repository.dart';
+import 'package:deckhand/src/features/printings/domain/card_printing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,6 +31,10 @@ CollectionEntry entry({
   String? printedName = 'Foudre',
   int quantity = 2,
   double? unitPrice = 1.12,
+  String? printId,
+  String? setCode,
+  String? setName,
+  String? collectorNumber,
 }) => CollectionEntry(
   oracleId: oracleId,
   name: name,
@@ -40,12 +46,37 @@ CollectionEntry entry({
   legalPauper: true,
   legalModern: true,
   legalCommander: true,
+  printId: printId,
+  setCode: setCode,
+  setName: setName,
+  collectorNumber: collectorNumber,
 );
+
+CardPrinting printing({
+  String printId = 'print-mh2',
+  String setCode = 'mh2',
+  String? setName = 'Modern Horizons 2',
+  String? collectorNumber = '123',
+  double? price = 3.40,
+  int owned = 0,
+}) => CardPrinting(
+  printId: printId,
+  setCode: setCode,
+  setName: setName,
+  collectorNumber: collectorNumber,
+  lang: 'en',
+  priceEur: price,
+  owned: owned,
+);
+
+/// Dernier faux dépôt d'éditions posé, pour les tests qui ouvrent le sélecteur.
+late FakePrintingRepository printings;
 
 Future<FakeCollectionRepository> pumpCollection(
   WidgetTester tester, {
   List<CollectionEntry> entries = const [],
   CollectionSummary? totals,
+  List<CardPrinting> availablePrintings = const [],
 }) async {
   final repository = FakeCollectionRepository()
     ..entries = entries
@@ -62,10 +93,13 @@ Future<FakeCollectionRepository> pumpCollection(
                 ),
               ));
 
+  printings = FakePrintingRepository()..printings = availablePrintings;
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         collectionRepositoryProvider.overrideWithValue(repository),
+        printingRepositoryProvider.overrideWithValue(printings),
         sessionProvider.overrideWith(
           (ref) => Stream<Session?>.value(fakeSession()),
         ),
@@ -148,7 +182,7 @@ void main() {
     await tester.tap(find.byTooltip('Ajouter un exemplaire'));
     await tester.pumpAndSettle();
 
-    expect(repository.quantities['oracle-1'], 1);
+    expect(repository.quantities[('oracle-1', null)], 1);
   });
 
   testWidgets('retirer un exemplaire passe par le dépôt', (tester) async {
@@ -158,7 +192,7 @@ void main() {
     await tester.tap(find.byTooltip('Retirer un exemplaire'));
     await tester.pumpAndSettle();
 
-    expect(repository.quantities['oracle-1'], 1);
+    expect(repository.quantities[('oracle-1', null)], 1);
   });
 
   group('la consultation atteint le dépôt', () {
@@ -230,6 +264,89 @@ void main() {
             'le bandeau porte sur la collection entière : le voir tomber à zéro '
             'en cherchant donnerait l\'impression d\'avoir tout perdu',
       );
+    });
+  });
+
+  group('les éditions', () {
+    testWidgets('une édition connue est affichée sur la ligne', (tester) async {
+      await pumpCollection(
+        tester,
+        entries: [
+          entry(
+            printId: 'print-mh2',
+            setCode: 'mh2',
+            setName: 'Modern Horizons 2',
+            collectorNumber: '123',
+          ),
+        ],
+      );
+
+      expect(find.textContaining('Modern Horizons 2'), findsOneWidget);
+      expect(find.textContaining('MH2 #123'), findsOneWidget);
+    });
+
+    testWidgets('une édition inconnue invite à la préciser', (tester) async {
+      await pumpCollection(tester, entries: [entry()]);
+
+      expect(find.text('Édition non précisée'), findsOneWidget);
+    });
+
+    testWidgets('choisir une édition la transmet au dépôt', (tester) async {
+      final repository = await pumpCollection(
+        tester,
+        entries: [entry()],
+        availablePrintings: [printing()],
+      );
+
+      await tester.tap(find.text('Édition non précisée'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Modern Horizons 2').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.lastPrintingMove,
+        (
+          oracleId: 'oracle-1',
+          from: null,
+          to: 'print-mh2',
+          quantity: null,
+        ),
+        reason: 'sans ce déplacement, le choix resterait affiché mais non enregistré',
+      );
+    });
+
+    testWidgets('ajouter un exemplaire vise la bonne édition', (tester) async {
+      final repository = await pumpCollection(
+        tester,
+        entries: [entry(printId: 'print-mh2', setCode: 'mh2')],
+      );
+
+      await tester.tap(find.byTooltip('Ajouter un exemplaire'));
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.quantities[('oracle-1', 'print-mh2')],
+        1,
+        reason: 'ajouter depuis une ligne d\'édition ne doit pas créer une '
+            'ligne sans édition',
+      );
+    });
+
+    testWidgets('les exemplaires sans édition sont signalés dans les totaux', (
+      tester,
+    ) async {
+      await pumpCollection(
+        tester,
+        entries: [entry()],
+        totals: const CollectionSummary(
+          totalCards: 54,
+          distinctCards: 20,
+          totalValueEur: 49.40,
+          unspecifiedPrints: 12,
+        ),
+      );
+
+      expect(find.textContaining('12 sans édition'), findsOneWidget);
     });
   });
 }

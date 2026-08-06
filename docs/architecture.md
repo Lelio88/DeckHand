@@ -160,7 +160,7 @@ L'illustration est **identique en français et en anglais** ; seul le cadre de t
 
 | Limite | Nature | Conséquence |
 |---|---|---|
-| Rééditions partageant la même illustration | Indiscernables par empreinte seule | La distinction d'édition passe par le symbole d'extension, en second temps et avec une fiabilité moindre. Valorisation par défaut : impression la moins chère. |
+| Rééditions partageant la même illustration | Indiscernables par empreinte seule | L'édition se choisit à la main dans le sélecteur, la reconnaissance n'ayant pas à trancher. Valorisation par défaut tant qu'elle n'est pas précisée : impression la moins chère. |
 | Cartes full-art, borderless, showcase | Géométrie non standard | Le découpage à position fixe échoue. Nécessite une détection de gabarit ou une empreinte de secours sur la carte entière. |
 | Cartes empilées | Optique, non algorithmique | Seule la carte du dessus est visible. D'où les deux modes retenus : étalement et feuilletage. |
 
@@ -237,7 +237,7 @@ Les précons font exactement 100 cartes, commandant inclus — MTGJSON le livre 
 | Table | Rôle |
 |---|---|
 | `cards` | Miroir du catalogue Scryfall — nom oracle, identité couleur, légalités |
-| `card_prints` | Impressions : édition, langue, prix, illustration |
+| `card_prints` | Impressions : édition, langue, prix, illustration — 162 000 lignes |
 | `art_hashes` | Index d'empreintes, servi à l'app |
 | `users` | Comptes Supabase Auth |
 | `collections` / `collection_items` | Possessions, par utilisateur |
@@ -246,7 +246,19 @@ Les précons font exactement 100 cartes, commandant inclus — MTGJSON le livre 
 
 **`deck_sources` porte l'attribution.** TopDeck.gg impose un crédit visible ; l'exigence doit voyager avec la donnée pour que l'interface ne puisse pas l'oublier.
 
-**Granularité de collection retenue** : nom + édition lorsqu'elle est détectable. L'état (NM/played) et le caractère *foil* sont ignorés — pure saisie manuelle, sans apport pour le deckbuilding.
+**Granularité de collection retenue** : nom + édition. L'état (NM/played) et le caractère *foil* sont ignorés — pure saisie manuelle, sans apport pour le deckbuilding.
+
+### Éditions
+
+`card_prints` conserve **toutes les impressions anglaises et françaises** des cartes du périmètre : 162 000 lignes, ~55 Mo, mesurés en parcourant l'export `all_cards` avant d'ingérer. Les autres langues tripleraient le volume sans servir une collection franco-anglaise.
+
+Aucun plafond par carte, bien que la médiane soit de 3 impressions et le maximum de 1 269 (les terrains de base). Ne garder que les N moins chères ferait disparaître exactement l'édition qu'on cherche quand elle est ancienne et cotée — or c'est précisément celle-là qu'on veut désigner. C'est au sélecteur de rendre mille éditions navigables (recherche par extension, possédées en tête), pas à l'ingestion de les amputer.
+
+`collection_items.print_id` est **nullable, et le rester est un état de plein droit** : on saisit vite, on précise plus tard. La contrainte `UNIQUE NULLS NOT DISTINCT (collection_id, oracle_id, print_id)` fait cohabiter « trois Foudre non précisées » et « une Foudre de MH2 » sur deux lignes distinctes. La valorisation suit : prix de l'édition quand elle est connue, prix le moins cher connu sinon — un plancher, jamais une invention.
+
+**L'index d'empreintes ne suit pas ce volume.** `pending_prints` ne retient qu'une impression de référence par carte *sans aucune empreinte* : le filtre porte sur la carte, pas sur l'impression. Sans cela, l'ingestion des éditions réclamerait 130 000 téléchargements d'images et quintuplerait l'index que l'application télécharge — pour peu de gain, une carte rééditée gardant le plus souvent son illustration. Le départage privilégie l'anglais puis la sortie la plus ancienne, jamais le prix : un critère fondé sur la cote désignerait une impression différente au gré des fluctuations et ferait recalculer des empreintes déjà connues.
+
+(Indexer *toutes* les illustrations reconnaîtrait les rééditions à l'art changé — piste réelle, non prise ici, qui se paierait en poids d'index côté application.)
 
 ---
 

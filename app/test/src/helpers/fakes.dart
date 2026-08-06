@@ -6,7 +6,11 @@
 /// au moindre remaniement.
 library;
 
+import 'package:deckhand/src/features/card_search/data/card_repository.dart';
+import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
+import 'package:deckhand/src/features/printings/data/printing_repository.dart';
+import 'package:deckhand/src/features/printings/domain/card_printing.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
 import 'package:deckhand/src/features/decks/data/deck_repository.dart';
 import 'package:deckhand/src/features/decks/domain/deck_suggestion.dart';
@@ -68,8 +72,26 @@ class FakeDeckRepository implements DeckRepository {
   Future<List<MissingCard>> missingCards(String deckId) async => missing;
 }
 
+/// Faux catalogue de cartes.
+class FakeCardRepository implements CardRepository {
+  List<CardHit> results = const [];
+  String? lastQuery;
+
+  @override
+  Future<List<CardHit>> search(String query, {int limit = 20}) async {
+    lastQuery = query;
+    return query.trim().isEmpty ? const [] : results;
+  }
+
+  @override
+  Future<List<CardHit>> byOracleIds(List<String> oracleIds) async => results;
+}
+
 class FakeCollectionRepository implements CollectionRepository {
-  final Map<String, int> quantities = {};
+  /// Quantités par (carte, édition). L'édition nulle — « non précisée » — est une
+  /// clé comme une autre : c'est exactement ce que fait la contrainte
+  /// `UNIQUE NULLS NOT DISTINCT` côté base.
+  final Map<(String, String?), int> quantities = {};
 
   /// Contenu servi par `page`, dans l'ordre où il a été posé.
   List<CollectionEntry> entries = const [];
@@ -82,21 +104,56 @@ class FakeCollectionRepository implements CollectionRepository {
   CollectionSort? lastSort;
   int? lastOffset;
 
+  /// Dernier déplacement d'édition demandé.
+  ({String oracleId, String? from, String? to, int? quantity})? lastPrintingMove;
+
   @override
-  Future<int> add(String oracleId, {int quantity = 1}) async {
-    quantities[oracleId] = (quantities[oracleId] ?? 0) + quantity;
-    return quantities[oracleId]!;
+  Future<int> add(String oracleId, {int quantity = 1, String? printId}) async {
+    final key = (oracleId, printId);
+    quantities[key] = (quantities[key] ?? 0) + quantity;
+    return quantities[key]!;
   }
 
   @override
-  Future<int> remove(String oracleId, {int quantity = 1}) async {
-    final left = (quantities[oracleId] ?? 0) - quantity;
+  Future<int> remove(String oracleId, {int quantity = 1, String? printId}) async {
+    final key = (oracleId, printId);
+    final left = (quantities[key] ?? 0) - quantity;
     if (left <= 0) {
-      quantities.remove(oracleId);
+      quantities.remove(key);
       return 0;
     }
-    quantities[oracleId] = left;
+    quantities[key] = left;
     return left;
+  }
+
+  @override
+  Future<int> setPrinting(
+    String oracleId, {
+    String? fromPrintId,
+    String? toPrintId,
+    int? quantity,
+  }) async {
+    lastPrintingMove = (
+      oracleId: oracleId,
+      from: fromPrintId,
+      to: toPrintId,
+      quantity: quantity,
+    );
+
+    final source = (oracleId, fromPrintId);
+    final available = quantities[source] ?? 0;
+    if (available == 0) return 0;
+
+    final moved = quantity == null ? available : (quantity.clamp(1, available));
+    if (moved >= available) {
+      quantities.remove(source);
+    } else {
+      quantities[source] = available - moved;
+    }
+
+    final target = (oracleId, toPrintId);
+    quantities[target] = (quantities[target] ?? 0) + moved;
+    return quantities[target]!;
   }
 
   @override
@@ -115,4 +172,28 @@ class FakeCollectionRepository implements CollectionRepository {
 
   @override
   Future<CollectionSummary> summary() async => totals;
+}
+
+/// Faux dépôt d'éditions, pour les écrans qui ouvrent le sélecteur.
+class FakePrintingRepository implements PrintingRepository {
+  List<CardPrinting> printings = const [];
+  String? lastQuery;
+
+  @override
+  Future<List<CardPrinting>> forCard(
+    String oracleId, {
+    String? query,
+    int limit = 60,
+  }) async {
+    lastQuery = query;
+    if (query == null || query.isEmpty) return printings;
+    final needle = query.toLowerCase();
+    return printings
+        .where(
+          (p) =>
+              (p.setName ?? '').toLowerCase().contains(needle) ||
+              p.setCode.toLowerCase().startsWith(needle),
+        )
+        .toList(growable: false);
+  }
 }

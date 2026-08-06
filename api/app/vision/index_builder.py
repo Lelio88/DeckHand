@@ -58,14 +58,32 @@ class BuildReport:
 def pending_prints(
     conn: psycopg.Connection, limit: int | None = None
 ) -> list[tuple[str, str, str]]:
-    """Impressions dotées d'une illustration mais pas encore d'empreinte."""
+    """Une impression de référence par carte encore dépourvue d'empreinte.
+
+    **Le filtre porte sur la carte, pas sur l'impression**, et c'est ce qui rend
+    l'ingestion des éditions sans conséquence ici. Depuis que `card_prints` contient
+    les 161 000 impressions anglaises et françaises au lieu d'une par carte, demander
+    « les impressions sans empreinte » réclamerait 130 000 téléchargements d'images
+    supplémentaires, et quintuplerait l'index que l'application télécharge — pour
+    aucun gain : une carte rééditée garde le plus souvent son illustration.
+
+    L'ordre de départage privilégie l'anglais puis la sortie la plus ancienne, et non
+    le prix : un critère fondé sur la cote désignerait une impression différente au
+    gré des fluctuations, et ferait recalculer des empreintes déjà connues.
+
+    (Indexer *toutes* les illustrations reconnaîtrait aussi les rééditions à l'art
+    changé — piste réelle, mais qui se paie en poids d'index côté application ; elle
+    n'est pas prise ici.)
+    """
     query = """
-        SELECT p.scryfall_id::text, p.oracle_id::text, p.art_crop_url
+        SELECT DISTINCT ON (p.oracle_id)
+               p.scryfall_id::text, p.oracle_id::text, p.art_crop_url
         FROM public.card_prints p
-        LEFT JOIN public.art_hashes h ON h.scryfall_id = p.scryfall_id
         WHERE p.art_crop_url IS NOT NULL
-          AND h.scryfall_id IS NULL
-        ORDER BY p.scryfall_id
+          AND NOT EXISTS (
+              SELECT 1 FROM public.art_hashes h WHERE h.oracle_id = p.oracle_id
+          )
+        ORDER BY p.oracle_id, (p.lang = 'en') DESC, p.released_at, p.scryfall_id
     """
     if limit:
         query += f" LIMIT {int(limit)}"

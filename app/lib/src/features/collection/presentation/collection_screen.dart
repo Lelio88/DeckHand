@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../printings/presentation/printing_picker.dart';
 import '../data/collection_repository.dart';
 import '../domain/collection_entry.dart';
 
@@ -314,11 +315,28 @@ class _Totals extends StatelessWidget {
               ),
             ],
           ),
-          Text(
-            '${summary.totalValueEur.toStringAsFixed(2)} €',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${summary.totalValueEur.toStringAsFixed(2)} €',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+              // Une valorisation fondée sur des éditions inconnues est un plancher,
+              // pas une estimation. Le dire évite de prendre le chiffre pour argent
+              // comptant — sans transformer l'imprécision en reproche.
+              if (summary.unspecifiedPrints > 0)
+                Text(
+                  'dont ${summary.unspecifiedPrints} sans édition',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer.withValues(
+                      alpha: 0.8,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -337,6 +355,42 @@ class _EntryTile extends ConsumerWidget {
     await action();
     ref.invalidate(collectionProvider);
     ref.invalidate(collectionPageProvider);
+  }
+
+  /// Change l'édition de la ligne — ou la retire, si l'on préfère ne rien dire.
+  ///
+  /// Déplace **tous** les exemplaires de la ligne : distinguer deux exemplaires
+  /// d'une même ligne n'aurait pas de sens, ils sont indiscernables. Pour n'en
+  /// préciser qu'une partie, on retire puis on rajoute.
+  Future<void> _changePrinting(BuildContext context, WidgetRef ref) async {
+    final chosen = await showPrintingPicker(
+      context,
+      oracleId: entry.oracleId,
+      cardName: entry.displayName,
+      currentPrintId: entry.printId,
+      allowUnspecified: entry.hasPrinting,
+    );
+    if (chosen == null || !context.mounted) return;
+
+    final target = chosen.printId.isEmpty ? null : chosen.printId;
+    if (target == entry.printId) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(collectionRepositoryProvider)
+          .setPrinting(
+            entry.oracleId,
+            fromPrintId: entry.printId,
+            toPrintId: target,
+          );
+      ref.invalidate(collectionProvider);
+      ref.invalidate(collectionPageProvider);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Édition non enregistrée : $e')),
+      );
+    }
   }
 
   @override
@@ -365,12 +419,12 @@ class _EntryTile extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (entry.displayName != entry.name)
-                  Text(
-                    entry.name,
-                    style: muted,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                const SizedBox(height: 4),
+                  Text(entry.name, style: muted, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                _PrintingLine(
+                  entry: entry,
+                  onTap: () => _changePrinting(context, ref),
+                ),
                 Text(
                   entry.unitPriceEur == null
                       ? 'Prix inconnu'
@@ -383,8 +437,10 @@ class _EntryTile extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.remove_circle_outline),
             tooltip: 'Retirer un exemplaire',
-            onPressed: () =>
-                _change(ref, () => repository.remove(entry.oracleId)),
+            onPressed: () => _change(
+              ref,
+              () => repository.remove(entry.oracleId, printId: entry.printId),
+            ),
           ),
           SizedBox(
             width: 28,
@@ -397,7 +453,10 @@ class _EntryTile extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             tooltip: 'Ajouter un exemplaire',
-            onPressed: () => _change(ref, () => repository.add(entry.oracleId)),
+            onPressed: () => _change(
+              ref,
+              () => repository.add(entry.oracleId, printId: entry.printId),
+            ),
           ),
           const SizedBox(width: 4),
           SizedBox(
@@ -411,6 +470,54 @@ class _EntryTile extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// L'édition d'une ligne, toujours cliquable.
+///
+/// Non précisée, elle invite à l'être sans le reprocher : rester vague est un
+/// choix valable, seulement moins précis pour la valorisation.
+class _PrintingLine extends StatelessWidget {
+  const _PrintingLine({required this.entry, required this.onTap});
+
+  final CollectionEntry entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final known = entry.hasPrinting;
+    final color = known
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(known ? Icons.style : Icons.style_outlined, size: 13, color: color),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                entry.printingLabel ?? 'Édition non précisée',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: color,
+                  fontWeight: known ? FontWeight.w600 : null,
+                  decoration: known ? null : TextDecoration.underline,
+                  decorationStyle: TextDecorationStyle.dotted,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -12,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../collection/data/collection_repository.dart';
+import '../../printings/domain/card_printing.dart';
+import '../../printings/presentation/printing_picker.dart';
 import '../../scan/presentation/scan_screen.dart';
 import '../../voice/presentation/voice_input_screen.dart';
 import '../data/card_repository.dart';
@@ -176,7 +178,73 @@ class _CardTileState extends ConsumerState<_CardTile> {
   /// pas rechargée après un ajout, sans cela le compteur resterait figé.
   int? _owned;
 
+  /// Édition retenue pour le prochain ajout. Nulle par défaut : préciser n'est
+  /// jamais obligatoire, et l'imposer rendrait la saisie de deux mille cartes
+  /// pénible. Le choix reste en place d'un ajout à l'autre — on saisit
+  /// généralement plusieurs cartes de la même extension à la suite.
+  CardPrinting? _printing;
+
   int get _quantity => _owned ?? widget.hit.owned;
+
+  /// Ouvre le sélecteur et retient l'édition choisie.
+  Future<void> _choosePrinting() async {
+    final hit = widget.hit;
+    final chosen = await showPrintingPicker(
+      context,
+      oracleId: hit.oracleId,
+      cardName: hit.matchedName,
+      currentPrintId: _printing?.printId,
+      allowUnspecified: _printing != null,
+    );
+    if (chosen == null || !mounted) return;
+    // Le sélecteur renvoie une édition vide pour « ne pas préciser » — `null`
+    // signifiant déjà « refermé sans choisir ».
+    setState(() => _printing = chosen.printId.isEmpty ? null : chosen);
+  }
+
+  /// Rattache après coup les exemplaires ajoutés sans édition.
+  ///
+  /// C'est le rattrapage du geste rapide : on ajoute d'abord, la notification
+  /// propose de préciser, un appui suffit. Le moment compte — c'est celui où
+  /// l'on a encore la carte en main.
+  Future<void> _specifyAfterAdd(int quantity) async {
+    final hit = widget.hit;
+    final chosen = await showPrintingPicker(
+      context,
+      oracleId: hit.oracleId,
+      cardName: hit.matchedName,
+    );
+    if (chosen == null || chosen.printId.isEmpty || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(collectionRepositoryProvider)
+          .setPrinting(
+            hit.oracleId,
+            fromPrintId: null,
+            toPrintId: chosen.printId,
+            quantity: quantity,
+          );
+      ref.invalidate(collectionProvider);
+      ref.invalidate(collectionPageProvider);
+      if (!mounted) return;
+      setState(() => _printing = chosen);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Édition enregistrée : ${chosen.label}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Édition non enregistrée : $e')),
+        );
+      }
+    }
+  }
 
   Future<void> _add() async {
     setState(() => _busy = true);
@@ -184,9 +252,10 @@ class _CardTileState extends ConsumerState<_CardTile> {
     final hit = widget.hit;
 
     try {
+      final printing = _printing;
       final total = await ref
           .read(collectionRepositoryProvider)
-          .add(hit.oracleId);
+          .add(hit.oracleId, printId: printing?.printId);
       ref.invalidate(collectionProvider);
       ref.invalidate(collectionPageProvider);
       if (!mounted) return;
@@ -197,19 +266,31 @@ class _CardTileState extends ConsumerState<_CardTile> {
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
         SnackBar(
-          content: Text('${hit.matchedName} ajoutée — vous en avez $total'),
-          duration: const Duration(seconds: 2),
-          action: SnackBarAction(
-            label: 'Annuler',
-            onPressed: () async {
-              final left = await ref
-                  .read(collectionRepositoryProvider)
-                  .remove(hit.oracleId);
-              ref.invalidate(collectionProvider);
-              ref.invalidate(collectionPageProvider);
-              if (mounted) setState(() => _owned = left);
-            },
+          content: Text(
+            printing == null
+                ? '${hit.matchedName} ajoutée — vous en avez $total'
+                : '${hit.matchedName} · ${printing.setCode.toUpperCase()} — vous en avez $total',
           ),
+          duration: const Duration(seconds: 4),
+          // Sans édition choisie, la notification sert de rampe d'accès vers le
+          // sélecteur : c'est l'instant où l'on tient la carte, donc le seul où
+          // l'on sait de quelle extension elle vient.
+          action: printing == null
+              ? SnackBarAction(
+                  label: 'Préciser l\'édition',
+                  onPressed: () => unawaited(_specifyAfterAdd(1)),
+                )
+              : SnackBarAction(
+                  label: 'Annuler',
+                  onPressed: () async {
+                    final left = await ref
+                        .read(collectionRepositoryProvider)
+                        .remove(hit.oracleId, printId: printing.printId);
+                    ref.invalidate(collectionProvider);
+                    ref.invalidate(collectionPageProvider);
+                    if (mounted) setState(() => _owned = left);
+                  },
+                ),
         ),
       );
     } catch (e) {
@@ -270,6 +351,8 @@ class _CardTileState extends ConsumerState<_CardTile> {
                     if (hit.legalCommander) const _FormatChip('Commander'),
                   ],
                 ),
+                const SizedBox(height: 8),
+                _PrintingSelector(printing: _printing, onTap: _choosePrinting),
               ],
             ),
           ),
@@ -298,6 +381,54 @@ class _CardTileState extends ConsumerState<_CardTile> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Le choix d'édition, posé sur la tuile plutôt que caché derrière un menu.
+///
+/// Affiche « Toutes éditions » tant que rien n'est choisi : c'est la description
+/// exacte de ce qui sera enregistré, là où « Choisir une édition » laisserait
+/// croire à une étape obligatoire.
+class _PrintingSelector extends StatelessWidget {
+  const _PrintingSelector({required this.printing, required this.onTap});
+
+  final CardPrinting? printing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final chosen = printing != null;
+    final color = chosen
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(chosen ? Icons.style : Icons.style_outlined, size: 15, color: color),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                chosen ? printing!.label : 'Toutes éditions',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: color,
+                  fontWeight: chosen ? FontWeight.w600 : null,
+                ),
+              ),
+            ),
+            Icon(Icons.arrow_drop_down, size: 18, color: color),
+          ],
+        ),
       ),
     );
   }
