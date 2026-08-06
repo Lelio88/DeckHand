@@ -127,7 +127,27 @@ Un filtre budget traverse les deux. L'étiquetage n'est pas cosmétique : il con
 
 ---
 
-## 5. Moteur de suggestion
+## 5. Recherche de cartes
+
+Le champ de saisie de collection interroge la fonction `search_cards(q, max_results)`
+via l'API REST, avec la clé publique — la recherche ne demande aucune authentification.
+Elle existe parce que l'opérateur de similarité trigram n'est pas exposable directement
+à un client : sans elle, la saisie échouerait sur la moindre faute de frappe.
+
+Barème de classement, du plus fort au plus faible : égalité stricte, puis correspondance
+sur un mot entier, puis fragment initial, puis proximité trigram. Les deux premiers
+paliers sont ce qui fait remonter « Sol Ring » avant « Soliton » quand on tape « sol ».
+
+**Performance mesurée** : 64 ms de médiane depuis un client, dont 45 ms de latence
+réseau vers la région Londres. Le premier appel après une période d'inactivité coûte
+plusieurs centaines de millisecondes — c'est un démarrage à froid, pas la requête.
+
+Un index de préfixe (`text_pattern_ops`) a été essayé puis **retiré** : il n'apportait
+aucun gain. Le motif de recherche provient d'un sous-select, il est donc inconnu au
+moment de la planification, et aucun index de préfixe ne peut être mobilisé. Inutile de
+retenter.
+
+## 6. Moteur de suggestion
 
 Matching contre des decklists réelles, pas de génération algorithmique.
 
@@ -141,7 +161,7 @@ Pour chaque deck du corpus, dans le format demandé :
 
 ---
 
-## 6. Parcours de livraison
+## 7. Parcours de livraison
 
 | Jalon | Contenu |
 |---|---|
