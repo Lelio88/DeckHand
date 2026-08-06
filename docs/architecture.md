@@ -66,6 +66,34 @@ Reconnaissance mesurée sur échantillon : 12/12 quel que soit le niveau de
 dégradation, avec une marge au second candidat de 14 à 21 bits en conditions
 normales, et de 6 à 16 bits en conditions rudes.
 
+### Parité serveur ↔ application
+
+L'index est calculé en Python, la reconnaissance s'exécute en Dart. Les deux
+implémentations doivent produire les mêmes bits, faute de quoi la reconnaissance
+échouerait **en silence**.
+
+**Le redimensionnement est fait à la main des deux côtés.** Une première version
+confiait la réduction aux bibliothèques (Lanczos côté Pillow,
+interpolation cubique côté Dart) : les empreintes divergeaient sur 3 images de
+test sur 5. La réduction passe désormais par un filtre de moyenne à bornes et
+divisions entières, et la conversion en niveaux de gris par une formule entière
+explicite. Cinq vecteurs de référence, générés depuis Python et rejoués par les
+tests Dart, verrouillent cette parité au bit près.
+
+**La parité stricte est en revanche impossible sur des JPEG**, et ce n'est pas un
+défaut à corriger : deux décodeurs JPEG ne reconstituent pas exactement les mêmes
+pixels, la norme le tolère. Mesuré sur 30 illustrations réelles, l'écart imputable
+au décodeur vaut **0 bit en médiane, 0,7 en moyenne, 5 au maximum** — petit devant
+la quinzaine de bits qui sépare deux cartes. `app/tool/verify_parity.dart` mesure
+cet écart et n'alerte qu'au-delà de 8 bits, seuil au-delà duquel la cause ne
+serait plus le décodeur mais l'algorithme.
+
+**Conséquence pour le jalon 2** : les écarts se cumulent. Une photo dégradée
+(3–12 bits) plus l'écart de décodage (0–5 bits) peut approcher la séparation
+minimale entre cartes. Si la mesure à pleine échelle confirme ce resserrement, la
+parade n'est pas d'allonger l'empreinte — c'est démontré contre-productif — mais
+de croiser avec l'OCR du nom, déjà prévu comme rôle secondaire.
+
 ### Pourquoi hacher l'illustration et non la carte entière
 
 L'illustration est **identique en français et en anglais** ; seul le cadre de texte change. En hachant l'art, le mélange linguistique de la collection devient un non-sujet. Hacher la carte entière produirait deux empreintes distinctes pour la même carte.
