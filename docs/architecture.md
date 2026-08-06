@@ -41,6 +41,31 @@ Annexe technique du [`CLAUDE.md`](../CLAUDE.md). Décrit le pipeline de reconnai
 5. **Recherche** — plus proche voisin par distance de Hamming dans l'index local. Une recherche linéaire sur quelques dizaines de milliers d'entrées reste instantanée ; aucune structure d'index sophistiquée n'est justifiée à cette échelle.
 6. **Confirmation** — l'utilisateur valide les cartes reconnues avant écriture en collection (garde-fou §IV.8).
 
+### Choix de l'algorithme — dHash 64 bits
+
+**dHash plutôt que pHash** parce que l'algorithme devra être réimplémenté à
+l'identique en Dart : dHash tient en une vingtaine de lignes sans transformée ni
+dépendance numérique, là où pHash exigerait une DCT.
+
+**64 bits plutôt que 256, et c'est mesuré.** Une grille 16×16 a été comparée à la
+grille 8×8 sur des illustrations réelles dégradées comme le ferait une photo
+médiocre (recadrage, flou, sous-exposition, JPEG qualité 35) :
+
+| | 64 bits | 256 bits |
+|---|---|---|
+| distance au plus proche voisin (médiane) | 21 | 104 |
+| distance après forte dégradation | 3–12 | 31–72 |
+| **rapport de séparation** (médiane) | **3,5×** | 1,9× |
+
+Une grille plus fine capture des détails que le flou et la compression
+détruisent en premier ; la dégradation touche donc proportionnellement plus de
+bits. Augmenter la résolution de l'empreinte **dégrade** la reconnaissance.
+Inutile de retenter.
+
+Reconnaissance mesurée sur échantillon : 12/12 quel que soit le niveau de
+dégradation, avec une marge au second candidat de 14 à 21 bits en conditions
+normales, et de 6 à 16 bits en conditions rudes.
+
 ### Pourquoi hacher l'illustration et non la carte entière
 
 L'illustration est **identique en français et en anglais** ; seul le cadre de texte change. En hachant l'art, le mélange linguistique de la collection devient un non-sujet. Hacher la carte entière produirait deux empreintes distinctes pour la même carte.
