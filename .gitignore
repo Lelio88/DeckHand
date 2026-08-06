@@ -10,7 +10,12 @@ service-account*.json
 # --- Données issues des sources externes ------------------------------------
 # Le dépôt est public : aucune donnée Scryfall, TopDeck.gg ou EDHTop16 n'y entre.
 # Tout ce qui suit est un artefact régénérable.
-data/
+#
+# Les barres obliques initiales sont IMPÉRATIVES : un motif `data/` sans ancrage
+# exclurait tout dossier de ce nom à n'importe quelle profondeur — à commencer
+# par la couche d'accès aux données de l'app Flutter.
+/data/
+/api/data/
 *.bulk.json
 art_hashes.bin
 *.sqlite

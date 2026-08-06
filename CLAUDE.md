@@ -50,9 +50,12 @@ La reconnaissance de cartes s'exécute **embarquée dans l'app** ; le serveur ne
 # API
 cd api && uvicorn app.main:app --reload
 
-# App
-cd app && flutter run              # mobile
-cd app && flutter run -d chrome    # web
+# App — les --dart-define sont OBLIGATOIRES : sans eux l'app refuse de
+# démarrer avec un message explicite, plutôt que d'échouer en 401 plus tard.
+# Valeurs dans ../.deckhand-secrets/supabase.env
+cd app && flutter run -d chrome \
+  --dart-define=SUPABASE_URL=... \
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=...
 
 # Tests
 cd api && .venv/Scripts/python -m pytest

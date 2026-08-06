@@ -1,0 +1,63 @@
+/// Résultat de recherche de carte.
+///
+/// Distingue deux noms, et c'est essentiel à l'usage : `name` est le nom oracle
+/// anglais qui fait foi partout (decklists, règles de format), tandis que
+/// `matchedName` est le nom qui a effectivement répondu à la saisie — souvent le
+/// nom français. Afficher les deux permet à l'utilisateur de reconnaître sa carte
+/// physique tout en voyant l'identité sous laquelle elle sera enregistrée.
+library;
+
+class CardHit {
+  const CardHit({
+    required this.oracleId,
+    required this.name,
+    required this.matchedName,
+    required this.matchedLang,
+    required this.legalPauper,
+    required this.legalModern,
+    required this.legalCommander,
+    this.typeLine,
+    this.manaCost,
+    this.priceEur,
+  });
+
+  final String oracleId;
+
+  /// Nom oracle anglais — l'identité canonique de la carte.
+  final String name;
+
+  /// Nom ayant répondu à la saisie, dans la langue de `matchedLang`.
+  final String matchedName;
+  final String matchedLang;
+
+  final String? typeLine;
+  final String? manaCost;
+
+  /// Prix de l'impression la moins chère, en euros. Nul si la carte n'est cotée
+  /// nulle part.
+  final double? priceEur;
+
+  final bool legalPauper;
+  final bool legalModern;
+  final bool legalCommander;
+
+  /// Vrai quand le nom affiché diffère du nom oracle, c'est-à-dire quand la
+  /// carte a été trouvée par sa traduction.
+  bool get isLocalized => matchedName != name;
+
+  factory CardHit.fromJson(Map<String, dynamic> json) {
+    final price = json['price_eur'];
+    return CardHit(
+      oracleId: json['oracle_id'] as String,
+      name: json['name'] as String,
+      matchedName: json['matched_name'] as String? ?? json['name'] as String,
+      matchedLang: json['matched_lang'] as String? ?? 'en',
+      typeLine: json['type_line'] as String?,
+      manaCost: json['mana_cost'] as String?,
+      priceEur: price == null ? null : (price as num).toDouble(),
+      legalPauper: json['legal_pauper'] as bool? ?? false,
+      legalModern: json['legal_modern'] as bool? ?? false,
+      legalCommander: json['legal_commander'] as bool? ?? false,
+    );
+  }
+}
