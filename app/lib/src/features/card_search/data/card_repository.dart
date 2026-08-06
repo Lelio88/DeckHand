@@ -15,6 +15,31 @@ class CardRepository {
 
   final SupabaseClient _client;
 
+  /// Récupère les cartes correspondant à des identifiants, dans l'ordre demandé.
+  ///
+  /// Utilisé après une reconnaissance : celle-ci rend des identifiants classés
+  /// par pertinence, et cet ordre doit survivre à la récupération des détails.
+  Future<List<CardHit>> byOracleIds(List<String> oracleIds) async {
+    if (oracleIds.isEmpty) return const [];
+
+    final rows = await _client.rpc<List<dynamic>>(
+      'cards_by_oracle_ids',
+      params: {'p_ids': oracleIds},
+    );
+
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map((row) {
+          final printed = row['printed_name'] as String?;
+          return CardHit.fromJson({
+            ...row,
+            'matched_name': printed ?? row['name'],
+            'matched_lang': printed == null ? 'en' : 'fr',
+          });
+        })
+        .toList(growable: false);
+  }
+
   /// Recherche des cartes par nom, en français comme en anglais, avec tolérance
   /// aux fautes de frappe.
   ///

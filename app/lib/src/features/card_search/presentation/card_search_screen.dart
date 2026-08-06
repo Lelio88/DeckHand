@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../collection/data/collection_repository.dart';
+import '../../scan/presentation/scan_screen.dart';
 import '../data/card_repository.dart';
 import '../domain/card_hit.dart';
 
@@ -52,7 +53,26 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _SearchField(controller: _controller, onChanged: _onChanged),
+        Row(
+          children: [
+            Expanded(
+              child: _SearchField(
+                controller: _controller,
+                onChanged: _onChanged,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 20, top: 4),
+              child: IconButton.filledTonal(
+                tooltip: 'Scanner une carte',
+                icon: const Icon(Icons.photo_camera_outlined),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const ScanScreen()),
+                ),
+              ),
+            ),
+          ],
+        ),
         Expanded(
           child: _query.isEmpty
               ? const _EmptyState()
