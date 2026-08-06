@@ -1,0 +1,47 @@
+# --- Secrets ---------------------------------------------------------------
+# Les secrets vivent hors du dépôt, dans ../.deckhand-secrets/.
+# Ces règles ne sont qu'un filet de sécurité supplémentaire.
+*.env
+!.env.example
+*.key
+*.pem
+service-account*.json
+
+# --- Données issues des sources externes ------------------------------------
+# Le dépôt est public : aucune donnée Scryfall, TopDeck.gg ou EDHTop16 n'y entre.
+# Tout ce qui suit est un artefact régénérable.
+data/
+*.bulk.json
+art_hashes.bin
+*.sqlite
+*.db
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# --- Flutter / Dart -----------------------------------------------------------
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/build/
+app/.packages
+app/ios/Pods/
+app/android/.gradle/
+app/android/local.properties
+app/**/GeneratedPluginRegistrant.*
+*.iml
+
+# --- Outils ------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
