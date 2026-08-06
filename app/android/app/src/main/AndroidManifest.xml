@@ -2,6 +2,12 @@
     <!-- Flutter ne déclare INTERNET que pour debug et profile : sans cette
          ligne, la version release ne peut joindre ni Supabase ni Scryfall. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Saisie vocale. RECORD_AUDIO est demandée à l'exécution ;
+         la requête <queries> est indispensable sur Android 11+ pour que
+         l'application puisse seulement VOIR le moteur de reconnaissance —
+         sans elle, speech_to_text rapporte « indisponible » sur un appareil
+         parfaitement capable. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:label="DeckHand"
@@ -53,6 +59,11 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 </manifest>

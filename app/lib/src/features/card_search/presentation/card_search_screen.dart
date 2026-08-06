@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../collection/data/collection_repository.dart';
 import '../../scan/presentation/scan_screen.dart';
+import '../../voice/presentation/voice_input_screen.dart';
 import '../data/card_repository.dart';
 import '../domain/card_hit.dart';
 
@@ -59,6 +60,18 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               child: _SearchField(
                 controller: _controller,
                 onChanged: _onChanged,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 6, top: 4),
+              child: IconButton.filledTonal(
+                tooltip: 'Dicter des cartes',
+                icon: const Icon(Icons.mic_none),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const VoiceInputScreen(),
+                  ),
+                ),
               ),
             ),
             Padding(
