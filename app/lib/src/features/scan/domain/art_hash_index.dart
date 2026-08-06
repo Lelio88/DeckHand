@@ -168,3 +168,32 @@ final Uint8List _popcount = Uint8List.fromList([
   for (var i = 0; i < 256; i++)
     i.toRadixString(2).split('').where((c) => c == '1').length,
 ]);
+
+/// Recherche à partir de plusieurs empreintes candidates.
+///
+/// Une carte photographiée produit une empreinte par cadre possible ; on ignore
+/// lequel s'applique. Chaque hypothèse est donc cherchée, et la meilleure
+/// l'emporte — un mauvais gabarit découpe l'illustration de travers et produit
+/// une empreinte éloignée de tout, il ne peut pas gagner par hasard.
+extension MultiQuerySearch on ArtHashIndex {
+  ({HashSearchResult result, K? source}) searchAny<K>(
+    Map<K, ArtHash> queries, {
+    int limit = 5,
+  }) {
+    HashSearchResult? best;
+    K? source;
+
+    for (final entry in queries.entries) {
+      final candidate = search(entry.value, limit: limit);
+      final currentBest = best?.best?.distance;
+      final candidateBest = candidate.best?.distance;
+      if (candidateBest == null) continue;
+      if (currentBest == null || candidateBest < currentBest) {
+        best = candidate;
+        source = entry.key;
+      }
+    }
+
+    return (result: best ?? const HashSearchResult([]), source: source);
+  }
+}

@@ -34,12 +34,40 @@ Annexe technique du [`CLAUDE.md`](../CLAUDE.md). Décrit le pipeline de reconnai
 
 ### Chaîne à l'exécution
 
-1. **Détection** — repérage des quadrilatères dans l'image (contours, filtrage par rapport d'aspect ≈ 63×88 mm).
-2. **Redressement** — correction de perspective vers un rectangle canonique.
-3. **Découpe** — extraction de la zone d'illustration.
-4. **Empreinte** — calcul du hash perceptuel de cette zone.
-5. **Recherche** — plus proche voisin par distance de Hamming dans l'index local. Une recherche linéaire sur quelques dizaines de milliers d'entrées reste instantanée ; aucune structure d'index sophistiquée n'est justifiée à cette échelle.
-6. **Confirmation** — l'utilisateur valide les cartes reconnues avant écriture en collection (garde-fou §IV.8).
+**Une carte à la fois (jalon 2) — pas de détection nécessaire.** L'utilisateur
+cadre la carte dans un guide affiché à l'écran : sa position est donc connue, et
+les étapes de détection et de redressement disparaissent. C'est ce qui rend le
+jalon 2 nettement plus simple que le jalon 3.
+
+1. **Découpe** — extraction de la zone d'illustration, à position fixe dans le cadre de visée.
+2. **Empreinte** — calcul du hash perceptuel de cette zone.
+3. **Recherche** — plus proche voisin par distance de Hamming dans l'index local. Une recherche linéaire sur quelques dizaines de milliers d'entrées reste instantanée ; aucune structure d'index sophistiquée n'est justifiée à cette échelle.
+4. **Confirmation** — l'utilisateur valide les cartes reconnues avant écriture en collection (garde-fou §IV.8).
+
+**Étalement multi-cartes (jalon 3)** — là seulement s'ajoutent le repérage des
+quadrilatères et la correction de perspective.
+
+### Où se trouve l'illustration — mesuré, pas estimé
+
+La zone d'illustration a été localisée en cherchant, dans le rendu complet de la
+carte, la fenêtre qui reproduit l'illustration publiée par Scryfall.
+
+| Cadre | gauche | haut | droite | bas |
+|---|---|---|---|---|
+| **moderne** (depuis 2003) | 0,080 | 0,120 | 0,920 | 0,550 |
+| **ancien** (avant 2003) | 0,114 | 0,100 | 0,890 | 0,538 |
+
+Magic a changé de cadre en 2003 et l'illustration n'y occupe pas la même zone —
+un détail loin d'être anecdotique, le Pauper puisant dans toute l'histoire du
+jeu. Sur 50 cartes tirées au hasard, le gabarit moderne seul situe correctement
+l'illustration dans **42 cas**, contre **47** en essayant les deux et en retenant
+la meilleure correspondance. Le coût est négligeable : deux empreintes, deux
+recherches de quelques millisecondes. Un mauvais gabarit découpe de travers et
+produit une empreinte éloignée de tout : il ne peut pas l'emporter par hasard.
+
+Les mises en page spéciales — `saga` (illustration verticale), `transform`,
+cartes pleine page — échappent aux deux gabarits. Elles relèveront de l'OCR du
+nom, prévu en appoint.
 
 ### Choix de l'algorithme — dHash 64 bits
 
