@@ -90,3 +90,44 @@ def test_resolve_deck_merges_duplicate_names():
     resolved, missing = resolver.resolve_deck({"Lightning Bolt": 2, "Foudre": 2})
     assert resolved == {"oracle-bolt": 4}
     assert missing == 0
+
+
+# --- OracleResolver ---------------------------------------------------------
+
+
+def test_oracle_resolver_accepts_known_identifier():
+    from app.ingestion.card_resolver import OracleResolver
+
+    resolver = OracleResolver({"oracle-bolt", "oracle-ring"})
+    assert resolver.resolve("oracle-bolt") == "oracle-bolt"
+
+
+def test_oracle_resolver_rejects_identifier_absent_from_catalogue():
+    """Le catalogue ne retient que les cartes légales dans les formats couverts.
+
+    Insérer un identifiant inconnu violerait la clé étrangère et ferait échouer
+    tout l'import.
+    """
+    from app.ingestion.card_resolver import OracleResolver
+
+    resolver = OracleResolver({"oracle-bolt"})
+    assert resolver.resolve("oracle-inconnu") is None
+    assert resolver.unresolved == {"oracle-inconnu": 1}
+
+
+def test_oracle_resolver_handles_blank_identifier():
+    from app.ingestion.card_resolver import OracleResolver
+
+    assert OracleResolver({"a"}).resolve("") is None
+
+
+def test_oracle_resolver_resolves_deck_like_the_name_resolver():
+    """Interface identique : `store_deck` accepte les deux indifféremment."""
+    from app.ingestion.card_resolver import OracleResolver
+
+    resolver = OracleResolver({"oracle-bolt", "oracle-ring"})
+    resolved, missing = resolver.resolve_deck(
+        {"oracle-bolt": 4, "oracle-ring": 1, "oracle-inconnu": 3}
+    )
+    assert resolved == {"oracle-bolt": 4, "oracle-ring": 1}
+    assert missing == 3

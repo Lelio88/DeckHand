@@ -102,10 +102,22 @@ Les deux sources n'ont pas la même qualité d'identifiants, ce qui dicte deux c
 Les decklists de tournoi sont des decks **compétitifs, donc chers** : un Modern de haut niveau embarque une base de terrains à plusieurs centaines d'euros. Alimenter l'app uniquement en decks de tournoi rendrait la fonctionnalité « à quelques cartes près » inexploitable — elle répondrait systématiquement « il te manque 41 cartes pour 780 € ».
 
 **Résolution retenue** : deux corpus distincts et explicitement étiquetés.
-- **Accessible** — précons officiels via MTGJSON, redistribution libre, pile dans la zone d'une collection ordinaire.
-- **Aspirationnel** — méta de tournoi via TopDeck.gg, affiché comme objectif long terme.
+- **`accessible`** — précons officiels via MTGJSON, redistribution libre, pile dans la zone d'une collection ordinaire.
+- **`competitive`** — méta de tournoi via TopDeck.gg, affiché comme objectif long terme.
 
-Un filtre budget traverse les deux. L'étiquetage n'est pas cosmétique : il conditionne la crédibilité de la promesse produit.
+L'étiquetage n'est pas cosmétique : il conditionne la crédibilité de la promesse produit, et l'interface le rend visible sur chaque deck.
+
+### Corpus effectivement importé
+
+| Source | Format | Decks | Étiquette |
+|---|---|---|---|
+| TopDeck.gg | Pauper | 725 | `competitive` |
+| TopDeck.gg | Modern | 113 | `competitive` |
+| MTGJSON | Commander | 190 | `accessible` |
+
+Les précons font exactement 100 cartes, commandant inclus — MTGJSON le livre dans un champ séparé, mais il compte dans le total du deck et doit donc être réintégré au calcul de complétion.
+
+**Qualité de résolution** : MTGJSON fournit l'`oracleId` Scryfall, la résolution est donc directe ; seules deux cartes sur l'ensemble des précons sont absentes du catalogue, parce qu'elles ne sont légales dans aucun format couvert. TopDeck.gg impose au contraire une résolution par nom, d'où le comptage des échecs et le seuil de rejet décrits plus bas.
 
 ---
 

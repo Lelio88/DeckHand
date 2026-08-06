@@ -82,7 +82,7 @@ supabase migration new <nom>       # nouvelle migration horodatée
 ## VIII. Contexte de Session
 
 - **État** : catalogue peuplé — 31 634 cartes, ~63 000 noms indexés (dont les noms français et chaque face des cartes recto-verso), une impression de référence par carte. Base à 100 Mo sur les 500 du plan gratuit. L'application permet de chercher une carte, l'ajouter à sa collection et en voir la valeur.
-- **Corpus** : 725 decks Pauper et 113 Modern importés de TopDeck.gg. Le moteur de suggestion est en place côté base. Les précons Commander (MTGJSON) restent à importer.
-- **Focus immédiat** : exposer les suggestions dans l'application.
+- **Corpus** : 1 028 decks — 725 Pauper et 113 Modern de TopDeck.gg (étiquetés `competitive`), 190 précons Commander de MTGJSON (étiquetés `accessible`). Le moteur de suggestion et son écran sont en place : la boucle saisie → collection → decks constructibles est complète.
+- **Focus immédiat** : jalon 2 — reconnaissance d'une carte à la fois, photo et caméra.
 - **Compte de test** : `test@deckhand.app`, mot de passe dans `../.deckhand-secrets/supabase.env`.
 - **Décision révisable avant le jalon 2** : le pipeline de vision est prévu en Dart pur pour couvrir mobile et web d'un seul code. Si la détection de contours s'avère trop lente sur l'étalement multi-cartes, ce seul maillon bascule en natif.

@@ -88,3 +88,30 @@ class CardResolver:
             resolved[oracle_id] = resolved.get(oracle_id, 0) + quantity
 
         return resolved, missing
+
+
+class OracleResolver(CardResolver):
+    """Variante pour les sources fournissant directement l'`oracle_id` Scryfall.
+
+    MTGJSON est dans ce cas : plus de résolution par nom, donc plus d'ambiguïté
+    de casse, d'accent ou de face. Il reste néanmoins une vérification à faire —
+    le catalogue ne retient que les cartes légales dans les formats couverts, et
+    insérer un identifiant absent violerait la clé étrangère, faisant échouer
+    l'import entier.
+
+    Hérite de `CardResolver` pour offrir la même interface : `store_deck` accepte
+    les deux indifféremment.
+    """
+
+    def __init__(self, known_oracle_ids: set[str]) -> None:
+        super().__init__({})
+        self._known = known_oracle_ids
+
+    def resolve(self, name: str) -> str | None:
+        oracle_id = (name or "").strip()
+        if not oracle_id or oracle_id not in self._known:
+            if oracle_id:
+                self._unresolved[oracle_id] += 1
+            return None
+        self._resolved_count += 1
+        return oracle_id
