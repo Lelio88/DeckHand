@@ -91,6 +91,7 @@ supabase migration new <nom>       # nouvelle migration horodatée
 - **État** : catalogue peuplé — 31 634 cartes, ~63 000 noms indexés (dont les noms français et chaque face des cartes recto-verso), une impression de référence par carte. Base à 100 Mo sur les 500 du plan gratuit. L'application permet de chercher une carte, l'ajouter à sa collection et en voir la valeur.
 - **Corpus** : 1 028 decks — 725 Pauper et 113 Modern de TopDeck.gg (étiquetés `competitive`), 190 précons Commander de MTGJSON (étiquetés `accessible`). Le moteur de suggestion et son écran sont en place : la boucle saisie → collection → decks constructibles est complète.
 - **Reconnaissance** : index de 31 634 empreintes construit, aucune collision. Mesuré de bout en bout sur photos dégradées : 100 % de reconnaissance en conditions normales, 98 % en mauvaise photo, et **aucun faux positif annoncé avec assurance**. L'écran de scan est en place.
-- **Focus immédiat** : essayer le scan sur de vraies cartes, puis jalon 3 — étalement multi-cartes.
+- **Focus immédiat** : essayer le scan sur de vraies cartes (APK Android), puis jalon 3 — étalement multi-cartes.
+- **Attributions** : Scryfall, TopDeck.gg et MTGJSON sont crédités dans l'écran « à propos » de l'application, en plus du README. Obligation contractuelle, pas décoration.
 - **Compte de test** : `test@deckhand.app`, mot de passe dans `../.deckhand-secrets/supabase.env`.
 - **Décision tranchée** : pipeline de vision en Dart pur, parité avec Python verrouillée par des vecteurs de test. La détection de contours ne devient nécessaire qu'au jalon 3 — le jalon 2 s'en passe grâce au cadrage guidé.

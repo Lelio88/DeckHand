@@ -1,12 +1,15 @@
 /// Coque de navigation de l'application connectée.
 ///
-/// Deux destinations seulement : chercher une carte, consulter sa collection.
-/// Les decks viendront s'ajouter ici lorsque le moteur de suggestion existera.
+/// Trois destinations : chercher une carte, consulter sa collection, voir ce
+/// qu'elle permet de construire. Le scan et l'écran « à propos » sont ouverts
+/// par-dessus plutôt que d'être des onglets — ce sont des gestes ponctuels, pas
+/// des lieux où l'on séjourne.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/about/presentation/about_screen.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/card_search/presentation/card_search_screen.dart';
 import '../features/collection/presentation/collection_screen.dart';
@@ -97,6 +100,13 @@ class _TopBar extends ConsumerWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'À propos et crédits',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const AboutScreen()),
             ),
           ),
           IconButton(

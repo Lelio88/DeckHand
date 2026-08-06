@@ -35,7 +35,9 @@ Future<FakeDeckRepository> pumpDecksScreen(
       overrides: [
         deckRepositoryProvider.overrideWithValue(decks),
         collectionRepositoryProvider.overrideWithValue(collection),
-        sessionProvider.overrideWith((ref) => Stream<Session?>.value(fakeSession())),
+        sessionProvider.overrideWith(
+          (ref) => Stream<Session?>.value(fakeSession()),
+        ),
       ],
       child: const MaterialApp(home: Scaffold(body: DeckSuggestionsScreen())),
     ),
@@ -67,7 +69,8 @@ void main() {
     expect(
       decks.lastFilters?.maxCostEur,
       10,
-      reason: 'le filtre affiché doit atteindre la requête, '
+      reason:
+          'le filtre affiché doit atteindre la requête, '
           'faute de quoi la liste contredit l\'interface',
     );
   });
@@ -151,6 +154,9 @@ void main() {
     await tester.tap(find.text('Constructibles'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Aucun deck ne passe ces filtres'), findsOneWidget);
+    expect(
+      find.textContaining('Aucun deck ne passe ces filtres'),
+      findsOneWidget,
+    );
   });
 }
