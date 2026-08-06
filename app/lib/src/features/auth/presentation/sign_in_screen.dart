@@ -70,7 +70,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     if (lower.contains('invalid login')) {
       return 'Adresse e-mail ou mot de passe incorrect.';
     }
-    if (lower.contains('already registered') || lower.contains('already exists')) {
+    if (lower.contains('already registered') ||
+        lower.contains('already exists')) {
       return 'Un compte existe déjà avec cette adresse.';
     }
     if (lower.contains('password')) {
@@ -165,16 +166,18 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             width: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : Text(_isRegistering ? 'Créer le compte' : 'Se connecter'),
+                        : Text(
+                            _isRegistering ? 'Créer le compte' : 'Se connecter',
+                          ),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: _busy
                         ? null
                         : () => setState(() {
-                              _isRegistering = !_isRegistering;
-                              _error = null;
-                            }),
+                            _isRegistering = !_isRegistering;
+                            _error = null;
+                          }),
                     child: Text(
                       _isRegistering
                           ? 'J\'ai déjà un compte'

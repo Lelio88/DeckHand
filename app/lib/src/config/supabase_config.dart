@@ -21,8 +21,9 @@ class SupabaseConfig {
   const SupabaseConfig._();
 
   static const url = String.fromEnvironment('SUPABASE_URL');
-  static const publishableKey =
-      String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  static const publishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+  );
 
   /// Vérifie la présence des valeurs et explique comment lancer l'app si elles
   /// manquent. Appelée au démarrage, avant toute initialisation réseau.

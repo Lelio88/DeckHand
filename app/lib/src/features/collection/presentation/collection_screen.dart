@@ -15,7 +15,8 @@ class CollectionScreen extends ConsumerWidget {
     final collection = ref.watch(collectionProvider);
 
     return collection.when(
-      loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      loading: () =>
+          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       error: (error, _) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -75,7 +76,9 @@ class _Totals extends StatelessWidget {
               Text(
                 '${summary.distinctCards} référence${summary.distinctCards > 1 ? 's' : ''} distincte${summary.distinctCards > 1 ? 's' : ''}',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+                  color: theme.colorScheme.onPrimaryContainer.withValues(
+                    alpha: 0.8,
+                  ),
                 ),
               ),
             ],
@@ -132,7 +135,11 @@ class _EntryTile extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (entry.displayName != entry.name)
-                  Text(entry.name, style: muted, overflow: TextOverflow.ellipsis),
+                  Text(
+                    entry.name,
+                    style: muted,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 const SizedBox(height: 4),
                 Text(
                   entry.unitPriceEur == null
@@ -196,7 +203,10 @@ class _EmptyCollection extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text('Votre collection est vide', style: theme.textTheme.titleMedium),
+            Text(
+              'Votre collection est vide',
+              style: theme.textTheme.titleMedium,
+            ),
             const SizedBox(height: 6),
             Text(
               'Cherchez une carte et ajoutez-la pour commencer.',

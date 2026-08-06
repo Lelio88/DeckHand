@@ -144,7 +144,9 @@ class _CardTileState extends ConsumerState<_CardTile> {
     final hit = widget.hit;
 
     try {
-      final total = await ref.read(collectionRepositoryProvider).add(hit.oracleId);
+      final total = await ref
+          .read(collectionRepositoryProvider)
+          .add(hit.oracleId);
       ref.invalidate(collectionProvider);
       if (!mounted) return;
       // Sans cela les messages s'empilent et l'utilisateur lit un retour périmé :
@@ -166,9 +168,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
       );
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text('Ajout impossible : $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Ajout impossible : $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

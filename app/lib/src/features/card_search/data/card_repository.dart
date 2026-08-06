@@ -45,7 +45,7 @@ final cardRepositoryProvider = Provider<CardRepository>(
 /// `autoDispose` associé à `family` fait qu'une recherche abandonnée libère sa
 /// place : en frappant « lightning », l'utilisateur produit neuf requêtes dont
 /// une seule compte.
-final cardSearchProvider =
-    FutureProvider.autoDispose.family<List<CardHit>, String>((ref, query) {
-  return ref.watch(cardRepositoryProvider).search(query);
-});
+final cardSearchProvider = FutureProvider.autoDispose
+    .family<List<CardHit>, String>((ref, query) {
+      return ref.watch(cardRepositoryProvider).search(query);
+    });

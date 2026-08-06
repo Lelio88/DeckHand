@@ -64,8 +64,7 @@ class CollectionSummary {
   final List<CollectionEntry> entries;
 
   /// Nombre total de cartes, exemplaires compris — 4 Foudre comptent pour 4.
-  int get totalCards =>
-      entries.fold(0, (sum, entry) => sum + entry.quantity);
+  int get totalCards => entries.fold(0, (sum, entry) => sum + entry.quantity);
 
   /// Nombre de cartes distinctes.
   int get distinctCards => entries.length;

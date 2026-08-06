@@ -10,6 +10,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/card_search/presentation/card_search_screen.dart';
 import '../features/collection/presentation/collection_screen.dart';
+import '../features/decks/presentation/deck_suggestions_screen.dart';
+
+/// Sous-titre affiché pour chaque destination, dans l'ordre des onglets.
+const _titles = ['Rechercher', 'Ma collection', 'Decks possibles'];
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -30,9 +34,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
             constraints: const BoxConstraints(maxWidth: 720),
             child: Column(
               children: [
-                _TopBar(
-                  title: _index == 0 ? 'Rechercher' : 'Ma collection',
-                ),
+                _TopBar(title: _titles[_index]),
                 Expanded(
                   // IndexedStack et non un simple switch : passer d'un onglet à
                   // l'autre ne doit pas effacer la recherche en cours.
@@ -41,6 +43,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                     children: const [
                       CardSearchScreen(),
                       CollectionScreen(),
+                      DeckSuggestionsScreen(),
                     ],
                   ),
                 ),
@@ -53,14 +56,16 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.search),
-            label: 'Rechercher',
-          ),
+          NavigationDestination(icon: Icon(Icons.search), label: 'Rechercher'),
           NavigationDestination(
             icon: Icon(Icons.style_outlined),
             selectedIcon: Icon(Icons.style),
             label: 'Collection',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.auto_awesome_outlined),
+            selectedIcon: Icon(Icons.auto_awesome),
+            label: 'Decks',
           ),
         ],
       ),
