@@ -116,11 +116,35 @@ la quinzaine de bits qui sépare deux cartes. `app/tool/verify_parity.dart` mesu
 cet écart et n'alerte qu'au-delà de 8 bits, seuil au-delà duquel la cause ne
 serait plus le décodeur mais l'algorithme.
 
-**Conséquence pour le jalon 2** : les écarts se cumulent. Une photo dégradée
-(3–12 bits) plus l'écart de décodage (0–5 bits) peut approcher la séparation
-minimale entre cartes. Si la mesure à pleine échelle confirme ce resserrement, la
-parade n'est pas d'allonger l'empreinte — c'est démontré contre-productif — mais
-de croiser avec l'OCR du nom, déjà prévu comme rôle secondaire.
+### Mesures sur l'index complet — 31 634 illustrations
+
+**Densité.** Aucune collision : les 31 634 empreintes sont toutes distinctes. Mais
+la séparation se resserre avec la taille du catalogue — distance médiane au plus
+proche voisin de **14 bits** contre 18 sur un échantillon de 400, et **18,7 %**
+des cartes ont un voisin à moins de 12 bits, soit le seuil de confiance retenu.
+
+**Reconnaissance de bout en bout**, sur 120 cartes tirées au hasard et dégradées
+comme le ferait une photo :
+
+| Régime | Bonne carte en tête | Dont avec assurance | **Fausse avec assurance** |
+|---|---|---|---|
+| Bonne photo | 120/120 (100 %) | 120 | **0** |
+| Photo moyenne | 120/120 (100 %) | 120 | **0** |
+| Mauvaise photo | 117/120 (98 %) | 93 | **0** |
+
+**Aucun faux positif annoncé avec assurance**, dans les trois régimes. C'est le
+seul résultat qui pouvait condamner l'approche.
+
+La densité ne se traduit donc pas en erreurs, et c'est le design qui l'explique :
+quand deux cartes sont serrées, la marge de confiance chute et le système
+**hésite au lieu d'affirmer**. Sur une mauvaise photo, 24 cartes sur 120 sont
+trouvées mais présentées avec réserve — l'utilisateur confirme, c'est du confort
+en moins, jamais une erreur silencieuse. Les 3 cartes manquées le sont elles
+aussi avec réserve.
+
+**Conclusion : dHash 64 bits suffit au jalon 2 ; l'OCR n'est pas nécessaire.** Il
+reste utile pour les mises en page hors gabarit (`saga`, `transform`, pleine
+page), que l'empreinte ne sait pas cadrer.
 
 ### Pourquoi hacher l'illustration et non la carte entière
 
