@@ -19,15 +19,18 @@ class DeckRepository {
 
   Future<List<DeckSuggestion>> suggestions(
     DeckFormat format, {
-    int maxMissing = 100,
+    DeckFilters filters = const DeckFilters(),
     int maxResults = 30,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'deck_suggestions',
       params: {
         'p_format': format.id,
-        'p_max_missing': maxMissing,
+        // Zéro carte manquante = constructible dès maintenant.
+        'p_max_missing': filters.buildableOnly ? 0 : 100,
         'p_max_results': maxResults,
+        'p_max_cost': filters.maxCostEur,
+        'p_tier': filters.accessibleOnly ? 'accessible' : null,
       },
     );
     return rows
@@ -50,6 +53,62 @@ class DeckRepository {
 
 final deckRepositoryProvider = Provider<DeckRepository>(
   (ref) => DeckRepository(Supabase.instance.client),
+);
+
+/// Critères d'affinage des suggestions.
+///
+/// Séparés du format parce qu'ils répondent à d'autres questions : le format dit
+/// *quoi* jouer, les filtres disent *ce qui est à portée*.
+class DeckFilters {
+  const DeckFilters({
+    this.buildableOnly = false,
+    this.accessibleOnly = false,
+    this.maxCostEur,
+  });
+
+  /// N'afficher que les decks sans carte manquante.
+  final bool buildableOnly;
+
+  /// N'afficher que les decks accessibles (précons), à l'exclusion des listes
+  /// de tournoi.
+  final bool accessibleOnly;
+
+  /// Plafond du coût de complétion, en euros. Nul si aucune limite.
+  final double? maxCostEur;
+
+  bool get isActive => buildableOnly || accessibleOnly || maxCostEur != null;
+
+  DeckFilters copyWith({
+    bool? buildableOnly,
+    bool? accessibleOnly,
+    double? maxCostEur,
+    bool clearCost = false,
+  }) => DeckFilters(
+    buildableOnly: buildableOnly ?? this.buildableOnly,
+    accessibleOnly: accessibleOnly ?? this.accessibleOnly,
+    maxCostEur: clearCost ? null : (maxCostEur ?? this.maxCostEur),
+  );
+}
+
+class DeckFiltersNotifier extends Notifier<DeckFilters> {
+  @override
+  DeckFilters build() => const DeckFilters();
+
+  void toggleBuildable() =>
+      state = state.copyWith(buildableOnly: !state.buildableOnly);
+
+  void toggleAccessible() =>
+      state = state.copyWith(accessibleOnly: !state.accessibleOnly);
+
+  void setMaxCost(double? value) => value == null
+      ? state = state.copyWith(clearCost: true)
+      : state = state.copyWith(maxCostEur: value);
+
+  void reset() => state = const DeckFilters();
+}
+
+final deckFiltersProvider = NotifierProvider<DeckFiltersNotifier, DeckFilters>(
+  DeckFiltersNotifier.new,
 );
 
 /// Format actuellement consulté.
@@ -78,7 +137,10 @@ final deckSuggestionsProvider =
 
       ref.watch(collectionProvider);
       final format = ref.watch(selectedFormatProvider);
-      return ref.watch(deckRepositoryProvider).suggestions(format);
+      final filters = ref.watch(deckFiltersProvider);
+      return ref
+          .watch(deckRepositoryProvider)
+          .suggestions(format, filters: filters);
     });
 
 final missingCardsProvider = FutureProvider.autoDispose

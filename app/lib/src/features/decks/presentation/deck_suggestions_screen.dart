@@ -22,6 +22,7 @@ class DeckSuggestionsScreen extends ConsumerWidget {
     return Column(
       children: [
         const _FormatSelector(),
+        const _FilterBar(),
         Expanded(
           child: suggestions.when(
             loading: () =>
@@ -32,8 +33,9 @@ class DeckSuggestionsScreen extends ConsumerWidget {
                 child: Text('Suggestions indisponibles : $error'),
               ),
             ),
-            data: (decks) =>
-                decks.isEmpty ? const _NoDeck() : _DeckList(decks: decks),
+            data: (decks) => decks.isEmpty
+                ? _NoDeck(filtered: ref.watch(deckFiltersProvider).isActive)
+                : _DeckList(decks: decks),
           ),
         ),
       ],
@@ -57,6 +59,70 @@ class _FormatSelector extends ConsumerWidget {
         selected: {selected},
         onSelectionChanged: (values) =>
             ref.read(selectedFormatProvider.notifier).select(values.first),
+      ),
+    );
+  }
+}
+
+/// Affinage des suggestions.
+///
+/// Trois questions distinctes, d'où trois contrôles plutôt qu'un tri unique :
+/// « qu'est-ce que je peux jouer ce soir » (constructibles), « qu'est-ce qui est
+/// à ma portée » (budget), et « montre-moi des decks vraiment accessibles »
+/// (précons plutôt que listes de tournoi).
+class _FilterBar extends ConsumerWidget {
+  const _FilterBar();
+
+  /// Paliers de budget. Des valeurs fixes plutôt qu'un curseur : on choisit un
+  /// ordre de grandeur, pas un montant au centime près.
+  static const _budgets = <double?>[null, 10, 25, 50, 100];
+
+  String _label(double? value) =>
+      value == null ? 'Tous budgets' : '≤ ${value.round()} €';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filters = ref.watch(deckFiltersProvider);
+    final notifier = ref.read(deckFiltersProvider.notifier);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          FilterChip(
+            label: const Text('Constructibles'),
+            selected: filters.buildableOnly,
+            onSelected: (_) => notifier.toggleBuildable(),
+          ),
+          FilterChip(
+            label: const Text('Accessibles'),
+            selected: filters.accessibleOnly,
+            onSelected: (_) => notifier.toggleAccessible(),
+          ),
+          PopupMenuButton<double?>(
+            initialValue: filters.maxCostEur,
+            onSelected: notifier.setMaxCost,
+            itemBuilder: (context) => [
+              for (final budget in _budgets)
+                PopupMenuItem(value: budget, child: Text(_label(budget))),
+            ],
+            child: Chip(
+              label: Text(_label(filters.maxCostEur)),
+              avatar: const Icon(Icons.euro, size: 16),
+              backgroundColor: filters.maxCostEur == null
+                  ? null
+                  : Theme.of(context).colorScheme.secondaryContainer,
+            ),
+          ),
+          if (filters.isActive)
+            TextButton(
+              onPressed: notifier.reset,
+              child: const Text('Tout afficher'),
+            ),
+        ],
       ),
     );
   }
@@ -337,7 +403,12 @@ class _Credits extends StatelessWidget {
 }
 
 class _NoDeck extends StatelessWidget {
-  const _NoDeck();
+  const _NoDeck({this.filtered = false});
+
+  /// Distingue « rien à proposer » de « vos filtres masquent tout ». Sans cette
+  /// nuance, l'utilisateur croit la base vide alors qu'il a simplement plafonné
+  /// son budget.
+  final bool filtered;
 
   @override
   Widget build(BuildContext context) {
@@ -346,8 +417,11 @@ class _NoDeck extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Text(
-          'Aucun deck dans ce format pour l\'instant.\n'
-          'Ajoutez des cartes à votre collection, ou changez de format.',
+          filtered
+              ? 'Aucun deck ne passe ces filtres.\n'
+                    'Élargissez le budget ou décochez « Constructibles ».'
+              : 'Aucun deck dans ce format pour l\'instant.\n'
+                    'Ajoutez des cartes à votre collection, ou changez de format.',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
