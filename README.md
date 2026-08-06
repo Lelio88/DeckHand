@@ -9,7 +9,9 @@ manque que quelques cartes, chiffrées.
 
 **Formats** : Pauper, Commander, Modern.
 
-> **État du projet** : fondations en cours de construction. Rien n'est encore utilisable.
+> **État du projet** : utilisable. Recherche bilingue, collection valorisée, suggestions de
+> decks et reconnaissance de cartes par photo fonctionnent. L'étalement multi-cartes et la
+> saisie vocale restent à faire.
 
 ## Pourquoi Pauper en premier
 
@@ -21,9 +23,10 @@ en Modern.
 
 ## Architecture
 
-Monorepo à deux têtes : `app/` (Flutter, mobile et web) et `api/` (Python / FastAPI), sur
-Supabase. La reconnaissance de cartes s'exécute embarquée dans l'application ; le serveur ne
-construit que l'index d'empreintes.
+Monorepo à deux têtes : `app/` (Flutter, mobile et web) et `api/` (jobs Python), sur Supabase.
+L'application interroge Supabase directement — il n'y a pas de serveur intermédiaire. La
+reconnaissance de cartes s'exécute embarquée ; `api/` ne sert qu'à ingérer les données et à
+construire l'index d'empreintes.
 
 → Détail complet dans [`docs/architecture.md`](./docs/architecture.md).
 

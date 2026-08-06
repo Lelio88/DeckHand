@@ -11,16 +11,19 @@ Annexe technique du [`CLAUDE.md`](../CLAUDE.md). Décrit le pipeline de reconnai
       │  saisie texte · voix · photo · scan multi-cartes
       │  reconnaissance embarquée (empreintes + index local)
       ▼
-   API Python / FastAPI  ── api/
+   Jobs Python  ── api/   (exécutés à la demande, pas un serveur)
       │  construction de l'index d'empreintes
       │  ingestion multi-sources (un connecteur par source)
-      │  moteur de matching collection ↔ decks
       ▼
    Supabase — Postgres · Auth · Storage
       ▲
       │  jobs d'ingestion planifiés
    Scryfall · TopDeck.gg · MTGJSON
 ```
+
+**Aucun serveur intermédiaire.** L'application interroge Supabase directement ; le
+moteur de matching vit dans la base, sous forme de fonctions SQL. `api/` n'expose
+rien : ce sont des jobs lancés à la main ou par planification.
 
 **Répartition des rôles.** La reconnaissance *à l'exécution* est embarquée dans l'app ; la *construction de l'index* est un travail serveur. Python parcourt le catalogue Scryfall, télécharge chaque illustration, calcule son empreinte et la jette. L'app télécharge le résultat compact et travaille hors ligne.
 

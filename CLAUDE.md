@@ -10,8 +10,11 @@ Usage privé (le propriétaire et quelques amis) sur un dépôt public. Ni produ
 
 ## II. Architecture
 
-Monorepo à deux têtes : `app/` (Flutter, mobile + web) et `api/` (Python/FastAPI), sur Supabase.
-La reconnaissance de cartes s'exécute **embarquée dans l'app** ; le serveur ne construit que l'index d'empreintes.
+Monorepo à deux têtes : `app/` (Flutter, mobile + web) et `api/` (jobs Python), sur Supabase.
+L'application parle **directement** à Supabase — aucun serveur intermédiaire. `api/` ne contient
+que des jobs d'ingestion et d'indexation, exécutés à la demande depuis un poste de travail.
+La reconnaissance de cartes s'exécute **embarquée dans l'app** ; les jobs se contentent de
+construire l'index d'empreintes qu'elle télécharge.
 
 → **Détail complet : [`docs/architecture.md`](./docs/architecture.md)** (pipeline de vision, modèle de données, connecteurs de sources).
 
@@ -19,10 +22,10 @@ La reconnaissance de cartes s'exécute **embarquée dans l'app** ; le serveur ne
 
 | Couche | Choix |
 |---|---|
-| `app/` | Flutter (mobile + web), Riverpod, go_router, freezed |
-| `api/` | Python 3.11+, FastAPI, httpx, Pillow/OpenCV (indexation hors ligne) |
+| `app/` | Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper` (scan), `shared_preferences` (cache) |
+| `api/` | Python 3.11+, httpx, psycopg, Pillow, numpy — jobs hors ligne, pas de serveur |
 | Données | Supabase — Postgres, Auth, Storage |
-| Hébergement | Render (API) + Supabase cloud |
+| Hébergement | Supabase cloud uniquement — rien à déployer, les jobs sont lancés en local |
 | Sources | Scryfall (catalogue, prix), TopDeck.gg (méta), MTGJSON (précons) |
 
 ## IV. Garde-Fous non négociables
@@ -47,9 +50,6 @@ La reconnaissance de cartes s'exécute **embarquée dans l'app** ; le serveur ne
 ## VI. Commandes de Développement
 
 ```bash
-# API
-cd api && uvicorn app.main:app --reload
-
 # App — les --dart-define sont OBLIGATOIRES : sans eux l'app refuse de
 # démarrer avec un message explicite, plutôt que d'échouer en 401 plus tard.
 # Valeurs dans ../.deckhand-secrets/supabase.env

@@ -1,14 +1,16 @@
 [project]
 name = "deckhand-api"
 version = "0.1.0"
-description = "API DeckHand — catalogue de cartes, collections et corpus de decks Magic"
+# Malgré son nom, ce paquet n'expose aucun service web : ce sont les jobs
+# d'ingestion et d'indexation de DeckHand. L'application parle directement à
+# Supabase ; rien ne transite par un serveur intermédiaire.
+description = "Jobs d'ingestion DeckHand — catalogue, corpus de decks, empreintes"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.32",
-    "httpx>=0.28",
-    "psycopg[binary]>=3.2",
-    "pydantic-settings>=2.6",
+    "httpx>=0.28",          # appels aux sources externes
+    "psycopg[binary]>=3.2", # écriture en base
+    "numpy>=2.0",           # réduction d'image pour les empreintes
+    "Pillow>=11.0",         # décodage des illustrations
 ]
 
 [project.optional-dependencies]
