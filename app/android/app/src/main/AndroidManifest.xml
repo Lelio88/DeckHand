@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flutter ne déclare INTERNET que pour debug et profile : sans cette
+         ligne, la version release ne peut joindre ni Supabase ni Scryfall. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
-        android:label="deckhand"
+        android:label="DeckHand"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
