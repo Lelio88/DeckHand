@@ -6,45 +6,44 @@
 ///
 /// **Fraîcheur et hors ligne se contredisent**, et l'arbitrage est explicite :
 /// le cache est **toujours** servi s'il existe, et sa péremption est vérifiée
-/// séparément, quand le réseau répond. Un index légèrement daté reconnaît
-/// parfaitement les cartes anciennes ; refuser de scanner faute de réseau serait
-/// une régression bien pire que d'ignorer la dernière extension.
+/// séparément, quand le réseau répond (voir `artHashIndexProvider`). Un index
+/// légèrement daté reconnaît parfaitement les cartes anciennes ; refuser de
+/// scanner faute de réseau serait une régression bien pire que d'ignorer la
+/// dernière extension.
 ///
-/// La péremption se mesure au **nombre d'entrées** côté serveur : l'index ne
-/// grossit qu'aux sorties d'extensions, et une simple comparaison de compte
-/// suffit à détecter qu'il a bougé, pour le prix d'une requête triviale.
+/// **Un seul mécanisme pour toutes les plateformes.** `shared_preferences`
+/// s'appuie sur `localStorage` en web et sur le stockage natif ailleurs, ce qui
+/// évite d'entretenir deux implémentations. Une version antérieure écrivait un
+/// fichier via `path_provider`, absent du web : le scan depuis un navigateur
+/// mobile — cas parfaitement réel, la caméra y est accessible — retéléchargeait
+/// alors l'index à chaque visite.
 ///
-/// **Le web n'a pas de cache.** `path_provider` n'y est pas implémenté, et le
-/// scan y est de toute façon marginal — la caméra d'un navigateur de bureau ne
-/// photographie pas des cartes. Plutôt que d'introduire un second mécanisme de
-/// stockage pour une plateforme secondaire, l'absence de cache y est assumée et
-/// signalée par `isSupported`.
+/// L'index est encodé en base64 : cela gonfle d'un tiers, mais la donnée n'est
+/// lue qu'une fois au démarrage et le surcoût reste sans conséquence face à un
+/// téléchargement complet.
 library;
 
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/art_hash_index.dart';
 
 /// Index conservé localement, avec le nombre d'entrées qu'il contenait.
 typedef CachedIndex = ({ArtHashIndex index, int count});
 
+/// Clé de stockage, **versionnée par l'algorithme d'empreinte**.
+///
+/// Une empreinte calculée avec un autre algorithme est inexploitable. La leçon
+/// vient de l'expérience : le redimensionnement a déjà changé une fois, rendant
+/// caduques onze mille empreintes. Incrémenter ce suffixe fait proprement
+/// ignorer l'ancien cache au lieu de le servir silencieusement.
+const _cacheKey = 'art_hash_index_dhash64_v1';
+
 class ArtIndexCache {
   const ArtIndexCache();
-
-  static const _fileName = 'art_hash_index.bin';
-
-  /// Faux sur les plateformes dépourvues de système de fichiers.
-  bool get isSupported => !kIsWeb;
-
-  Future<File?> _file() async {
-    if (!isSupported) return null;
-    final directory = await getApplicationSupportDirectory();
-    return File('${directory.path}/$_fileName');
-  }
 
   /// Relit l'index conservé, ou `null` s'il est absent ou illisible.
   ///
@@ -53,12 +52,14 @@ class ArtIndexCache {
   /// rendrait le scan définitivement inaccessible.
   Future<CachedIndex?> read() async {
     try {
-      final file = await _file();
-      if (file == null || !file.existsSync()) return null;
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = prefs.getString(_cacheKey);
+      if (encoded == null || encoded.isEmpty) return null;
 
-      final index = ArtHashIndex.fromBytes(await file.readAsBytes());
+      final index = ArtHashIndex.fromBytes(base64Decode(encoded));
       return (index: index, count: index.length);
-    } on Object {
+    } on Object catch (error) {
+      debugPrint('cache d\'empreintes illisible, purge : $error');
       await clear();
       return null;
     }
@@ -66,20 +67,19 @@ class ArtIndexCache {
 
   Future<void> write(ArtHashIndex index) async {
     try {
-      final file = await _file();
-      if (file == null) return;
-      await file.parent.create(recursive: true);
-      await file.writeAsBytes(Uint8List.fromList(index.toBytes()), flush: true);
-    } on Object {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cacheKey, base64Encode(index.toBytes()));
+    } on Object catch (error) {
       // Un cache qu'on n'arrive pas à écrire n'empêche pas de fonctionner :
-      // l'index reste en mémoire pour la session.
+      // l'index reste en mémoire pour la durée de la session.
+      debugPrint('cache d\'empreintes non enregistré : $error');
     }
   }
 
   Future<void> clear() async {
     try {
-      final file = await _file();
-      if (file != null && file.existsSync()) await file.delete();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cacheKey);
     } on Object {
       // Rien à faire de plus : le cache sera écrasé au prochain enregistrement.
     }
