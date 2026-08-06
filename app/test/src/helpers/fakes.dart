@@ -70,7 +70,17 @@ class FakeDeckRepository implements DeckRepository {
 
 class FakeCollectionRepository implements CollectionRepository {
   final Map<String, int> quantities = {};
-  CollectionSummary summary = const CollectionSummary(entries: []);
+
+  /// Contenu servi par `page`, dans l'ordre où il a été posé.
+  List<CollectionEntry> entries = const [];
+  CollectionSummary totals = CollectionSummary.empty;
+
+  /// Ce que la dernière consultation a demandé — c'est ce qui permet de vérifier
+  /// que l'écran transmet bien la recherche et le tri, et pas seulement qu'il
+  /// les affiche.
+  String? lastQuery;
+  CollectionSort? lastSort;
+  int? lastOffset;
 
   @override
   Future<int> add(String oracleId, {int quantity = 1}) async {
@@ -90,5 +100,19 @@ class FakeCollectionRepository implements CollectionRepository {
   }
 
   @override
-  Future<CollectionSummary> load() async => summary;
+  Future<List<CollectionEntry>> page({
+    String? query,
+    CollectionSort sort = CollectionSort.name,
+    int offset = 0,
+    int limit = collectionPageSize,
+  }) async {
+    lastQuery = query;
+    lastSort = sort;
+    lastOffset = offset;
+    if (offset >= entries.length) return const [];
+    return entries.sublist(offset, (offset + limit).clamp(0, entries.length));
+  }
+
+  @override
+  Future<CollectionSummary> summary() async => totals;
 }

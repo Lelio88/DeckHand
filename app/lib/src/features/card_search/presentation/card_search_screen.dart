@@ -171,6 +171,13 @@ class _CardTile extends ConsumerStatefulWidget {
 class _CardTileState extends ConsumerState<_CardTile> {
   bool _busy = false;
 
+  /// Exemplaires possédés, tels que connus à l'affichage puis corrigés par les
+  /// ajouts et retraits faits depuis cette carte. La liste de résultats n'étant
+  /// pas rechargée après un ajout, sans cela le compteur resterait figé.
+  int? _owned;
+
+  int get _quantity => _owned ?? widget.hit.owned;
+
   Future<void> _add() async {
     setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
@@ -181,7 +188,9 @@ class _CardTileState extends ConsumerState<_CardTile> {
           .read(collectionRepositoryProvider)
           .add(hit.oracleId);
       ref.invalidate(collectionProvider);
+      ref.invalidate(collectionPageProvider);
       if (!mounted) return;
+      setState(() => _owned = total);
       // Sans cela les messages s'empilent et l'utilisateur lit un retour périmé :
       // en ajoutant trois cartes d'affilée, la dernière notification affichée
       // concernait encore la première carte.
@@ -193,8 +202,12 @@ class _CardTileState extends ConsumerState<_CardTile> {
           action: SnackBarAction(
             label: 'Annuler',
             onPressed: () async {
-              await ref.read(collectionRepositoryProvider).remove(hit.oracleId);
+              final left = await ref
+                  .read(collectionRepositoryProvider)
+                  .remove(hit.oracleId);
               ref.invalidate(collectionProvider);
+              ref.invalidate(collectionPageProvider);
+              if (mounted) setState(() => _owned = left);
             },
           ),
         ),
@@ -248,7 +261,10 @@ class _CardTileState extends ConsumerState<_CardTile> {
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    if (_quantity > 0) _OwnedBadge(quantity: _quantity),
                     if (hit.legalPauper) const _FormatChip('Pauper'),
                     if (hit.legalModern) const _FormatChip('Modern'),
                     if (hit.legalCommander) const _FormatChip('Commander'),
@@ -280,6 +296,46 @@ class _CardTileState extends ConsumerState<_CardTile> {
                     : const Icon(Icons.add),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// « Déjà 3 » — ce qu'on possède, mis en avant plutôt que dans un coin.
+///
+/// C'est l'information qui évite de saisir deux fois la même carte quand on
+/// remplit sa collection en plusieurs séances.
+class _OwnedBadge extends StatelessWidget {
+  const _OwnedBadge({required this.quantity});
+
+  final int quantity;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 13,
+            color: theme.colorScheme.onPrimary,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'Déjà $quantity',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onPrimary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

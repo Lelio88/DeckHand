@@ -1,5 +1,15 @@
 /// Vue de la collection : ce que vous possédez, et ce que ça vaut.
+///
+/// **Conçu pour deux mille cartes, pas pour vingt.** À cette échelle, une liste
+/// brute est inexploitable : on cherche une carte précise, on veut voir les plus
+/// chères d'abord, et tout charger d'un coup serait aussi lent qu'inutile. D'où
+/// le champ de recherche, le tri, et le chargement par pages au défilement.
+///
+/// Le bandeau de totaux vient d'un appel distinct portant sur la collection
+/// entière : filtrer la liste ne doit pas faire varier le décompte affiché.
 library;
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,14 +17,108 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/collection_repository.dart';
 import '../domain/collection_entry.dart';
 
-class CollectionScreen extends ConsumerWidget {
+class CollectionScreen extends ConsumerStatefulWidget {
   const CollectionScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final collection = ref.watch(collectionProvider);
+  ConsumerState<CollectionScreen> createState() => _CollectionScreenState();
+}
 
-    return collection.when(
+class _CollectionScreenState extends ConsumerState<CollectionScreen> {
+  final _scrollController = ScrollController();
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+
+  /// Pages chargées au-delà de la première, qui vient du provider.
+  final List<CollectionEntry> _extra = [];
+  bool _loadingMore = false;
+  bool _exhausted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _scrollController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Frappe au clavier : on attend une pause avant d'interroger la base, sinon
+  /// « foudre » déclencherait six requêtes dont cinq déjà obsolètes.
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      ref.read(collectionViewProvider.notifier).search(value);
+    });
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels < position.maxScrollExtent - 400) return;
+    unawaited(_loadMore());
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || _exhausted) return;
+
+    final first = ref.read(collectionPageProvider).asData?.value;
+    if (first == null || first.length < collectionPageSize) {
+      // La première page n'est pas pleine : il n'y a rien après.
+      _exhausted = true;
+      return;
+    }
+
+    setState(() => _loadingMore = true);
+    final view = ref.read(collectionViewProvider);
+    try {
+      final page = await ref
+          .read(collectionRepositoryProvider)
+          .page(
+            query: view.query,
+            sort: view.sort,
+            offset: first.length + _extra.length,
+          );
+      if (!mounted) return;
+      setState(() {
+        _extra.addAll(page);
+        _exhausted = page.length < collectionPageSize;
+      });
+    } catch (_) {
+      // Un échec de page suivante laisse la liste en l'état : réessayer suffit,
+      // et perdre les cartes déjà affichées serait pire que ne rien ajouter.
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  /// Les pages accumulées valent pour un filtre et un tri donnés : dès qu'ils
+  /// changent, elles ne veulent plus rien dire.
+  void _resetPages() {
+    _extra.clear();
+    _exhausted = false;
+  }
+
+  Future<void> _refresh() async {
+    setState(_resetPages);
+    ref.invalidate(collectionProvider);
+    ref.invalidate(collectionPageProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(collectionViewProvider, (_, _) => setState(_resetPages));
+
+    final summary = ref.watch(collectionProvider);
+    final page = ref.watch(collectionPageProvider);
+    final view = ref.watch(collectionViewProvider);
+
+    return summary.when(
       loading: () =>
           const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       error: (error, _) => Center(
@@ -23,25 +127,152 @@ class CollectionScreen extends ConsumerWidget {
           child: Text('Collection illisible : $error'),
         ),
       ),
-      data: (summary) => summary.isEmpty
-          ? const _EmptyCollection()
-          : RefreshIndicator(
-              onRefresh: () async => ref.invalidate(collectionProvider),
-              child: Column(
-                children: [
-                  _Totals(summary: summary),
-                  Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                      itemCount: summary.entries.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) =>
-                          _EntryTile(entry: summary.entries[index]),
-                    ),
+      data: (totals) {
+        if (totals.isEmpty) return const _EmptyCollection();
+
+        final entries = [...?page.asData?.value, ..._extra];
+
+        return Column(
+          children: [
+            _Totals(summary: totals),
+            _Toolbar(
+              controller: _searchController,
+              sort: view.sort,
+              onSearch: _onSearchChanged,
+              onSort: (value) =>
+                  ref.read(collectionViewProvider.notifier).sortBy(value),
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refresh,
+                child: switch (page) {
+                  AsyncError(:final error) => _Message('Liste illisible : $error'),
+                  AsyncLoading() when entries.isEmpty => const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
+                  _ when entries.isEmpty => _Message(
+                    'Aucune carte ne correspond à « ${view.query} ».',
+                  ),
+                  _ => ListView.separated(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                    itemCount: entries.length + (_loadingMore ? 1 : 0),
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) => index >= entries.length
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : _EntryTile(entry: entries[index]),
+                  ),
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Recherche et tri, sur une seule ligne.
+class _Toolbar extends StatelessWidget {
+  const _Toolbar({
+    required this.controller,
+    required this.sort,
+    required this.onSearch,
+    required this.onSort,
+  });
+
+  final TextEditingController controller;
+  final CollectionSort sort;
+  final ValueChanged<String> onSearch;
+  final ValueChanged<CollectionSort> onSort;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onSearch,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Chercher dans la collection',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                isDense: true,
+                suffixIcon: controller.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Effacer',
+                        onPressed: () {
+                          controller.clear();
+                          onSearch('');
+                        },
+                      ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          PopupMenuButton<CollectionSort>(
+            initialValue: sort,
+            onSelected: onSort,
+            tooltip: 'Trier',
+            itemBuilder: (context) => [
+              for (final value in CollectionSort.values)
+                PopupMenuItem(value: value, child: Text(value.label)),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.sort, size: 18),
+                  const SizedBox(width: 6),
+                  Text(sort.label),
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Message extends StatelessWidget {
+  const _Message(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    // Reste défilable pour que « tirer pour rafraîchir » fonctionne même vide.
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(32, 48, 32, 32),
+      children: [
+        Text(
+          text,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -100,14 +331,12 @@ class _EntryTile extends ConsumerWidget {
 
   final CollectionEntry entry;
 
-  Future<void> _remove(WidgetRef ref) async {
-    await ref.read(collectionRepositoryProvider).remove(entry.oracleId);
+  /// Une modification change les totaux et peut sortir la carte de la liste
+  /// (dernier exemplaire retiré) : les deux providers sont donc invalidés.
+  Future<void> _change(WidgetRef ref, Future<int> Function() action) async {
+    await action();
     ref.invalidate(collectionProvider);
-  }
-
-  Future<void> _add(WidgetRef ref) async {
-    await ref.read(collectionRepositoryProvider).add(entry.oracleId);
-    ref.invalidate(collectionProvider);
+    ref.invalidate(collectionPageProvider);
   }
 
   @override
@@ -116,6 +345,7 @@ class _EntryTile extends ConsumerWidget {
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
+    final repository = ref.read(collectionRepositoryProvider);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
@@ -153,7 +383,8 @@ class _EntryTile extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.remove_circle_outline),
             tooltip: 'Retirer un exemplaire',
-            onPressed: () => _remove(ref),
+            onPressed: () =>
+                _change(ref, () => repository.remove(entry.oracleId)),
           ),
           SizedBox(
             width: 28,
@@ -166,7 +397,7 @@ class _EntryTile extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             tooltip: 'Ajouter un exemplaire',
-            onPressed: () => _add(ref),
+            onPressed: () => _change(ref, () => repository.add(entry.oracleId)),
           ),
           const SizedBox(width: 4),
           SizedBox(

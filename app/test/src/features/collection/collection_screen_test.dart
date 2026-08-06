@@ -1,8 +1,15 @@
 /// Tests de l'écran de collection.
 ///
-/// Les agrégats affichés — nombre de cartes, références distinctes, valeur
-/// totale — sont ce sur quoi l'utilisateur juge sa collection. Une erreur de
-/// calcul y est invisible : le chiffre paraît toujours plausible.
+/// **Ce que ces tests surveillent a changé avec la pagination.** Le calcul des
+/// agrégats est passé en SQL ; le risque n'est plus une addition fausse mais un
+/// critère qui n'atteint pas la base — l'écran affiche « trié par valeur », le
+/// dépôt reçoit « par nom », et rien ne le signale : la liste est plausible.
+/// C'est le défaut déjà rencontré sur les filtres de decks, invisible à
+/// `flutter analyze` comme à l'œil.
+///
+/// Second point de vigilance : le bandeau de totaux porte sur la collection
+/// entière. Filtrer la liste ne doit pas le faire varier, sans quoi chercher une
+/// carte donnerait l'impression d'en avoir perdu mille.
 library;
 
 import 'package:deckhand/src/features/auth/data/auth_repository.dart';
@@ -38,9 +45,22 @@ CollectionEntry entry({
 Future<FakeCollectionRepository> pumpCollection(
   WidgetTester tester, {
   List<CollectionEntry> entries = const [],
+  CollectionSummary? totals,
 }) async {
   final repository = FakeCollectionRepository()
-    ..summary = CollectionSummary(entries: entries);
+    ..entries = entries
+    ..totals =
+        totals ??
+        (entries.isEmpty
+            ? CollectionSummary.empty
+            : CollectionSummary(
+                totalCards: entries.fold(0, (sum, e) => sum + e.quantity),
+                distinctCards: entries.length,
+                totalValueEur: entries.fold(
+                  0.0,
+                  (sum, e) => sum + (e.linePriceEur ?? 0),
+                ),
+              ));
 
   await tester.pumpWidget(
     ProviderScope(
@@ -57,59 +77,37 @@ Future<FakeCollectionRepository> pumpCollection(
   return repository;
 }
 
+/// Saisit une recherche et laisse passer l'anti-rebond.
+Future<void> search(WidgetTester tester, String text) async {
+  await tester.enterText(find.byType(TextField), text);
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('une collection vide invite à commencer', (tester) async {
     await pumpCollection(tester);
     expect(find.textContaining('collection est vide'), findsOneWidget);
   });
 
-  testWidgets('les exemplaires comptent, pas seulement les références', (
+  testWidgets('les totaux affichés sont ceux de la collection entière', (
     tester,
   ) async {
+    // La page ne porte qu'une carte, la collection en compte 54 : c'est le
+    // serveur qui fait foi, pas ce qui est affiché.
     await pumpCollection(
       tester,
-      entries: [
-        entry(oracleId: 'a', quantity: 4),
-        entry(oracleId: 'b', name: 'Sol Ring', printedName: null, quantity: 1),
-      ],
+      entries: [entry()],
+      totals: const CollectionSummary(
+        totalCards: 54,
+        distinctCards: 20,
+        totalValueEur: 49.40,
+      ),
     );
 
-    expect(find.text('5 cartes'), findsOneWidget);
-    expect(find.textContaining('2 références distinctes'), findsOneWidget);
-  });
-
-  testWidgets('la valeur totale additionne les lignes', (tester) async {
-    await pumpCollection(
-      tester,
-      entries: [
-        entry(oracleId: 'a', quantity: 2, unitPrice: 1.12), // 2.24
-        entry(oracleId: 'b', quantity: 1, unitPrice: 0.79), // 0.79
-      ],
-    );
-
-    expect(find.text('3.03 €'), findsOneWidget);
-  });
-
-  testWidgets('une carte sans cote ne fausse pas le total', (tester) async {
-    // Deux cartes cotées, pour que le total diffère de chaque ligne prise
-    // isolément — sans quoi l'assertion ne distinguerait pas les deux.
-    await pumpCollection(
-      tester,
-      entries: [
-        entry(oracleId: 'a', quantity: 1, unitPrice: 2.00),
-        entry(oracleId: 'b', quantity: 1, unitPrice: 0.50),
-        entry(oracleId: 'c', quantity: 3, unitPrice: null),
-      ],
-    );
-
-    expect(
-      find.text('2.50 €'),
-      findsOneWidget,
-      reason:
-          'les cartes sans cote comptent pour zéro : '
-          'mieux vaut sous-estimer que d\'inventer un prix',
-    );
-    expect(find.text('Prix inconnu'), findsOneWidget);
+    expect(find.text('54 cartes'), findsOneWidget);
+    expect(find.textContaining('20 références distinctes'), findsOneWidget);
+    expect(find.text('49.40 €'), findsOneWidget);
   });
 
   testWidgets('le nom français prime, le nom oracle reste visible', (
@@ -133,6 +131,17 @@ void main() {
     },
   );
 
+  testWidgets('une carte sans cote s\'affiche sans prix inventé', (
+    tester,
+  ) async {
+    await pumpCollection(
+      tester,
+      entries: [entry(quantity: 3, unitPrice: null)],
+    );
+
+    expect(find.text('Prix inconnu'), findsOneWidget);
+  });
+
   testWidgets('ajouter un exemplaire passe par le dépôt', (tester) async {
     final repository = await pumpCollection(tester, entries: [entry()]);
 
@@ -150,5 +159,77 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.quantities['oracle-1'], 1);
+  });
+
+  group('la consultation atteint le dépôt', () {
+    testWidgets('la recherche est transmise, pas seulement affichée', (
+      tester,
+    ) async {
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await search(tester, 'foudre');
+
+      expect(
+        repository.lastQuery,
+        'foudre',
+        reason: 'filtrer côté écran seulement afficherait une liste non filtrée',
+      );
+    });
+
+    testWidgets('le tri est transmis au dépôt', (tester) async {
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Valeur').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.lastSort, CollectionSort.price);
+    });
+
+    testWidgets('le tri choisi reste affiché', (tester) async {
+      await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Quantité').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Quantité'), findsOneWidget);
+    });
+
+    testWidgets('une recherche sans résultat le dit', (tester) async {
+      final repository = await pumpCollection(tester, entries: [entry()]);
+      repository.entries = const [];
+
+      await search(tester, 'zzzz');
+
+      expect(find.textContaining('Aucune carte ne correspond'), findsOneWidget);
+    });
+
+    testWidgets('filtrer ne modifie pas les totaux de la collection', (
+      tester,
+    ) async {
+      final repository = await pumpCollection(
+        tester,
+        entries: [entry()],
+        totals: const CollectionSummary(
+          totalCards: 54,
+          distinctCards: 20,
+          totalValueEur: 49.40,
+        ),
+      );
+      repository.entries = const [];
+
+      await search(tester, 'zzzz');
+
+      expect(
+        find.text('54 cartes'),
+        findsOneWidget,
+        reason:
+            'le bandeau porte sur la collection entière : le voir tomber à zéro '
+            'en cherchant donnerait l\'impression d\'avoir tout perdu',
+      );
+    });
   });
 }

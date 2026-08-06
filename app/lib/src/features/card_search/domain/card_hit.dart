@@ -19,6 +19,7 @@ class CardHit {
     this.typeLine,
     this.manaCost,
     this.priceEur,
+    this.owned = 0,
   });
 
   final String oracleId;
@@ -41,6 +42,11 @@ class CardHit {
   final bool legalModern;
   final bool legalCommander;
 
+  /// Exemplaires déjà possédés. Sans cette information, on ne sait pas, en
+  /// saisissant, si une carte a déjà été ajoutée — et sur une collection saisie
+  /// en plusieurs séances, on ne sait plus où l'on en est dans sa boîte.
+  final int owned;
+
   /// Vrai quand le nom affiché diffère du nom oracle, c'est-à-dire quand la
   /// carte a été trouvée par sa traduction.
   bool get isLocalized => matchedName != name;
@@ -58,6 +64,7 @@ class CardHit {
       legalPauper: json['legal_pauper'] as bool? ?? false,
       legalModern: json['legal_modern'] as bool? ?? false,
       legalCommander: json['legal_commander'] as bool? ?? false,
+      owned: (json['owned'] as num?)?.toInt() ?? 0,
     );
   }
 }

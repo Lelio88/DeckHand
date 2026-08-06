@@ -89,6 +89,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           .read(collectionRepositoryProvider)
           .add(card.oracleId);
       ref.invalidate(collectionProvider);
+      ref.invalidate(collectionPageProvider);
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(

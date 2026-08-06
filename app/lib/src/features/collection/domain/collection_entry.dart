@@ -13,6 +13,7 @@ class CollectionEntry {
     this.typeLine,
     this.unitPriceEur,
     this.linePriceEur,
+    this.addedAt,
   });
 
   final String oracleId;
@@ -37,6 +38,9 @@ class CollectionEntry {
   final bool legalModern;
   final bool legalCommander;
 
+  /// Première fois que la carte est entrée en collection.
+  final DateTime? addedAt;
+
   /// Nom à afficher : le français s'il existe, l'anglais sinon.
   String get displayName => printedName ?? name;
 
@@ -53,26 +57,57 @@ class CollectionEntry {
       legalPauper: json['legal_pauper'] as bool? ?? false,
       legalModern: json['legal_modern'] as bool? ?? false,
       legalCommander: json['legal_commander'] as bool? ?? false,
+      addedAt: json['added_at'] == null
+          ? null
+          : DateTime.tryParse(json['added_at'] as String),
     );
   }
 }
 
-/// Collection complète, avec ses agrégats.
+/// Agrégats de la collection **entière**.
+///
+/// Calculés par le serveur, jamais depuis la page affichée : une page ne porte
+/// qu'une partie des cartes, et en déduire un total afficherait « 50 cartes »
+/// en première page puis « 30 » en seconde.
 class CollectionSummary {
-  const CollectionSummary({required this.entries});
+  const CollectionSummary({
+    required this.totalCards,
+    required this.distinctCards,
+    required this.totalValueEur,
+  });
 
-  final List<CollectionEntry> entries;
-
-  /// Nombre total de cartes, exemplaires compris — 4 Foudre comptent pour 4.
-  int get totalCards => entries.fold(0, (sum, entry) => sum + entry.quantity);
-
-  /// Nombre de cartes distinctes.
-  int get distinctCards => entries.length;
+  final int totalCards;
+  final int distinctCards;
 
   /// Valeur totale. Les cartes sans cote connue comptent pour zéro : mieux vaut
   /// sous-estimer que d'inventer un prix.
-  double get totalValueEur =>
-      entries.fold(0, (sum, entry) => sum + (entry.linePriceEur ?? 0));
+  final double totalValueEur;
 
-  bool get isEmpty => entries.isEmpty;
+  bool get isEmpty => totalCards == 0;
+
+  static const empty = CollectionSummary(
+    totalCards: 0,
+    distinctCards: 0,
+    totalValueEur: 0,
+  );
+
+  factory CollectionSummary.fromJson(Map<String, dynamic> json) =>
+      CollectionSummary(
+        totalCards: (json['total_cards'] as num?)?.toInt() ?? 0,
+        distinctCards: (json['distinct_cards'] as num?)?.toInt() ?? 0,
+        totalValueEur: (json['total_value_eur'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+/// Critères de consultation de la collection.
+enum CollectionSort {
+  name('name', 'Nom'),
+  price('price', 'Valeur'),
+  quantity('quantity', 'Quantité'),
+  recent('recent', 'Récent');
+
+  const CollectionSort(this.id, this.label);
+
+  final String id;
+  final String label;
 }
