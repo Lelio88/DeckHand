@@ -78,6 +78,6 @@ supabase migration new <nom>       # nouvelle migration horodatée
 
 ## VIII. Contexte de Session
 
-- **État** : fondations en cours — schéma de données et connecteur Scryfall.
-- **Focus immédiat** : premier jalon — collection par saisie texte, valorisation, et matching contre le corpus de decks, en Pauper d'abord. Sans reconnaissance d'images.
+- **État** : catalogue peuplé — 31 634 cartes, 61 298 noms indexés dont 29 664 en français, une impression de référence par carte. Base à 100 Mo sur les 500 du plan gratuit. Le corpus de decks est vide.
+- **Focus immédiat** : connecteurs de decks (TopDeck.gg pour le Pauper, MTGJSON pour les précons), puis moteur de matching collection ↔ decks.
 - **Décision révisable avant le jalon 2** : le pipeline de vision est prévu en Dart pur pour couvrir mobile et web d'un seul code. Si la détection de contours s'avère trop lente sur l'étalement multi-cartes, ce seul maillon bascule en natif.
