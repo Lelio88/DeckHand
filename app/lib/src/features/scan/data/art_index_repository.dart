@@ -16,6 +16,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/art_hash.dart';
 import '../domain/art_hash_index.dart';
+import 'art_index_cache.dart';
 
 /// Taille de page. Un compromis : assez grande pour limiter le nombre
 /// d'allers-retours, assez petite pour que la progression reste lisible et
@@ -71,12 +72,38 @@ final artIndexRepositoryProvider = Provider<ArtIndexRepository>(
   (ref) => ArtIndexRepository(Supabase.instance.client),
 );
 
-/// Index chargé en mémoire.
+/// Index chargé en mémoire, servi depuis le cache quand il est à jour.
+///
+/// L'ordre des opérations porte tout l'arbitrage entre fraîcheur et
+/// disponibilité :
+///
+/// 1. le cache local est lu en premier — s'il existe, il est utilisable
+///    immédiatement, même sans réseau ;
+/// 2. le nombre d'entrées côté serveur est demandé ; en cas d'échec, le cache
+///    est servi tel quel plutôt que d'empêcher le scan ;
+/// 3. il n'est retéléchargé que si le serveur en annonce davantage.
 ///
 /// `keepAlive` implicite : le provider n'est pas `autoDispose`, l'index survit
-/// donc à la fermeture de l'écran de scan. Le retélécharger à chaque ouverture
-/// serait absurde pour une donnée qui ne change qu'au rythme des sorties
-/// d'extensions.
-final artHashIndexProvider = FutureProvider<ArtHashIndex>((ref) {
-  return ref.watch(artIndexRepositoryProvider).download();
+/// donc à la fermeture de l'écran de scan.
+final artHashIndexProvider = FutureProvider<ArtHashIndex>((ref) async {
+  final repository = ref.watch(artIndexRepositoryProvider);
+  final cache = ref.watch(artIndexCacheProvider);
+
+  final cached = await cache.read();
+
+  if (cached != null) {
+    int? serverCount;
+    try {
+      serverCount = await repository.count();
+    } on Object {
+      // Hors ligne : le cache fait foi. Un index d'hier vaut infiniment mieux
+      // qu'un écran de scan inutilisable.
+      return cached.index;
+    }
+    if (serverCount <= cached.count) return cached.index;
+  }
+
+  final downloaded = await repository.download();
+  await cache.write(downloaded);
+  return downloaded;
 });
