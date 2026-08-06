@@ -168,6 +168,11 @@ def search_names_for(payload: dict[str, Any]) -> list[tuple[str, str, str]]:
     Renvoie des triplets `(nom affiché, nom normalisé, langue)`. Une impression
     française en génère deux — le nom oracle anglais et le nom imprimé — pour que la
     saisie fonctionne dans les deux langues. Les doublons sont écartés.
+
+    **Chaque face est indexée séparément.** Le catalogue nomme une carte
+    recto-verso « Delver of Secrets // Insectile Aberration », mais les decklists
+    et les joueurs disent « Delver of Secrets ». Sans entrée par face, la
+    résolution des decklists échoue et la recherche par égalité ne trouve rien.
     """
     lang = payload.get("lang") or "en"
     entries: list[tuple[str, str, str]] = []
@@ -177,6 +182,14 @@ def search_names_for(payload: dict[str, Any]) -> list[tuple[str, str, str]]:
     printed = payload.get("printed_name")
     if printed:
         candidates.append((printed, lang))
+
+    for face in payload.get("card_faces") or []:
+        face_name = face.get("name")
+        if face_name:
+            candidates.append((face_name, "en"))
+        face_printed = face.get("printed_name")
+        if face_printed:
+            candidates.append((face_printed, lang))
 
     for display, entry_lang in candidates:
         normalized = normalize_name(display)

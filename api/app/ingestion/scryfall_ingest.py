@@ -232,6 +232,44 @@ def write_search_names(
     return written
 
 
+def backfill_face_names(conn: psycopg.Connection) -> int:
+    """Ajoute les noms de faces manquants à l'index de recherche.
+
+    Rattrapage ciblé : les premières ingestions n'indexaient que le nom complet
+    des cartes recto-verso, si bien que « Delver of Secrets » restait
+    introuvable. Parcourt l'export oracle, bien plus léger que le catalogue
+    complet, et n'ajoute que les entrées absentes.
+    """
+    statement = """
+        INSERT INTO public.card_search_names (oracle_id, name, normalized, lang)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (oracle_id, normalized, lang) DO NOTHING
+    """
+
+    def rows() -> Iterator[tuple[str, str, str, str]]:
+        for payload in stream_bulk(BULK_ORACLE):
+            if not payload.get("card_faces"):
+                continue
+            if not is_relevant(payload.get("legalities") or {}):
+                continue
+            oracle_id = payload.get("oracle_id")
+            if not oracle_id:
+                continue
+            for display, normalized, lang in search_names_for(payload):
+                yield (oracle_id, display, normalized, lang)
+
+    added = 0
+    with conn.cursor() as cur:
+        for batch in _batched(rows(), BATCH_SIZE):
+            cur.executemany(statement, batch)
+            added += len(batch)
+            conn.commit()
+            print(f"  entrées de faces traitées : {added}", end="\r", flush=True)
+
+    print(f"  entrées de faces traitées : {added}      ")
+    return added
+
+
 def run() -> None:
     config = SupabaseConfig.load()
     with psycopg.connect(config.db_url, connect_timeout=30) as conn:

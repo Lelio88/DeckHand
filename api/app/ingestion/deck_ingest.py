@@ -1,0 +1,122 @@
+"""Écriture des decks en base, commune à toutes les sources.
+
+Chaque connecteur produit des decklists nommées ; ce module les résout vers le
+catalogue et les enregistre. Centraliser ici évite que chaque source réinvente
+la résolution et le seuil de qualité.
+
+**Seuil de qualité** : un deck dont trop de cartes restent introuvables est
+rejeté plutôt qu'enregistré amputé. Un deck de 60 cartes stocké avec 55 d'entre
+elles paraîtrait presque complet à l'utilisateur et fausserait tout le calcul de
+complétion — c'est-à-dire la promesse même du produit.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import psycopg
+
+from app.ingestion.card_resolver import CardResolver
+
+# Proportion maximale de cartes non résolues tolérée dans un deck.
+# 5 % laisse passer une carte égarée sur 60, pas une decklist mal lue.
+MAX_UNRESOLVED_RATIO = 0.05
+
+
+@dataclass
+class IngestReport:
+    """Ce qu'un import a produit — et ce qu'il a laissé de côté."""
+
+    inserted: int = 0
+    skipped_incomplete: int = 0
+    unresolved_names: dict[str, int] | None = None
+
+    def summary(self) -> str:
+        lines = [
+            f"decks enregistrés : {self.inserted}",
+            f"decks écartés (trop de cartes inconnues) : {self.skipped_incomplete}",
+        ]
+        if self.unresolved_names:
+            worst = sorted(self.unresolved_names.items(), key=lambda kv: -kv[1])[:10]
+            lines.append(f"noms non résolus : {len(self.unresolved_names)} distincts")
+            lines.extend(f"    {count:4}x  {name}" for name, count in worst)
+        return "\n".join(lines)
+
+
+def load_name_index(conn: psycopg.Connection) -> dict[str, str]:
+    """Charge l'index nom normalisé -> oracle_id.
+
+    Le catalogue tient largement en mémoire ; interroger la base une fois par
+    carte de chaque decklist serait absurde.
+    """
+    with conn.cursor() as cur:
+        rows = cur.execute(
+            "SELECT normalized, oracle_id::text FROM public.card_search_names"
+        ).fetchall()
+    return {normalized: oracle_id for normalized, oracle_id in rows}
+
+
+def store_deck(
+    conn: psycopg.Connection,
+    *,
+    source_id: str,
+    external_id: str,
+    name: str,
+    fmt: str,
+    tier: str,
+    mainboard: dict[str, int],
+    sideboard: dict[str, int],
+    resolver: CardResolver,
+    commander_oracle_id: str | None = None,
+    source_url: str | None = None,
+    recorded_at=None,
+) -> bool:
+    """Enregistre un deck. Renvoie False s'il a été écarté comme trop lacunaire.
+
+    L'écriture est idempotente : réimporter le même deck remplace ses cartes au
+    lieu de les dupliquer.
+    """
+    main_resolved, main_missing = resolver.resolve_deck(mainboard)
+    side_resolved, _ = resolver.resolve_deck(sideboard)
+
+    total_main = sum(mainboard.values())
+    if total_main == 0:
+        return False
+    if main_missing / total_main > MAX_UNRESOLVED_RATIO:
+        return False
+
+    with conn.cursor() as cur:
+        deck_id = cur.execute(
+            """
+            INSERT INTO public.decks (source_id, external_id, name, format, tier,
+                                      commander_oracle_id, source_url, recorded_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (source_id, external_id) DO UPDATE SET
+                name = EXCLUDED.name,
+                recorded_at = EXCLUDED.recorded_at
+            RETURNING id
+            """,
+            (source_id, external_id, name, fmt, tier,
+             commander_oracle_id, source_url, recorded_at),
+        ).fetchone()[0]
+
+        # Remplacement plutôt que fusion : une decklist révisée à la source ne
+        # doit pas laisser d'anciennes cartes derrière elle.
+        cur.execute("DELETE FROM public.deck_cards WHERE deck_id = %s", (deck_id,))
+
+        rows = [(deck_id, oid, qty, "main") for oid, qty in main_resolved.items()]
+        rows += [(deck_id, oid, qty, "side") for oid, qty in side_resolved.items()
+                 if oid not in main_resolved]
+
+        if rows:
+            cur.executemany(
+                """
+                INSERT INTO public.deck_cards (deck_id, oracle_id, quantity, board)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (deck_id, oracle_id, board) DO UPDATE
+                    SET quantity = EXCLUDED.quantity
+                """,
+                rows,
+            )
+
+    return True

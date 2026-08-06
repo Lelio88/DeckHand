@@ -224,3 +224,25 @@ def test_search_names_yields_both_oracle_and_printed_name(island_fr):
 
 def test_search_names_deduplicates_when_printed_equals_oracle(bolt_en):
     assert len(search_names_for(bolt_en)) == 1
+
+
+def test_search_names_indexes_each_face_of_a_double_faced_card(double_faced):
+    """Les decklists nomment ces cartes par leur seule face avant.
+
+    Sans entrée pour « Delver of Secrets », la résolution d'une decklist échoue
+    et l'utilisateur qui tape ce nom ne trouve rien.
+    """
+    normalized = {n for _, n, _ in search_names_for(double_faced)}
+    assert "delver of secrets // insectile aberration" in normalized
+    assert "delver of secrets" in normalized
+    assert "insectile aberration" in normalized
+
+
+def test_search_names_does_not_duplicate_face_equal_to_full_name():
+    """Une carte mono-face déclarant `card_faces` ne doit pas produire de doublon."""
+    payload = {
+        "name": "Solo Face",
+        "lang": "en",
+        "card_faces": [{"name": "Solo Face"}],
+    }
+    assert len(search_names_for(payload)) == 1
