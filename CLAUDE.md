@@ -28,7 +28,7 @@ La reconnaissance de cartes s'exécute **embarquée dans l'app** ; le serveur ne
 ## IV. Garde-Fous non négociables
 
 1. **EDHREC est interdit.** Ses conditions d'utilisation prohibent explicitement les requêtes automatisées et la republication de contenu. Ses endpoints JSON sont techniquement accessibles — ne jamais les appeler.
-2. **Attribution obligatoire.** TopDeck.gg exige un crédit visible et un lien depuis tout projet consommant son API. Scryfall exige également l'attribution. Ces mentions sont portées par la donnée (`deck_sources`), pas par un écran « à propos ».
+2. **Attribution obligatoire.** TopDeck.gg exige un crédit visible et un lien depuis tout projet consommant son API ; Scryfall l'exige également. Deux niveaux, complémentaires : chaque deck porte le crédit de sa source (`deck_sources`), pour que l'interface ne puisse pas l'oublier en affichant la donnée ; et l'écran « à propos » crédite l'ensemble des sources, y compris Scryfall dont vient tout le catalogue sans qu'aucun écran ne le montre.
 3. **Ne jamais paywaller ni simplement repackager les données Scryfall** — leurs conditions l'interdisent. La valeur ajoutée de DeckHand est le matching collection ↔ decks.
 4. **Respecter les débits.** Scryfall : ≤ 10 req/s, `User-Agent` descriptif obligatoire, préférer les *bulk data* aux appels unitaires. TopDeck.gg : 100 req/min.
 5. **Les prix Scryfall ne changent qu'une fois par jour.** Toute re-interrogation plus fréquente est du gaspillage.
