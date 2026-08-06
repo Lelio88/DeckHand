@@ -48,7 +48,10 @@ jalon 2 nettement plus simple que le jalon 3.
 4. **Confirmation** — l'utilisateur valide les cartes reconnues avant écriture en collection (garde-fou §IV.8).
 
 **Étalement multi-cartes (jalon 3)** — là seulement s'ajoutent le repérage des
-quadrilatères et la correction de perspective.
+quadrilatères et la correction de perspective. Plusieurs approches ont été
+prototypées et mesurées sans qu'aucune n'atteigne un rappel exploitable ; le
+détail et les impasses sont consignés dans
+[`spread-detection.md`](./spread-detection.md), pour éviter de refaire ce chemin.
 
 ### Où se trouve l'illustration — mesuré, pas estimé
 
