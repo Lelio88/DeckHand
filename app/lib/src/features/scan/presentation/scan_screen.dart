@@ -9,8 +9,6 @@
 /// change : on suggère au lieu d'affirmer, et l'utilisateur tranche.
 library;
 
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,6 +18,7 @@ import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
 import '../application/scan_service.dart';
 import '../data/art_index_repository.dart';
+import '../data/photo_source.dart';
 
 class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key});
@@ -43,19 +42,23 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     });
 
     try {
-      final picked = await ImagePicker().pickImage(
-        source: source,
-        maxWidth: 1600,
-        imageQuality: 92,
-      );
-      if (picked == null) {
+      final theme = Theme.of(context);
+      final bytes = await ref
+          .read(photoSourceProvider)
+          .capture(
+            source: source,
+            toolbarColor: theme.colorScheme.surfaceContainerHigh,
+            toolbarWidgetColor: theme.colorScheme.onSurface,
+            webContext: context,
+          );
+      // Abandon à la prise de vue ou au recadrage : rien à signaler.
+      if (bytes == null) {
         if (mounted) setState(() => _busy = false);
         return;
       }
 
-      final bytes = await picked.readAsBytes();
       final service = await ref.read(scanServiceProvider.future);
-      final outcome = service.recognise(Uint8List.fromList(bytes));
+      final outcome = service.recognise(bytes);
 
       final details = outcome.candidates.isEmpty
           ? <CardHit>[]
