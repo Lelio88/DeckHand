@@ -368,12 +368,13 @@ class _EntryTile extends ConsumerWidget {
       oracleId: entry.oracleId,
       cardName: entry.displayName,
       currentPrintId: entry.printId,
+      currentIsFoil: entry.isFoil,
       allowUnspecified: entry.hasPrinting,
     );
     if (chosen == null || !context.mounted) return;
 
-    final target = chosen.printId.isEmpty ? null : chosen.printId;
-    if (target == entry.printId) return;
+    final target = chosen.isUnspecified ? null : chosen.printing.printId;
+    if (target == entry.printId && chosen.isFoil == entry.isFoil) return;
 
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -383,6 +384,8 @@ class _EntryTile extends ConsumerWidget {
             entry.oracleId,
             fromPrintId: entry.printId,
             toPrintId: target,
+            fromFoil: entry.isFoil,
+            toFoil: chosen.isFoil,
           );
       ref.invalidate(collectionProvider);
       ref.invalidate(collectionPageProvider);
@@ -439,7 +442,11 @@ class _EntryTile extends ConsumerWidget {
             tooltip: 'Retirer un exemplaire',
             onPressed: () => _change(
               ref,
-              () => repository.remove(entry.oracleId, printId: entry.printId),
+              () => repository.remove(
+                entry.oracleId,
+                printId: entry.printId,
+                isFoil: entry.isFoil,
+              ),
             ),
           ),
           SizedBox(
@@ -455,7 +462,11 @@ class _EntryTile extends ConsumerWidget {
             tooltip: 'Ajouter un exemplaire',
             onPressed: () => _change(
               ref,
-              () => repository.add(entry.oracleId, printId: entry.printId),
+              () => repository.add(
+                entry.oracleId,
+                printId: entry.printId,
+                isFoil: entry.isFoil,
+              ),
             ),
           ),
           const SizedBox(width: 4),
@@ -505,7 +516,7 @@ class _PrintingLine extends StatelessWidget {
             const SizedBox(width: 5),
             Flexible(
               child: Text(
-                entry.printingLabel ?? 'Édition non précisée',
+                '${entry.printingLabel ?? 'Édition non précisée'}${entry.isFoil ? ' · foil' : ''}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(

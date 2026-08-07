@@ -128,14 +128,24 @@ class FakeCollectionRepository implements CollectionRepository {
   ({String oracleId, String? from, String? to, int? quantity})? lastPrintingMove;
 
   @override
-  Future<int> add(String oracleId, {int quantity = 1, String? printId}) async {
+  Future<int> add(
+    String oracleId, {
+    int quantity = 1,
+    String? printId,
+    bool isFoil = false,
+  }) async {
     final key = (oracleId, printId);
     quantities[key] = (quantities[key] ?? 0) + quantity;
     return quantities[key]!;
   }
 
   @override
-  Future<int> remove(String oracleId, {int quantity = 1, String? printId}) async {
+  Future<int> remove(
+    String oracleId, {
+    int quantity = 1,
+    String? printId,
+    bool isFoil = false,
+  }) async {
     final key = (oracleId, printId);
     final left = (quantities[key] ?? 0) - quantity;
     if (left <= 0) {
@@ -152,6 +162,8 @@ class FakeCollectionRepository implements CollectionRepository {
     String? fromPrintId,
     String? toPrintId,
     int? quantity,
+    bool fromFoil = false,
+    bool toFoil = false,
   }) async {
     lastPrintingMove = (
       oracleId: oracleId,
@@ -204,6 +216,7 @@ class FakePrintingRepository implements PrintingRepository {
     String oracleId, {
     String? query,
     int limit = 60,
+    String? lang,
   }) async {
     lastQuery = query;
     if (query == null || query.isEmpty) return printings;

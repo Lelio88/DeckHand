@@ -63,6 +63,11 @@ class CardPrint:
     art_crop_url: str | None
     price_eur: float | None
     price_usd: float | None
+    price_eur_foil: float | None
+    price_usd_foil: float | None
+    # Finitions réellement imprimées, telles que publiées par Scryfall :
+    # « nonfoil », « foil », « etched ». Détermine ce que le sélecteur propose.
+    finishes: list[str]
     released_at: str | None
 
 
@@ -145,11 +150,15 @@ def parse_card(payload: dict[str, Any]) -> Card:
 def parse_print(payload: dict[str, Any]) -> CardPrint:
     """Construit l'impression à partir d'un payload Scryfall.
 
-    **Le prix foil sert de repli**, et ce n'est pas un détail : certaines
-    impressions n'existent qu'en brillant — cartes de bundle, Secret Lair,
-    promotions. Leur cote non-foil est vide par nature, et ne lire que `eur`
-    les laissait sans prix alors que Scryfall les cote parfaitement sous
-    `eur_foil`. Elles comptaient donc pour zéro dans la valorisation.
+    **Les deux cotes sont conservées séparément.** Une impression brillante se
+    vend couramment le double ou le triple de sa jumelle normale ; les mélanger
+    fausse la valorisation dans les deux sens. Le repli de l'une sur l'autre
+    reste possible, mais il appartient à la base de le décider au moment de
+    l'affichage, pas à l'ingestion de l'imposer.
+
+    Certaines impressions n'existent qu'en brillant — bundles, Secret Lair,
+    promotions. `finishes` le dit, pour que le sélecteur ne propose pas une
+    finition qui n'a jamais été imprimée.
     """
     prices = payload.get("prices") or {}
 
@@ -163,8 +172,11 @@ def parse_print(payload: dict[str, Any]) -> CardPrint:
         collector_number=payload.get("collector_number"),
         rarity=payload.get("rarity"),
         art_crop_url=_art_crop_url(payload),
-        price_eur=_as_float(prices.get("eur")) or _as_float(prices.get("eur_foil")),
-        price_usd=_as_float(prices.get("usd")) or _as_float(prices.get("usd_foil")),
+        price_eur=_as_float(prices.get("eur")),
+        price_usd=_as_float(prices.get("usd")),
+        price_eur_foil=_as_float(prices.get("eur_foil")),
+        price_usd_foil=_as_float(prices.get("usd_foil")),
+        finishes=payload.get("finishes") or [],
         released_at=payload.get("released_at"),
     )
 

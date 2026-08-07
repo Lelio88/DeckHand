@@ -60,11 +60,15 @@ KEEP_LANGS = frozenset({"en", "fr"})
 PRINT_UPSERT = """
     INSERT INTO public.card_prints (scryfall_id, oracle_id, lang, printed_name,
                                     set_code, set_name, collector_number, rarity,
-                                    art_crop_url, price_eur, price_usd, released_at)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    art_crop_url, price_eur, price_usd, released_at,
+                                    price_eur_foil, price_usd_foil, finishes)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (scryfall_id) DO UPDATE SET
-        price_eur = EXCLUDED.price_eur,
-        price_usd = EXCLUDED.price_usd
+        price_eur      = EXCLUDED.price_eur,
+        price_usd      = EXCLUDED.price_usd,
+        price_eur_foil = EXCLUDED.price_eur_foil,
+        price_usd_foil = EXCLUDED.price_usd_foil,
+        finishes       = EXCLUDED.finishes
 """
 
 
@@ -82,6 +86,9 @@ def _print_row(p: CardPrint) -> tuple[Any, ...]:
         p.price_eur,
         p.price_usd,
         p.released_at,
+        p.price_eur_foil,
+        p.price_usd_foil,
+        p.finishes,
     )
 
 

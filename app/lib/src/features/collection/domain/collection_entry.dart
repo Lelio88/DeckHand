@@ -23,6 +23,7 @@ class CollectionEntry {
     this.setCode,
     this.setName,
     this.collectorNumber,
+    this.isFoil = false,
   });
 
   final String oracleId;
@@ -57,6 +58,10 @@ class CollectionEntry {
   final String? setName;
   final String? collectorNumber;
 
+  /// Exemplaire brillant. Fait partie de l'identité de la ligne : la même
+  /// carte en normal et en brillant occupe deux lignes distinctes.
+  final bool isFoil;
+
   bool get hasPrinting => printId != null;
 
   /// Édition telle qu'affichée : « Modern Horizons 2 · MH2 #123 ».
@@ -89,6 +94,7 @@ class CollectionEntry {
       setCode: json['set_code'] as String?,
       setName: json['set_name'] as String?,
       collectorNumber: json['collector_number'] as String?,
+      isFoil: json['is_foil'] as bool? ?? false,
     );
   }
 }

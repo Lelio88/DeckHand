@@ -23,6 +23,9 @@ class CardPrinting {
     this.releasedAt,
     this.owned = 0,
     this.artCropUrl,
+    this.priceEurFoil,
+    this.hasNonfoil = true,
+    this.hasFoil = false,
   });
 
   /// Identifiant Scryfall de l'impression.
@@ -47,6 +50,17 @@ class CardPrinting {
 
   /// Exemplaires de **cette** édition déjà en collection.
   final int owned;
+
+  /// Cote de la version brillante, souvent le double ou le triple de l'autre.
+  final double? priceEurFoil;
+
+  /// Finitions réellement imprimées. Une carte de bundle n'existe qu'en
+  /// brillant : lui proposer « normal » n'aurait aucun sens.
+  final bool hasNonfoil;
+  final bool hasFoil;
+
+  /// Prix dans la finition demandée.
+  double? priceFor({required bool foil}) => foil ? priceEurFoil : priceEur;
 
   /// Illustration de cette impression.
   ///
@@ -75,5 +89,8 @@ class CardPrinting {
         : DateTime.tryParse(json['released_at'] as String),
     owned: (json['owned'] as num?)?.toInt() ?? 0,
     artCropUrl: json['art_crop_url'] as String?,
+    priceEurFoil: (json['price_eur_foil'] as num?)?.toDouble(),
+    hasNonfoil: json['has_nonfoil'] as bool? ?? true,
+    hasFoil: json['has_foil'] as bool? ?? false,
   );
 }

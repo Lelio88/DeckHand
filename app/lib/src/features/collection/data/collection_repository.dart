@@ -31,26 +31,38 @@ class CollectionRepository {
   ///
   /// [printId] nul enregistre la carte sans préciser l'édition — le cas courant
   /// d'une saisie rapide, à compléter plus tard.
-  Future<int> add(String oracleId, {int quantity = 1, String? printId}) async {
+  Future<int> add(
+    String oracleId, {
+    int quantity = 1,
+    String? printId,
+    bool isFoil = false,
+  }) async {
     return _client.rpc<int>(
       'add_to_collection',
       params: {
         'p_oracle_id': oracleId,
         'p_quantity': quantity,
         'p_print_id': printId,
+        'p_is_foil': isFoil,
       },
     );
   }
 
   /// Retire des exemplaires et renvoie la quantité restante, zéro si la ligne a
   /// quitté la collection.
-  Future<int> remove(String oracleId, {int quantity = 1, String? printId}) async {
+  Future<int> remove(
+    String oracleId, {
+    int quantity = 1,
+    String? printId,
+    bool isFoil = false,
+  }) async {
     return _client.rpc<int>(
       'remove_from_collection',
       params: {
         'p_oracle_id': oracleId,
         'p_quantity': quantity,
         'p_print_id': printId,
+        'p_is_foil': isFoil,
       },
     );
   }
@@ -65,6 +77,8 @@ class CollectionRepository {
     String? fromPrintId,
     String? toPrintId,
     int? quantity,
+    bool fromFoil = false,
+    bool toFoil = false,
   }) async {
     return _client.rpc<int>(
       'set_collection_print',
@@ -73,6 +87,8 @@ class CollectionRepository {
         'p_from_print_id': fromPrintId,
         'p_to_print_id': toPrintId,
         'p_quantity': quantity,
+        'p_from_foil': fromFoil,
+        'p_to_foil': toFoil,
       },
     );
   }

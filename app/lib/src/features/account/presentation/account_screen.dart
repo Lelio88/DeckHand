@@ -1,0 +1,310 @@
+/// Écran de compte : qui vous êtes, ce que vous possédez, comment partir.
+///
+/// Les actions rares — se déconnecter, lire les crédits — occupaient jusqu'ici
+/// deux icônes en haut de chaque écran, visibles en permanence pour un usage
+/// exceptionnel. Elles descendent ici, tout en bas, là où l'on ne tombe pas
+/// dessus par accident.
+///
+/// L'écran porte aussi le **choix du jeu**. DeckHand ne couvre aujourd'hui que
+/// Magic, mais rien dans son architecture n'y oblige : le catalogue, les
+/// empreintes et le moteur de suggestion sont des mécaniques génériques. La
+/// place est donc réservée, désactivée, plutôt que d'être ajoutée en catastrophe
+/// le jour où un second jeu arrive.
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../about/presentation/about_screen.dart';
+import '../../auth/data/auth_repository.dart';
+import '../../collection/data/collection_repository.dart';
+
+class AccountScreen extends ConsumerWidget {
+  const AccountScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final email = ref.watch(sessionProvider).asData?.value?.user.email;
+    final summary = ref.watch(collectionProvider);
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      children: [
+        _Identity(email: email),
+        const SizedBox(height: 20),
+
+        summary.when(
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+          error: (error, _) => Text('Collection illisible : $error'),
+          data: (totals) => Row(
+            children: [
+              Expanded(
+                child: _Figure(
+                  icon: Icons.style_outlined,
+                  value: '${totals.totalCards}',
+                  label: totals.totalCards > 1 ? 'cartes' : 'carte',
+                  detail:
+                      '${totals.distinctCards} référence'
+                      '${totals.distinctCards > 1 ? 's' : ''}',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _Figure(
+                  icon: Icons.euro,
+                  value: totals.totalValueEur.toStringAsFixed(2),
+                  label: 'euros',
+                  // Une valorisation fondée sur des éditions inconnues est un
+                  // plancher, pas une estimation. Le dire évite de prendre le
+                  // chiffre pour argent comptant.
+                  detail: totals.unspecifiedPrints > 0
+                      ? '${totals.unspecifiedPrints} sans édition'
+                      : 'toutes éditions connues',
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 28),
+        Text('Jeu', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        const _GamePicker(),
+
+        const SizedBox(height: 28),
+        const Divider(),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.info_outline),
+          title: const Text('À propos et crédits'),
+          subtitle: const Text('Scryfall, TopDeck.gg, MTGJSON'),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const AboutScreen()),
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.logout, color: theme.colorScheme.error),
+          title: Text(
+            'Se déconnecter',
+            style: TextStyle(color: theme.colorScheme.error),
+          ),
+          onTap: () => ref.read(authRepositoryProvider).signOut(),
+        ),
+      ],
+    );
+  }
+}
+
+class _Identity extends StatelessWidget {
+  const _Identity({required this.email});
+
+  final String? email;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Faute de pseudonyme, la partie locale de l'adresse en tient lieu : c'est
+    // ce que l'utilisateur a choisi de plus proche d'un nom.
+    final handle = (email ?? '').split('@').first;
+
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 28,
+          backgroundColor: theme.colorScheme.primaryContainer,
+          child: Text(
+            handle.isEmpty ? '?' : handle.characters.first.toUpperCase(),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: theme.colorScheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                handle.isEmpty ? 'Compte' : handle,
+                style: theme.textTheme.titleLarge,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                email ?? '',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Figure extends StatelessWidget {
+  const _Figure({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.detail,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(height: 10),
+          Text(value, style: theme.textTheme.headlineSmall),
+          Text(label, style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 4),
+          Text(
+            detail,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            maxLines: 2,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Jeux couverts. Un seul est actif ; la place des autres est tenue.
+class _GamePicker extends StatelessWidget {
+  const _GamePicker();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        _GameTile(
+          name: 'Magic: The Gathering',
+          detail: '31 634 cartes, 1 028 decks',
+          selected: true,
+          onTap: null,
+        ),
+        const SizedBox(height: 8),
+        _GameTile(
+          name: 'Riftbound',
+          detail: 'le TCG League of Legends — pas encore disponible',
+          selected: false,
+          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Riftbound n\'est pas encore intégré : il lui faut son propre '
+                'catalogue et ses propres sources de decks.',
+              ),
+              duration: Duration(seconds: 4),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Le catalogue, la reconnaissance et les suggestions ne sont pas propres '
+          'à Magic : ajouter un jeu demande surtout ses données.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GameTile extends StatelessWidget {
+  const _GameTile({
+    required this.name,
+    required this.detail,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String name;
+  final String detail;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected ? theme.colorScheme.primaryContainer : null,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.check_circle : Icons.circle_outlined,
+              size: 20,
+              color: selected
+                  ? theme.colorScheme.onPrimaryContainer
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: selected
+                          ? theme.colorScheme.onPrimaryContainer
+                          : null,
+                    ),
+                  ),
+                  Text(
+                    detail,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: selected
+                          ? theme.colorScheme.onPrimaryContainer.withValues(
+                              alpha: 0.8,
+                            )
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
