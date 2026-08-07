@@ -5,6 +5,10 @@
 /// ouverte, chaque carte reconnue s'ajoute à une liste, et la validation se fait
 /// en bloc à la fin.
 ///
+/// « Ouverte » demande du travail : le moteur Android clôt sa session à chaque
+/// silence un peu long. C'est `SpeechService` qui la rouvre — sans quoi l'écran
+/// affiche « Arrêter » alors que plus rien n'écoute, et l'on dicte dans le vide.
+///
 /// Rien n'entre en collection sans confirmation — garde-fou §IV.8, comme pour le
 /// scan. La reconnaissance vocale se trompe davantage encore qu'une photo :
 /// proposer sans écrire est ici d'autant plus nécessaire.
@@ -48,12 +52,20 @@ class VoiceInputScreen extends ConsumerStatefulWidget {
 class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
   DictationLanguage _language = DictationLanguage.french;
   final List<_Heard> _heard = [];
-  final Set<String> _consumed = {};
 
   bool _listening = false;
   bool _saving = false;
   String _partial = '';
   String? _error;
+
+  /// Dernière transcription absorbée, et son instant.
+  ///
+  /// Le moteur renvoie parfois deux fois la même phrase finale ; sans garde,
+  /// « quatre foudre » entrerait en double. Mais la garde est **limitée dans le
+  /// temps** : redire volontairement la même carte trente secondes plus tard est
+  /// un geste légitime, que dédupliquer sur toute la séance interdirait.
+  String? _lastTranscript;
+  DateTime _lastTranscriptAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void dispose() {
@@ -94,40 +106,63 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
         setState(() => _partial = text);
         if (isFinal) unawaited(_absorb(text));
       },
+      // L'écoute se relance seule après chaque phrase ; si elle n'y parvient
+      // plus, l'écran doit cesser de prétendre le contraire.
+      onGaveUp: () {
+        if (!mounted) return;
+        setState(() {
+          _listening = false;
+          _error = 'L\'écoute s\'est interrompue. Appuyez pour reprendre.';
+        });
+      },
     );
   }
 
-  /// Transforme une transcription finale en cartes, sans redoubler ce qui a
-  /// déjà été absorbé — le moteur renvoie parfois deux fois la même phrase.
+  /// Transforme une transcription finale en cartes.
+  ///
+  /// Les recherches partent **ensemble** plutôt qu'à la file : une phrase de
+  /// trois cartes enchaînait trois allers-retours réseau, et l'écran restait
+  /// muet pendant ce temps alors que l'on dictait déjà la suivante.
   Future<void> _absorb(String transcript) async {
+    final now = DateTime.now();
+    final isEcho =
+        transcript == _lastTranscript &&
+        now.difference(_lastTranscriptAt) < const Duration(seconds: 3);
+    if (isEcho) return;
+    _lastTranscript = transcript;
+    _lastTranscriptAt = now;
+
     final cards = parseDictation(transcript);
     if (cards.isEmpty) return;
 
     final repository = ref.read(cardRepositoryProvider);
-    for (final card in cards) {
-      final key = '${card.query}#${card.quantity}';
-      if (!_consumed.add(key)) continue;
+    final found = await Future.wait(
+      cards.map((card) async {
+        try {
+          return await repository.search(card.query, limit: 4);
+        } catch (_) {
+          // Une recherche en échec laisse la carte non résolue : l'utilisateur
+          // la verra signalée plutôt que silencieusement perdue.
+          return const <CardHit>[];
+        }
+      }),
+    );
 
-      List<CardHit> hits = const [];
-      try {
-        hits = await repository.search(card.query, limit: 4);
-      } catch (_) {
-        // Une recherche en échec laisse la carte non résolue : l'utilisateur la
-        // verra signalée plutôt que silencieusement perdue.
-      }
-      if (!mounted) return;
-      setState(() {
+    if (!mounted) return;
+    setState(() {
+      for (var i = 0; i < cards.length; i++) {
+        final hits = found[i];
         _heard.add(
           _Heard(
-            spoken: card.query,
-            quantity: card.quantity,
+            spoken: cards[i].query,
+            quantity: cards[i].quantity,
             match: hits.isEmpty ? null : hits.first,
             alternatives: hits.length > 1 ? hits.sublist(1) : const [],
           ),
         );
-        _partial = '';
-      });
-    }
+      }
+      _partial = '';
+    });
   }
 
   Future<void> _saveAll() async {
@@ -245,7 +280,8 @@ class _Hint extends StatelessWidget {
         children: [
           Text(
             listening
-                ? 'Dictez vos cartes à la suite : « quatre foudre, puis anneau solaire »'
+                ? 'Enchaînez sans attendre : « quatre foudre, puis anneau solaire ». '
+                      'L\'écoute reprend d\'elle-même après chaque phrase.'
                 : 'Appuyez sur le micro et dictez vos cartes les unes après les autres.',
             style: theme.textTheme.bodyMedium,
           ),

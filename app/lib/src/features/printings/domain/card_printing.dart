@@ -22,6 +22,7 @@ class CardPrinting {
     this.priceEur,
     this.releasedAt,
     this.owned = 0,
+    this.artCropUrl,
   });
 
   /// Identifiant Scryfall de l'impression.
@@ -47,6 +48,13 @@ class CardPrinting {
   /// Exemplaires de **cette** édition déjà en collection.
   final int owned;
 
+  /// Illustration de cette impression.
+  ///
+  /// C'est le seul repère fiable entre deux éditions d'une même extension : le
+  /// numéro de collection ne figure pas toujours en évidence sur la carte, alors
+  /// que l'illustration saute aux yeux quand on la compare à celle qu'on tient.
+  final String? artCropUrl;
+
   /// Ce qui identifie l'édition à l'œil : « Modern Horizons 2 · MH2 #123 ».
   String get label {
     final number = collectorNumber == null ? '' : ' #$collectorNumber';
@@ -66,5 +74,6 @@ class CardPrinting {
         ? null
         : DateTime.tryParse(json['released_at'] as String),
     owned: (json['owned'] as num?)?.toInt() ?? 0,
+    artCropUrl: json['art_crop_url'] as String?,
   );
 }

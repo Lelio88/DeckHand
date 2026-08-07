@@ -179,6 +179,45 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
   }
 }
 
+/// Vignette de l'illustration.
+///
+/// Chargée depuis Scryfall à la demande, jamais stockée : seules les lignes
+/// visibles déclenchent une requête, `ListView.builder` ne construisant que
+/// celles-là. Un échec de chargement laisse un cadre neutre plutôt qu'une icône
+/// d'erreur — l'absence d'image ne doit pas parasiter la lecture de la liste.
+class _Thumbnail extends StatelessWidget {
+  const _Thumbnail({required this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final placeholder = Container(
+      width: 56,
+      height: 42,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+      ),
+    );
+    if (url == null) return placeholder;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Image.network(
+        url!,
+        width: 56,
+        height: 42,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => placeholder,
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : placeholder,
+      ),
+    );
+  }
+}
+
 class _PrintingTile extends StatelessWidget {
   const _PrintingTile({
     required this.printing,
@@ -198,6 +237,7 @@ class _PrintingTile extends StatelessWidget {
     return ListTile(
       selected: selected,
       onTap: onTap,
+      leading: _Thumbnail(url: printing.artCropUrl),
       title: Text(
         printing.setName ?? printing.setCode.toUpperCase(),
         maxLines: 1,

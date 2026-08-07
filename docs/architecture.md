@@ -248,6 +248,27 @@ Les précons font exactement 100 cartes, commandant inclus — MTGJSON le livre 
 
 **Granularité de collection retenue** : nom + édition. L'état (NM/played) et le caractère *foil* sont ignorés — pure saisie manuelle, sans apport pour le deckbuilding.
 
+### Ce que le premier test terrain a montré (2026-08-07)
+
+Deux cartes scannées, deux échecs, **deux causes distinctes** — mesurées, pas supposées.
+
+**1. L'index d'empreintes est trop mince.** Il ne contient qu'une illustration par carte. Sur Farseek (55 impressions), l'illustration indexée est celle de Ravnica 2005 ; l'exemplaire tenu venait de *Marvel Super Heroes Commander* (2026), à une distance de 32 — hors de portée du seuil de confiance de 12. Sur un échantillon de 11 impressions de cette carte, 8 partagent la même illustration et 3 en ont une radicalement différente (distances 18, 33, 36). L'affirmation « une carte rééditée garde le plus souvent son illustration » est donc vraie aux trois quarts, et fausse pour le quart restant — assez pour faire échouer un scan sur quatre.
+
+**2. Le pipeline exige un cadrage irréaliste.** Sur Big Wheel, l'illustration *était* indexée (distance 0) et le gabarit la découpe correctement (distance 1) : le scan aurait dû réussir. Il a échoué sur le cadrage. Tolérance mesurée en simulant une marge de table autour de la carte :
+
+| Marge autour de la carte | Distance | Verdict |
+|---|---|---|
+| 0 % | 1 | reconnue |
+| 2 % | 7 | reconnue |
+| 5 % | 15 | incertaine |
+| 10 % | 24 | perdue |
+
+Un décalage latéral de 2 % suffit également à franchir le seuil. **Le pipeline tolère 2 à 3 % d'écart** — soit 2,6 mm sur la hauteur d'une carte. Aucun cadrage à main levée n'atteint cette précision.
+
+Cette exigence n'était pas visible dans les mesures antérieures (100 % de reconnaissance, 0 faux positif) parce qu'elles partaient des `art_crop` de Scryfall, c'est-à-dire d'illustrations déjà découpées au pixel près. **Le protocole validait le comparateur d'empreintes, jamais la chaîne photo → illustration.**
+
+Conséquence doctrinale : le cadrage guidé ne remplace pas la détection des bords de la carte. La note « la détection de contours ne devient nécessaire qu'au jalon 3 » est invalidée — elle l'est dès le jalon 2.
+
 ### Éditions
 
 `card_prints` conserve **toutes les impressions anglaises et françaises** des cartes du périmètre : 162 000 lignes, ~55 Mo, mesurés en parcourant l'export `all_cards` avant d'ingérer. Les autres langues tripleraient le volume sans servir une collection franco-anglaise.
