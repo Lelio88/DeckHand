@@ -116,12 +116,14 @@ class ScanService {
     final confirmed = art.oracleIds.isNotEmpty && found.contains(art.oracleIds.first);
 
     return ScanOutcome(
-      // La carte lue passe en tête ; les candidats par illustration restent
-      // proposés derrière, au cas où la lecture se serait trompée.
-      oracleIds: [
-        ...found,
-        ...art.oracleIds.where((id) => !found.contains(id)),
-      ].take(limit).toList(growable: false),
+      // **Les candidats par illustration ne sont pas mêlés à ceux du nom.**
+      // Quand le nom a répondu, ils n'apportent rien : ce sont les plus proches
+      // d'un index où l'illustration cherchée est peut-être absente, donc du
+      // bruit. Les afficher sous une carte correctement identifiée sème le
+      // doute au lieu de l'éclairer — « Big Wheel » proposé avec « roue à
+      // aiguiser » et « Skald chanteguerre » donne l'impression que l'app
+      // hésite alors qu'elle sait.
+      oracleIds: found.take(limit).toList(growable: false),
       isConfident: confirmed || found.length == 1,
       method: confirmed ? ScanMethod.nameAndArt : ScanMethod.name,
       readName: names.first,

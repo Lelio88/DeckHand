@@ -117,6 +117,7 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                   autofocus: false,
                   decoration: InputDecoration(
                     hintText: 'Chercher une extension (nom ou code)',
+                    helperText: "Appui long sur une vignette pour l'agrandir",
                     prefixIcon: const Icon(Icons.search, size: 20),
                     isDense: true,
                     border: OutlineInputBorder(
@@ -179,23 +180,36 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
   }
 }
 
+/// Largeur de la vignette dans la liste.
+///
+/// Assez grande pour reconnaître une illustration d'un coup d'œil sur un
+/// téléphone — c'est tout son intérêt — sans réduire la place du nom
+/// d'extension à une bouillie de points de suspension.
+const double _thumbWidth = 92;
+const double _thumbHeight = 68;
+
 /// Vignette de l'illustration.
 ///
 /// Chargée depuis Scryfall à la demande, jamais stockée : seules les lignes
 /// visibles déclenchent une requête, `ListView.builder` ne construisant que
 /// celles-là. Un échec de chargement laisse un cadre neutre plutôt qu'une icône
 /// d'erreur — l'absence d'image ne doit pas parasiter la lecture de la liste.
+///
+/// Un appui prolongé l'ouvre en grand : deux impressions se distinguent parfois
+/// par un détail qu'une vignette ne rend pas, et comparer avec la carte qu'on
+/// tient en main demande alors de la voir en entier.
 class _Thumbnail extends StatelessWidget {
-  const _Thumbnail({required this.url});
+  const _Thumbnail({required this.url, required this.caption});
 
   final String? url;
+  final String caption;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final placeholder = Container(
-      width: 56,
-      height: 42,
+      width: _thumbWidth,
+      height: _thumbHeight,
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(6),
@@ -203,16 +217,39 @@ class _Thumbnail extends StatelessWidget {
     );
     if (url == null) return placeholder;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Image.network(
-        url!,
-        width: 56,
-        height: 42,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => placeholder,
-        loadingBuilder: (context, child, progress) =>
-            progress == null ? child : placeholder,
+    return GestureDetector(
+      onLongPress: () => showDialog<void>(
+        context: context,
+        builder: (context) => Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(4),
+                ),
+                child: Image.network(url!, fit: BoxFit.contain),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(caption, style: theme.textTheme.bodyMedium),
+              ),
+            ],
+          ),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.network(
+          url!,
+          width: _thumbWidth,
+          height: _thumbHeight,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => placeholder,
+          loadingBuilder: (context, child, progress) =>
+              progress == null ? child : placeholder,
+        ),
       ),
     );
   }
@@ -237,7 +274,11 @@ class _PrintingTile extends StatelessWidget {
     return ListTile(
       selected: selected,
       onTap: onTap,
-      leading: _Thumbnail(url: printing.artCropUrl),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      leading: _Thumbnail(
+        url: printing.artCropUrl,
+        caption: printing.label,
+      ),
       title: Text(
         printing.setName ?? printing.setCode.toUpperCase(),
         maxLines: 1,

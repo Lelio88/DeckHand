@@ -36,10 +36,11 @@ enum DictationLanguage {
 
 /// Silence au-delà duquel le moteur clôt une phrase et livre son résultat.
 ///
-/// Court, parce que la relance est automatique : c'est le délai entre la fin
-/// d'un nom prononcé et son apparition à l'écran. Quatre secondes donnaient
-/// l'impression que rien ne se passait.
-const _pauseBeforeFinal = Duration(seconds: 2);
+/// C'est le délai entre la fin d'un nom prononcé et son apparition à l'écran.
+/// Quatre secondes donnaient l'impression que rien ne se passait ; deux coupent
+/// au milieu d'un nom long (« La Sorcière Rouge, Wanda Maximoff »), qu'on
+/// prononce avec des respirations.
+const _pauseBeforeFinal = Duration(seconds: 3);
 
 /// Durée maximale d'une session avant que le moteur ne coupe de lui-même.
 const _sessionLength = Duration(minutes: 2);
@@ -79,8 +80,13 @@ class SpeechService {
       // Une erreur isolée (silence trop long, réseau du moteur) ne doit pas
       // arrêter la dictée : on relance comme après une fin normale.
       onError: (_) => _scheduleRestart(),
+      // **Uniquement `done`.** `notListening` survient dès que le micro se
+      // coupe, mais le moteur est alors encore en train de transcrire : relancer
+      // à ce moment annule la session et la phrase est perdue — on voit son
+      // texte s'afficher, puis plus rien. `done` arrive après la livraison du
+      // résultat final, et c'est le seul instant où relancer est sans risque.
       onStatus: (status) {
-        if (status == 'done' || status == 'notListening') _scheduleRestart();
+        if (status == 'done') _scheduleRestart();
       },
     );
     return _available;
@@ -142,7 +148,7 @@ class SpeechService {
   void _scheduleRestart() {
     if (!_wanted) return;
     _restart?.cancel();
-    _restart = Timer(const Duration(milliseconds: 250), () {
+    _restart = Timer(const Duration(milliseconds: 400), () {
       if (_wanted && !_speech.isListening) unawaited(_listen());
     });
   }
