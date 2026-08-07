@@ -28,17 +28,28 @@ class ReadLine {
   double get bottom => top + height;
 }
 
-/// Fraction supérieure de la carte où chercher le nom.
+/// Fraction supérieure de l'image où chercher le nom.
 ///
-/// Un tiers plutôt qu'un dixième : la photo inclut souvent un peu de table
-/// au-dessus de la carte, ce qui décale tout vers le bas. Mieux vaut ratisser
-/// large et laisser la recherche floue écarter les intrus — un type de carte
-/// (« Rituel », « Artefact ») ne ressemble à aucun nom du catalogue.
-const double _nameZone = 0.34;
+/// **Large, parce que la photo n'est plus recadrée.** Le tiers supérieur
+/// supposait que l'image soit exactement la carte ; depuis que le recadrage est
+/// facultatif, la carte peut n'occuper que la moitié de la photo et son nom se
+/// retrouver au milieu. Ratisser jusqu'aux deux tiers ne coûte rien : les
+/// candidats sont essayés de haut en bas et le premier qui correspond à une
+/// carte gagne, si bien qu'une ligne de texte de règles n'est atteinte que
+/// lorsque tout le reste a échoué — et elle ne ressemble à aucun nom.
+const double _nameZone = 0.66;
 
 /// Lignes trop courtes pour être un nom : une lettre isolée, un symbole de mana
 /// mal interprété, un chiffre de force.
 const int _minNameLength = 3;
+
+/// Au-delà, c'est une phrase, pas un nom.
+///
+/// Le nom le plus long du catalogue tient en une quarantaine de caractères ;
+/// une ligne de texte de règles en fait couramment le double. Ce plafond est ce
+/// qui permet d'élargir la zone de recherche sans laisser les règles devenir
+/// candidates — élargissement rendu nécessaire par les photos non recadrées.
+const int _maxNameLength = 48;
 
 /// Motifs qui ne sont jamais un nom de carte, même en haut de l'image.
 ///
@@ -55,6 +66,18 @@ final _setMarkers = RegExp(r'[★☆✦●◆]');
 /// Sigles en capitales : codes d'extension, mentions de langue.
 final _shortCaps = RegExp(r'^[A-Z]{2,6}$');
 
+/// Ligne de type, qui suit immédiatement le nom sur toutes les cartes.
+///
+/// Sans ce filtre elle deviendrait candidate dès que le nom est mal lu, et
+/// « Artefact : véhicule » ou « Creature — Human Wizard » renverrait des cartes
+/// au hasard — un résultat plausible, donc plus trompeur qu'un échec franc.
+final _typeLine = RegExp(
+  r'^(cr[ée]ature|rituel|[ée]ph[ée]m[èe]re|artefact|enchantement|terrain|'
+  r'planeswalker|bataille|creature|sorcery|instant|artifact|enchantment|'
+  r'land|battle|kindred|tribal)',
+  caseSensitive: false,
+);
+
 /// Renvoie les noms candidats, le plus probable en tête.
 ///
 /// Plusieurs sont proposés plutôt qu'un seul : la lecture confond régulièrement
@@ -70,10 +93,11 @@ List<String> cardNameCandidates(List<ReadLine> lines, {int limit = 3}) {
 
   for (final line in zone) {
     final text = _clean(line.text);
-    if (text.length < _minNameLength) continue;
+    if (text.length < _minNameLength || text.length > _maxNameLength) continue;
     if (_noise.hasMatch(text)) continue;
     if (_setMarkers.hasMatch(text)) continue;
     if (_shortCaps.hasMatch(text.replaceAll(' ', ''))) continue;
+    if (_typeLine.hasMatch(text)) continue;
     if (!seen.add(text.toLowerCase())) continue;
     candidates.add(text);
     if (candidates.length >= limit) break;

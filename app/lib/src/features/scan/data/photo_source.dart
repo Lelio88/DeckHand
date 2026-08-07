@@ -18,6 +18,12 @@
 /// précision qu'aucun cadrage à main levée n'atteint. D'où la lecture du nom,
 /// qui exige le **chemin du fichier** et non ses octets : c'est pourquoi la
 /// capture renvoie les deux.
+///
+/// **Le recadrage est devenu facultatif.** Le nom se lit sur une photo large ;
+/// exiger un cadrage à chaque carte coûtait un geste supplémentaire par carte,
+/// soit des centaines pour une collection. Il reste proposé en seconde chance
+/// quand la lecture échoue : l'empreinte prend alors le relais, et elle, exige
+/// ce cadrage.
 library;
 
 import 'dart:typed_data';
@@ -57,6 +63,7 @@ class PhotoSource {
     required Color toolbarColor,
     required Color toolbarWidgetColor,
     BuildContext? webContext,
+    bool crop = false,
   }) async {
     final picked = await ImagePicker().pickImage(
       source: source,
@@ -66,6 +73,13 @@ class PhotoSource {
       imageQuality: 92,
     );
     if (picked == null) return null;
+
+    if (!crop) {
+      return CapturedPhoto(
+        bytes: await picked.readAsBytes(),
+        path: picked.path,
+      );
+    }
 
     final cropped = await ImageCropper().cropImage(
       sourcePath: picked.path,

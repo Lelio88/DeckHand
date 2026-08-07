@@ -31,9 +31,19 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   ScanOutcome? _outcome;
   List<CardHit> _details = const [];
   bool _busy = false;
+
+  /// Dernière source employée, pour proposer de recommencer en recadrant.
+  ImageSource? _lastSource;
   String? _error;
 
-  Future<void> _capture(ImageSource source) async {
+  /// Prend une photo et tente de reconnaître la carte.
+  ///
+  /// [crop] déclenche l'étape de recadrage. Elle n'est plus imposée : le nom se
+  /// lit sur une photo large, et exiger un cadrage par carte coûtait des
+  /// centaines de gestes sur une collection. On la propose en seconde chance
+  /// quand la lecture échoue, car l'empreinte d'illustration, elle, exige un
+  /// cadrage précis.
+  Future<void> _capture(ImageSource source, {bool crop = false}) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -41,6 +51,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       _details = const [];
     });
 
+    _lastSource = source;
     try {
       final theme = Theme.of(context);
       final photo = await ref
@@ -50,6 +61,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             toolbarColor: theme.colorScheme.surfaceContainerHigh,
             toolbarWidgetColor: theme.colorScheme.onSurface,
             webContext: context,
+            crop: crop,
           );
       // Abandon à la prise de vue ou au recadrage : rien à signaler.
       if (photo == null) {
@@ -128,6 +140,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 outcome: _outcome,
                 details: _details,
                 onCapture: _capture,
+                // Seconde chance : la même source, en passant cette fois par le
+                // recadrage, pour que l'empreinte d'illustration puisse répondre.
+                onCropRetry: () =>
+                    _capture(_lastSource ?? ImageSource.camera, crop: true),
                 onAdd: _add,
               ),
             ),
@@ -146,6 +162,7 @@ class _Body extends StatelessWidget {
     required this.outcome,
     required this.details,
     required this.onCapture,
+    required this.onCropRetry,
     required this.onAdd,
   });
 
@@ -155,6 +172,7 @@ class _Body extends StatelessWidget {
   final ScanOutcome? outcome;
   final List<CardHit> details;
   final void Function(ImageSource) onCapture;
+  final VoidCallback onCropRetry;
   final void Function(CardHit) onAdd;
 
   @override
@@ -213,6 +231,7 @@ class _Body extends StatelessWidget {
             outcome: outcome,
             details: details,
             onAdd: onAdd,
+            onCropRetry: onCropRetry,
           ),
         ),
       ],
@@ -226,12 +245,20 @@ class _Result extends StatelessWidget {
     required this.outcome,
     required this.details,
     required this.onAdd,
+    required this.onCropRetry,
   });
 
   final String? error;
   final ScanOutcome? outcome;
   final List<CardHit> details;
   final void Function(CardHit) onAdd;
+
+  /// Reprend la photo en passant par le recadrage.
+  ///
+  /// C'est le filet de la reconnaissance sans cadrage : quand le nom n'a pas pu
+  /// être lu, l'empreinte d'illustration peut encore répondre — mais elle exige
+  /// un cadrage précis, que seul l'utilisateur peut fournir.
+  final VoidCallback onCropRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -252,11 +279,14 @@ class _Result extends StatelessWidget {
       );
     }
     if (details.isEmpty) {
-      return const _Message(
+      return _Message(
         icon: Icons.search_off,
         title: 'Carte non reconnue',
         detail:
-            'Réessayez avec un meilleur éclairage, ou ajoutez-la par son nom.',
+            "Le nom n'a pas pu être lu. En cadrant la carte, "
+            "son illustration peut encore la trahir.",
+        actionLabel: 'Cadrer et réessayer',
+        onAction: onCropRetry,
       );
     }
 
@@ -403,11 +433,15 @@ class _Message extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.detail,
+    this.actionLabel,
+    this.onAction,
   });
 
   final IconData icon;
   final String title;
   final String detail;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -429,6 +463,14 @@ class _Message extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 18),
+              FilledButton.tonalIcon(
+                onPressed: onAction,
+                icon: const Icon(Icons.crop),
+                label: Text(actionLabel!),
+              ),
+            ],
           ],
         ),
       ),
