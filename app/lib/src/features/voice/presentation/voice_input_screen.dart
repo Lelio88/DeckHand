@@ -42,6 +42,15 @@ class _Heard {
   bool get isResolved => match != null;
 }
 
+extension _FirstOrNull<T> on List<T> {
+  T? firstWhereOrNull(bool Function(T) test) {
+    for (final item in this) {
+      if (test(item)) return item;
+    }
+    return null;
+  }
+}
+
 class VoiceInputScreen extends ConsumerStatefulWidget {
   const VoiceInputScreen({super.key});
 
@@ -152,11 +161,28 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
     setState(() {
       for (var i = 0; i < cards.length; i++) {
         final hits = found[i];
+        final match = hits.isEmpty ? null : hits.first;
+
+        // **Redire une carte cumule au lieu de dupliquer la ligne.** Dicter
+        // « Foudre », puis « Foudre » cinq minutes plus tard, veut bien dire
+        // qu'on en a deux — mais deux lignes identiques à l'écran donnent
+        // l'impression d'un bug, et empêchent de corriger la quantité d'un
+        // geste. La collection reçoit le même total dans les deux cas.
+        if (match != null) {
+          final existing = _heard.firstWhereOrNull(
+            (h) => h.match?.oracleId == match.oracleId,
+          );
+          if (existing != null) {
+            existing.quantity += cards[i].quantity;
+            continue;
+          }
+        }
+
         _heard.add(
           _Heard(
             spoken: cards[i].query,
             quantity: cards[i].quantity,
-            match: hits.isEmpty ? null : hits.first,
+            match: match,
             alternatives: hits.length > 1 ? hits.sublist(1) : const [],
           ),
         );

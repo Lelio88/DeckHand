@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../../scan/presentation/scan_screen.dart';
+import '../../scan/presentation/spread_scan_screen.dart';
 import '../../voice/presentation/voice_input_screen.dart';
 import '../data/card_repository.dart';
 import '../domain/card_hit.dart';
@@ -76,12 +77,27 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(right: 20, top: 4),
+              padding: const EdgeInsets.only(right: 8, top: 4),
               child: IconButton.filledTonal(
                 tooltip: 'Scanner une carte',
                 icon: const Icon(Icons.photo_camera_outlined),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const ScanScreen()),
+                ),
+              ),
+            ),
+            // Deux gestes distincts, donc deux boutons : « quelle carte est-ce ? »
+            // et « lesquelles sont là ? ». Les fondre dans un seul écran
+            // obligerait à choisir un mode avant de savoir ce qu'on photographie.
+            Padding(
+              padding: const EdgeInsets.only(right: 20, top: 4),
+              child: IconButton.filledTonal(
+                tooltip: 'Scanner plusieurs cartes',
+                icon: const Icon(Icons.grid_view),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SpreadScanScreen(),
+                  ),
                 ),
               ),
             ),
