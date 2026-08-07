@@ -282,6 +282,84 @@ Cette exigence n'était pas visible dans les mesures antérieures (100 % de reco
 
 Conséquence doctrinale : le cadrage guidé ne remplace pas la détection des bords de la carte. La note « la détection de contours ne devient nécessaire qu'au jalon 3 » est invalidée — elle l'est dès le jalon 2.
 
+### Étalement : distinguer un nom d'un texte de règles
+
+Sur une photo d'étalement, toutes les lignes lues sont candidates — les noms
+comme les règles. Or les règles **citent** des noms de cartes, et une ligne
+citant une carte en fabrique une qui n'était pas sur la table. Le tri se fait
+sur la taille du texte, le nom étant imprimé plus gros que le corps.
+
+**La hauteur se mesure sur les quatre coins de la ligne, jamais sur sa boîte
+englobante.** Celle-ci est alignée sur les axes de l'image alors que la ligne
+est inclinée dès que la carte n'est pas parallèle au capteur : sa hauteur vaut
+alors *hauteur des caractères + longueur × sinus de l'angle*, et le second terme
+écrase le premier. Mesuré sur un étalement réel, la hauteur de boîte corrèle à
+**0,965** avec le nombre de caractères — elle ne mesurait pas la taille du
+texte, mais sa longueur. Le filtre retenait donc les lignes longues, c'est-à-dire
+les règles, et écartait les noms : « Agent d'Atlas » (13 caractères) tombait à
+0,82 fois la médiane quand une ligne de règles de 38 caractères montait à 2,47.
+Les coins suivent l'inclinaison ; la corrélation retombe à **0,408**.
+
+**Seuil retenu : 1,15 fois la hauteur médiane.** Balayage sur cinq cartes
+étalées, photographiées à main levée :
+
+| seuil | justes | fausses | manquées |
+|---|---|---|---|
+| sans filtre | 5 | 3 | 0 |
+| **1,10 – 1,20** | **5** | **0** | **0** |
+| 1,25 | 3 | 0 | 2 |
+| 1,30 | 1 | 0 | 4 |
+
+1,15 est le centre du plateau : 0,07 avant le premier faux positif
+(« Vigilance », mot-clé imprimé sur la carte autant que nom de carte, lu à
+1,08), 0,06 avant la première carte perdue (1,21). Les lignes réellement lues
+sont figées en fixture dans `test/src/features/scan/measured_spread.dart` — des
+hauteurs inventées ne montreraient pas cette étroitesse.
+
+**Limite structurelle, à connaître avant de retoucher le seuil.** Un nom ne
+dépasse le corps de texte que de 20 à 36 %, jamais du double, parce que les
+cartes d'un étalement ne sont pas à la même distance de l'objectif : le nom
+d'une carte au bord peut être plus petit que les règles d'une carte au centre.
+Une médiane **globale** ne peut pas les départager. Comparer chaque ligne aux
+lignes de son propre bloc — ML Kit les regroupe déjà — lèverait cette limite ;
+non fait, faute d'une mesure qui le justifie.
+
+Deux échecs restent hors de portée de ce réglage : une carte dont le nom n'est
+pas lu du tout (reflet, angle) ne peut être rattrapée par aucun seuil, et deux
+exemplaires identiques côte à côte comptent pour un — la quantité s'ajuste à la
+main.
+
+### Dictée continue : le répit avant de relancer
+
+L'écoute se relance seule après chaque phrase, le moteur Android ne tenant pas
+une session ouverte. **Le délai de relance décide si la phrase est gardée ou
+perdue**, et c'est le seul paramètre qui compte ici.
+
+Le moteur clôt parfois sa session sans conclure : la phrase est transcrite, elle
+s'affiche à l'écran, mais aucun résultat *final* n'est livré — or c'est le final,
+et lui seul, qui déclenche la recherche au catalogue. `speech_to_text` rattrape
+ce cas : à l'arrêt, il arme un délai de deux secondes au terme duquel la dernière
+transcription partielle est promue en résultat final. Mais `listen()` **annule ce
+rattrapage** dès son premier geste. Relancer au bout de 400 ms le détruisait donc
+1,6 s avant qu'il ne serve, et la carte dictée disparaissait sans un mot.
+
+Mesuré sur l'appareil : une carte prononcée, neuf transcriptions partielles,
+aucun final, relance à +401 ms — rien n'était jamais cherché. Ce n'était pas un
+essoufflement progressif : **la première phrase était déjà perdue** dès que le
+moteur ne concluait pas de lui-même, ce qui devient fréquent après plusieurs
+sessions consécutives (`error_speech_timeout` à répétition).
+
+La relance attend donc **2,2 s tant qu'aucun final n'est venu**, et 400 ms
+sinon. Le cas courant garde sa réactivité ; le cas dégradé récupère sa phrase, et
+la promotion émet à son tour un « done » qui ramène le délai à 400 ms — le coût
+n'est payé que lorsqu'il n'y a rien à récupérer. La règle vaut aussi pour
+`onError`, qui suit la fin de session de quelques dizaines de millisecondes et
+écraserait sinon la relance longue par une courte.
+
+Le seuil de test est ancré sur `SpeechToText.defaultFinalTimeout` plutôt que sur
+une constante recopiée : si le paquet change son rattrapage, le test le signale
+au lieu de laisser la dictée redevenir muette en silence.
+
 ### Éditions
 
 `card_prints` conserve **toutes les impressions anglaises et françaises** des cartes du périmètre : 162 000 lignes, ~55 Mo, mesurés en parcourant l'export `all_cards` avant d'ingérer. Les autres langues tripleraient le volume sans servir une collection franco-anglaise.
@@ -327,6 +405,28 @@ Pour chaque deck du corpus, dans le format demandé :
 4. Classement : constructibles immédiatement, puis par coût de complétion croissant.
 
 À l'échelle visée (2 000 cartes × quelques milliers de decks), ce calcul est trivial. **Aucune contrainte de performance ne pèse sur la conception.**
+
+### Justesse du décompte — vérifiée par recalcul
+
+« Il te manque 3 cartes pour 4,20 € » engage l'argent de l'utilisateur : ce
+chiffre doit être juste, et le regarder à l'écran ne prouve rien faute de savoir
+ce qu'il *devrait* afficher. `api/app/measure/deck_math.py` construit une
+collection dont il connaît le contenu, interroge `deck_suggestions` **comme le
+fait l'application** — en REST, authentifié, pour que `auth.uid()` soit celui du
+compte — puis recompte de son côté depuis `deck_cards` et `collection_items`.
+Deux chemins indépendants vers le même nombre.
+
+**Résultat : aucun écart sur 100 decks Pauper**, ni sur le nombre de cartes
+possédées, ni sur les manquantes, ni sur le coût. La collection est volontairement
+*partielle* — 60 % des exemplaires de chaque carte — parce que posséder tout ou
+rien court-circuiterait le calcul `needed - owned`, précisément là où un moteur
+de complétion se trompe.
+
+Deux garanties tiennent ce script : il ne supprime que les lignes qu'il a
+lui-même créées (le compte de test porte de vraies cartes), et sa capacité à
+détecter une erreur a été vérifiée en faussant volontairement le recalcul. Sa
+limite : `deck_suggestions` plafonne à 100 résultats, donc 100 decks confrontés
+par exécution.
 
 ---
 

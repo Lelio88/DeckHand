@@ -27,6 +27,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 
+import '../../../diagnostics/diagnostics.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../data/art_index_repository.dart';
@@ -150,7 +151,9 @@ class ScanService {
   /// étalement et complétera. L'inverse — inventer une carte qu'il validerait
   /// sans y penser — fausserait durablement ses suggestions de decks.
   Future<List<CardHit>> recogniseSpread(String photoPath) async {
-    final candidates = spreadNameCandidates(await _reader.readLines(photoPath));
+    final lines = await _reader.readLines(photoPath);
+    final candidates = spreadNameCandidates(lines);
+    _diagnoseRead(lines, candidates);
     if (candidates.isEmpty) return const [];
 
     // Les recherches partent ensemble : une photo d'étalement en produit des
@@ -166,18 +169,60 @@ class ScanService {
     );
 
     final found = <String, CardHit>{};
-    for (final hits in results) {
-      if (hits.isEmpty) continue;
+    for (var i = 0; i < results.length; i++) {
+      final hits = results[i];
+      if (hits.isEmpty) {
+        _diagnoseMatch(candidates[i], null, kept: false);
+        continue;
+      }
       final hit = hits.first;
       // Le seuil sépare la trouvaille du hasard : dans un catalogue de 31 634
       // cartes, n'importe quelle ligne trouve *quelque chose*.
-      if (hit.score < spreadScoreThreshold) continue;
+      final kept = hit.score >= spreadScoreThreshold;
+      _diagnoseMatch(candidates[i], hit, kept: kept);
+      if (!kept) continue;
       // Une même carte peut être lue deux fois — nom scindé sur deux lignes,
       // ou deux exemplaires côte à côte. Le second cas mériterait une quantité,
       // mais rien ne permet de le distinguer du premier de façon fiable.
       found.putIfAbsent(hit.oracleId, () => hit);
     }
     return found.values.toList(growable: false);
+  }
+
+  /// Consigne ce que l'appareil a réellement lu.
+  ///
+  /// **Les lignes brutes, avant tout filtrage.** Le filtre par taille n'est
+  /// réglable que si l'on sait ce qu'il écarte : sans les hauteurs de toutes
+  /// les lignes, ajuster son seuil reviendrait à deviner. Rejouées par
+  /// `app/tool/sweep_spread_threshold.dart`, elles permettent de balayer le
+  /// seuil hors ligne au lieu de reconstruire l'application à chaque essai —
+  /// et sur une photo unique, donc comparable d'un seuil à l'autre.
+  void _diagnoseRead(List<ReadLine> lines, List<NameCandidate> candidates) {
+    if (!diagnosticsEnabled) return;
+    final retained = candidates.map((c) => c.text).toSet();
+    diagnose('spread_read', {'lines': lines.length, 'kept': candidates.length});
+    for (final line in lines) {
+      diagnose('spread_line', {
+        'text': line.text,
+        'top': line.top,
+        'height': line.height,
+        'kept': retained.contains(cleanNameLine(line.text)),
+      });
+    }
+  }
+
+  /// Consigne le verdict du catalogue sur un candidat.
+  ///
+  /// Sert de contrôle : l'outil de balayage refait ces recherches depuis le
+  /// poste de travail, et doit retrouver les mêmes scores.
+  void _diagnoseMatch(NameCandidate candidate, CardHit? hit, {required bool kept}) {
+    if (!diagnosticsEnabled) return;
+    diagnose('spread_match', {
+      'read': candidate.text,
+      'matched': hit?.matchedName,
+      'score': hit?.score,
+      'kept': kept,
+    });
   }
 
   /// Reconnaissance par l'illustration seule.

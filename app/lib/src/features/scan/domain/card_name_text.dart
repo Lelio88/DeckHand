@@ -13,6 +13,8 @@
 /// ainsi éprouvable sans appareil photo ni service natif.
 library;
 
+import 'dart:math';
+
 /// Une ligne de texte lue sur la photo, avec sa position verticale relative.
 class ReadLine {
   const ReadLine(this.text, this.top, this.height);
@@ -22,10 +24,53 @@ class ReadLine {
   /// Position du haut de la ligne, en fraction de la hauteur de l'image.
   final double top;
 
-  /// Hauteur de la ligne, dans la même unité.
+  /// Hauteur des caractères, dans la même unité.
+  ///
+  /// **Mesurée sur le quadrilatère incliné, jamais sur la boîte droite.** Voir
+  /// [textHeightFromCorners] : la différence décide si un nom est reconnu ou
+  /// écarté.
   final double height;
 
   double get bottom => top + height;
+}
+
+/// Hauteur réelle des caractères, déduite des quatre coins de la ligne.
+///
+/// **Pourquoi ne pas prendre la hauteur de la boîte englobante.** Celle-ci est
+/// alignée sur les axes de l'image, alors que la ligne, elle, est inclinée dès
+/// que la carte n'est pas parfaitement parallèle au capteur — ce qui est le cas
+/// de toute photo à main levée. Sa hauteur vaut alors *hauteur des caractères +
+/// longueur de la ligne × sinus de l'angle*, et le second terme écrase le
+/// premier : mesuré sur une photo d'étalement réelle, la hauteur de boîte
+/// corrèle à **0,965** avec le nombre de caractères. Autrement dit elle ne
+/// mesurait pas la taille du texte, mais sa longueur.
+///
+/// La conséquence était l'exact contraire du but recherché. Le filtre censé
+/// distinguer le nom — imprimé gros — de son texte de règles retenait les
+/// lignes longues, donc les règles, et écartait les noms : « Agent d'Atlas »
+/// (13 caractères) tombait à 0,82 fois la médiane quand « A chaque fois qu'une
+/// creature que vous » (38 caractères) montait à 2,47.
+///
+/// Les coins suivent l'inclinaison du texte : la distance entre le coin haut et
+/// le coin bas d'un même côté donne la hauteur des caractères, quelle que soit
+/// l'orientation. Les deux côtés sont moyennés, la perspective les rendant
+/// rarement égaux.
+///
+/// [fallback] sert quand la reconnaissance ne fournit pas les quatre coins.
+double textHeightFromCorners(List<Point<int>> corners, double fallback) {
+  if (corners.length < 4) return fallback;
+  final left = _distance(corners[0], corners[3]);
+  final right = _distance(corners[1], corners[2]);
+  // Une ligne dégénérée — coins confondus — rendrait toutes les lignes égales
+  // et neutraliserait le filtre en silence. Mieux vaut la boîte, même fausse.
+  if (left + right <= 0) return fallback;
+  return (left + right) / 2;
+}
+
+double _distance(Point<int> a, Point<int> b) {
+  final dx = (a.x - b.x).toDouble();
+  final dy = (a.y - b.y).toDouble();
+  return sqrt(dx * dx + dy * dy);
 }
 
 /// Fraction supérieure de l'image où chercher le nom.

@@ -58,7 +58,14 @@ class CardTextReader {
             ReadLine(
               line.text,
               line.boundingBox.top / height,
-              line.boundingBox.height / height,
+              // La hauteur vient des coins, pas de la boîte : sur une carte
+              // photographiée de travers, la boîte mesure la longueur de la
+              // ligne bien plus que la taille de ses caractères.
+              textHeightFromCorners(
+                line.cornerPoints,
+                line.boundingBox.height.toDouble(),
+              ) /
+                  height,
             ),
       ];
     } on Object {

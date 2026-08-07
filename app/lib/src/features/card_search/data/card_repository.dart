@@ -1,8 +1,13 @@
 /// Accès aux cartes du catalogue.
 ///
 /// La recherche passe par la fonction Postgres `search_cards`, appelée en RPC.
-/// Elle n'exige aucune authentification : le catalogue est en lecture publique,
-/// seules les collections sont protégées.
+///
+/// **Elle exige une session ouverte**, bien que le catalogue soit en lecture
+/// publique : depuis qu'elle rend aussi le nombre d'exemplaires déjà possédés,
+/// elle lit `collection_items`, table protégée. Appelée avec la seule clé
+/// publique, elle échoue en 401. Sans conséquence dans l'application, où l'on
+/// est toujours connecté, mais tout outil qui l'interroge doit d'abord
+/// s'authentifier — voir `tool/sweep_spread_threshold.dart`.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';

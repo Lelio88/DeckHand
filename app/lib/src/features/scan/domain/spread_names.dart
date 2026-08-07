@@ -44,9 +44,34 @@ const int maxSpreadCandidates = 40;
 /// proposées dont trois inventées.
 ///
 /// La hauteur médiane sert de référence plutôt qu'une valeur absolue : elle
-/// s'adapte à la distance de prise de vue. Le seuil est bas (1,25) pour tolérer
-/// les cartes photographiées de biais, dont le texte paraît plus petit d'un côté.
-const double _nameHeightRatio = 1.25;
+/// s'adapte à la distance de prise de vue.
+///
+/// **Valeur mesurée, sur un étalement réel de cinq cartes.** Le balayage donne
+/// un plateau parfait — cinq cartes sur cinq, aucune fausse — entre 1,10 et
+/// 1,20, et 1,15 en est le centre : 0,07 avant le premier faux positif
+/// (« Vigilance », mot-clé imprimé sur la carte, à 1,08 fois la médiane), 0,06
+/// avant la première carte perdue (« Agent Maria Hill », à 1,21).
+///
+/// | seuil | justes | fausses | manquées |
+/// |---|---|---|---|
+/// | sans filtre | 5 | 3 | 0 |
+/// | 1,10 – 1,20 | **5** | **0** | **0** |
+/// | 1,25 | 3 | 0 | 2 |
+/// | 1,30 | 1 | 0 | 4 |
+///
+/// **L'écart entre un nom et son texte de règles est bien plus faible qu'on ne
+/// le croit** : de 20 à 36 %, jamais le double. La fenêtre utile est donc
+/// étroite, et elle l'est pour une raison structurelle — les cartes d'un
+/// étalement ne sont pas toutes à la même distance de l'objectif, si bien que
+/// le nom d'une carte au bord peut être plus petit que le texte de règles d'une
+/// carte au centre. Une médiane globale ne peut pas distinguer les deux ; c'est
+/// la limite de cette approche, pas un défaut de réglage.
+///
+/// **Publique parce qu'elle se mesure.** `app/tool/sweep_spread_threshold.dart`
+/// rejoue le filtrage à différents seuils sur des lignes réellement lues par
+/// l'appareil ; cette constante est la valeur qu'il cherche à départager, pas
+/// une préférence à recopier ailleurs.
+const double nameHeightRatio = 1.15;
 
 /// Extrait les lignes plausibles comme noms de cartes, dans l'ordre de lecture.
 ///
@@ -54,12 +79,19 @@ const double _nameHeightRatio = 1.25;
 /// sur un étalement, les noms sont répartis dans toute l'image. C'est la taille
 /// du texte, le filtrage du bruit et la confrontation au catalogue qui font le
 /// tri.
-List<NameCandidate> spreadNameCandidates(List<ReadLine> lines) {
+///
+/// [heightRatio] n'est ouvert que pour la mesure : l'outil de balayage rejoue
+/// le filtrage à différentes valeurs sur des lignes réellement lues. Le produit
+/// appelle toujours cette fonction sans l'argument.
+List<NameCandidate> spreadNameCandidates(
+  List<ReadLine> lines, {
+  double heightRatio = nameHeightRatio,
+}) {
   final seen = <String>{};
   final candidates = <NameCandidate>[];
 
   final ordered = [...lines]..sort((a, b) => a.top.compareTo(b.top));
-  final threshold = _medianHeight(ordered) * _nameHeightRatio;
+  final threshold = _medianHeight(ordered) * heightRatio;
 
   for (final line in ordered) {
     // Une photo d'une seule ligne n'a pas de médiane exploitable : on laisse

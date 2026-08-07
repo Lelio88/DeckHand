@@ -6,6 +6,8 @@
 /// échoue alors sans que rien n'indique pourquoi.
 library;
 
+import 'dart:math';
+
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -116,5 +118,47 @@ void main() {
       reason: 'un cadrage approximatif ne doit pas faire manquer le nom — '
           'c\'est précisément ce que la lecture du texte doit rattraper',
     );
+  });
+
+  group("la hauteur d'une ligne se mesure sur ses coins", () {
+    // Une ligne inclinee de 10 degres, comme toute carte posee a la main.
+    // Les coins tournent avec le texte ; la boite englobante, elle, reste
+    // droite et gonfle avec la longueur de la ligne.
+    List<Point<int>> tilted({required int length, required int height}) {
+      const cos = 0.9848, sin = 0.1736;
+      Point<int> at(double x, double y) => Point(x.round(), y.round());
+      final topRight = at(length * cos, length * sin);
+      return [
+        const Point(0, 0),
+        topRight,
+        at(topRight.x - height * sin, topRight.y + height * cos),
+        at(-height * sin, height * cos),
+      ];
+    }
+
+    test('une ligne longue et fine ne passe pas pour du gros texte', () {
+      // Boite englobante : 45 pixels de haut. Caracteres : 10.
+      expect(textHeightFromCorners(tilted(length: 200, height: 10), 45), closeTo(10, 1));
+    });
+
+    test('un nom court en gros caracteres garde sa taille', () {
+      // Boite englobante : 36 pixels, soit MOINS que la ligne de regles
+      // ci-dessus alors que ses caracteres sont deux fois plus grands.
+      expect(textHeightFromCorners(tilted(length: 80, height: 22), 36), closeTo(22, 1));
+    });
+
+    test('le nom ressort au-dessus du texte de regles, mesure ainsi', () {
+      // La regression mesuree sur le terrain : avec la hauteur de boite, la
+      // ligne de regles (45) depassait le nom (36) et le filtre gardait la
+      // mauvaise. Le rapport doit s'inverser.
+      final rules = textHeightFromCorners(tilted(length: 200, height: 10), 45);
+      final name = textHeightFromCorners(tilted(length: 80, height: 22), 36);
+
+      expect(name, greaterThan(rules));
+    });
+
+    test('sans les quatre coins, on retombe sur la boite', () {
+      expect(textHeightFromCorners(const [Point(0, 0)], 17), 17);
+    });
   });
 }

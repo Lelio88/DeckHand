@@ -1,11 +1,16 @@
-> **Chantier repris par une autre voie (2026-08-07).** Tout ce qui suit
-> concerne la segmentation d'image — découper la photo pour isoler chaque
-> carte — qui a plafonné à 57 % de rappel. Cette approche est **abandonnée**,
-> non parce qu'elle était mal menée, mais parce que la lecture de texte
-> embarquée l'a rendue inutile : chaque carte porte son nom, et un nom retrouvé
-> au catalogue *est* une carte détectée. La séparation devient un effet de bord
-> de la lecture au lieu d'un problème à résoudre. Voir
+> **Chantier repris par une autre voie.** Tout ce qui suit concerne la
+> segmentation d'image — découper la photo pour isoler chaque carte — qui a
+> plafonné à 57 % de rappel. Cette approche est **abandonnée**, non parce
+> qu'elle était mal menée, mais parce que la lecture de texte embarquée l'a
+> rendue inutile : chaque carte porte son nom, et un nom retrouvé au catalogue
+> *est* une carte détectée. La séparation devient un effet de bord de la lecture
+> au lieu d'un problème à résoudre. Voir
 > `app/lib/src/features/scan/domain/spread_names.dart`.
+>
+> La voie retenue est mesurée à son tour : **cinq cartes sur cinq, sans fausse**,
+> sur un étalement photographié à main levée — contre 57 % de rappel au mieux
+> par segmentation. Le réglage et sa limite structurelle sont documentés dans
+> [`architecture.md`](./architecture.md), section « Étalement ».
 >
 > Le document reste ici parce que ses impasses valent pour toute tentative
 > future de segmentation — si l'on y revient un jour, pour compter deux
