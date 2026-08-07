@@ -166,31 +166,33 @@ class ScanService {
 
   /// Confronte les noms lus au catalogue.
   ///
-  /// Les recherches partent ensemble : la lecture propose souvent trois lignes,
-  /// et les enchaîner tripleraient l'attente pour rien.
+  /// **Le premier nom qui répond gagne, et lui seul.** Les lignes candidates
+  /// sont ordonnées de haut en bas, et le nom d'une carte est toujours la
+  /// première : les suivantes sont son type ou son texte de règles. Accumuler
+  /// leurs résultats faisait apparaître « Roue à aiguiser » à côté de
+  /// « Big Wheel » — une carte trouvée à partir d'une ligne qui n'était pas un
+  /// nom, et qui transformait une identification sûre en « reconnaissance
+  /// incertaine ».
+  ///
+  /// Les lignes suivantes ne servent donc que de repli, quand la première n'a
+  /// rien donné — le cas d'un nom mal lu.
   Future<List<String>> _searchNames(
     List<String> names, {
     required int limit,
   }) async {
-    final results = await Future.wait(
-      names.map((name) async {
-        try {
-          return await _cards.search(name, limit: 2);
-        } catch (_) {
-          // Sans réseau, la lecture ne sert à rien : l'empreinte prend le relais.
-          return const <CardHit>[];
-        }
-      }),
-    );
-
-    final ids = <String>[];
-    for (final hits in results) {
-      for (final hit in hits) {
-        if (!ids.contains(hit.oracleId)) ids.add(hit.oracleId);
-        if (ids.length >= limit) return ids;
+    for (final name in names) {
+      final List<CardHit> hits;
+      try {
+        hits = await _cards.search(name, limit: limit);
+      } catch (_) {
+        // Sans réseau, la lecture ne sert à rien : l'empreinte prend le relais.
+        return const [];
+      }
+      if (hits.isNotEmpty) {
+        return hits.map((h) => h.oracleId).toList(growable: false);
       }
     }
-    return ids;
+    return const [];
   }
 }
 

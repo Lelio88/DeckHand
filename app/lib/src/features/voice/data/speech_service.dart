@@ -45,6 +45,16 @@ const _pauseBeforeFinal = Duration(seconds: 3);
 /// Durée maximale d'une session avant que le moteur ne coupe de lui-même.
 const _sessionLength = Duration(minutes: 2);
 
+/// Rythme du chien de garde.
+///
+/// **Les événements du moteur ne suffisent pas.** La relance s'appuie sur
+/// `done` et sur `onError`, mais une session peut s'éteindre sans émettre ni
+/// l'un ni l'autre — après une phrase qu'il n'a pas su transcrire, notamment.
+/// L'écoute meurt alors en silence : l'écran affiche « Arrêter », et l'on
+/// continue de dicter sans que rien ne soit entendu. Une vérification
+/// périodique rattrape tous ces cas, quelle qu'en soit la cause.
+const _watchdogPeriod = Duration(seconds: 2);
+
 /// Nombre de relances infructueuses consécutives avant d'abandonner.
 ///
 /// Sans ce garde-fou, un microphone refusé en cours de route ferait boucler la
@@ -63,6 +73,7 @@ class SpeechService {
 
   int _failures = 0;
   Timer? _restart;
+  Timer? _watchdog;
 
   DictationLanguage _language = DictationLanguage.french;
   void Function(String text, bool isFinal)? _onResult;
@@ -110,6 +121,13 @@ class SpeechService {
     _language = language;
     _onResult = onResult;
     _onGaveUp = onGaveUp;
+
+    _watchdog?.cancel();
+    _watchdog = Timer.periodic(_watchdogPeriod, (_) {
+      if (!_wanted) return;
+      if (!_speech.isListening) _scheduleRestart();
+    });
+
     await _listen();
   }
 
@@ -135,6 +153,8 @@ class SpeechService {
       _failures++;
       if (_failures >= _maxConsecutiveFailures) {
         _wanted = false;
+        _watchdog?.cancel();
+        _watchdog = null;
         _onGaveUp?.call();
       }
     }
@@ -157,6 +177,8 @@ class SpeechService {
     _wanted = false;
     _restart?.cancel();
     _restart = null;
+    _watchdog?.cancel();
+    _watchdog = null;
     await _speech.stop();
   }
 }
