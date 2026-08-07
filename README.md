@@ -42,6 +42,12 @@ DeckHand n'existe que grâce à ces services, qui ouvrent gratuitement leurs don
   Données fournies par l'[API TopDeck.gg](https://topdeck.gg/docs/tournaments-v2).
 - **[EDHTop16](https://edhtop16.com)** — decklists de Commander compétitif.
 - **[MTGJSON](https://mtgjson.com)** — decks préconstruits officiels, sous licence MIT.
+- **[Riftcodex](https://riftcodex.com)** — catalogue des cartes Riftbound. Base communautaire
+  non affiliée à Riot Games, qui ne publie pas de conditions d'usage : DeckHand lui applique
+  les mêmes égards qu'à Scryfall — `User-Agent` identifiant, débit volontairement bas, et
+  aucun réhébergement des illustrations, servies par le CDN de Riot.
+- **[Riot Games](https://riotgames.com)** — Riftbound, ses cartes et leurs illustrations.
+  DeckHand n'est ni approuvé ni sponsorisé par Riot Games.
 
 Aucune donnée issue de ces sources n'est versionnée dans ce dépôt : elle est téléchargée à
 l'exécution, dans le respect des conditions de chaque fournisseur.

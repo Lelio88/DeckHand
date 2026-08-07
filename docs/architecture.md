@@ -182,6 +182,8 @@ Rôle **secondaire** : désambiguïsation quand plusieurs empreintes sont proche
 | **Archidekt** | Decks communautaires budget / casual | API en lecture, non documentée | Tolérée et encouragée par l'équipe, mais susceptible d'être fermée. **Jamais en dépendance critique.** |
 | **Moxfield** | — | Sur demande à `support@moxfield.com` | Scraping interdit par les conditions. Option à activer si le besoin se confirme. |
 | **EDHREC** | — | **Interdit** | Les conditions prohibent explicitement les requêtes automatisées et la republication. |
+| **Riftcodex** | Catalogue Riftbound — noms, types, domaines, raretés, extensions, illustrations | Public, sans clé, paginé à 100 | **Conditions non publiées.** Projet de fans non affilié à Riot. À défaut de règles explicites, on lui applique celles de Scryfall : `User-Agent` descriptif, débit bas, attribution visible. Les illustrations qu'il référence sont servies par le CDN officiel de Riot, jamais réhébergées. |
+| **API Riot (Riftbound)** | Source officielle visée pour Riftbound | **Fermée** aux clés de développement | Mesuré : une clé valide obtient 403 sur les quatre routes régionales tout en répondant 200 ailleurs. L'ouverture demande une approbation nommée avec prototype. Attribution imposée, texte officiel obligatoire, pas d'assets externes. |
 
 ### Volumes et formats réellement disponibles
 
@@ -233,6 +235,13 @@ Les précons font exactement 100 cartes, commandant inclus — MTGJSON le livre 
 ---
 
 ## 4. Modèle de données
+
+**Deux jeux, une seule base.** `cards.game` (`magic` ou `riftbound`) cloisonne
+les catalogues : tout ce qui fait la valeur du produit — collection, impressions,
+empreintes, complétion — est identique d'un jeu à l'autre, seul le catalogue
+diffère. `search_cards` prend un paramètre de jeu, `magic` par défaut pour que
+les appels antérieurs gardent leur comportement. Détail et arbitrages :
+[`multi-game.md`](./multi-game.md).
 
 | Table | Rôle |
 |---|---|

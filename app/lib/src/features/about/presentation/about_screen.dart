@@ -29,6 +29,19 @@ const _credits = <({String name, String url, String role})>[
     role: 'Decklists de tournoi pour les formats 60 cartes',
   ),
   (name: 'MTGJSON', url: 'mtgjson.com', role: 'Decks préconstruits officiels'),
+  (
+    name: 'Riftcodex',
+    url: 'riftcodex.com',
+    role: 'Catalogue des cartes Riftbound',
+  ),
+  // Riot n'est pas une source technique de DeckHand — son API Riftbound n'est
+  // pas ouverte —, mais les illustrations affichées sont servies par son CDN et
+  // les cartes sont sa propriété. Le crédit lui revient à ce titre.
+  (
+    name: 'Riot Games',
+    url: 'riotgames.com',
+    role: 'Riftbound, ses cartes et leurs illustrations',
+  ),
 ];
 
 /// Nom lisible de chaque source d'ingestion.
