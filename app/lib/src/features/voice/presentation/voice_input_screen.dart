@@ -76,8 +76,27 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
   String? _lastTranscript;
   DateTime _lastTranscriptAt = DateTime.fromMillisecondsSinceEpoch(0);
 
+  /// État réel du micro, relevé périodiquement.
+  ///
+  /// **Le bouton ne dit pas la vérité.** Il affiche « Arrêter » tant que
+  /// l'utilisateur n'a pas coupé, mais le moteur, lui, s'interrompt entre deux
+  /// phrases — et parfois pour de bon, sans prévenir. Montrer l'état effectif
+  /// évite de dicter dans le vide sans comprendre pourquoi rien n'arrive.
+  bool _micActive = false;
+  Timer? _micWatch;
+
+  @override
+  void initState() {
+    super.initState();
+    _micWatch = Timer.periodic(const Duration(milliseconds: 700), (_) {
+      final active = ref.read(speechServiceProvider).isListening;
+      if (active != _micActive && mounted) setState(() => _micActive = active);
+    });
+  }
+
   @override
   void dispose() {
+    _micWatch?.cancel();
     ref.read(speechServiceProvider).stop();
     super.dispose();
   }
@@ -252,7 +271,12 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
             constraints: const BoxConstraints(maxWidth: 620),
             child: Column(
               children: [
-                _Hint(listening: _listening, partial: _partial, error: _error),
+                _Hint(
+                  listening: _listening,
+                  micActive: _micActive,
+                  partial: _partial,
+                  error: _error,
+                ),
                 Expanded(
                   child: _heard.isEmpty
                       ? const _Empty()
@@ -288,11 +312,15 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
 class _Hint extends StatelessWidget {
   const _Hint({
     required this.listening,
+    required this.micActive,
     required this.partial,
     required this.error,
   });
 
   final bool listening;
+
+  /// Vrai quand le moteur écoute réellement, à cet instant.
+  final bool micActive;
   final String partial;
   final String? error;
 

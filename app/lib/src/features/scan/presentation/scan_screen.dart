@@ -16,6 +16,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../printings/presentation/printing_picker.dart';
 import '../application/scan_service.dart';
 import '../data/art_index_repository.dart';
 import '../data/photo_source.dart';
@@ -92,13 +93,34 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     }
   }
 
-  Future<void> _add(CardHit card) async {
+  /// Ouvre le sélecteur avant d'ajouter.
+  ///
+  /// Le scan ajoutait directement, sans jamais offrir de préciser l'édition ni
+  /// la finition — il fallait ensuite retrouver la carte dans la collection pour
+  /// le faire. Or c'est ici qu'on la tient en main, donc le seul moment où l'on
+  /// sait de quelle extension elle vient et si elle brille.
+  Future<void> _addWithPrinting(CardHit card) async {
+    final chosen = await showPrintingPicker(
+      context,
+      oracleId: card.oracleId,
+      cardName: card.matchedName,
+      lang: card.matchedLang,
+    );
+    if (chosen == null || !mounted) return;
+    await _add(
+      card,
+      printId: chosen.isUnspecified ? null : chosen.printing.printId,
+      isFoil: chosen.isFoil,
+    );
+  }
+
+  Future<void> _add(CardHit card, {String? printId, bool isFoil = false}) async {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     try {
       final total = await ref
           .read(collectionRepositoryProvider)
-          .add(card.oracleId);
+          .add(card.oracleId, printId: printId, isFoil: isFoil);
       ref.invalidate(collectionProvider);
       ref.invalidate(collectionPageProvider);
       if (!mounted) return;
@@ -145,6 +167,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 onCropRetry: () =>
                     _capture(_lastSource ?? ImageSource.camera, crop: true),
                 onAdd: _add,
+                onChoosePrinting: _addWithPrinting,
               ),
             ),
           ),
@@ -164,6 +187,7 @@ class _Body extends StatelessWidget {
     required this.onCapture,
     required this.onCropRetry,
     required this.onAdd,
+    required this.onChoosePrinting,
   });
 
   final int indexSize;
@@ -174,6 +198,7 @@ class _Body extends StatelessWidget {
   final void Function(ImageSource) onCapture;
   final VoidCallback onCropRetry;
   final void Function(CardHit) onAdd;
+  final void Function(CardHit) onChoosePrinting;
 
   @override
   Widget build(BuildContext context) {
@@ -231,6 +256,7 @@ class _Body extends StatelessWidget {
             outcome: outcome,
             details: details,
             onAdd: onAdd,
+            onChoosePrinting: onChoosePrinting,
             onCropRetry: onCropRetry,
           ),
         ),
@@ -245,6 +271,7 @@ class _Result extends StatelessWidget {
     required this.outcome,
     required this.details,
     required this.onAdd,
+    required this.onChoosePrinting,
     required this.onCropRetry,
   });
 
@@ -252,6 +279,7 @@ class _Result extends StatelessWidget {
   final ScanOutcome? outcome;
   final List<CardHit> details;
   final void Function(CardHit) onAdd;
+  final void Function(CardHit) onChoosePrinting;
 
   /// Reprend la photo en passant par le recadrage.
   ///
@@ -315,6 +343,7 @@ class _Result extends StatelessWidget {
             origin: i == 0 ? outcome!.method : null,
             highlighted: i == 0 && outcome!.isConfident,
             onAdd: () => onAdd(details[i]),
+            onChoosePrinting: () => onChoosePrinting(details[i]),
           ),
           const SizedBox(height: 8),
         ],
@@ -335,12 +364,14 @@ class _Candidate extends StatelessWidget {
     required this.origin,
     required this.highlighted,
     required this.onAdd,
+    required this.onChoosePrinting,
   });
 
   final CardHit card;
   final ScanMethod? origin;
   final bool highlighted;
   final VoidCallback onAdd;
+  final VoidCallback onChoosePrinting;
 
   @override
   Widget build(BuildContext context) {
@@ -383,6 +414,14 @@ class _Candidate extends StatelessWidget {
                 ? '—'
                 : '${card.priceEur!.toStringAsFixed(2)} €',
             style: theme.textTheme.titleSmall,
+          ),
+          // Deux gestes : ajouter vite, ou préciser d'abord. Imposer le
+          // sélecteur à chaque carte ralentirait la saisie ; ne jamais le
+          // proposer obligerait à repasser par la collection.
+          IconButton(
+            onPressed: onChoosePrinting,
+            tooltip: "Choisir l'édition",
+            icon: const Icon(Icons.style_outlined),
           ),
           IconButton.filledTonal(
             onPressed: onAdd,
