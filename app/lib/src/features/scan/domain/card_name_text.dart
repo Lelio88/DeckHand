@@ -72,9 +72,9 @@ final _shortCaps = RegExp(r'^[A-Z]{2,6}$');
 /// « Artefact : véhicule » ou « Creature — Human Wizard » renverrait des cartes
 /// au hasard — un résultat plausible, donc plus trompeur qu'un échec franc.
 final _typeLine = RegExp(
-  r'^(cr[ée]ature|rituel|[ée]ph[ée]m[èe]re|artefact|enchantement|terrain|'
-  r'planeswalker|bataille|creature|sorcery|instant|artifact|enchantment|'
-  r'land|battle|kindred|tribal)',
+  r'^(cr[ÉéEe]ature|rituel|[ÉéEe]ph[ÉéEe]m[ÈèEe]re|artefact|enchantement|'
+  r'terrain|planeswalker|bataille|creature|sorcery|instant|artifact|'
+  r'enchantment|land|battle|kindred|tribal)',
   caseSensitive: false,
 );
 
@@ -92,12 +92,8 @@ List<String> cardNameCandidates(List<ReadLine> lines, {int limit = 3}) {
   final candidates = <String>[];
 
   for (final line in zone) {
-    final text = _clean(line.text);
-    if (text.length < _minNameLength || text.length > _maxNameLength) continue;
-    if (_noise.hasMatch(text)) continue;
-    if (_setMarkers.hasMatch(text)) continue;
-    if (_shortCaps.hasMatch(text.replaceAll(' ', ''))) continue;
-    if (_typeLine.hasMatch(text)) continue;
+    final text = cleanNameLine(line.text);
+    if (!looksLikeCardName(text)) continue;
     if (!seen.add(text.toLowerCase())) continue;
     candidates.add(text);
     if (candidates.length >= limit) break;
@@ -106,11 +102,28 @@ List<String> cardNameCandidates(List<ReadLine> lines, {int limit = 3}) {
   return candidates;
 }
 
+/// Vrai si la ligne peut être un nom de carte.
+///
+/// Écarte tout ce qu'une carte porte d'autre : coût en mana, force et
+/// endurance, numéro de collection, sigle d'extension, ligne de type, mention
+/// de copyright, et les phrases trop longues pour être un nom.
+///
+/// Partagé avec le repérage d'étalements, qui applique les mêmes exclusions à
+/// des lignes réparties dans toute l'image.
+bool looksLikeCardName(String text) {
+  if (text.length < _minNameLength || text.length > _maxNameLength) return false;
+  if (_noise.hasMatch(text)) return false;
+  if (_setMarkers.hasMatch(text)) return false;
+  if (_shortCaps.hasMatch(text.replaceAll(' ', ''))) return false;
+  if (_typeLine.hasMatch(text)) return false;
+  return true;
+}
+
 /// Nettoie une ligne lue.
 ///
 /// Les caractères parasites viennent surtout des bordures du cadre, que la
 /// reconnaissance interprète parfois comme des traits ou des points.
-String _clean(String raw) {
+String cleanNameLine(String raw) {
   return raw
       .replaceAll(RegExp(r'[|_~^`]'), '')
       .replaceAll(RegExp(r'\s+'), ' ')

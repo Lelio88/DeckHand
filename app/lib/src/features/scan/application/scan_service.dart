@@ -35,6 +35,7 @@ import '../domain/art_box.dart';
 import '../domain/art_hash_index.dart';
 import '../domain/card_framing.dart';
 import '../domain/card_name_text.dart';
+import '../domain/spread_names.dart';
 
 /// Comment une carte a été identifiée. Détermine ce que l'écran annonce.
 enum ScanMethod {
@@ -129,6 +130,47 @@ class ScanService {
       readName: names.first,
       frame: art.frame,
     );
+  }
+
+  /// Repère **toutes** les cartes visibles sur une photo d'étalement.
+  ///
+  /// Ne découpe pas l'image : chaque carte porte son nom, et un nom retrouvé au
+  /// catalogue est une carte détectée. La séparation devient un effet de bord
+  /// de la lecture — là où les tentatives de segmentation plafonnaient à 57 %.
+  ///
+  /// Renvoie les cartes dans l'ordre de lecture, de haut en bas. Une carte peut
+  /// manquer (nom masqué, reflet) ; c'est assumé, l'utilisateur voit son
+  /// étalement et complétera. L'inverse — inventer une carte qu'il validerait
+  /// sans y penser — fausserait durablement ses suggestions de decks.
+  Future<List<CardHit>> recogniseSpread(String photoPath) async {
+    final candidates = spreadNameCandidates(await _reader.readLines(photoPath));
+    if (candidates.isEmpty) return const [];
+
+    // Les recherches partent ensemble : une photo d'étalement en produit des
+    // dizaines, et les enchaîner rendrait l'attente insupportable.
+    final results = await Future.wait(
+      candidates.map((candidate) async {
+        try {
+          return await _cards.search(candidate.text, limit: 1);
+        } catch (_) {
+          return const <CardHit>[];
+        }
+      }),
+    );
+
+    final found = <String, CardHit>{};
+    for (final hits in results) {
+      if (hits.isEmpty) continue;
+      final hit = hits.first;
+      // Le seuil sépare la trouvaille du hasard : dans un catalogue de 31 634
+      // cartes, n'importe quelle ligne trouve *quelque chose*.
+      if (hit.score < spreadScoreThreshold) continue;
+      // Une même carte peut être lue deux fois — nom scindé sur deux lignes,
+      // ou deux exemplaires côte à côte. Le second cas mériterait une quantité,
+      // mais rien ne permet de le distinguer du premier de façon fiable.
+      found.putIfAbsent(hit.oracleId, () => hit);
+    }
+    return found.values.toList(growable: false);
   }
 
   /// Reconnaissance par l'illustration seule.

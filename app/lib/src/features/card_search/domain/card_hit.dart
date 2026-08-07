@@ -20,6 +20,7 @@ class CardHit {
     this.manaCost,
     this.priceEur,
     this.owned = 0,
+    this.score = 0,
   });
 
   final String oracleId;
@@ -47,6 +48,14 @@ class CardHit {
   /// en plusieurs séances, on ne sait plus où l'on en est dans sa boîte.
   final int owned;
 
+  /// Force de la correspondance, de 0 à 1.
+  ///
+  /// Sert à distinguer une vraie trouvaille d'un rapprochement fortuit — un mot
+  /// isolé d'un texte de règles trouve toujours *quelque chose*, avec un score
+  /// faible. Indispensable dès qu'on cherche sans savoir si la ligne examinée
+  /// est un nom de carte.
+  final double score;
+
   /// Vrai quand le nom affiché diffère du nom oracle, c'est-à-dire quand la
   /// carte a été trouvée par sa traduction.
   bool get isLocalized => matchedName != name;
@@ -65,6 +74,7 @@ class CardHit {
       legalModern: json['legal_modern'] as bool? ?? false,
       legalCommander: json['legal_commander'] as bool? ?? false,
       owned: (json['owned'] as num?)?.toInt() ?? 0,
+      score: (json['score'] as num?)?.toDouble() ?? 0,
     );
   }
 }
