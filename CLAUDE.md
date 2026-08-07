@@ -22,7 +22,7 @@ construire l'index d'empreintes qu'elle télécharge.
 
 | Couche | Choix |
 |---|---|
-| `app/` | Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper` (scan), `speech_to_text` (dictée), `shared_preferences` (cache) |
+| `app/` | Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper` (scan), `speech_to_text` (dictée), `google_mlkit_text_recognition` (lecture du nom, embarquée), `shared_preferences` (cache) |
 | `api/` | Python 3.11+, httpx, psycopg, Pillow, numpy — jobs hors ligne, pas de serveur |
 | Données | Supabase — Postgres, Auth, Storage |
 | Hébergement | Supabase cloud uniquement — rien à déployer, les jobs sont lancés en local |
@@ -91,10 +91,10 @@ supabase migration new <nom>       # nouvelle migration horodatée
 - **État** : catalogue peuplé — 31 634 cartes, ~61 000 noms indexés (dont les noms français et chaque face des cartes recto-verso), et **162 000 impressions** anglaises et françaises : chaque édition d'une carte est connue, choisissable et cotée séparément. Base à 155 Mo sur les 500 du plan gratuit. L'application permet de chercher une carte — en voyant combien d'exemplaires on en possède déjà —, l'ajouter à sa collection en désignant ou non son édition, et consulter celle-ci à l'échelle : recherche par nom (français compris), tri par nom, valeur, quantité ou date d'ajout, chargement par pages. Les totaux portent toujours sur la collection entière, indépendamment du filtre affiché.
 - **Éditions** : préciser l'édition n'est jamais obligatoire — la saisie rapide en dépend. Le choix se fait au moment de l'ajout, ou plus tard depuis la collection ; le bandeau indique combien d'exemplaires restent sans édition, et leur valorisation est alors un plancher, pas une estimation.
 - **Corpus** : 1 028 decks — 725 Pauper et 113 Modern de TopDeck.gg (étiquetés `competitive`), 190 précons Commander de MTGJSON (étiquetés `accessible`). Le moteur de suggestion et son écran sont en place : la boucle saisie → collection → decks constructibles est complète.
-- **Reconnaissance** : index de 31 634 empreintes construit, aucune collision. Mesuré de bout en bout sur photos dégradées : 100 % de reconnaissance en conditions normales, 98 % en mauvaise photo, et **aucun faux positif annoncé avec assurance**. L'écran de scan est en place.
+- **Reconnaissance** : deux voies — le **nom imprimé** est lu puis confronté au catalogue, l'empreinte d'illustration (31 634 entrées) servant de recours et de confirmation. Ce renversement vient du premier test terrain : l'empreinte seule exige un cadrage à 3 % près et suppose l'illustration exacte présente dans l'index, deux conditions qu'une photo à main levée ne remplit pas. Mesures et impasses dans [`docs/architecture.md`](./docs/architecture.md).
 - **Saisie** : quatre entrées — clavier, photo, dictée continue, et bientôt l'étalement. La dictée accumule les cartes en écoute continue et les ajoute en bloc après validation.
 - **Jalon 3 en suspens** : la détection multi-cartes plafonne à 57 % de rappel. Approches et impasses mesurées dans [`docs/spread-detection.md`](./docs/spread-detection.md) — ne pas refaire ce chemin sans lire.
-- **Focus immédiat** : essayer scan et dictée sur de vraies cartes (APK Android).
+- **Focus immédiat** : éprouver la lecture du nom sur de vraies cartes. Deux chantiers connus restent ouverts — l'index ne porte qu'une illustration par carte (un quart des rééditions changent d'art), et rien ne détecte les bords de la carte dans la photo.
 - **Attributions** : Scryfall, TopDeck.gg et MTGJSON sont crédités dans l'écran « à propos » de l'application, en plus du README. Obligation contractuelle, pas décoration.
 - **Compte de test** : `test@deckhand.app`, mot de passe dans `../.deckhand-secrets/supabase.env`.
 - **Décision tranchée** : pipeline de vision en Dart pur, parité avec Python verrouillée par des vecteurs de test. La détection de contours ne devient nécessaire qu'au jalon 3 — le jalon 2 s'en passe grâce au cadrage guidé.

@@ -12,6 +12,12 @@
 /// L'utilisateur ne peut donc pas produire un cadre aberrant ; il lui reste à
 /// poser les bords sur ceux de la carte, ce qu'un rectangle contraint rend
 /// naturel.
+///
+/// Mesure faite depuis : ce recadrage ne suffit pas. L'empreinte d'illustration
+/// décroche au-delà de 3 % d'écart, soit deux millimètres et demi — une
+/// précision qu'aucun cadrage à main levée n'atteint. D'où la lecture du nom,
+/// qui exige le **chemin du fichier** et non ses octets : c'est pourquoi la
+/// capture renvoie les deux.
 library;
 
 import 'dart:typed_data';
@@ -20,6 +26,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
+
+/// Photo cadrée, sous ses deux formes.
+///
+/// Les octets alimentent le calcul d'empreinte, le chemin la lecture du texte —
+/// ML Kit lit un fichier, pas un tampon mémoire.
+class CapturedPhoto {
+  const CapturedPhoto({required this.bytes, required this.path});
+
+  final Uint8List bytes;
+  final String path;
+}
 
 /// Proportions d'une carte Magic : 63 × 88 mm.
 const _cardRatioX = 63.0;
@@ -35,7 +52,7 @@ class PhotoSource {
   /// [webContext] n'est utilisé que par la variante web du paquet de recadrage,
   /// qui exige un `BuildContext` pour afficher sa boîte de dialogue. Ailleurs il
   /// reste nul, et aucune couche de données ne dépend de l'arbre de widgets.
-  Future<Uint8List?> capture({
+  Future<CapturedPhoto?> capture({
     required ImageSource source,
     required Color toolbarColor,
     required Color toolbarWidgetColor,
@@ -84,7 +101,10 @@ class PhotoSource {
     );
     if (cropped == null) return null;
 
-    return cropped.readAsBytes();
+    return CapturedPhoto(
+      bytes: await cropped.readAsBytes(),
+      path: cropped.path,
+    );
   }
 }
 

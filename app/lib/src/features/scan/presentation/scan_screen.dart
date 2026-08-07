@@ -43,7 +43,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
     try {
       final theme = Theme.of(context);
-      final bytes = await ref
+      final photo = await ref
           .read(photoSourceProvider)
           .capture(
             source: source,
@@ -52,21 +52,20 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             webContext: context,
           );
       // Abandon à la prise de vue ou au recadrage : rien à signaler.
-      if (bytes == null) {
+      if (photo == null) {
         if (mounted) setState(() => _busy = false);
         return;
       }
 
       final service = await ref.read(scanServiceProvider.future);
-      final outcome = service.recognise(bytes);
+      final outcome = await service.recognise(
+        photo.bytes,
+        photoPath: photo.path,
+      );
 
-      final details = outcome.candidates.isEmpty
+      final details = outcome.oracleIds.isEmpty
           ? <CardHit>[]
-          : await ref
-                .read(cardRepositoryProvider)
-                .byOracleIds(
-                  outcome.candidates.map((c) => c.oracleId).toList(),
-                );
+          : await ref.read(cardRepositoryProvider).byOracleIds(outcome.oracleIds);
 
       if (!mounted) return;
       setState(() {
@@ -280,9 +279,10 @@ class _Result extends StatelessWidget {
         for (var i = 0; i < details.length; i++) ...[
           _Candidate(
             card: details[i],
-            distance: i < outcome!.candidates.length
-                ? outcome!.candidates[i].distance
-                : null,
+            // La provenance parle plus qu'un écart d'empreinte : « nom lu »
+            // dit à l'utilisateur pourquoi cette carte est proposée, et lui
+            // permet de juger s'il peut faire confiance.
+            origin: i == 0 ? outcome!.method : null,
             highlighted: i == 0 && outcome!.isConfident,
             onAdd: () => onAdd(details[i]),
           ),
@@ -293,16 +293,22 @@ class _Result extends StatelessWidget {
   }
 }
 
+String _originLabel(ScanMethod method) => switch (method) {
+  ScanMethod.nameAndArt => 'nom et illustration',
+  ScanMethod.name => 'nom lu',
+  ScanMethod.art => 'illustration',
+};
+
 class _Candidate extends StatelessWidget {
   const _Candidate({
     required this.card,
-    required this.distance,
+    required this.origin,
     required this.highlighted,
     required this.onAdd,
   });
 
   final CardHit card;
-  final int? distance;
+  final ScanMethod? origin;
   final bool highlighted;
   final VoidCallback onAdd;
 
@@ -333,7 +339,7 @@ class _Candidate extends StatelessWidget {
                 Text(
                   [
                     card.typeLine ?? '',
-                    if (distance != null) 'écart $distance',
+                    if (origin != null) _originLabel(origin!),
                   ].where((s) => s.isNotEmpty).join(' · '),
                   style: muted,
                   maxLines: 1,

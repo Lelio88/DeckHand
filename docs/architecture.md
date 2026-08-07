@@ -248,6 +248,19 @@ Les précons font exactement 100 cartes, commandant inclus — MTGJSON le livre 
 
 **Granularité de collection retenue** : nom + édition. L'état (NM/played) et le caractère *foil* sont ignorés — pure saisie manuelle, sans apport pour le deckbuilding.
 
+### Deux voies de reconnaissance, dans l'ordre
+
+Depuis le test terrain, la carte est identifiée **par son nom d'abord**, par son illustration ensuite.
+
+1. **Lecture du nom** — ML Kit reconnaît le texte, embarqué et hors ligne (aucune image ne quitte l'appareil). Les lignes situées dans le tiers supérieur sont retenues, débarrassées du bloc d'identification en marge (« C 0679 », « MSC★FR »), du coût en mana, de la force/endurance et du copyright. Les trois premières partent ensemble vers `search_cards`, dont la tolérance aux fautes absorbe les erreurs de lecture.
+2. **Empreinte d'illustration** — inchangée, elle sert désormais de recours (texte illisible, fort reflet, web où ML Kit n'existe pas) et de **confirmation** : quand les deux voies désignent la même carte, le doute est levé quelle que soit la distance.
+
+Le nom est le seul repère stable : il figure en première ligne sur toutes les éditions depuis 1993, reste lisible de travers, et ne dépend pas de l'illustration — donc pas de l'édition. L'empreinte garde en revanche un rôle que le nom ne peut pas tenir : distinguer deux impressions d'une même carte.
+
+`ScanMethod` remonte la voie employée jusqu'à l'écran, qui annonce « nom lu », « illustration » ou « nom et illustration ». Dire d'où vient une proposition permet à l'utilisateur de juger s'il peut la croire.
+
+**Coût :** +30 Mo d'APK (53,6 → 83,8 Mo), le modèle latin étant empaqueté. Les modules chinois, japonais, coréen et devanagari sont écartés par `android/app/proguard-rules.pro` — sans quoi R8 refuse de compiler, le plugin les référençant sans qu'ils soient présents.
+
 ### Ce que le premier test terrain a montré (2026-08-07)
 
 Deux cartes scannées, deux échecs, **deux causes distinctes** — mesurées, pas supposées.

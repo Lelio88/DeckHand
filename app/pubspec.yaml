@@ -41,6 +41,7 @@ dependencies:
   shared_preferences: ^2.5.5
   image_cropper: ^12.2.1
   speech_to_text: ^7.4.0
+  google_mlkit_text_recognition: ^0.16.0
 
 dev_dependencies:
   flutter_test:

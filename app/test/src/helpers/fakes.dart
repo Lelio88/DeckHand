@@ -7,6 +7,8 @@
 library;
 
 import 'package:deckhand/src/features/card_search/data/card_repository.dart';
+import 'package:deckhand/src/features/scan/data/card_text_reader.dart';
+import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
@@ -70,6 +72,24 @@ class FakeDeckRepository implements DeckRepository {
 
   @override
   Future<List<MissingCard>> missingCards(String deckId) async => missing;
+}
+
+/// Faux lecteur de texte.
+///
+/// Sert à éprouver la fusion « nom lu + illustration » sans dépendre du service
+/// natif de reconnaissance, indisponible en test.
+class FakeCardTextReader implements CardTextReader {
+  List<ReadLine> lines = const [];
+  String? lastPath;
+
+  @override
+  Future<List<ReadLine>> readLines(String path) async {
+    lastPath = path;
+    return lines;
+  }
+
+  @override
+  Future<void> dispose() async {}
 }
 
 /// Faux catalogue de cartes.
