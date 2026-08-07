@@ -51,9 +51,19 @@ const _sessionLength = Duration(minutes: 2);
 /// `done` et sur `onError`, mais une session peut s'éteindre sans émettre ni
 /// l'un ni l'autre — après une phrase qu'il n'a pas su transcrire, notamment.
 /// L'écoute meurt alors en silence : l'écran affiche « Arrêter », et l'on
-/// continue de dicter sans que rien ne soit entendu. Une vérification
-/// périodique rattrape tous ces cas, quelle qu'en soit la cause.
+/// continue de dicter sans que rien ne soit entendu.
 const _watchdogPeriod = Duration(seconds: 2);
+
+/// Passes inactives consécutives avant que le chien de garde n'intervienne.
+///
+/// **Il ne doit surtout pas être pressé.** Entre la fin d'une phrase et la
+/// livraison de sa transcription, le moteur n'écoute plus mais travaille
+/// encore : `isListening` est faux alors que tout va bien. Relancer là annule
+/// la session et la phrase est perdue — on voit son texte s'afficher, et rien
+/// n'est jamais cherché. Trois passes laissent au moteur le temps de finir ;
+/// la relance normale sur `done` a largement eu lieu d'ici là, et ce garde-fou
+/// ne sert plus qu'aux sessions qui meurent vraiment sans rien dire.
+const _watchdogGracePasses = 3;
 
 /// Nombre de relances infructueuses consécutives avant d'abandonner.
 ///
@@ -72,6 +82,7 @@ class SpeechService {
   bool _wanted = false;
 
   int _failures = 0;
+  int _idlePasses = 0;
   Timer? _restart;
   Timer? _watchdog;
 
@@ -122,10 +133,19 @@ class SpeechService {
     _onResult = onResult;
     _onGaveUp = onGaveUp;
 
+    _idlePasses = 0;
     _watchdog?.cancel();
     _watchdog = Timer.periodic(_watchdogPeriod, (_) {
       if (!_wanted) return;
-      if (!_speech.isListening) _scheduleRestart();
+      if (_speech.isListening) {
+        _idlePasses = 0;
+        return;
+      }
+      _idlePasses++;
+      if (_idlePasses >= _watchdogGracePasses) {
+        _idlePasses = 0;
+        _scheduleRestart();
+      }
     });
 
     await _listen();
@@ -169,6 +189,7 @@ class SpeechService {
     if (!_wanted) return;
     _restart?.cancel();
     _restart = Timer(const Duration(milliseconds: 400), () {
+      _idlePasses = 0;
       if (_wanted && !_speech.isListening) unawaited(_listen());
     });
   }

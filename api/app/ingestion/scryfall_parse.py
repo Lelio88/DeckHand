@@ -68,6 +68,7 @@ class CardPrint:
     # Finitions réellement imprimées, telles que publiées par Scryfall :
     # « nonfoil », « foil », « etched ». Détermine ce que le sélecteur propose.
     finishes: list[str]
+    illustration_id: str | None
     released_at: str | None
 
 
@@ -124,6 +125,21 @@ def _art_crop_url(payload: dict[str, Any]) -> str | None:
     return None
 
 
+def _illustration_id(payload: dict[str, Any]) -> str | None:
+    """Identifiant de l'œuvre, à la racine ou sur la première face qui en porte un.
+
+    Commun à toutes les impressions réutilisant la même illustration : c'est ce
+    qui permet de ne calculer qu'une empreinte par image, au lieu d'une par
+    impression.
+    """
+    if payload.get("illustration_id"):
+        return payload["illustration_id"]
+    for face in payload.get("card_faces") or []:
+        if face.get("illustration_id"):
+            return face["illustration_id"]
+    return None
+
+
 def parse_card(payload: dict[str, Any]) -> Card:
     """Construit la carte oracle à partir d'un payload Scryfall.
 
@@ -177,6 +193,7 @@ def parse_print(payload: dict[str, Any]) -> CardPrint:
         price_eur_foil=_as_float(prices.get("eur_foil")),
         price_usd_foil=_as_float(prices.get("usd_foil")),
         finishes=payload.get("finishes") or [],
+        illustration_id=_illustration_id(payload),
         released_at=payload.get("released_at"),
     )
 

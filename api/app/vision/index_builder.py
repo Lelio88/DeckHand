@@ -58,32 +58,35 @@ class BuildReport:
 def pending_prints(
     conn: psycopg.Connection, limit: int | None = None
 ) -> list[tuple[str, str, str]]:
-    """Une impression de référence par carte encore dépourvue d'empreinte.
+    """Une impression par **illustration** encore dépourvue d'empreinte.
 
-    **Le filtre porte sur la carte, pas sur l'impression**, et c'est ce qui rend
-    l'ingestion des éditions sans conséquence ici. Depuis que `card_prints` contient
-    les 161 000 impressions anglaises et françaises au lieu d'une par carte, demander
-    « les impressions sans empreinte » réclamerait 130 000 téléchargements d'images
-    supplémentaires, et quintuplerait l'index que l'application télécharge — pour
-    aucun gain : une carte rééditée garde le plus souvent son illustration.
+    L'index portait une seule image par carte, si bien qu'une réédition à
+    l'illustration changée restait invisible au scan — un quart des cas mesurés
+    sur un échantillon de rééditions. Il couvre désormais chaque œuvre distincte.
 
-    L'ordre de départage privilégie l'anglais puis la sortie la plus ancienne, et non
-    le prix : un critère fondé sur la cote désignerait une impression différente au
-    gré des fluctuations, et ferait recalculer des empreintes déjà connues.
+    `illustration_id` évite l'explosion : commun à toutes les impressions qui
+    réutilisent la même image, il ramène les 162 000 impressions au nombre
+    d'illustrations réellement différentes. `DISTINCT ON` en retient une seule
+    par œuvre, en privilégiant l'anglais puis la sortie la plus ancienne — un
+    critère stable, là où le prix désignerait une impression différente à chaque
+    fluctuation et ferait recalculer des empreintes déjà connues.
 
-    (Indexer *toutes* les illustrations reconnaîtrait aussi les rééditions à l'art
-    changé — piste réelle, mais qui se paie en poids d'index côté application ; elle
-    n'est pas prise ici.)
+    Les impressions sans `illustration_id` (rares) sont écartées : sans lui, rien
+    ne permet de savoir si leur image a déjà été hachée.
     """
     query = """
-        SELECT DISTINCT ON (p.oracle_id)
+        SELECT DISTINCT ON (p.illustration_id)
                p.scryfall_id::text, p.oracle_id::text, p.art_crop_url
         FROM public.card_prints p
         WHERE p.art_crop_url IS NOT NULL
+          AND p.illustration_id IS NOT NULL
           AND NOT EXISTS (
-              SELECT 1 FROM public.art_hashes h WHERE h.oracle_id = p.oracle_id
+              SELECT 1
+              FROM public.art_hashes h
+              JOIN public.card_prints hp ON hp.scryfall_id = h.scryfall_id
+              WHERE hp.illustration_id = p.illustration_id
           )
-        ORDER BY p.oracle_id, (p.lang = 'en') DESC, p.released_at, p.scryfall_id
+        ORDER BY p.illustration_id, (p.lang = 'en') DESC, p.released_at, p.scryfall_id
     """
     if limit:
         query += f" LIMIT {int(limit)}"
