@@ -17,6 +17,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../printings/presentation/card_art_view.dart';
 import '../application/scan_service.dart';
 import '../data/photo_source.dart';
 
@@ -101,8 +102,10 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text('$added carte${added > 1 ? 's' : ''} ajoutée'
-              '${added > 1 ? 's' : ''}'),
+          content: Text(
+            '$added carte${added > 1 ? 's' : ''} ajoutée'
+            '${added > 1 ? 's' : ''}',
+          ),
         ),
       );
       navigator.pop();
@@ -160,14 +163,16 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
     if (!_scanned) {
       return const _Note(
         icon: Icons.grid_view,
-        text: 'Étalez vos cartes sans les faire se chevaucher, '
+        text:
+            'Étalez vos cartes sans les faire se chevaucher, '
             'puis photographiez l\'ensemble.',
       );
     }
     if (_spotted.isEmpty) {
       return const _Note(
         icon: Icons.search_off,
-        text: 'Aucun nom n\'a pu être lu. Rapprochez-vous, '
+        text:
+            'Aucun nom n\'a pu être lu. Rapprochez-vous, '
             'ou évitez les reflets sur les protège-cartes.',
       );
     }
@@ -176,10 +181,8 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
       itemCount: _spotted.length,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) => _SpottedTile(
-        item: _spotted[index],
-        onChanged: () => setState(() {}),
-      ),
+      itemBuilder: (context, index) =>
+          _SpottedTile(item: _spotted[index], onChanged: () => setState(() {})),
     );
   }
 }
@@ -195,70 +198,84 @@ class _SpottedTile extends StatelessWidget {
     final theme = Theme.of(context);
     final card = item.card;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-      decoration: BoxDecoration(
-        color: item.keep
-            ? theme.colorScheme.surfaceContainerHigh
-            : theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(14),
+    // **Voir avant de valider en bloc.** Un étalement propose des cartes lues
+    // de loin, parfois de travers ; l'illustration est ce qui permet de
+    // reconnaître la sienne d'un coup d'œil, là où un nom demande à être lu et
+    // comparé. Le geste est celui du sélecteur d'édition : maintenir la ligne.
+    return GestureDetector(
+      onLongPress: () => showCardArt(
+        context,
+        oracleId: card.oracleId,
+        title: card.matchedName,
+        lang: card.matchedLang,
       ),
-      child: Row(
-        children: [
-          Checkbox(
-            value: item.keep,
-            onChanged: (v) {
-              item.keep = v ?? false;
-              onChanged();
-            },
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  card.matchedName,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: item.keep ? null : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (card.isLocalized)
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        decoration: BoxDecoration(
+          color: item.keep
+              ? theme.colorScheme.surfaceContainerHigh
+              : theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Checkbox(
+              value: item.keep,
+              onChanged: (v) {
+                item.keep = v ?? false;
+                onChanged();
+              },
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    card.name,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                    card.matchedName,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: item.keep
+                          ? null
+                          : theme.colorScheme.onSurfaceVariant,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-              ],
+                  if (card.isLocalized)
+                    Text(
+                      card.name,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
             ),
-          ),
-          // Les exemplaires identiques ne sont pas comptés : la lecture des noms
-          // ne distingue pas deux cartes côte à côte d'un nom lu deux fois. La
-          // quantité s'ajuste donc à la main.
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
-            tooltip: 'Un de moins',
-            onPressed: item.quantity > 1
-                ? () {
-                    item.quantity--;
-                    onChanged();
-                  }
-                : null,
-          ),
-          Text('${item.quantity}', style: theme.textTheme.titleMedium),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            tooltip: 'Un de plus',
-            onPressed: () {
-              item.quantity++;
-              onChanged();
-            },
-          ),
-        ],
+            // Les exemplaires identiques ne sont pas comptés : la lecture des noms
+            // ne distingue pas deux cartes côte à côte d'un nom lu deux fois. La
+            // quantité s'ajuste donc à la main.
+            IconButton(
+              icon: const Icon(Icons.remove_circle_outline),
+              tooltip: 'Un de moins',
+              onPressed: item.quantity > 1
+                  ? () {
+                      item.quantity--;
+                      onChanged();
+                    }
+                  : null,
+            ),
+            Text('${item.quantity}', style: theme.textTheme.titleMedium),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: 'Un de plus',
+              onPressed: () {
+                item.quantity++;
+                onChanged();
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

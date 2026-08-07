@@ -329,6 +329,14 @@ pas lu du tout (reflet, angle) ne peut être rattrapée par aucun seuil, et deux
 exemplaires identiques côte à côte comptent pour un — la quantité s'ajuste à la
 main.
 
+**Maintenir une ligne en affiche l'illustration**, sur l'étalement comme sur la
+dictée. Ces deux écrans valident **en bloc** : c'est là que le garde-fou §IV.8
+pèse le plus, et un nom seul ne suffit pas toujours à décider — deux cartes
+portent des titres voisins, une lecture approximative en propose une troisième.
+L'illustration est ce que l'œil reconnaît avant même de lire. Le geste est celui
+du sélecteur d'édition, pour qu'il n'y en ait qu'un à apprendre ; l'image se
+charge à la demande, jamais d'avance.
+
 ### Dictée continue : le répit avant de relancer
 
 L'écoute se relance seule après chaque phrase, le moteur Android ne tenant pas

@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../printings/presentation/card_art_view.dart';
 import '../data/speech_service.dart';
 import '../domain/dictation_parser.dart';
 
@@ -381,8 +382,9 @@ class _HeardTile extends StatelessWidget {
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
+    final match = item.match;
 
-    return Container(
+    final tile = Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
       decoration: BoxDecoration(
         color: item.isResolved
@@ -435,6 +437,22 @@ class _HeardTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    // Une carte non reconnue n'a pas d'illustration à montrer : le geste reste
+    // inerte plutôt que d'ouvrir une fenêtre vide.
+    if (match == null) return tile;
+
+    return GestureDetector(
+      // **Toute la tuile réagit, comme dans le sélecteur d'édition.** Un seul
+      // geste à apprendre pour toute l'application, et rien à viser.
+      onLongPress: () => showCardArt(
+        context,
+        oracleId: match.oracleId,
+        title: match.matchedName,
+        lang: match.matchedLang,
+      ),
+      child: tile,
     );
   }
 }

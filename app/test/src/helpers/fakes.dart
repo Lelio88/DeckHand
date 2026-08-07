@@ -211,6 +211,14 @@ class FakePrintingRepository implements PrintingRepository {
   List<CardPrinting> printings = const [];
   String? lastQuery;
 
+  /// Carte dont les editions ont ete demandees en dernier.
+  ///
+  /// Retenue parce qu'un apercu d'illustration qui ouvrirait la bonne fenetre
+  /// sur la mauvaise carte serait indetectable a l'ecran : l'image est
+  /// plausible dans les deux cas.
+  String? lastOracleId;
+  String? lastLang;
+
   @override
   Future<List<CardPrinting>> forCard(
     String oracleId, {
@@ -219,6 +227,8 @@ class FakePrintingRepository implements PrintingRepository {
     String? lang,
   }) async {
     lastQuery = query;
+    lastOracleId = oracleId;
+    lastLang = lang;
     if (query == null || query.isEmpty) return printings;
     final needle = query.toLowerCase();
     return printings
