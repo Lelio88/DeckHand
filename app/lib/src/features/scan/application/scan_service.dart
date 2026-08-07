@@ -85,6 +85,13 @@ class ScanOutcome {
       ScanOutcome(oracleIds: const [], isConfident: false, error: message);
 }
 
+/// Score au-delà duquel un nom lu est tenu pour certain.
+///
+/// La recherche rend 1,0 sur une égalité exacte après normalisation. Ce seuil
+/// laisse passer une lettre mal lue sur un nom long sans admettre les
+/// rapprochements approximatifs.
+const double _decisiveScore = 0.9;
+
 class ScanService {
   const ScanService(this._index, this._reader, this._cards);
 
@@ -230,9 +237,18 @@ class ScanService {
         // Sans réseau, la lecture ne sert à rien : l'empreinte prend le relais.
         return const [];
       }
-      if (hits.isNotEmpty) {
-        return hits.map((h) => h.oracleId).toList(growable: false);
+      if (hits.isEmpty) continue;
+
+      // **Un nom lu sans ambiguïté ne s'accompagne pas de voisins.** La
+      // recherche est volontairement tolérante aux fautes ; sur « Cherchauloin »
+      // elle renvoie aussi « Chercheur » et « Cherche-cœur », qui n'ont de sens
+      // que si la lecture était douteuse. Les afficher sous une carte trouvée
+      // net donne l'impression que l'app hésite alors qu'elle sait.
+      final best = hits.first;
+      if (best.score >= _decisiveScore) {
+        return [best.oracleId];
       }
+      return hits.map((h) => h.oracleId).toList(growable: false);
     }
     return const [];
   }

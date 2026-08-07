@@ -34,18 +34,38 @@ class NameCandidate {
 /// une photo pleine de texte parasite.
 const int maxSpreadCandidates = 40;
 
+/// Rapport minimal entre la hauteur d'une ligne et la hauteur médiane.
+///
+/// **C'est ce qui distingue un nom de son texte de règles.** Sur toute carte
+/// Magic, le nom est imprimé nettement plus gros que le corps de texte — de
+/// l'ordre du double. Or les règles citent régulièrement des noms de cartes
+/// (« Foudre inflige 3 blessures… »), et une ligne de règles qui contient un nom
+/// produisait une carte fantôme : sur un étalement de six cartes, huit étaient
+/// proposées dont trois inventées.
+///
+/// La hauteur médiane sert de référence plutôt qu'une valeur absolue : elle
+/// s'adapte à la distance de prise de vue. Le seuil est bas (1,25) pour tolérer
+/// les cartes photographiées de biais, dont le texte paraît plus petit d'un côté.
+const double _nameHeightRatio = 1.25;
+
 /// Extrait les lignes plausibles comme noms de cartes, dans l'ordre de lecture.
 ///
 /// À la différence de [cardNameCandidates], **aucune zone n'est privilégiée** :
-/// sur un étalement, les noms sont répartis dans toute l'image. C'est le
-/// filtrage du bruit et la confrontation au catalogue qui font le tri.
+/// sur un étalement, les noms sont répartis dans toute l'image. C'est la taille
+/// du texte, le filtrage du bruit et la confrontation au catalogue qui font le
+/// tri.
 List<NameCandidate> spreadNameCandidates(List<ReadLine> lines) {
   final seen = <String>{};
   final candidates = <NameCandidate>[];
 
   final ordered = [...lines]..sort((a, b) => a.top.compareTo(b.top));
+  final threshold = _medianHeight(ordered) * _nameHeightRatio;
 
   for (final line in ordered) {
+    // Une photo d'une seule ligne n'a pas de médiane exploitable : on laisse
+    // alors passer, le catalogue tranchera.
+    if (threshold > 0 && line.height < threshold) continue;
+
     final text = cleanNameLine(line.text);
     if (!looksLikeCardName(text)) continue;
     if (!seen.add(text.toLowerCase())) continue;
@@ -55,6 +75,17 @@ List<NameCandidate> spreadNameCandidates(List<ReadLine> lines) {
   }
 
   return candidates;
+}
+
+/// Hauteur médiane des lignes lues, référence de ce qu'est un « petit » texte.
+///
+/// Médiane et non moyenne : le texte de règles domine largement en nombre de
+/// lignes, si bien que la médiane tombe dessus — exactement la référence
+/// voulue. Une moyenne serait tirée vers le haut par les titres.
+double _medianHeight(List<ReadLine> lines) {
+  if (lines.length < 4) return 0;
+  final heights = lines.map((l) => l.height).toList()..sort();
+  return heights[heights.length ~/ 2];
 }
 
 /// Score en deçà duquel une correspondance n'est pas retenue.

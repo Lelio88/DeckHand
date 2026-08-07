@@ -75,11 +75,29 @@ void main() {
   });
 
   test('le nombre de candidats est plafonné', () {
+    // Un nom pour quatre lignes de règles, proportion d'une carte réelle :
+    // c'est ce qui fait tomber la médiane sur le corps de texte.
     final many = [
-      for (var i = 0; i < 120; i++) ReadLine('Carte numéro $i', i / 120, 0.01),
+      for (var i = 0; i < 300; i++)
+        ReadLine('Carte numéro $i', i / 300, i % 5 == 0 ? 0.03 : 0.01),
     ];
 
     expect(spreadNameCandidates(many).length, maxSpreadCandidates);
+  });
+
+  test("le texte de règles est écarté par sa taille, même s'il cite une carte", () {
+    // Le défaut mesuré sur le terrain : six cartes étalées, huit proposées,
+    // les fausses venant de noms cités dans les textes de règles.
+    final names = spreadNameCandidates([
+      ReadLine('Anneau solaire', 0.05, 0.030),
+      ReadLine('Ajoutez deux manas incolores', 0.12, 0.012),
+      ReadLine('Foudre inflige 3 blessures', 0.16, 0.012),
+      ReadLine('Cherchauloin', 0.40, 0.030),
+      ReadLine('Cherchez une carte de plaine', 0.47, 0.012),
+      ReadLine('Chercheur des profondeurs', 0.51, 0.012),
+    ]).map((c) => c.text);
+
+    expect(names, ['Anneau solaire', 'Cherchauloin']);
   });
 
   test('une photo sans texte lisible ne propose rien', () {
