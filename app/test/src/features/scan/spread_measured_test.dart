@@ -80,4 +80,28 @@ void main() {
       );
     });
   });
+
+  group('longueur de la correspondance', () {
+    test('un fragment de nom est écarté', () {
+      // Le cas mesuré : une carte à demi recouverte ne livre que « Origine
+      // de », qui est un préfixe exact de « Origine de Thor ». Le score
+      // l'approuve à 0,94 ; seule la longueur le démasque.
+      expect(isPlausibleMatch('Origine de', 'Origine de Thor'), isFalse);
+    });
+
+    test('les correspondances justes passent, même imparfaites', () {
+      // Relevé sur trois étalements réels : de 0,94 à 1,12. La lecture ajoute
+      // parfois des parasites, d'où un texte lu plus long que le nom trouvé.
+      expect(isPlausibleMatch('Agent Maria Hil', 'Agent Maria Hill'), isTrue);
+      expect(
+        isPlausibleMatch('Quake, agent du S.H.LE.L.D.', 'Quake, agent du S.H.I.E.L.D.'),
+        isTrue,
+      );
+      expect(isPlausibleMatch('( Croisade de Murdock', 'Croisade de Murdock'), isTrue);
+    });
+
+    test('un nom vide ne vaut jamais correspondance', () {
+      expect(isPlausibleMatch('Foudre', ''), isFalse);
+    });
+  });
 }

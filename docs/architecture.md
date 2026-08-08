@@ -343,6 +343,29 @@ Les lignes réellement lues des deux photos sont figées en fixtures
 (`measured_spread.dart`, `measured_fan.dart`) — des hauteurs inventées
 n'auraient jamais montré cette absence de séparation.
 
+**Un fragment de nom ne vaut pas correspondance.** Une carte à demi recouverte
+ne livre qu'un début de nom, et ce début est souvent le préfixe exact d'une autre
+carte : « Origine de » a trouvé « Origine de Thor » avec un score de 0,94 quand
+la carte posée était « Origine des Vengeurs ». Le score ne peut pas s'en
+apercevoir. La longueur, si : sur trois étalements réels, toute correspondance
+juste couvre de 0,94 à 1,12 fois la longueur du nom trouvé — le texte lu peut
+dépasser, la lecture ajoutant des parasites — quand le seul faux tombe à 0,67. Le
+texte lu doit donc couvrir au moins **0,80** du nom trouvé.
+
+**La comparaison locale a été essayée et écartée, sur mesure.** L'idée
+paraissait fondée : comparer chaque ligne à ses voisines plutôt qu'à toute la
+photo devait annuler l'effet de la distance. Rejouée sur les lignes réelles de
+l'éventail, elle fait **pire** que la médiane globale — 12 noms retenus sur 17
+contre 17 sur 17, quelle que soit la largeur de bande essayée. La raison tient à
+la disposition : un étalement en éventail forme un arc, si bien qu'une bande
+horizontale rassemble une carte du fond et une carte du premier plan. Le
+voisinage géométrique ne recouvre pas « la même carte », et le regroupement en
+blocs de ML Kit reposerait sur le même pari.
+
+À 1,00, le filtre ne perd d'ailleurs plus aucun nom lu : **17 sur 17**. Le rappel
+n'est plus limité par le tri mais par la lecture — deux noms sur dix-neuf n'ont
+pas été lus du tout.
+
 Deux échecs restent hors de portée de ce réglage : une carte dont le nom n'est
 pas lu du tout (reflet, angle) ne peut être rattrapée par aucun seuil, et deux
 exemplaires identiques côte à côte comptent pour un — la quantité s'ajuste à la

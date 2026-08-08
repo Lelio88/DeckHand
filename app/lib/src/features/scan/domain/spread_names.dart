@@ -120,6 +120,28 @@ double _medianHeight(List<ReadLine> lines) {
   return heights[heights.length ~/ 2];
 }
 
+/// Part minimale du nom trouvé que le texte lu doit couvrir.
+///
+/// **Un nom masqué se lit tronqué, et un tronçon trouve une autre carte.** Sur
+/// un étalement, une carte à demi recouverte ne livre qu'un début de nom :
+/// « Origine de » a ainsi trouvé « Origine de Thor » avec un score de 0,94 —
+/// bien au-dessus du seuil — alors que la carte posée était « Origine des
+/// Vengeurs ». Le score ne peut pas s'en apercevoir : le fragment *est* un
+/// préfixe exact de ce qu'il a trouvé.
+///
+/// La longueur, elle, le trahit. Mesuré sur trois étalements réels, toute
+/// correspondance juste couvre de 0,94 à 1,12 fois la longueur du nom trouvé —
+/// le texte lu peut même dépasser, la lecture ajoutant des parasites — quand le
+/// seul faux tombe à 0,67. Le seuil est placé entre les deux, à distance des
+/// deux populations.
+const double minMatchLengthRatio = 0.80;
+
+/// Vrai si le texte lu couvre assez du nom trouvé pour être crédible.
+bool isPlausibleMatch(String read, String matched) {
+  if (matched.isEmpty) return false;
+  return read.length >= matched.length * minMatchLengthRatio;
+}
+
 /// Score en deçà duquel une correspondance n'est pas retenue.
 ///
 /// Une ligne quelconque trouve toujours *quelque chose* dans un catalogue de

@@ -176,9 +176,14 @@ class ScanService {
         continue;
       }
       final hit = hits.first;
-      // Le seuil sépare la trouvaille du hasard : dans un catalogue de 31 634
-      // cartes, n'importe quelle ligne trouve *quelque chose*.
-      final kept = hit.score >= spreadScoreThreshold;
+      // Deux garde-fous, contre deux erreurs différentes. Le score sépare la
+      // trouvaille du hasard : dans un catalogue de 31 634 cartes, n'importe
+      // quelle ligne trouve *quelque chose*. La longueur écarte le fragment :
+      // un nom masqué se lit tronqué, et un début de nom est un préfixe exact
+      // d'une autre carte — que le score approuve sans hésiter.
+      final kept =
+          hit.score >= spreadScoreThreshold &&
+          isPlausibleMatch(candidates[i].text, hit.matchedName);
       _diagnoseMatch(candidates[i], hit, kept: kept);
       if (!kept) continue;
       // Une même carte peut être lue deux fois — nom scindé sur deux lignes,
