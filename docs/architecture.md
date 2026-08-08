@@ -343,6 +343,13 @@ Les lignes réellement lues des deux photos sont figées en fixtures
 (`measured_spread.dart`, `measured_fan.dart`) — des hauteurs inventées
 n'auraient jamais montré cette absence de séparation.
 
+**Validé sur un étalement de dix-neuf cartes en éventail** : 16 reconnues,
+**aucune fausse**. Les trois manquantes échappent au réglage pour trois raisons
+distinctes — un nom non lu par l'appareil, un nom lu trop mal pour atteindre le
+seuil de score (« A lennifer Walters », 0,64), et un nom masqué correctement
+refusé parce que tronqué. Avant correction du seuil et de la longueur, la même
+photo donnait 13 cartes dont une fausse.
+
 **Un fragment de nom ne vaut pas correspondance.** Une carte à demi recouverte
 ne livre qu'un début de nom, et ce début est souvent le préfixe exact d'une autre
 carte : « Origine de » a trouvé « Origine de Thor » avec un score de 0,94 quand
