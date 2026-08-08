@@ -52,9 +52,29 @@ void main() {
       expect(crop.height, greaterThan(0));
     });
 
-    test('une carte produit une empreinte par cadre', () {
+    test('une carte produit une empreinte par cadre de son jeu', () {
       final candidates = artHashCandidates(fakeCard(CardFrame.modern));
-      expect(candidates.keys, containsAll(CardFrame.values));
+
+      expect(
+        candidates.keys,
+        containsAll(CardFrame.values.where((f) => f.game == 'magic')),
+      );
+    });
+
+    test("les cadres d'un autre jeu ne sont pas essayés", () {
+      // Découper une carte Magic au gabarit Riftbound produit une empreinte qui
+      // ne veut plus rien dire, mais qui peut rencontrer par hasard une entrée
+      // de l'index. Le pipeline est mesuré à zéro faux positif annoncé avec
+      // assurance : c'est ce résultat que le cloisonnement protège.
+      final magic = artHashCandidates(fakeCard(CardFrame.modern));
+      final riftbound = artHashCandidates(
+        fakeCard(CardFrame.modern),
+        game: 'riftbound',
+      );
+
+      expect(magic.keys.every((f) => f.game == 'magic'), isTrue);
+      expect(riftbound.keys.every((f) => f.game == 'riftbound'), isTrue);
+      expect(magic.keys.toSet().intersection(riftbound.keys.toSet()), isEmpty);
     });
   });
 

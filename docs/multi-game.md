@@ -7,11 +7,20 @@ physique League of Legends de Riot, partage la base de DeckHand avec Magic.
 1 451 impressions, 1 234 noms indexés — et cloisonné par `cards.game`. La
 recherche ne mêle jamais les deux jeux.
 
-**Ce qui ne l'est pas**, et qu'aucune formulation optimiste ne doit masquer : ni
-les prix, ni le corpus de decks, ni le gabarit d'illustration sans lequel la
-reconnaissance ne peut pas fonctionner pour ce jeu. Autrement dit, la boucle de
-valeur du produit — saisir, valoriser, proposer des decks — n'est pas encore
-bouclée pour Riftbound.
+**Les gabarits d'illustration sont mesurés** : (0,065 · 0,047 · 0,934 · 0,517)
+pour les cartes verticales, (0,041 · 0,199 · 0,962 · 0,777) pour les 71 champs
+de bataille horizontaux. Deux méthodes fondées sur la variance ont échoué avant
+qu'une troisième, fondée sur la luminosité de l'image moyenne, n'aboutisse : le
+cadre y est sombre, l'illustration en tons moyens, les pavés de texte quasi
+blancs. Les
+gabarits sont cloisonnés par jeu — essayer un cadre Magic sur une carte
+Riftbound doublerait le calcul et le risque de correspondance fortuite.
+
+**Ce qui manque encore**, et qu'aucune formulation optimiste ne doit masquer :
+les prix et le corpus de decks. La boucle de valeur du produit — saisir,
+valoriser, proposer des decks — n'est donc pas bouclée pour Riftbound. Il reste
+aussi à construire l'index d'empreintes du jeu, désormais possible puisque les
+gabarits sont connus.
 
 ---
 
@@ -99,20 +108,21 @@ dans l'application.
 | `card_prints`, `collection_items` | Édition, langue, finition, quantité : rien n'y est propre à Magic |
 | Reconnaissance (nom lu, empreinte) | Ne suppose que « une carte porte un nom en haut » — vrai des deux jeux |
 
-### Ce qui devra changer
+### Ce qui a dû changer
 
 | Élément | Nature du changement |
 |---|---|
-| `cards.oracle_id uuid PRIMARY KEY` | C'est l'identifiant **Scryfall**. Riftbound n'en a pas : soit dériver un UUID déterministe de l'identifiant Riot, soit ajouter une clé de jeu |
-| `decks.format CHECK (… IN ('pauper','modern','commander'))` | Contrainte figée à trois valeurs — une migration `ALTER` est nécessaire |
+| `cards.oracle_id uuid PRIMARY KEY` | C'est l'identifiant **Scryfall**. Riftbound n'en a pas : des UUIDv5 déterministes sont dérivés du triplet nom + type + texte, de sorte qu'une réingestion retombe sur les mêmes clés |
+| `decks.format CHECK (… IN ('pauper','modern','commander'))` | **Non touchée** : les formats Riftbound ne sont pas connus, et une contrainte inventée d'avance vaut moins qu'une contrainte ajoutée quand la donnée existera |
 | `cards.legal_pauper / legal_modern / legal_commander` | Colonnes **générées**, donc figées dans la définition de table |
-| Les fonctions de lecture (`search_cards`, `deck_suggestions`, `my_collection`…) | Doivent devenir conscientes du jeu, sans quoi une recherche mêlerait les deux catalogues |
-| L'application | Un choix de jeu, et sa propagation jusqu'aux écrans de collection et de decks |
+| Les fonctions de lecture | `search_cards` prend un paramètre de jeu (`magic` par défaut). Les autres suivront quand l'application saura choisir un jeu |
+| L'application | **Reste à faire** : un choix de jeu, et sa propagation jusqu'aux écrans de collection et de decks |
 
-**Les migrations sont immuables** (convention du projet et du CLI Supabase) :
-tout se fait par ajout. Une colonne `game` sur `cards` et `decks`, valorisée à
-`magic` pour l'existant, est l'ossature la plus probable — mais elle n'est pas
-décidée ici.
+**Les migrations sont immuables** : tout se fait par ajout. `20260807210000_multi_game.sql`
+ajoute `cards.game`, valorisée à `magic` pour les 31 634 cartes existantes, et
+remplace `search_cards` — `DROP` puis `CREATE`, un `CREATE OR REPLACE` sur une
+signature modifiée créant une surcharge qui ferait répondre HTTP 300 à *tous*
+les appels.
 
 ### Révision d'un jugement
 
@@ -141,19 +151,21 @@ développement.** Le portail le confirme — l'accès demande une approbation
 nommée, avec description détaillée, prototype fonctionnel et plateformes de
 distribution déclarées, ou « a written license ».
 
-Conséquence pratique : **aucune ingestion n'est possible aujourd'hui**, quelle
-que soit la clé régénérée. La demande d'accès est le préalable, et DeckHand a un
-atout pour la déposer — l'application existe déjà et tourne, ce qui répond à
-l'exigence de prototype.
+Conséquence pratique : **le catalogue vient de Riftcodex**, faute d'accès à la
+source officielle. La demande d'accès reste le bon chemin, et DeckHand a un atout
+pour la déposer — l'application existe déjà et tourne, ce qui répond à l'exigence
+de prototype.
 
-**Alternative non officielle, à ne pas adopter sans arbitrage.** Riftcodex expose
+**Source retenue en attendant, sur arbitrage explicite.** Riftcodex expose
 une API publique, gratuite et sans authentification (nom, coût, puissance,
 domaines, rareté, type, extension, illustration, artiste, texte, et des
 identifiants croisés Riftbound et TCGplayer utiles pour les prix), paginée à 100
 cartes. Mais c'est un projet de fans explicitement non affilié à Riot, dont les
 conditions d'utilisation ne sont pas détaillées. C'est exactement la
 configuration que le garde-fou §IV impose de vérifier avant toute dépendance —
-celle qui a écarté EDHREC. À trancher, pas à contourner.
+celle qui a écarté EDHREC. Faute de conditions publiées, on lui applique celles
+de Scryfall, et la bascule vers Riot reste l'objectif. Sa spec OpenAPI confirme
+par ailleurs qu'elle ne sert **que** le catalogue : ni prix, ni decklists.
 
 ### Déjà répondu par la documentation
 
