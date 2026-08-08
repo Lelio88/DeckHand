@@ -211,6 +211,8 @@ class ScanService {
         'text': line.text,
         'top': line.top,
         'height': line.height,
+        'left': line.left,
+        'width': line.width,
         'kept': retained.contains(cleanNameLine(line.text)),
       });
     }

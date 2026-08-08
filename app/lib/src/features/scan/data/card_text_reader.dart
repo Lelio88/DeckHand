@@ -51,6 +51,7 @@ class CardTextReader {
 
       final height = _imageHeight(recognised);
       if (height <= 0) return const [];
+      final width = _imageWidth(recognised);
 
       return [
         for (final block in recognised.blocks)
@@ -66,6 +67,8 @@ class CardTextReader {
                 line.boundingBox.height.toDouble(),
               ) /
                   height,
+              width <= 0 ? 0 : line.boundingBox.left / width,
+              width <= 0 ? 0 : line.boundingBox.width / width,
             ),
       ];
     } on Object {
@@ -87,6 +90,22 @@ class CardTextReader {
       }
     }
     return lowest.toDouble();
+  }
+
+  /// Largeur de l'image, déduite du texte lu.
+  ///
+  /// Même approximation que pour la hauteur, et même raison : ML Kit ne
+  /// communique pas les dimensions. C'est une borne inférieure, suffisante pour
+  /// comparer des lignes entre elles.
+  double _imageWidth(RecognizedText recognised) {
+    var widest = 0;
+    for (final block in recognised.blocks) {
+      for (final line in block.lines) {
+        final right = line.boundingBox.right.round();
+        if (right > widest) widest = right;
+      }
+    }
+    return widest.toDouble();
   }
 
   Future<void> dispose() async {

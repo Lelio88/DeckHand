@@ -17,7 +17,7 @@ import 'dart:math';
 
 /// Une ligne de texte lue sur la photo, avec sa position verticale relative.
 class ReadLine {
-  const ReadLine(this.text, this.top, this.height);
+  const ReadLine(this.text, this.top, this.height, [this.left = 0, this.width = 0]);
 
   final String text;
 
@@ -31,7 +31,18 @@ class ReadLine {
   /// écarté.
   final double height;
 
+  /// Bord gauche de la ligne, en fraction de la largeur de l'image.
+  ///
+  /// Optionnel : seule la reconnaissance réelle le renseigne, les jeux d'essai
+  /// s'en passent. Sert à reconstruire la géométrie d'une carte à partir de son
+  /// nom — la ligne du nom étant à une place connue du gabarit.
+  final double left;
+
+  /// Largeur de la ligne, dans la même unité.
+  final double width;
+
   double get bottom => top + height;
+  double get right => left + width;
 }
 
 /// Hauteur réelle des caractères, déduite des quatre coins de la ligne.

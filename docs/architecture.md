@@ -373,6 +373,39 @@ blocs de ML Kit reposerait sur le même pari.
 n'est plus limité par le tri mais par la lecture — deux noms sur dix-neuf n'ont
 pas été lus du tout.
 
+### Reconstruire la géométrie d'une carte depuis son nom — écarté sur mesure
+
+L'idée : la ligne du nom occupe une place connue du gabarit, donc sa position et
+sa taille devraient permettre de retrouver les bords de la carte, puis de
+découper l'illustration — ce qui rendrait à l'étalement les deux atouts du scan
+d'une carte, la confirmation croisée et le choix de l'édition.
+
+**Elle demande une précision qu'on ne sait pas atteindre.** Mesuré sur un
+étalement réel, la hauteur du texte des noms varie de ±13 % alors que les cartes
+sont à distance comparable et que la police est la même : c'est du bruit de
+mesure, pas de la perspective. La largeur par caractère ne fait pas mieux (±10 %).
+
+Ce que cette précision permettrait, mesuré en dégradant volontairement le
+découpage et en cherchant **parmi les seules éditions d'une carte déjà
+identifiée** — cas bien plus tolérant que le catalogue entier :
+
+| erreur de découpage | bonne édition en tête |
+|---|---|
+| 0 % | 100 % |
+| **5 %** | **100 %** |
+| 10 % | 78 % |
+| 15 % | 59 % |
+
+Il faudrait donc rester sous 5 % ; on sait faire 13 %. À ce niveau, une carte sur
+trois recevrait une **mauvaise** édition — pire que pas d'édition du tout, car la
+valorisation deviendrait fausse sous une apparence de précision, là où l'absence
+d'édition est un plancher assumé.
+
+Combler l'écart supposerait de détecter les bords réels de la carte, c'est-à-dire
+la segmentation d'image écartée par [`spread-detection.md`](./spread-detection.md).
+Le même bénéfice s'obtient sans rien deviner en offrant le sélecteur d'édition
+sur l'écran d'étalement : un geste, juste à coup sûr.
+
 Deux échecs restent hors de portée de ce réglage : une carte dont le nom n'est
 pas lu du tout (reflet, angle) ne peut être rattrapée par aucun seuil, et deux
 exemplaires identiques côte à côte comptent pour un — la quantité s'ajuste à la
