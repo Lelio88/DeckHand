@@ -16,6 +16,19 @@ blancs. Les
 gabarits sont cloisonnés par jeu — essayer un cadre Magic sur une carte
 Riftbound doublerait le calcul et le risque de correspondance fortuite.
 
+**L'index d'empreintes est construit** : 1 172 empreintes pour 1 035 cartes,
+aucun échec de téléchargement. 17 cartes (1,6 %) n'en ont aucune — leur
+illustration est partagée avec une autre carte, qui l'a hachée la première ;
+elles seront reconnues sous ce nom-là, limite déjà connue pour Magic.
+
+**Les variantes d'impression ne sont pas des cartes.** La source suffixe les
+noms — « (Alternate Art) », « (Signature) », « (Metal) »… sur 243 des 1 451
+entrées. Les traiter comme des cartes distinctes créait deux lignes de
+collection pour un seul exemplaire et deux résultats identiques dans la
+recherche. Le suffixe est retiré de l'identité et conservé sur l'impression
+(`printed_name`), ce qui ramène 1 234 identités à 1 035 et fait tomber les
+empreintes ambiguës de 24 à 2.
+
 **Ce qui manque encore**, et qu'aucune formulation optimiste ne doit masquer :
 les prix et le corpus de decks. La boucle de valeur du produit — saisir,
 valoriser, proposer des decks — n'est donc pas bouclée pour Riftbound. Il reste

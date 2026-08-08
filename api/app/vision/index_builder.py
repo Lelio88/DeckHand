@@ -28,6 +28,7 @@ import psycopg
 from PIL import Image, UnidentifiedImageError
 
 from app.config import SupabaseConfig
+from app.vision.art_box import box_for, crop
 from app.vision.dhash import dhash, to_signed_64
 
 USER_AGENT = "DeckHand/0.1 (https://github.com/Lelio88/DeckHand)"
@@ -57,7 +58,7 @@ class BuildReport:
 
 def pending_prints(
     conn: psycopg.Connection, limit: int | None = None
-) -> list[tuple[str, str, str]]:
+) -> list[tuple[str, str, str, str, str | None]]:
     """Une impression par **illustration** encore dépourvue d'empreinte.
 
     L'index portait une seule image par carte, si bien qu'une réédition à
@@ -76,8 +77,10 @@ def pending_prints(
     """
     query = """
         SELECT DISTINCT ON (p.illustration_id)
-               p.scryfall_id::text, p.oracle_id::text, p.art_crop_url
+               p.scryfall_id::text, p.oracle_id::text, p.art_crop_url,
+               c.game, c.layout
         FROM public.card_prints p
+        JOIN public.cards c ON c.oracle_id = p.oracle_id
         WHERE p.art_crop_url IS NOT NULL
           AND p.illustration_id IS NOT NULL
           AND NOT EXISTS (
@@ -95,19 +98,25 @@ def pending_prints(
 
 
 def hash_one(
-    client: httpx.Client, url: str
+    client: httpx.Client, url: str, game: str = "magic", layout: str | None = None
 ) -> int | None:
     """Télécharge une illustration et renvoie son empreinte, ou None en cas d'échec.
 
     Un échec isolé est renvoyé plutôt que levé : sur des dizaines de milliers
     d'images, une poignée d'erreurs réseau ne doit pas interrompre la
     construction.
+
+    **Le découpage dépend du jeu.** Scryfall sert la zone illustrée seule ;
+    Riftcodex sert la carte entière, qu'il faut recadrer exactement comme le
+    fera l'application sur une photo, sans quoi les empreintes ne se
+    rencontreront jamais.
     """
     try:
         response = client.get(url)
         response.raise_for_status()
         with Image.open(io.BytesIO(response.content)) as image:
-            return dhash(image)
+            box = box_for(game, layout)
+            return dhash(crop(image, box) if box else image)
     except (httpx.HTTPError, UnidentifiedImageError, OSError):
         return None
     finally:
@@ -127,12 +136,12 @@ def build(conn: psycopg.Connection, limit: int | None = None) -> BuildReport:
     lock = threading.Lock()
     rows: list[tuple[str, str, int]] = []
 
-    def work(item: tuple[str, str, str]) -> None:
-        scryfall_id, oracle_id, url = item
+    def work(item: tuple[str, str, str, str, str | None]) -> None:
+        scryfall_id, oracle_id, url, game, layout = item
         with httpx.Client(
             timeout=30, headers={"User-Agent": USER_AGENT}, follow_redirects=True
         ) as client:
-            value = hash_one(client, url)
+            value = hash_one(client, url, game, layout)
         with lock:
             if value is None:
                 report.failed += 1

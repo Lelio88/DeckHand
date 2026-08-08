@@ -29,6 +29,7 @@ Usage :
 
 from __future__ import annotations
 
+import re
 import time
 import urllib.request
 import json
@@ -57,17 +58,38 @@ GAME = "riftbound"
 NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://deckhand.local/riftbound")
 
 
+#: Suffixe de variante accolé au nom par la source : « (Alternate Art) »,
+#: « (Signature) », « (Metal) »… 243 cartes sur 1 451 en portent un.
+_VARIANT_SUFFIX = re.compile(r"\s\([^)]+\)$")
+
+
+def base_name(name: str) -> str:
+    """Nom sans son suffixe de variante.
+
+    **Une variante est une impression, pas une carte.** La source distingue
+    « Master Yi - Wuju Master » de « Master Yi - Wuju Master (Signature) », qui
+    partagent illustration, type et texte : c'est la même carte de jeu, dans une
+    autre impression. Les garder séparées en ferait deux entrées de collection
+    pour un seul exemplaire possédé, et deux lignes identiques dans la
+    recherche. C'est précisément ce que `card_prints` existe pour porter.
+
+    Mesuré : la normalisation ramène 1 234 identités à 1 035, en fusionnant 131
+    groupes dont les membres ont le même type et le même texte.
+    """
+    return _VARIANT_SUFFIX.sub("", name)
+
+
 def oracle_uuid(card: dict[str, Any]) -> uuid.UUID:
-    """Identité d'une carte, indépendante de son édition.
+    """Identité d'une carte, indépendante de son édition et de sa variante.
 
     La clé est le triplet nom + type + texte, et non le nom seul : 212 noms sont
     portés par plusieurs entrées, dont 36 recouvrent des cartes réellement
     différentes. Le nom seul les confondrait ; le triplet les sépare tout en
-    réunissant les 176 vraies réimpressions.
+    réunissant les vraies réimpressions.
     """
     key = "|".join(
         (
-            card["name"],
+            base_name(card["name"]),
             card["classification"]["type"] or "",
             (card["text"] or {}).get("plain") or "",
         )
@@ -78,6 +100,15 @@ def oracle_uuid(card: dict[str, Any]) -> uuid.UUID:
 def print_uuid(card: dict[str, Any]) -> uuid.UUID:
     """Identité d'une impression : l'identifiant de la source, qui est unique."""
     return uuid.uuid5(NAMESPACE, f"print:{card['id']}")
+
+
+def illustration_uuid(card: dict[str, Any]) -> uuid.UUID:
+    """Identité d'une œuvre, dérivée de l'URL de son image.
+
+    Sert au même usage que l'`illustration_id` de Scryfall : ne hacher qu'une
+    fois une illustration réutilisée par plusieurs impressions.
+    """
+    return uuid.uuid5(NAMESPACE, f"art:{card['media']['image_url']}")
 
 
 def type_line(card: dict[str, Any]) -> str:
@@ -141,7 +172,7 @@ def write_cards(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
             energy = (card.get("attributes") or {}).get("energy")
             yield (
                 str(identity),
-                card["name"],
+                base_name(card["name"]),
                 str(energy) if energy is not None else None,
                 float(energy) if energy is not None else 0,
                 type_line(card),
@@ -168,16 +199,22 @@ def write_cards(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
 def write_prints(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
     """Écrit chaque impression, avec l'URL de son visuel officiel."""
     statement = """
-        INSERT INTO public.card_prints (scryfall_id, oracle_id, lang, set_code,
-                                        set_name, collector_number, rarity,
-                                        art_crop_url)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO public.card_prints (scryfall_id, oracle_id, lang, printed_name,
+                                        set_code, set_name, collector_number,
+                                        rarity, art_crop_url, illustration_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (scryfall_id) DO UPDATE SET
+            -- **L'identité doit suivre.** Sans cette ligne, une impression
+            -- déjà connue reste rattachée à l'ancienne carte quand la règle
+            -- d'identité change, et les deux versions coexistent en base.
+            oracle_id        = EXCLUDED.oracle_id,
             set_code         = EXCLUDED.set_code,
             set_name         = EXCLUDED.set_name,
             collector_number = EXCLUDED.collector_number,
+            printed_name     = EXCLUDED.printed_name,
             rarity           = EXCLUDED.rarity,
-            art_crop_url     = EXCLUDED.art_crop_url
+            art_crop_url     = EXCLUDED.art_crop_url,
+            illustration_id  = EXCLUDED.illustration_id
     """
 
     written = 0
@@ -193,6 +230,10 @@ def write_prints(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
                     # traductions arriveront, elles s'ajouteront ici sans
                     # toucher au reste.
                     "en",
+                    # Le nom complet, suffixe de variante compris : c'est lui
+                    # qui distingue une impression « Metal » d'une ordinaire au
+                    # moment de désigner celle qu'on possède.
+                    card["name"],
                     card["set"]["set_id"],
                     card["set"].get("label"),
                     str(number) if number is not None else None,
@@ -202,6 +243,12 @@ def write_prints(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
                     # pas la seule zone illustrée : le découpage devra se faire
                     # au calcul d'empreinte, selon l'orientation.
                     (card.get("media") or {}).get("image_url"),
+                    # **L'URL de l'image identifie l'œuvre.** Deux impressions
+                    # qui partagent la même illustration partagent la même URL,
+                    # donc le même identifiant : le constructeur d'index ne
+                    # calculera l'empreinte qu'une fois, comme il le fait pour
+                    # Magic via l'identifiant d'illustration de Scryfall.
+                    str(illustration_uuid(card)) if (card.get("media") or {}).get("image_url") else None,
                 ),
             )
             written += 1
@@ -222,11 +269,11 @@ def write_search_names(conn: psycopg.Connection, cards: list[dict[str, Any]]) ->
         seen: set[tuple[str, str]] = set()
         for card in cards:
             identity = str(oracle_uuid(card))
-            normalized = normalize_name(card["name"])
+            normalized = normalize_name(base_name(card["name"]))
             if (identity, normalized) in seen:
                 continue
             seen.add((identity, normalized))
-            cur.execute(statement, (identity, card["name"], normalized, "en"))
+            cur.execute(statement, (identity, base_name(card["name"]), normalized, "en"))
             written += 1
         conn.commit()
     return written
