@@ -13,6 +13,7 @@ library;
 
 import 'dart:typed_data';
 
+import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/card_search/data/card_repository.dart';
 import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
@@ -40,7 +41,11 @@ class _FakeCatalogue implements CardRepository {
   final List<CardHit> cards;
 
   @override
-  Future<List<CardHit>> search(String query, {int limit = 20}) async => cards
+  Future<List<CardHit>> search(
+    String query, {
+    int limit = 20,
+    Game game = Game.magic,
+  }) async => cards
       .where((c) => c.matchedName.toLowerCase() == query.toLowerCase())
       .take(limit)
       .toList(growable: false);

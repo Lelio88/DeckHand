@@ -124,3 +124,48 @@ class _Absent extends StatelessWidget {
     );
   }
 }
+
+/// Vignette d'illustration, pour distinguer d'un coup d'œil.
+///
+/// **Elle ne sert pas qu'à décorer.** Quatre-vingts noms Riftbound sont portés
+/// par plusieurs cartes distinctes que la ligne de type ne départage jamais ;
+/// sans image, la recherche affiche deux résultats rigoureusement identiques et
+/// l'utilisateur n'a aucun moyen de choisir. Les illustrations, elles, diffèrent
+/// dans tous les cas mesurés.
+///
+/// Une image absente laisse un cadre neutre plutôt qu'une icône d'erreur : la
+/// liste doit rester lisible, et l'absence d'illustration n'est pas une panne.
+class CardArtThumbnail extends StatelessWidget {
+  const CardArtThumbnail({super.key, required this.url, this.width = 56, this.height = 42});
+
+  final String? url;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final placeholder = Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+      ),
+    );
+    if (url == null) return placeholder;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Image.network(
+        url!,
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => placeholder,
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : placeholder,
+      ),
+    );
+  }
+}

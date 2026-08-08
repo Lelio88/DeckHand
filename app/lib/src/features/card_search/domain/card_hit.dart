@@ -21,6 +21,7 @@ class CardHit {
     this.priceEur,
     this.owned = 0,
     this.score = 0,
+    this.artUrl,
   });
 
   final String oracleId;
@@ -47,6 +48,15 @@ class CardHit {
   /// saisissant, si une carte a déjà été ajoutée — et sur une collection saisie
   /// en plusieurs séances, on ne sait plus où l'on en est dans sa boîte.
   final int owned;
+
+  /// Illustration d'une impression de la carte.
+  ///
+  /// **Ce qui distingue deux homonymes.** Quatre-vingts noms Riftbound sont
+  /// portés par plusieurs cartes réellement différentes, et leur ligne de type
+  /// est identique dans tous les cas — mesuré, 0 sur 80. Leurs illustrations,
+  /// elles, diffèrent toutes : c'est le seul repère qui les départage à coup
+  /// sûr, et il se lit plus vite qu'un nom.
+  final String? artUrl;
 
   /// Force de la correspondance, de 0 à 1.
   ///
@@ -75,6 +85,7 @@ class CardHit {
       legalCommander: json['legal_commander'] as bool? ?? false,
       owned: (json['owned'] as num?)?.toInt() ?? 0,
       score: (json['score'] as num?)?.toDouble() ?? 0,
+      artUrl: json['art_url'] as String?,
     );
   }
 }

@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../collection/data/collection_repository.dart';
+import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../../scan/presentation/scan_screen.dart';
 import '../../scan/presentation/spread_scan_screen.dart';
@@ -344,6 +345,12 @@ class _CardTileState extends ConsumerState<_CardTile> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // L'illustration précède le nom : c'est elle qu'on reconnaît en
+          // premier, et le seul repère qui sépare deux cartes homonymes.
+          Padding(
+            padding: const EdgeInsets.only(right: 12, top: 2),
+            child: CardArtThumbnail(url: hit.artUrl),
+          ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

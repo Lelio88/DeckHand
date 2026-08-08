@@ -13,6 +13,8 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../config/selected_game.dart';
+
 import '../domain/card_hit.dart';
 
 class CardRepository {
@@ -50,13 +52,17 @@ class CardRepository {
   ///
   /// Une saisie vide renvoie une liste vide sans solliciter le réseau — inutile
   /// d'interroger la base à chaque effacement du champ.
-  Future<List<CardHit>> search(String query, {int limit = 20}) async {
+  Future<List<CardHit>> search(
+    String query, {
+    int limit = 20,
+    Game game = Game.magic,
+  }) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
 
     final rows = await _client.rpc<List<dynamic>>(
       'search_cards',
-      params: {'q': trimmed, 'max_results': limit},
+      params: {'q': trimmed, 'max_results': limit, 'p_game': game.id},
     );
 
     return rows
@@ -77,5 +83,8 @@ final cardRepositoryProvider = Provider<CardRepository>(
 /// une seule compte.
 final cardSearchProvider = FutureProvider.autoDispose
     .family<List<CardHit>, String>((ref, query) {
-      return ref.watch(cardRepositoryProvider).search(query);
+      // `watch` et non `read` : changer de jeu doit relancer la recherche
+      // en cours, sinon l'écran garde les résultats de l'autre catalogue.
+      final game = ref.watch(selectedGameProvider);
+      return ref.watch(cardRepositoryProvider).search(query, game: game);
     });

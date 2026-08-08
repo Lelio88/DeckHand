@@ -15,6 +15,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../config/selected_game.dart';
+
 import '../../about/presentation/about_screen.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../collection/data/collection_repository.dart';
@@ -194,40 +196,41 @@ class _Figure extends StatelessWidget {
   }
 }
 
-/// Jeux couverts. Un seul est actif ; la place des autres est tenue.
-class _GamePicker extends StatelessWidget {
+/// Jeux couverts. Le choix vaut pour la recherche, la collection et les decks.
+///
+/// **Un seul jeu à la fois.** Mêler deux catalogues obligerait l'utilisateur à
+/// trier lui-même à chaque frappe, pour des cartes qui ne se jouent pas
+/// ensemble et ne se comparent pas en prix. Le choix est retenu d'une session à
+/// l'autre : c'est une propriété de l'utilisateur, pas de la séance.
+class _GamePicker extends ConsumerWidget {
   const _GamePicker();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final selected = ref.watch(selectedGameProvider);
+
     return Column(
       children: [
-        _GameTile(
-          name: 'Magic: The Gathering',
-          detail: '31 634 cartes, 1 028 decks',
-          selected: true,
-          onTap: null,
-        ),
-        const SizedBox(height: 8),
-        _GameTile(
-          name: 'Riftbound',
-          detail: 'le TCG League of Legends — pas encore disponible',
-          selected: false,
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Riftbound n\'est pas encore intégré : il lui faut son propre '
-                'catalogue et ses propres sources de decks.',
-              ),
-              duration: Duration(seconds: 4),
-            ),
+        for (final game in Game.values) ...[
+          _GameTile(
+            name: game.label,
+            detail: switch (game) {
+              Game.magic => '31 634 cartes, 1 028 decks',
+              Game.riftbound =>
+                'le TCG League of Legends — 1 035 cartes, pas encore de decks',
+            },
+            selected: game == selected,
+            onTap: game == selected
+                ? null
+                : () => ref.read(selectedGameProvider.notifier).select(game),
           ),
-        ),
-        const SizedBox(height: 6),
+          const SizedBox(height: 8),
+        ],
         Text(
-          'Le catalogue, la reconnaissance et les suggestions ne sont pas propres '
-          'à Magic : ajouter un jeu demande surtout ses données.',
+          "Le catalogue, la reconnaissance et les suggestions ne sont pas propres "
+          "à Magic. Riftbound n'a pas encore de prix ni de decks : sa collection "
+          "se saisit et se consulte, mais rien ne la valorise.",
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),

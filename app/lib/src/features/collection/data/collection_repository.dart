@@ -15,6 +15,8 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../config/selected_game.dart';
+
 import '../../auth/data/auth_repository.dart';
 import '../domain/collection_entry.dart';
 
@@ -99,6 +101,7 @@ class CollectionRepository {
     CollectionSort sort = CollectionSort.name,
     int offset = 0,
     int limit = collectionPageSize,
+    Game game = Game.magic,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'my_collection',
@@ -107,6 +110,7 @@ class CollectionRepository {
         'p_sort': sort.id,
         'p_limit': limit,
         'p_offset': offset,
+        'p_game': game.id,
       },
     );
     return rows
@@ -116,8 +120,11 @@ class CollectionRepository {
   }
 
   /// Totaux de la collection entière, indépendants de la page affichée.
-  Future<CollectionSummary> summary() async {
-    final rows = await _client.rpc<List<dynamic>>('my_collection_summary');
+  Future<CollectionSummary> summary({Game game = Game.magic}) async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'my_collection_summary',
+      params: {'p_game': game.id},
+    );
     if (rows.isEmpty) return CollectionSummary.empty;
     return CollectionSummary.fromJson(rows.first as Map<String, dynamic>);
   }
@@ -151,7 +158,8 @@ final collectionViewProvider =
 final collectionProvider = FutureProvider<CollectionSummary>((ref) async {
   final session = ref.watch(sessionProvider).asData?.value;
   if (session == null) return CollectionSummary.empty;
-  return ref.watch(collectionRepositoryProvider).summary();
+  final game = ref.watch(selectedGameProvider);
+  return ref.watch(collectionRepositoryProvider).summary(game: game);
 });
 
 /// Première page de la collection selon les critères courants.
@@ -165,7 +173,8 @@ final collectionPageProvider = FutureProvider<List<CollectionEntry>>((
   if (session == null) return const [];
 
   final view = ref.watch(collectionViewProvider);
+  final game = ref.watch(selectedGameProvider);
   return ref
       .watch(collectionRepositoryProvider)
-      .page(query: view.query, sort: view.sort);
+      .page(query: view.query, sort: view.sort, game: game);
 });

@@ -11,6 +11,7 @@ import 'package:deckhand/src/features/scan/data/card_text_reader.dart';
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
+import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/printings/domain/card_printing.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
@@ -98,7 +99,11 @@ class FakeCardRepository implements CardRepository {
   String? lastQuery;
 
   @override
-  Future<List<CardHit>> search(String query, {int limit = 20}) async {
+  Future<List<CardHit>> search(
+    String query, {
+    int limit = 20,
+    Game game = Game.magic,
+  }) async {
     lastQuery = query;
     return query.trim().isEmpty ? const [] : results;
   }
@@ -194,6 +199,7 @@ class FakeCollectionRepository implements CollectionRepository {
     CollectionSort sort = CollectionSort.name,
     int offset = 0,
     int limit = collectionPageSize,
+    Game game = Game.magic,
   }) async {
     lastQuery = query;
     lastSort = sort;
@@ -203,7 +209,7 @@ class FakeCollectionRepository implements CollectionRepository {
   }
 
   @override
-  Future<CollectionSummary> summary() async => totals;
+  Future<CollectionSummary> summary({Game game = Game.magic}) async => totals;
 }
 
 /// Faux dépôt d'éditions, pour les écrans qui ouvrent le sélecteur.

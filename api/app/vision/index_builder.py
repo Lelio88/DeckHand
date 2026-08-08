@@ -175,12 +175,54 @@ def build(conn: psycopg.Connection, limit: int | None = None) -> BuildReport:
     return report
 
 
+def propagate_shared_art(conn: psycopg.Connection) -> int:
+    """Attribue une empreinte connue à toute carte qui partage l'illustration.
+
+    **Le calcul déduplique, l'attribution ne doit pas.** `pending_prints` ne
+    hache qu'une impression par illustration, pour ne pas retélécharger une
+    image déjà traitée. Mais deux cartes *différentes* peuvent partager une
+    illustration : la seconde restait alors sans empreinte, donc invisible au
+    scan. Mesuré sur Riftbound : 17 cartes dans ce cas.
+
+    Leur donner la même empreinte est la bonne sémantique, pas un pis-aller :
+    ces cartes sont visuellement identiques, le scan doit donc les proposer
+    toutes et laisser l'utilisateur trancher — garde-fou §IV.8. Inventer une
+    distinction que l'image ne porte pas serait pire.
+
+    Aucune image n'est retéléchargée : on recopie une empreinte déjà calculée.
+    """
+    statement = """
+        INSERT INTO public.art_hashes (scryfall_id, oracle_id, dhash)
+        SELECT DISTINCT ON (p.oracle_id, p.illustration_id)
+               p.scryfall_id, p.oracle_id, h.dhash
+        FROM public.card_prints p
+        JOIN public.card_prints hp ON hp.illustration_id = p.illustration_id
+        JOIN public.art_hashes h ON h.scryfall_id = hp.scryfall_id
+        WHERE p.illustration_id IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM public.art_hashes h2
+              JOIN public.card_prints p2 ON p2.scryfall_id = h2.scryfall_id
+              WHERE p2.oracle_id = p.oracle_id
+                AND p2.illustration_id = p.illustration_id
+          )
+        ORDER BY p.oracle_id, p.illustration_id, p.scryfall_id
+        ON CONFLICT (scryfall_id) DO NOTHING
+    """
+    with conn.cursor() as cur:
+        cur.execute(statement)
+        written = cur.rowcount
+    conn.commit()
+    return written
+
+
 def run(limit: int | None = None) -> None:
     config = SupabaseConfig.load()
     with psycopg.connect(config.db_url, connect_timeout=30) as conn:
         print("construction de l'index d'empreintes")
         report = build(conn, limit)
         print(report.summary())
+        shared = propagate_shared_art(conn)
+        print(f"empreintes partagées propagées : {shared}")
 
 
 if __name__ == "__main__":

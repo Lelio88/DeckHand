@@ -29,6 +29,21 @@ recherche. Le suffixe est retiré de l'identité et conservé sur l'impression
 (`printed_name`), ce qui ramène 1 234 identités à 1 035 et fait tomber les
 empreintes ambiguës de 24 à 2.
 
+**Le jeu choisi traverse l'application.** Un sélecteur dans l'écran de compte,
+retenu d'une session à l'autre, propagé jusqu'aux appels : `search_cards`,
+`my_collection`, `my_collection_summary` et `deck_suggestions` prennent tous un
+paramètre de jeu, `magic` par défaut. `decks.game` a été ajoutée au passage, le
+corpus étant jusque-là implicitement Magic. Un test vérifie que le choix
+**atteint le dépôt** et pas seulement l'écran : c'est là que ce genre de câblage
+cède en silence, et l'utilisateur verrait alors le catalogue Magic sous une
+étiquette Riftbound.
+
+**Les homonymes se distinguent par leur illustration.** Quatre-vingts noms
+Riftbound sont portés par plusieurs cartes réellement différentes, et leur ligne
+de type est identique dans tous les cas — mesuré, 0 sur 80. Leurs illustrations
+diffèrent en revanche toutes : `search_cards` rend désormais une URL, et une
+vignette précède chaque résultat.
+
 **Ce qui manque encore**, et qu'aucune formulation optimiste ne doit masquer :
 les prix et le corpus de decks. La boucle de valeur du produit — saisir,
 valoriser, proposer des decks — n'est donc pas bouclée pour Riftbound. Il reste
