@@ -71,7 +71,7 @@ const int maxSpreadCandidates = 40;
 /// rejoue le filtrage à différents seuils sur des lignes réellement lues par
 /// l'appareil ; cette constante est la valeur qu'il cherche à départager, pas
 /// une préférence à recopier ailleurs.
-const double nameHeightRatio = 1.15;
+const double nameHeightRatio = 1.00;
 
 /// Extrait les lignes plausibles comme noms de cartes, dans l'ordre de lecture.
 ///

@@ -1,67 +1,83 @@
 /// Le filtrage d'étalement, éprouvé sur ce que l'appareil a vraiment lu.
 ///
-/// **Pourquoi ce test double ceux de `spread_names_test.dart`.** Ceux-là
+/// **Pourquoi ces tests doublent ceux de `spread_names_test.dart`.** Ceux-là
 /// travaillent sur des hauteurs choisies à la main, avec un nom deux fois plus
 /// grand que ses règles — la carte telle qu'on l'imagine. La réalité mesurée est
-/// beaucoup plus serrée : sur une photo d'étalement, un nom ne dépasse le corps
-/// de texte que de 20 à 36 %, parce que les cartes ne sont pas toutes à la même
-/// distance de l'objectif. Les tests synthétiques passaient donc allègrement
-/// avec un seuil qui, sur le terrain, perdait deux cartes sur cinq.
+/// tout autre, et deux photos successives l'ont montré de deux façons :
 ///
-/// Ce fichier verrouille le réglage sur les chiffres réels : le seuil doit
-/// rester dans le plateau mesuré, où les cinq cartes sortent sans qu'aucune ne
-/// soit inventée.
+/// * **cinq cartes à plat** : les noms dépassent la médiane de 21 à 36 %, il
+///   existe une séparation nette et un seuil peut s'y glisser ;
+/// * **dix-neuf cartes en éventail** : les cartes sont à des distances
+///   différentes de l'objectif, le nom d'une carte du fond (1,02) passe sous le
+///   texte de règles d'une carte du premier plan (1,26), et **plus aucun seuil
+///   ne sépare les deux populations**.
+///
+/// Le seuil retenu, 1,00, est celui qui perd le moins sur le second cas sans
+/// rien coûter sur le premier. Ce n'est pas un réglage confortable : c'est le
+/// moins mauvais d'un mécanisme dont la limite est structurelle, et que seule
+/// une comparaison **locale** — chaque ligne face aux lignes de sa propre carte
+/// — lèverait vraiment.
 library;
 
 import 'package:deckhand/src/features/scan/domain/spread_names.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'measured_fan.dart';
 import 'measured_spread.dart';
 
-/// Ce que le catalogue retiendrait des lignes proposées.
-///
-/// La confrontation réelle passe par le réseau ; ici on se contente de savoir
-/// si le nom d'une carte posée sur la table a survécu au filtrage, ce qui est
-/// la seule chose que ce filtre décide.
-Set<String> _cardsAmong(Iterable<String> candidates) =>
-    spreadTruth.where(candidates.contains).toSet();
+Set<String> _cardsAmong(List<String> truth, Iterable<String> candidates) =>
+    truth.where(candidates.contains).toSet();
 
 void main() {
-  test('les cinq cartes posées survivent au filtrage', () {
-    final names = spreadNameCandidates(measuredSpread).map((c) => c.text);
+  group('cinq cartes à plat', () {
+    test('les cinq cartes posées survivent au filtrage', () {
+      final names = spreadNameCandidates(measuredSpread).map((c) => c.text);
 
-    expect(
-      _cardsAmong(names),
-      hasLength(spreadTruth.length),
-      reason: 'mesuré sur le terrain : à 1,25 le filtre écartait « Agent 13, '
-          'Sharon Carter » (1,22 fois la médiane) et « Agent Maria Hill » '
-          '(1,21) — deux cartes réelles perdues faute de six centièmes',
-    );
+      expect(_cardsAmong(spreadTruth, names), hasLength(spreadTruth.length));
+    });
   });
 
-  test('le mot-clé imprimé sur la carte reste écarté', () {
-    // « Vigilance » est un mot-clé de règles autant qu'un nom de carte : c'est
-    // le faux positif qui guette dès que le seuil descend trop bas. Il est lu à
-    // 1,08 fois la médiane, ce qui fixe le plancher du plateau.
-    final names = spreadNameCandidates(measuredSpread).map((c) => c.text);
+  group('dix-neuf cartes en éventail', () {
+    test('le filtre laisse passer la grande majorité des noms', () {
+      final names = spreadNameCandidates(measuredFan).map((c) => c.text).toList();
+      final found = _cardsAmong(fanTruth, names);
 
-    expect(names, isNot(contains('Vigilance')));
-  });
+      // **Dix noms passent tels quels, seize après résolution.** Ce test
+      // compare des chaînes brutes ; l'appareil lit « Commnandos kree »,
+      // « Agent Maria Hil », « Quake, agent du S.H.LE.L.D. », que seule la
+      // recherche tolérante du catalogue sait ramener à la bonne carte. Ce qui
+      // se vérifie ici est donc le travail du filtre seul, pas le rappel final,
+      // mesuré à 84 % contre 42 % au seuil précédent.
+      expect(
+        found.length,
+        greaterThanOrEqualTo(10),
+        reason: 'à 1,15 il n\'en restait que huit : le seuil coupait au milieu '
+            'de la population des noms, faute de séparation à exploiter',
+      );
+    });
 
-  test('le seuil retenu est au centre du plateau, pas sur son bord', () {
-    // Un seuil qui ne marche qu'à sa valeur exacte n'est pas un réglage, c'est
-    // une coïncidence. On vérifie que le résultat tient de part et d'autre.
-    for (final ratio in [1.10, 1.15, 1.20]) {
-      final names =
-          spreadNameCandidates(measuredSpread, heightRatio: ratio).map((c) => c.text);
+    test('un nom du fond ne doit pas être écarté au profit des règles', () {
+      // Le cas qui a tout révélé : « Renforts de quartier » (1,02 fois la
+      // médiane) est un nom, « devenir les héros de demain » (1,26) est du
+      // texte de règles. Tout seuil qui garde le second en écartant le premier
+      // se trompe de population.
+      final names = spreadNameCandidates(measuredFan).map((c) => c.text);
+
+      expect(names, contains('Renforts de quartier'));
+    });
+
+    test('remonter le seuil détruit le rappel', () {
+      // Contre-épreuve chiffrée : ce test échouerait si quelqu'un remontait le
+      // seuil en pensant gagner en précision.
+      final strict = spreadNameCandidates(measuredFan, heightRatio: 1.15)
+          .map((c) => c.text);
 
       expect(
-        _cardsAmong(names),
-        hasLength(spreadTruth.length),
-        reason: 'le plateau mesuré va de 1,10 à 1,20 ; à $ratio les cinq '
-            'cartes doivent encore sortir',
+        _cardsAmong(fanTruth, strict).length,
+        lessThan(12),
+        reason: 'la mesure donne huit cartes sur dix-neuf à 1,15 — le seuil '
+            'élevé n\'est pas un réglage prudent, c\'est une perte sèche',
       );
-      expect(names, isNot(contains('Vigilance')), reason: 'à $ratio');
-    }
+    });
   });
 }

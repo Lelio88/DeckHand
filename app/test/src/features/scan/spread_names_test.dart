@@ -85,19 +85,29 @@ void main() {
     expect(spreadNameCandidates(many).length, maxSpreadCandidates);
   });
 
-  test("le texte de règles est écarté par sa taille, même s'il cite une carte", () {
-    // Le défaut mesuré sur le terrain : six cartes étalées, huit proposées,
-    // les fausses venant de noms cités dans les textes de règles.
+  test('le menu fretin sous la médiane est écarté', () {
+    // **Ce que le filtre fait, et pas davantage.** Il a d'abord visé le texte
+    // de règles citant un nom de carte ; deux photos réelles ont montré que la
+    // taille ne sépare pas ces deux populations — sur un étalement en éventail,
+    // le nom d'une carte du fond est plus petit que les règles d'une carte du
+    // premier plan. Ce qu'il élimine encore, ce sont les fragments et les
+    // mentions nettement plus petites que le corps du texte, d'où sortaient
+    // « Squ » → Squall et « Car » → Carom. Le vrai rempart contre les fausses
+    // cartes est le score du catalogue.
     final names = spreadNameCandidates([
       ReadLine('Anneau solaire', 0.05, 0.030),
-      ReadLine('Ajoutez deux manas incolores', 0.12, 0.012),
-      ReadLine('Foudre inflige 3 blessures', 0.16, 0.012),
+      ReadLine('Ajoutez deux manas incolores', 0.12, 0.030),
+      ReadLine('Foudre inflige 3 blessures', 0.16, 0.030),
+      ReadLine('MSH FR 0679', 0.20, 0.008),
       ReadLine('Cherchauloin', 0.40, 0.030),
-      ReadLine('Cherchez une carte de plaine', 0.47, 0.012),
-      ReadLine('Chercheur des profondeurs', 0.51, 0.012),
+      ReadLine('Squ', 0.47, 0.008),
+      ReadLine('Car', 0.51, 0.008),
     ]).map((c) => c.text);
 
-    expect(names, ['Anneau solaire', 'Cherchauloin']);
+    expect(names, contains('Anneau solaire'));
+    expect(names, contains('Cherchauloin'));
+    expect(names, isNot(contains('Squ')));
+    expect(names, isNot(contains('Car')));
   });
 
   test('sans le filtre de taille, les lignes de règles redeviennent candidates', () {

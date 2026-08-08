@@ -309,29 +309,39 @@ les règles, et écartait les noms : « Agent d'Atlas » (13 caractères) tombai
 0,82 fois la médiane quand une ligne de règles de 38 caractères montait à 2,47.
 Les coins suivent l'inclinaison ; la corrélation retombe à **0,408**.
 
-**Seuil retenu : 1,15 fois la hauteur médiane.** Balayage sur cinq cartes
-étalées, photographiées à main levée :
+**Seuil retenu : 1,00 fois la hauteur médiane**, c'est-à-dire « au moins la
+médiane ». Deux photos réelles l'ont fixé, et la seconde a invalidé la première.
 
-| seuil | justes | fausses | manquées |
+| photo | seuil 1,00 | seuil 1,15 | seuil 1,25 |
 |---|---|---|---|
-| sans filtre | 5 | 3 | 0 |
-| **1,10 – 1,20** | **5** | **0** | **0** |
-| 1,25 | 3 | 0 | 2 |
-| 1,30 | 1 | 0 | 4 |
+| cinq cartes à plat | 5 justes, 1 fausse | 5 justes, 0 fausse | 3 justes, 0 fausse |
+| dix-neuf cartes en éventail | **16 justes** (84 %), 2 fausses | 8 justes (42 %) | 4 justes (21 %) |
 
-1,15 est le centre du plateau : 0,07 avant le premier faux positif
-(« Vigilance », mot-clé imprimé sur la carte autant que nom de carte, lu à
-1,08), 0,06 avant la première carte perdue (1,21). Les lignes réellement lues
-sont figées en fixture dans `test/src/features/scan/measured_spread.dart` — des
-hauteurs inventées ne montreraient pas cette étroitesse.
+**Le filtre par médiane globale ne sépare pas ce qu'on croyait.** Sur un
+étalement à plat, les noms dépassent le corps de texte de 21 à 36 % et un seuil
+peut s'y glisser. Sur un éventail, les cartes sont à des distances différentes de
+l'objectif : le nom d'une carte du fond mesure 1,02 fois la médiane quand le
+texte de règles d'une carte du premier plan en mesure 1,26. Toutes les lignes
+tiennent alors entre 1,00 et 1,33, et **aucune valeur ne sépare les deux
+populations** — le seuil coupe au milieu des noms.
 
-**Limite structurelle, à connaître avant de retoucher le seuil.** Un nom ne
-dépasse le corps de texte que de 20 à 36 %, jamais du double, parce que les
-cartes d'un étalement ne sont pas à la même distance de l'objectif : le nom
-d'une carte au bord peut être plus petit que les règles d'une carte au centre.
-Une médiane **globale** ne peut pas les départager. Comparer chaque ligne aux
-lignes de son propre bloc — ML Kit les regroupe déjà — lèverait cette limite ;
-non fait, faute d'une mesure qui le justifie.
+Mesuré : à 1,15, « Renforts de quartier » et « Agent d'Atlas » étaient écartés
+pendant que « devenir les héros de demain » et « Hank Pym, fondateur d » étaient
+retenus.
+
+Ce que le filtre élimine encore utilement, c'est le menu fretin nettement plus
+petit que le corps du texte — fragments et mentions marginales d'où sortaient
+« Squ » → *Squall* et « Car » → *Carom*. **Le vrai rempart contre les fausses
+cartes est le seuil de score du catalogue**, pas la taille du texte.
+
+**La correction de fond n'est pas un réglage.** Comparer chaque ligne aux lignes
+de son **propre bloc** — ML Kit les regroupe déjà — rendrait le tri insensible
+aux différences de distance, puisqu'une carte lointaine a un nom petit *et* des
+règles petites. Non fait : il faut instrumenter les blocs et remesurer.
+
+Les lignes réellement lues des deux photos sont figées en fixtures
+(`measured_spread.dart`, `measured_fan.dart`) — des hauteurs inventées
+n'auraient jamais montré cette absence de séparation.
 
 Deux échecs restent hors de portée de ce réglage : une carte dont le nom n'est
 pas lu du tout (reflet, angle) ne peut être rattrapée par aucun seuil, et deux
