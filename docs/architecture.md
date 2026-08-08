@@ -403,8 +403,11 @@ d'édition est un plancher assumé.
 
 Combler l'écart supposerait de détecter les bords réels de la carte, c'est-à-dire
 la segmentation d'image écartée par [`spread-detection.md`](./spread-detection.md).
-Le même bénéfice s'obtient sans rien deviner en offrant le sélecteur d'édition
-sur l'écran d'étalement : un geste, juste à coup sûr.
+Le même bénéfice s'obtient sans rien deviner : **le sélecteur d'édition est
+offert sur l'écran d'étalement**, sous chaque carte repérée. Facultatif — imposer
+un choix par carte annulerait le gain de saisir vingt cartes d'un geste — et sans
+lui la valorisation reste au prix plancher. Un geste juste vaut mieux qu'un
+calcul faux.
 
 Deux échecs restent hors de portée de ce réglage : une carte dont le nom n'est
 pas lu du tout (reflet, angle) ne peut être rattrapée par aucun seuil, et deux

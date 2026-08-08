@@ -18,6 +18,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../printings/presentation/card_art_view.dart';
+import '../../printings/presentation/printing_picker.dart';
 import '../application/scan_service.dart';
 import '../data/photo_source.dart';
 
@@ -28,6 +29,19 @@ class _Spotted {
   final CardHit card;
   bool keep = true;
   int quantity = 1;
+
+  /// Édition possédée, quand l'utilisateur a pris la peine de la désigner.
+  ///
+  /// **Facultative, et elle doit le rester.** L'intérêt de l'étalement est de
+  /// saisir vingt cartes d'un geste ; imposer un choix d'édition par carte
+  /// annulerait ce gain. Sans elle, la carte est valorisée au prix le moins
+  /// cher connu — un plancher assumé, jamais une invention.
+  ///
+  /// Deviner cette édition à partir de l'illustration a été mesuré puis
+  /// écarté : la géométrie d'une carte n'est reconstructible qu'à ±13 %, et
+  /// au-delà de 5 % une carte sur trois recevrait la mauvaise édition. Un
+  /// geste juste vaut mieux qu'un calcul faux.
+  PrintingChoice? printing;
 }
 
 class SpreadScanScreen extends ConsumerStatefulWidget {
@@ -94,7 +108,12 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
     var added = 0;
     try {
       for (final item in kept) {
-        await repository.add(item.card.oracleId, quantity: item.quantity);
+        await repository.add(
+          item.card.oracleId,
+          quantity: item.quantity,
+          printId: item.printing?.printing.printId,
+          isFoil: item.printing?.isFoil ?? false,
+        );
         added += item.quantity;
       }
       ref.invalidate(collectionProvider);
@@ -249,6 +268,8 @@ class _SpottedTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                  const SizedBox(height: 4),
+                  _EditionLine(item: item, onChanged: onChanged),
                 ],
               ),
             ),
@@ -373,6 +394,77 @@ class _Note extends StatelessWidget {
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Ligne d'édition d'une carte repérée : ce qu'on possède, ou rien.
+///
+/// **Discrète à dessein.** Sur une liste de vingt cartes, un bouton par ligne
+/// encombrerait ; c'est un texte qui se touche, effacé tant qu'aucune édition
+/// n'est choisie, affirmé une fois qu'elle l'est.
+class _EditionLine extends StatelessWidget {
+  const _EditionLine({required this.item, required this.onChanged});
+
+  final _Spotted item;
+  final VoidCallback onChanged;
+
+  Future<void> _choose(BuildContext context) async {
+    final chosen = await showPrintingPicker(
+      context,
+      oracleId: item.card.oracleId,
+      cardName: item.card.matchedName,
+      currentPrintId: item.printing?.printing.printId,
+      currentIsFoil: item.printing?.isFoil ?? false,
+      // La langue du nom trouvé restreint la liste : on a reconnu la carte par
+      // son nom français, c'est donc l'impression française qu'on tient.
+      lang: item.card.matchedLang,
+      allowUnspecified: true,
+    );
+    if (chosen == null) return;
+    item.printing = chosen.isUnspecified ? null : chosen;
+    onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final printing = item.printing;
+
+    return InkWell(
+      onTap: () => _choose(context),
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              printing == null ? Icons.style_outlined : Icons.style,
+              size: 14,
+              color: printing == null
+                  ? theme.colorScheme.onSurfaceVariant
+                  : theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                printing == null
+                    ? "Préciser l'édition"
+                    : '${printing.printing.setCode.toUpperCase()}'
+                          '${printing.isFoil ? " · brillante" : ""}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: printing == null
+                      ? theme.colorScheme.onSurfaceVariant
+                      : theme.colorScheme.primary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

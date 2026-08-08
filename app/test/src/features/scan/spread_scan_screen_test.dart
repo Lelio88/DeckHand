@@ -18,6 +18,7 @@ import 'package:deckhand/src/features/card_search/data/card_repository.dart';
 import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
+import 'package:deckhand/src/features/printings/domain/card_printing.dart';
 import 'package:deckhand/src/features/scan/application/scan_service.dart';
 import 'package:deckhand/src/features/scan/data/photo_source.dart';
 import 'package:deckhand/src/features/scan/domain/art_hash_index.dart';
@@ -81,7 +82,10 @@ CardHit _hit(String oracleId, String name, {String lang = 'fr'}) => CardHit(
 Future<({FakeCollectionRepository collection, FakePrintingRepository printings})>
 pumpSpreadScan(WidgetTester tester, {required List<CardHit> found}) async {
   final collection = FakeCollectionRepository();
-  final printings = FakePrintingRepository();
+  final printings = FakePrintingRepository()
+    ..printings = const [
+      CardPrinting(printId: 'print-msh', setCode: 'msh', setName: 'Marvel', lang: 'fr'),
+    ];
   final cards = _FakeCatalogue(found);
   // Une ligne par carte, assez grande pour passer le filtre de taille : ce
   // n'est pas lui qu'on éprouve ici.
@@ -182,5 +186,32 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fakes.collection.quantities[('id-1', null)], 2);
+  });
+
+  testWidgets("l'édition choisie accompagne la carte jusqu'au dépôt", (
+    tester,
+  ) async {
+    final fakes = await pumpSpreadScan(
+      tester,
+      found: [_hit('id-1', 'Agent Phil Coulson')],
+    );
+
+    // L'édition se choisit d'un geste, faute de pouvoir la deviner : la
+    // géométrie d'une carte n'est reconstructible qu'à ±13 %, et au-delà de 5 %
+    // une carte sur trois recevrait la mauvaise.
+    await tester.tap(find.text("Préciser l'édition"));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Marvel').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.textContaining('Ajouter'));
+    await tester.pumpAndSettle();
+
+    expect(
+      fakes.collection.quantities.keys.single.$2,
+      'print-msh',
+      reason: "une édition affichée mais non transmise vaudrait pire que pas "
+          "d'édition : la valorisation paraîtrait précise en restant fausse",
+    );
   });
 }
