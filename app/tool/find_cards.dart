@@ -5,11 +5,15 @@
 /// l'application. Les deux doivent voir les mêmes cartes sur les mêmes photos,
 /// sans quoi la mesure ne dit plus rien de ce que l'utilisateur obtient.
 ///
-/// Usage : dart run tool/find_cards.dart photo.jpg [attendu]
+/// Rend aussi, par resolution, le jour le plus etroit encore resolu entre deux
+/// cartes voisines : c'est lui qui dit ce que la resolution achete reellement.
+///
+/// Usage : dart run tool/find_cards.dart photo.jpg [attendu] [largeurs]
 library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:deckhand/src/features/scan/domain/card_segmentation.dart';
 import 'package:image/image.dart' as img;
@@ -40,10 +44,25 @@ Future<void> main(List<String> args) async {
   for (final width in widths) {
     final started = DateTime.now();
     final cards = findCards(photo, workWidth: width);
+    // Le jour le plus etroit encore resolu : c'est lui qui dit ce que la
+    // resolution achete reellement.
+    var tightest = double.infinity;
+    for (var i = 0; i < cards.length; i++) {
+      for (var j = i + 1; j < cards.length; j++) {
+        final a = cards[i];
+        final b = cards[j];
+        final dx = [a.left - b.right, b.left - a.right, 0.0].reduce(max);
+        final dy = [a.top - b.bottom, b.top - a.bottom, 0.0].reduce(max);
+        if (dx > 0 && dy > 0) continue; // en diagonale : pas des voisins
+        final gap = dx > 0 ? dx : dy;
+        if (gap > 0 && gap < tightest) tightest = gap;
+      }
+    }
     runs.add({
       'width': width,
       'ms': DateTime.now().difference(started).inMilliseconds,
       'cards': cards.length,
+      'tightestGap': tightest.isFinite ? tightest : -1,
     });
   }
   final cards = findCards(photo, workWidth: widths.first);
