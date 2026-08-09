@@ -398,6 +398,37 @@ recherches sans résultat, ce qui accusait la reconnaissance alors que le résea
 était en cause. Il a fallu rejouer les requêtes depuis le poste pour le voir. La
 panne remonte désormais jusqu'à l'écran.
 
+### Deux fausses cartes que ni le score ni la longueur ne voient
+
+Une ligne peut porter **exactement** le nom d'une carte sans qu'aucune carte de
+ce nom soit sur la table. Le score vaut alors 1,00, la longueur est parfaite, et
+tous les garde-fous numériques passent à côté. Deux causes, mesurées sur photo
+réelle.
+
+**Le texte d'ambiance signe son auteur.** En bas d'une carte, un personnage
+parle : « —Ka-Zar of the Savage Land ». Ce personnage porte le nom d'une vraie
+carte. Le tiret d'ouverture est le seul indice — et il suffit : **aucun des
+63 220 noms indexés ne commence par un tiret**. Sur trois photos, les huit
+lignes ainsi ouvertes étaient toutes des attributions, et aucun vrai nom n'en
+portait. Les trois formes de tiret (union, demi-cadratin, cadratin) comptent :
+la reconnaissance rend l'une ou l'autre selon la police et la netteté.
+
+**Un nom de carte est capitalisé, un fragment de règles ne l'est pas.** Les
+lignes « down. » et « of turn. », arrachées à un texte de règles anglais,
+trouvaient *Down* et *Turn* — deux cartes qui existent. Coût mesuré d'écarter
+les lignes ouvertes par une minuscule : **5 noms sur 63 220** (0,008 %), tous
+des faces secondaires dont la face principale reste trouvable. Sur trois photos
+et trente-deux cartes réelles, aucune n'a été lue en commençant par une
+minuscule.
+
+Ces deux règles réduisent aussi le travail : les candidates d'une photo passent
+de 127 à 68, la majorité du texte de règles commençant par une minuscule.
+
+Ce qu'elles ne couvrent pas : « Sacrificz », mot de règles capitalisé en début
+de phrase, trouve toujours *Sacrifice*. Le distinguer demanderait de savoir à
+quelle carte appartient la ligne — c'est-à-dire de détecter les bords, chantier
+ouvert.
+
 ### Le seuil de score : 0,60, et pourquoi pas 0,72
 
 Ce que le seuil élevé écartait n'était pas du hasard, mais des lectures

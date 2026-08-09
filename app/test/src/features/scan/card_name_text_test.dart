@@ -217,4 +217,77 @@ void main() {
       expect(listsKeywords('Volcan, Emportée'), isFalse);
     });
   });
+
+  group("le texte d'ambiance signe son auteur", () {
+    test("une attribution ouverte par un tiret n'est pas un nom", () {
+      // **Observé sur le terrain.** En bas d'une carte, un personnage parle, et
+      // son nom est exactement celui d'une carte existante. Le score vaut donc
+      // 1,00 et aucune règle de longueur ne peut s'en apercevoir : sur deux
+      // photos, cette seule cause a fabriqué trois cartes fantômes.
+      expect(looksLikeCardName('-Ka-Zar of the Savage Land'), isFalse);
+      expect(looksLikeCardName('—Ka-Zar of the Savage Land'), isFalse);
+      expect(looksLikeCardName('–Hank Pym, fondateur'), isFalse);
+    });
+
+    test('le tiret compte quelle que soit sa forme', () {
+      // La reconnaissance rend le trait d'union, le demi-cadratin ou le
+      // cadratin selon la police et la netteté ; les trois signent la même
+      // chose.
+      for (final dash in ['-', '‐', '‒', '–', '—', '―', '−']) {
+        expect(
+          isFlavourAttribution('${dash}Ka-Zar'),
+          isTrue,
+          reason: 'le tiret « $dash » ouvre aussi une attribution',
+        );
+      }
+    });
+
+    test("un tiret à l'intérieur du nom ne change rien", () {
+      // *Ka-Zar* et *Mar-Vell* portent un trait d'union : seul celui de tête
+      // signale une attribution.
+      expect(looksLikeCardName('Ka-Zar de la Terre sauvage'), isTrue);
+      expect(looksLikeCardName('Captain Mar-Vell, Space-Born'), isTrue);
+    });
+  });
+
+  group('un nom de carte est capitalisé', () {
+    test('une ligne commençant par une minuscule est écartée', () {
+      // « down. » et « of turn. », arrachées à un texte de règles anglais,
+      // trouvaient les cartes *Down* et *Turn* — qui existent — avec un score
+      // parfait. Ni la longueur ni le score ne les distinguent.
+      expect(looksLikeCardName('down.'), isFalse);
+      expect(looksLikeCardName('of turn.'), isFalse);
+      expect(looksLikeCardName('vous contrôlez'), isFalse);
+    });
+
+    test('la première lettre décide, pas le premier caractère', () {
+      // Un nom peut s'ouvrir sur un chiffre ou une ponctuation ; c'est la
+      // première lettre qui porte la casse.
+      expect(startsLowercase('13, Sharon Carter'), isFalse);
+      expect(startsLowercase('« Agent »'), isFalse);
+      expect(startsLowercase('3 chiens'), isTrue);
+    });
+
+    test('une ligne sans lettre du tout ne tombe pas sur cette règle', () {
+      // Elle sera écartée ailleurs — par le motif de bruit — mais pas ici :
+      // une règle doit rejeter pour la raison qu'elle annonce.
+      expect(startsLowercase('123 456'), isFalse);
+      expect(startsLowercase(''), isFalse);
+    });
+
+    test('les vrais noms mesurés passent tous', () {
+      // Contre-épreuve : sur trois photos et trente-deux cartes réelles,
+      // aucune n'a été lue en commençant par une minuscule. Ces lectures-là
+      // sont abîmées, et doivent malgré tout passer.
+      for (final name in [
+        'Alennifer Walters',
+        'Agents du S.H.LE.LD.',
+        'Héroine en forrmation',
+        'Dinosaure de la Terre sauyage 4',
+        'Oiseau Moqueur, agente de talent 3',
+      ]) {
+        expect(looksLikeCardName(name), isTrue, reason: '« $name » est un nom lu');
+      }
+    });
+  });
 }

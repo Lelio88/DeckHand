@@ -171,6 +171,56 @@ bool listsKeywords(String text) {
   return false;
 }
 
+/// Tirets ouvrant une attribution de texte d'ambiance.
+///
+/// La reconnaissance rend indifféremment le trait d'union, le tiret demi-cadratin
+/// ou cadratin selon la police et la netteté ; les trois signent la même chose.
+const _attributionDashes = '-‐‑‒–—―−';
+
+/// Vrai si la ligne attribue un texte d'ambiance à un personnage.
+///
+/// **Le personnage qui parle porte souvent le nom d'une carte.** En bas d'une
+/// carte, le texte d'ambiance se termine par « —Ka-Zar of the Savage Land » :
+/// une citation, pas une carte posée sur la table. Le nom est pourtant exact,
+/// donc le score vaut 1,00 et aucune règle de longueur ni de score ne peut s'en
+/// apercevoir. Sur deux photos, cette seule cause a fabriqué trois cartes
+/// fantômes.
+///
+/// Le tiret d'ouverture est le seul indice, et il suffit : **aucun des 63 220
+/// noms indexés ne commence par un tiret**, le coût est donc nul. Mesuré sur
+/// trois photos, les huit lignes ainsi ouvertes étaient toutes des attributions,
+/// et aucun vrai nom n'en portait.
+bool isFlavourAttribution(String text) {
+  final trimmed = text.trimLeft();
+  return trimmed.isNotEmpty && _attributionDashes.contains(trimmed[0]);
+}
+
+/// Vrai si la ligne commence par une minuscule.
+///
+/// **Un nom de carte est capitalisé, un fragment de règles ne l'est pas.** Les
+/// lignes « down. » et « of turn. », arrachées à un texte de règles anglais,
+/// trouvaient les cartes *Down* et *Turn* — qui existent — avec un score
+/// parfait. Ni la longueur ni le score ne les distinguent : ce sont de vrais
+/// noms, simplement pas ceux d'une carte présente.
+///
+/// Coût mesuré : **5 noms sur 63 220** commencent par une minuscule (0,008 %),
+/// et ce sont des faces secondaires dont la face principale reste trouvable. Sur
+/// trois photos et trente-deux cartes réelles, aucune n'a été lue en commençant
+/// par une minuscule.
+///
+/// La première lettre est cherchée, et non le premier caractère : un nom peut
+/// s'ouvrir sur un chiffre ou une ponctuation.
+bool startsLowercase(String text) {
+  for (final rune in text.runes) {
+    final char = String.fromCharCode(rune);
+    final upper = char.toUpperCase();
+    final lower = char.toLowerCase();
+    if (upper == lower) continue; // ni lettre, ni casse — on poursuit
+    return char == lower;
+  }
+  return false;
+}
+
 /// Ligne de type, qui suit immédiatement le nom sur toutes les cartes.
 ///
 /// Sans ce filtre elle deviendrait candidate dès que le nom est mal lu, et
@@ -226,6 +276,8 @@ bool looksLikeCardName(String text, {int minLength = _minNameLength}) {
   if (_shortCaps.hasMatch(text.replaceAll(' ', ''))) return false;
   if (_typeLine.hasMatch(text)) return false;
   if (listsKeywords(text)) return false;
+  if (isFlavourAttribution(text)) return false;
+  if (startsLowercase(text)) return false;
   return true;
 }
 
