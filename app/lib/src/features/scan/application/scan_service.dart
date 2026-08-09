@@ -229,7 +229,7 @@ class ScanService {
       places.putIfAbsent(hit.oracleId, () => []).add(candidates[i]);
     }
 
-    final rejected = _citationsAmong(places, photoBytes);
+    final rejected = _citationsAmong(places, photoBytes, found);
     return [
       for (final entry in found.entries)
         if (!rejected.contains(entry.key))
@@ -259,6 +259,7 @@ class ScanService {
   Set<String> _citationsAmong(
     Map<String, List<NameCandidate>> places,
     Uint8List? photoBytes,
+    Map<String, CardHit> found,
   ) {
     if (photoBytes == null || photoBytes.isEmpty || places.length < 2) {
       return const {};
@@ -344,7 +345,16 @@ class ScanService {
     // rectangle la placerait du côté des noms.
     final rejected = suspect.difference(elected);
     if (rejected.isNotEmpty) {
-      diagnose('spread_citations', {'rejected': rejected.length, 'low': low});
+      // **Nommer ce qui est rejeté, pas seulement le compter.** Les événements
+      // `spread_match` sont émis avant ce filtrage et portent encore
+      // `kept: true` sur une citation ; sans cette ligne, le journal se
+      // contredirait sans qu'on puisse savoir laquelle a sauté.
+      diagnose('spread_citations', {
+        'low': low,
+        'rejected': [
+          for (final id in rejected) found[id]?.matchedName ?? id,
+        ],
+      });
     }
     return rejected;
   }

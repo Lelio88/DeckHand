@@ -158,7 +158,11 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
             constraints: const BoxConstraints(maxWidth: 620),
             child: Column(
               children: [
-                _Header(spotted: _spotted.length, scanned: _scanned),
+                _Header(
+                  cards: _spotted.fold<int>(0, (n, s) => n + s.quantity),
+                  distinct: _spotted.length,
+                  scanned: _scanned,
+                ),
                 if (_busy) const LinearProgressIndicator(minHeight: 2),
                 Expanded(child: _results(theme)),
                 _Actions(
@@ -381,26 +385,41 @@ class _Actions extends StatelessWidget {
 /// plus partir à la recherche d'une carte manquante. Sans lui, une carte ratée
 /// ne se remarque qu'en recomptant la liste — donc jamais.
 ///
-/// **Il compte les cartes trouvées, pas les cartes cochées.** Le bouton
-/// d'ajout, lui, décompte la sélection. Les deux nombres répondent à deux
-/// questions distinctes — « la photo a-t-elle tout vu ? » et « qu'est-ce que je
-/// m'apprête à enregistrer ? » — et les confondre rendrait le premier
-/// inutilisable dès la première case décochée.
+/// **Il compte les cartes posées, pas les lignes de la liste.** Quinze cartes
+/// dont six doublons ne font que neuf lignes ; annoncer neuf ferait croire à
+/// six cartes perdues. C'est le nombre d'exemplaires qui se compare à la table,
+/// et le nombre de cartes différentes ne vient qu'en second — utile, mais ce
+/// n'est pas ce que l'utilisateur a compté en les posant.
 ///
-/// Un doublon parfait n'est vu qu'une fois : deux exemplaires côte à côte
-/// comptent pour une carte, quantité 1. C'est aussi ce que ce compteur rend
-/// visible — l'écart avec ce que l'utilisateur a posé lui signale d'ajuster la
-/// quantité.
+/// **Il ignore les cases à cocher.** Le bouton d'ajout, lui, décompte la
+/// sélection. Les deux répondent à deux questions distinctes — « la photo
+/// a-t-elle tout vu ? » et « qu'est-ce que je m'apprête à enregistrer ? » — et
+/// les confondre rendrait le premier inutilisable dès la première case
+/// décochée, alors que c'est justement après avoir corrigé qu'on veut savoir
+/// s'il manque quelque chose.
+///
+/// Il suit en revanche les **quantités** : corriger un doublon que la photo a
+/// sous-compté rapproche le total de ce qui est sur la table, et l'utilisateur
+/// voit sa correction aboutir.
 class _Header extends StatelessWidget {
-  const _Header({required this.spotted, required this.scanned});
+  const _Header({
+    required this.cards,
+    required this.distinct,
+    required this.scanned,
+  });
 
-  final int spotted;
+  /// Exemplaires trouvés, doublons compris.
+  final int cards;
+
+  /// Cartes différentes, c'est-à-dire lignes de la liste.
+  final int distinct;
+
   final bool scanned;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (!scanned || spotted == 0) {
+    if (!scanned || cards == 0) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
         child: Text(
@@ -422,11 +441,25 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              '$spotted carte${spotted > 1 ? 's' : ''} '
-              'trouvée${spotted > 1 ? 's' : ''} sur la photo',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text:
+                        '$cards carte${cards > 1 ? 's' : ''} '
+                        'trouvée${cards > 1 ? 's' : ''} sur la photo',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (distinct != cards)
+                    TextSpan(
+                      text: '   $distinct différentes',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

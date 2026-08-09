@@ -274,6 +274,43 @@ void main() {
       expect(find.textContaining('Ajouter (1)'), findsOneWidget);
     });
 
+    testWidgets("les doublons comptent pour ce qu'ils sont", (tester) async {
+      // **Le défaut que ce test verrouille.** L'écran annonçait le nombre de
+      // *lignes* : quinze cartes dont six doublons n'en faisaient que neuf, et
+      // l'utilisateur croyait à six cartes perdues. C'est le nombre
+      // d'exemplaires qui se compare à ce qu'il a posé sur la table.
+      await pumpSpreadScan(
+        tester,
+        found: [
+          _hit('id-1', 'Agent Phil Coulson'),
+          _hit('id-2', "Agent d'Atlas"),
+        ],
+      );
+
+      // Un exemplaire de plus sur la première carte : trois cartes posées.
+      await tester.tap(find.byTooltip('Un de plus').first);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('3 cartes trouvées'), findsOneWidget);
+      expect(find.textContaining('2 différentes'), findsOneWidget);
+    });
+
+    testWidgets("sans doublon, le second nombre ne s'affiche pas", (
+      tester,
+    ) async {
+      // Répéter « 2 cartes trouvées, 2 différentes » n'apprend rien et encombre.
+      await pumpSpreadScan(
+        tester,
+        found: [
+          _hit('id-1', 'Agent Phil Coulson'),
+          _hit('id-2', "Agent d'Atlas"),
+        ],
+      );
+
+      expect(find.textContaining('2 cartes trouvées'), findsOneWidget);
+      expect(find.textContaining('différentes'), findsNothing);
+    });
+
     testWidgets('une seule carte se dit au singulier', (tester) async {
       await pumpSpreadScan(tester, found: [_hit('id-1', 'Agent Phil Coulson')]);
 
