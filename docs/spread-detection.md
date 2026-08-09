@@ -208,3 +208,52 @@ rejette alors à tort.
 bonne valeur se situe entre « le nom rentre » et « le voisin n'entre pas », et
 elle n'est pas encore mesurée. C'est l'étape suivante, et elle est bien posée.
 
+---
+
+# La segmentation exige un jour **tout autour**, et elle enchaîne
+
+Une photo d'épreuve de quinze cartes, aux espacements délibérément variés —
+certaines largement séparées, d'autres se touchant, d'autres se touchant en bas
+mais pas en haut — donne le verdict le plus net de tous.
+
+## Ce qu'elle donne
+
+**Quatre formes pour quinze cartes.** Trois cartes réelles, correctement
+délimitées : ce sont celles qui avaient du jour sur leurs quatre côtés. Et
+**deux blocs** avalant tout le reste, l'un couvrant 49 % de la surface encrée,
+l'autre 25 %.
+
+Pire : l'un de ces blocs présente un rapport de 1,44, soit exactement celui
+d'une carte. Il est donc compté comme une carte. Un groupe fusionné ne se
+contente pas de disparaître, il peut fabriquer une fausse carte.
+
+## Le contact enchaîne
+
+C'est le point décisif. Deux cartes qui se touchent **par un seul côté**
+deviennent une forme, et cette forme touche la suivante : tout un groupe se
+soude de proche en proche. Un seul contact suffit à perdre une rangée entière.
+
+## L'érosion n'y peut rien — mesuré une seconde fois
+
+| érosion | cartes trouvées |
+|---|---|
+| 0 à 18 px | 4 |
+| 22 px | 6 (les cartes commencent à se déliter) |
+
+Ronger le masque devait séparer des formes reliées par un mince liseré. Mais le
+contact n'est pas un liseré : entre deux cartes proches, **l'ombre portée est
+aussi sombre que la bordure noire** et forme une soudure large. À la résolution
+où elle céderait, les cartes elles-mêmes se sont défaites.
+
+## Ce que ça change pour le produit
+
+La consigne « un demi-centimètre » est juste mais insuffisamment dite : il faut
+un jour **tout autour de chaque carte**, pas en moyenne. Une carte qui en touche
+une autre par un coin fait perdre les deux, et leurs voisines.
+
+Et il faut relativiser l'apport de la segmentation. Sur cette même photo, la
+lecture des noms trouve **dix identités pour neuf réelles** — une seule fausse.
+La voie du nom est aujourd'hui nettement plus robuste que celle des bords, et
+c'est elle qui porte le produit. La segmentation reste un chantier, pas un
+acquis.
+
