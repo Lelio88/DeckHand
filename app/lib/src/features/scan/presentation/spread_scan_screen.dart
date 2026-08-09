@@ -150,14 +150,7 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
             constraints: const BoxConstraints(maxWidth: 620),
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                  child: Text(
-                    'Photographiez vos cartes étalées, noms bien visibles. '
-                    'Ce sont eux qui sont lus, pas les illustrations.',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ),
+                _Header(spotted: _spotted.length, scanned: _scanned),
                 if (_busy) const LinearProgressIndicator(minHeight: 2),
                 Expanded(child: _results(theme)),
                 _Actions(
@@ -366,6 +359,69 @@ class _Actions extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Consigne de cadrage avant le scan, décompte des cartes trouvées après.
+///
+/// **Le nombre est ce que l'utilisateur peut vérifier sans rien relire.** Il
+/// sait combien de cartes il a posées sur la table ; comparer deux nombres lui
+/// dit immédiatement s'il ne lui reste qu'à contrôler des noms, ou s'il doit en
+/// plus partir à la recherche d'une carte manquante. Sans lui, une carte ratée
+/// ne se remarque qu'en recomptant la liste — donc jamais.
+///
+/// **Il compte les cartes trouvées, pas les cartes cochées.** Le bouton
+/// d'ajout, lui, décompte la sélection. Les deux nombres répondent à deux
+/// questions distinctes — « la photo a-t-elle tout vu ? » et « qu'est-ce que je
+/// m'apprête à enregistrer ? » — et les confondre rendrait le premier
+/// inutilisable dès la première case décochée.
+///
+/// Un doublon parfait n'est vu qu'une fois : deux exemplaires côte à côte
+/// comptent pour une carte, quantité 1. C'est aussi ce que ce compteur rend
+/// visible — l'écart avec ce que l'utilisateur a posé lui signale d'ajuster la
+/// quantité.
+class _Header extends StatelessWidget {
+  const _Header({required this.spotted, required this.scanned});
+
+  final int spotted;
+  final bool scanned;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (!scanned || spotted == 0) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+        child: Text(
+          'Photographiez vos cartes étalées, noms bien visibles. '
+          'Ce sont eux qui sont lus, pas les illustrations.',
+          style: theme.textTheme.bodyMedium,
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      child: Row(
+        children: [
+          Icon(
+            Icons.style_outlined,
+            size: 20,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$spotted carte${spotted > 1 ? 's' : ''} '
+              'trouvée${spotted > 1 ? 's' : ''} sur la photo',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );

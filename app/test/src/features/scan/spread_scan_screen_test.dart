@@ -232,4 +232,85 @@ void main() {
           "d'édition : la valorisation paraîtrait précise en restant fausse",
     );
   });
+
+  group('le décompte des cartes trouvées', () {
+    testWidgets('le nombre trouvé est annoncé après le scan', (tester) async {
+      // **Ce que ce nombre sert à comparer.** L'utilisateur sait combien de
+      // cartes il a posées sur la table ; l'écart lui dit s'il doit chercher
+      // une carte manquante ou seulement vérifier des noms. Sans lui, une
+      // carte ratée ne se remarque qu'en recomptant la liste — donc jamais.
+      await pumpSpreadScan(
+        tester,
+        found: [
+          _hit('id-1', 'Agent Phil Coulson'),
+          _hit('id-2', "Agent d'Atlas"),
+          _hit('id-3', 'Renforts de quartier'),
+        ],
+      );
+
+      expect(find.text('3 cartes trouvées sur la photo'), findsOneWidget);
+    });
+
+    testWidgets('décocher une carte ne change pas le nombre trouvé', (
+      tester,
+    ) async {
+      // Le décompte répond à « la photo a-t-elle tout vu ? », le bouton à
+      // « qu'est-ce que je m'apprête à enregistrer ? ». Les confondre rendrait
+      // le premier inutilisable dès la première case décochée — or c'est
+      // précisément après avoir corrigé que l'on veut savoir s'il manque une
+      // carte.
+      await pumpSpreadScan(
+        tester,
+        found: [
+          _hit('id-1', 'Agent Phil Coulson'),
+          _hit('id-2', "Agent d'Atlas"),
+        ],
+      );
+
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 cartes trouvées sur la photo'), findsOneWidget);
+      expect(find.textContaining('Ajouter (1)'), findsOneWidget);
+    });
+
+    testWidgets('une seule carte se dit au singulier', (tester) async {
+      await pumpSpreadScan(tester, found: [_hit('id-1', 'Agent Phil Coulson')]);
+
+      expect(find.text('1 carte trouvée sur la photo'), findsOneWidget);
+    });
+
+    testWidgets('avant tout scan, la consigne de cadrage tient la place', (
+      tester,
+    ) async {
+      // Le compteur remplace la consigne, il ne s'y ajoute pas : afficher
+      // « 0 carte trouvée » avant même d'avoir photographié annoncerait un
+      // échec là où il n'y a encore rien eu.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            photoSourceProvider.overrideWithValue(_FakePhotoSource()),
+            collectionRepositoryProvider.overrideWithValue(
+              FakeCollectionRepository(),
+            ),
+            printingRepositoryProvider.overrideWithValue(
+              FakePrintingRepository(),
+            ),
+            scanServiceProvider.overrideWith(
+              (ref) async => ScanService(
+                ArtHashIndex.fromEntries(const []),
+                FakeCardTextReader(),
+                _FakeCatalogue(const []),
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: SpreadScanScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Photographiez vos cartes'), findsOneWidget);
+      expect(find.textContaining('trouvée'), findsNothing);
+    });
+  });
 }
