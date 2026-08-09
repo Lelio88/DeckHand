@@ -348,6 +348,46 @@ void main() {
       expect(found.single.copies, 1);
     });
 
+    test("sans photo, le filtrage des citations ne s'applique pas", () async {
+      // **Le filtrage est un supplément, jamais une dépendance.** Les jeux
+      // d'essai ne fournissent pas d'image, et le scan doit rendre exactement
+      // ce qu'il rendait avant que ce garde-fou existe.
+      final cards = FakeCardRepository()
+        ..results = [
+          _spreadHit('88888888-8888-8888-8888-888888888888', 'Foudre'),
+          _spreadHit('99999999-9999-9999-9999-999999999999', 'Anneau'),
+        ];
+      final service = serviceReading(const [
+        ReadLine('Foudre', 0.10, 0.010, 0.10, 0.15),
+        ReadLine('Anneau', 0.60, 0.010, 0.55, 0.15),
+      ], cards);
+
+      final found = await service.recogniseSpread('etalement.jpg');
+
+      expect(found.length, 2);
+    });
+
+    test('une image illisible ne met pas le scan en échec', () async {
+      // Une reconnaissance qui marche ne peut pas être mise en échec par son
+      // garde-fou : si le décodage échoue, on rend le résultat non filtré.
+      final cards = FakeCardRepository()
+        ..results = [
+          _spreadHit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Foudre'),
+          _spreadHit('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Anneau'),
+        ];
+      final service = serviceReading(const [
+        ReadLine('Foudre', 0.10, 0.010, 0.10, 0.15),
+        ReadLine('Anneau', 0.60, 0.010, 0.55, 0.15),
+      ], cards);
+
+      final found = await service.recogniseSpread(
+        'etalement.jpg',
+        photoBytes: Uint8List.fromList(const [1, 2, 3, 4]),
+      );
+
+      expect(found.length, 2);
+    });
+
     test('une photo sans nom lisible ne sollicite pas le réseau', () async {
       // Un aller-retour à vide se paierait quand même 600 ms, et le serveur
       // n'a rien à en faire.

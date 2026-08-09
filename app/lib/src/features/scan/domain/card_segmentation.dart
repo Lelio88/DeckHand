@@ -83,6 +83,61 @@ const double _minAreaShare = 0.01;
 const double _minRatio = 1.15;
 const double _maxRatio = 1.75;
 
+/// Élargissement du rectangle avant d'y chercher les lignes.
+///
+/// **Le nom déborde de sa carte.** Il est imprimé à deux pour cent du bord, et
+/// le masque s'arrête sur la bordure noire : le centre de sa ligne tombe parfois
+/// dehors. Mesuré, le débordement monte à 5,3 %.
+///
+/// Trop élargir fait entrer le nom de la carte voisine — à 14,4 % sur une photo
+/// aux cartes bien séparées. Balayé sur le résultat final : en dessous de 6 %,
+/// une fausse carte réapparaît ; de 6 % à 14 %, le résultat ne bouge plus. Huit
+/// pour cent tient le milieu de cette bande.
+const double boundsMargin = 0.08;
+
+/// Profondeur au-delà de laquelle une ligne est une citation, non un nom.
+///
+/// **Le rang ne suffit pas, il faut une distance absolue.** La règle « garder le
+/// plus proche du bord » rejetait *Gorille mercenaire*, une vraie carte : son
+/// nom débordait sur le rectangle de sa voisine, où un autre nom se trouvait
+/// encore plus au bord. Perdre une vraie carte coûte plus que garder une
+/// citation qu'on décoche.
+///
+/// Mesuré, en fraction de la carte, sur les lignes présentes dans un rectangle
+/// qui en a élu une autre :
+///
+/// | | profondeur |
+/// |---|---|
+/// | vrai nom débordant de chez la voisine | 2,7 % à 8 % |
+/// | citation d'ambiance | 14 % — et 15 à 22 % sur une autre photo |
+///
+/// Onze pour cent tient le milieu. Un nom reste donc rejeté seulement s'il est
+/// **à la fois** moins au bord qu'un autre et franchement enfoncé dans la carte.
+const double citationDepth = 0.11;
+
+/// Écart de surface toléré avec la carte médiane.
+///
+/// **Un bloc de cartes soudées peut avoir le rapport d'une carte.** Sur une
+/// photo d'épreuve, un groupe couvrant 49 % de la surface encrée présentait un
+/// rapport de 1,44 — celui d'une carte. Le rapport ne suffit donc pas à
+/// reconnaître une carte isolée ; la surface, si, dès qu'on a plusieurs
+/// rectangles à comparer.
+const double _areaTolerance = 2.0;
+
+/// Ne garde que les rectangles dont la taille est celle d'une carte isolée.
+///
+/// Sert à n'appliquer le filtrage des citations que là où l'on sait ce qu'on
+/// regarde. Un bloc soudé est écarté : ses lignes retombent alors sur le
+/// comportement d'avant, sans filtrage — jamais pire, souvent mieux.
+List<CardBounds> singleCards(List<CardBounds> found) {
+  if (found.length < 3) return found;
+  final areas = found.map((c) => c.width * c.height).toList()..sort();
+  final median = areas[areas.length ~/ 2];
+  return found
+      .where((c) => c.width * c.height <= median * _areaTolerance)
+      .toList(growable: false);
+}
+
 /// Jour minimal conseillé entre deux cartes, en millimètres.
 ///
 /// **Mesuré en refermant le jour pas à pas.** Sur la photo qui fonctionne, les

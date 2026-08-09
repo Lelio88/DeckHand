@@ -85,7 +85,10 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       }
 
       final service = await ref.read(scanServiceProvider.future);
-      final found = await service.recogniseSpread(photo.path);
+      final found = await service.recogniseSpread(
+        photo.path,
+        photoBytes: photo.bytes,
+      );
 
       if (!mounted) return;
       setState(() {

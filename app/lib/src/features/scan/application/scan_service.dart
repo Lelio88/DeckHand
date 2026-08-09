@@ -22,6 +22,7 @@
 /// suggestions de decks.
 library;
 
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,6 +37,7 @@ import '../domain/art_box.dart';
 import '../domain/art_hash_index.dart';
 import '../domain/card_framing.dart';
 import '../domain/card_name_text.dart';
+import '../domain/card_segmentation.dart';
 import '../domain/spread_names.dart';
 
 /// Comment une carte a été identifiée. Détermine ce que l'écran annonce.
@@ -170,7 +172,10 @@ class ScanService {
   /// manquer (nom masqué, reflet) ; c'est assumé, l'utilisateur voit son
   /// étalement et complétera. L'inverse — inventer une carte qu'il validerait
   /// sans y penser — fausserait durablement ses suggestions de decks.
-  Future<List<SpreadFind>> recogniseSpread(String photoPath) async {
+  Future<List<SpreadFind>> recogniseSpread(
+    String photoPath, {
+    Uint8List? photoBytes,
+  }) async {
     final lines = await _reader.readLines(photoPath);
     final candidates = spreadNameCandidates(lines);
     _diagnoseRead(lines, candidates);
@@ -225,10 +230,104 @@ class ScanService {
       places.putIfAbsent(hit.oracleId, () => []).add(candidates[i]);
     }
 
+    final rejected = _citationsAmong(places, photoBytes);
     return [
       for (final entry in found.entries)
-        SpreadFind(entry.value, copies: _countCopies(places[entry.key]!)),
+        if (!rejected.contains(entry.key))
+          SpreadFind(entry.value, copies: _countCopies(places[entry.key]!)),
     ];
+  }
+
+  /// Identifie les correspondances qui sont des **citations**, non des noms.
+  ///
+  /// **Le texte d'ambiance cite un personnage qui porte souvent le nom d'une
+  /// vraie carte.** « Ka-Zar of the Savage Land » figure au bas des quatre
+  /// dinosaures d'une photo, avec un score parfait : ni la longueur, ni le
+  /// score, ni la casse ne peuvent s'en apercevoir. Le tiret d'ouverture en
+  /// attrape la plupart, mais la reconnaissance le manque parfois.
+  ///
+  /// Ce qui les sépare vraiment est leur place **dans leur carte** : mesuré, le
+  /// nom siège à 2-5 % d'un bord quand la citation est à 15-22 % du sien. Il
+  /// suffit donc de ne garder, par carte, que la correspondance la plus collée à
+  /// une extrémité — ce qui impose au passage un invariant vrai : *une carte
+  /// porte un seul nom*.
+  ///
+  /// **Ce filtrage ne peut jamais dégrader le résultat.** Il ne s'applique qu'aux
+  /// rectangles dont la taille est celle d'une carte isolée ; là où les cartes se
+  /// touchent, les blocs soudés sont écartés et leurs lignes retombent sur le
+  /// comportement d'avant. Sans photo, sans rectangle exploitable ou sans carte
+  /// reconnue, rien n'est rejeté.
+  Set<String> _citationsAmong(
+    Map<String, List<NameCandidate>> places,
+    Uint8List? photoBytes,
+  ) {
+    if (photoBytes == null || photoBytes.isEmpty || places.length < 2) {
+      return const {};
+    }
+
+    // **Ce filtrage est un supplément, jamais une dépendance.** Il affine un
+    // résultat déjà bon ; s'il échoue — image illisible, format inattendu,
+    // mémoire — le scan doit rendre exactement ce qu'il rendait avant. Une
+    // reconnaissance qui marche ne peut pas être mise en échec par son garde-fou.
+    final List<CardBounds> cards;
+    try {
+      final photo = img.decodeImage(photoBytes);
+      if (photo == null) return const {};
+      cards = singleCards(findCards(photo));
+    } catch (error) {
+      diagnose('spread_cards_failed', {'error': error.toString()});
+      return const {};
+    }
+    diagnose('spread_cards', {'found': cards.length});
+    if (cards.isEmpty) return const {};
+
+    final suspect = <String>{};
+    final elected = <String>{};
+
+    for (final card in cards) {
+      final mx = card.width * boundsMargin;
+      final my = card.height * boundsMargin;
+      // Le nom court le long du grand côté : c'est sur cet axe que se mesure
+      // la distance à une extrémité.
+      final horizontal = card.width > card.height;
+      final lo = horizontal ? card.left : card.top;
+      final hi = horizontal ? card.right : card.bottom;
+      if (hi - lo <= 0) continue;
+
+      String? nearest;
+      var shallowest = double.infinity;
+      final present = <String>{};
+
+      for (final entry in places.entries) {
+        for (final line in entry.value) {
+          if (line.left < card.left - mx || line.left > card.right + mx) continue;
+          if (line.top < card.top - my || line.top > card.bottom + my) continue;
+          final axis = horizontal ? line.left : line.top;
+          final depth = min((axis - lo).abs(), (axis - hi).abs()) / (hi - lo);
+          // Seules les lignes franchement enfoncées sont suspectes : un vrai
+          // nom qui déborde sur le rectangle voisin reste près du bord.
+          if (depth >= citationDepth) present.add(entry.key);
+          if (depth < shallowest) {
+            shallowest = depth;
+            nearest = entry.key;
+          }
+        }
+      }
+
+      if (nearest == null) continue;
+      elected.add(nearest);
+      // Les autres sont citées sur cette carte, pas posées à côté d'elle.
+      suspect.addAll(present.where((id) => id != nearest));
+    }
+
+    // **Une carte citée ici peut être posée ailleurs.** Les quatre dinosaures
+    // citent Ka-Zar, mais si une carte Ka-Zar était sur la table, son propre
+    // rectangle l'élirait. N'est rejeté que ce qu'aucun rectangle n'a élu.
+    final rejected = suspect.difference(elected);
+    if (rejected.isNotEmpty) {
+      diagnose('spread_citations', {'rejected': rejected.length});
+    }
+    return rejected;
   }
 
   /// Combien de cartes physiques ces lectures représentent.

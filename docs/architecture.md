@@ -430,6 +430,38 @@ la photo de dix-sept cartes toutes différentes, il n'invente aucun exemplaire.
 La quantité proposée reste une proposition : l'écran la présente, l'utilisateur
 l'ajuste (garde-fou §IV.8).
 
+### Les bords servent de garde-fou, jamais de source
+
+Les rectangles de cartes sont calculés et **branchés au scan** — mais comme
+filtre, jamais comme source de vérité. Le scan continue de trouver les cartes
+par leurs noms ; la délimitation ne fait qu'écarter les citations.
+
+Trois précautions rendent l'ajout incapable de dégrader ce qui marche :
+
+1. **Seuls les rectangles d'une carte isolée comptent.** Un bloc de cartes
+   soudées peut avoir le rapport d'une carte — mesuré, un groupe couvrant 49 %
+   de la surface encrée affichait 1,44. C'est la surface, comparée aux autres
+   rectangles, qui le démasque ; il est alors ignoré.
+2. **Un rejet demande une profondeur, pas seulement un rang.** La règle « garder
+   le plus proche du bord » rejetait *Gorille mercenaire*, une vraie carte dont
+   le nom débordait sur le rectangle voisin. Mesuré, un vrai nom qui déborde
+   reste à 2,7-8 % du bord, une citation siège à 14-22 % : le seuil se pose à
+   11 %.
+3. **Toute panne rend le résultat non filtré.** Image absente, illisible,
+   format inattendu : le scan rend ce qu'il rendait avant.
+
+Mesuré sur les trois photos de référence :
+
+| photo | avant | après |
+|---|---|---|
+| onze cartes espacées | 8 vraies, 2 fausses | 8 vraies, **1 fausse** |
+| dix-sept cartes à plat | 17 vraies, 0 fausse | inchangé |
+| quinze cartes jointives | 9 vraies, 1 fausse | inchangé (repli) |
+
+Jamais pire, parfois mieux. Ce qui reste — « Sacrificz » trouvant *Sacrifice* —
+n'est pas une citation mais un mot de règles capitalisé, qu'aucun rectangle ne
+distingue.
+
 ### Deux fausses cartes que ni le score ni la longueur ne voient
 
 Une ligne peut porter **exactement** le nom d'une carte sans qu'aucune carte de
