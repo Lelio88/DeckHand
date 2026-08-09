@@ -442,21 +442,33 @@ Trois précautions rendent l'ajout incapable de dégrader ce qui marche :
    soudées peut avoir le rapport d'une carte — mesuré, un groupe couvrant 49 %
    de la surface encrée affichait 1,44. C'est la surface, comparée aux autres
    rectangles, qui le démasque ; il est alors ignoré.
-2. **Un rejet demande une profondeur, pas seulement un rang.** La règle « garder
-   le plus proche du bord » rejetait *Gorille mercenaire*, une vraie carte dont
-   le nom débordait sur le rectangle voisin. Mesuré, un vrai nom qui déborde
-   reste à 2,7-8 % du bord, une citation siège à 14-22 % : le seuil se pose à
-   11 %.
-3. **Toute panne rend le résultat non filtré.** Image absente, illisible,
+2. **Le nom et la citation sont aux deux bouts, et il faut savoir lequel est
+   lequel.** Mesuré sur un même rectangle : le nom à 9 %, la citation à 93 %.
+   Prendre la distance au bord *le plus proche* les ramène toutes deux sous
+   10 % et les rend indiscernables — c'est ce qui a fait échouer la première
+   version. Il faut une position orientée.
+3. **Le sens se lit dans la photo, il ne se suppose pas.** Les cartes d'une même
+   photo sont posées dans le même sens, mais ce sens change d'une photo à
+   l'autre : noms à 6-14 % ici, à 93-103 % là. Les rectangles ne portant qu'une
+   correspondance la désignent sans ambiguïté — c'est un nom —, et la majorité
+   tranche pour les autres.
+4. **Le bout, pas le milieu.** Sur des rectangles imparfaits, la position d'un
+   nom se décale : *Croisade de Murdock* tombait à 56 % et se faisait rejeter.
+   Les vraies citations siègent à 86-93 % du bout des noms. Le seuil se pose à
+   70 %.
+5. **Une ligne hors du rectangle est le nom du voisin, pas une citation.** C'est
+   ce qui sauve *Gorille mercenaire*, dont le nom débordait de trois pour cent
+   sur la carte d'à côté.
+6. **Toute panne rend le résultat non filtré.** Image absente, illisible,
    format inattendu : le scan rend ce qu'il rendait avant.
 
 Mesuré sur les trois photos de référence :
 
 | photo | avant | après |
 |---|---|---|
+| quinze cartes espacées | 9 vraies, 1 fausse | 9 vraies, **0 fausse** |
 | onze cartes espacées | 8 vraies, 2 fausses | 8 vraies, **1 fausse** |
-| dix-sept cartes à plat | 17 vraies, 0 fausse | inchangé |
-| quinze cartes jointives | 9 vraies, 1 fausse | inchangé (repli) |
+| dix-sept cartes jointives | 17 vraies, 0 fausse | inchangé — rien rejeté |
 
 Jamais pire, parfois mieux. Ce qui reste — « Sacrificz » trouvant *Sacrifice* —
 n'est pas une citation mais un mot de règles capitalisé, qu'aucun rectangle ne

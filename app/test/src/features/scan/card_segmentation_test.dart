@@ -68,12 +68,24 @@ void main() {
       expect(boundsMargin, lessThan(0.144));
     });
 
-    test('la profondeur de citation sépare les deux populations', () {
-      // Mesuré sur les lignes présentes dans un rectangle qui en a élu une
-      // autre : un vrai nom débordant de chez la voisine reste à 2,7-8 %, une
-      // citation siège à 14-22 %.
-      expect(citationDepth, greaterThan(0.08));
-      expect(citationDepth, lessThan(0.14));
+    test('la citation se juge au bout, pas au milieu', () {
+      // Mesuré : les vraies citations siègent à 86-93 % du bout portant les
+      // noms, tandis qu'un nom mal placé par un rectangle imparfait tombe à
+      // 56 %. Le seuil doit laisser passer le second et prendre les premières.
+      expect(citationEnd, greaterThan(0.56));
+      expect(citationEnd, lessThan(0.86));
+    });
+
+    test('le sens se lit dans la photo, il ne se suppose pas', () {
+      // Mesuré : les noms siègent à 6-14 % de leurs rectangles sur une photo,
+      // et à 93-103 % sur une autre. Aucune constante ne peut l'encoder.
+      expect(nameSitsLow(const [0.06, 0.09, 0.14, 0.10]), isTrue);
+      expect(nameSitsLow(const [0.93, 1.02, 0.94, 1.03]), isFalse);
+    });
+
+    test("une majorité franche l'emporte sur une lecture aberrante", () {
+      // Un rectangle bancal ne doit pas retourner le sens de toute la photo.
+      expect(nameSitsLow(const [0.08, 0.11, 0.09, 0.97]), isTrue);
     });
   });
 }

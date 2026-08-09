@@ -22,7 +22,6 @@
 /// suggestions de decks.
 library;
 
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -281,51 +280,71 @@ class ScanService {
     diagnose('spread_cards', {'found': cards.length});
     if (cards.isEmpty) return const {};
 
-    final suspect = <String>{};
-    final elected = <String>{};
-
-    for (final card in cards) {
+    // Position de chaque correspondance le long de chaque carte, de 0 à 1.
+    // Hors de cet intervalle, la ligne appartient à la carte d'à côté.
+    final byCard = <int, Map<String, double>>{};
+    for (var i = 0; i < cards.length; i++) {
+      final card = cards[i];
       final mx = card.width * boundsMargin;
       final my = card.height * boundsMargin;
-      // Le nom court le long du grand côté : c'est sur cet axe que se mesure
-      // la distance à une extrémité.
       final horizontal = card.width > card.height;
       final lo = horizontal ? card.left : card.top;
       final hi = horizontal ? card.right : card.bottom;
       if (hi - lo <= 0) continue;
 
-      String? nearest;
-      var shallowest = double.infinity;
-      final present = <String>{};
-
+      final along = <String, double>{};
       for (final entry in places.entries) {
         for (final line in entry.value) {
           if (line.left < card.left - mx || line.left > card.right + mx) continue;
           if (line.top < card.top - my || line.top > card.bottom + my) continue;
           final axis = horizontal ? line.left : line.top;
-          final depth = min((axis - lo).abs(), (axis - hi).abs()) / (hi - lo);
-          // Seules les lignes franchement enfoncées sont suspectes : un vrai
-          // nom qui déborde sur le rectangle voisin reste près du bord.
-          if (depth >= citationDepth) present.add(entry.key);
-          if (depth < shallowest) {
-            shallowest = depth;
-            nearest = entry.key;
+          final at = (axis - lo) / (hi - lo);
+          final seen = along[entry.key];
+          // La plus intérieure des lectures : c'est celle qui appartient le
+          // plus vraisemblablement à cette carte.
+          if (seen == null || (at - 0.5).abs() < (seen - 0.5).abs()) {
+            along[entry.key] = at;
           }
         }
       }
-
-      if (nearest == null) continue;
-      elected.add(nearest);
-      // Les autres sont citées sur cette carte, pas posées à côté d'elle.
-      suspect.addAll(present.where((id) => id != nearest));
+      if (along.isNotEmpty) byCard[i] = along;
     }
 
-    // **Une carte citée ici peut être posée ailleurs.** Les quatre dinosaures
+    // **Le sens se lit dans la photo, il ne peut pas être une constante.** Les
+    // rectangles ne portant qu'une correspondance la désignent sans ambiguïté :
+    // c'est un nom. La majorité dit de quel côté siègent les noms.
+    final lonely = [
+      for (final along in byCard.values)
+        if (along.length == 1) along.values.first,
+    ];
+    if (lonely.isEmpty) return const {};
+    final low = nameSitsLow(lonely);
+
+    final suspect = <String>{};
+    final elected = <String>{};
+    for (final along in byCard.values) {
+      for (final entry in along.entries) {
+        // Hors du rectangle : la ligne est le nom de la carte voisine, pas une
+        // citation portée par celle-ci. C'est ce qui sauve *Gorille
+        // mercenaire*, dont le nom débordait de trois pour cent.
+        if (entry.value < 0 || entry.value > 1) continue;
+        // Mesuré depuis le bout qui porte les noms : une citation siège au
+        // bout opposé, pas simplement au-delà du milieu.
+        final fromNameEnd = low ? entry.value : 1 - entry.value;
+        if (fromNameEnd > citationEnd) {
+          suspect.add(entry.key);
+        } else {
+          elected.add(entry.key);
+        }
+      }
+    }
+
+    // Une carte citée ici peut être posée ailleurs : les quatre dinosaures
     // citent Ka-Zar, mais si une carte Ka-Zar était sur la table, son propre
-    // rectangle l'élirait. N'est rejeté que ce qu'aucun rectangle n'a élu.
+    // rectangle la placerait du côté des noms.
     final rejected = suspect.difference(elected);
     if (rejected.isNotEmpty) {
-      diagnose('spread_citations', {'rejected': rejected.length});
+      diagnose('spread_citations', {'rejected': rejected.length, 'low': low});
     }
     return rejected;
   }

@@ -95,25 +95,49 @@ const double _maxRatio = 1.75;
 /// pour cent tient le milieu de cette bande.
 const double boundsMargin = 0.08;
 
-/// Profondeur au-delà de laquelle une ligne est une citation, non un nom.
+/// Position, le long d'une carte, au-delà de laquelle une ligne est une
+/// citation et non un nom.
 ///
-/// **Le rang ne suffit pas, il faut une distance absolue.** La règle « garder le
-/// plus proche du bord » rejetait *Gorille mercenaire*, une vraie carte : son
-/// nom débordait sur le rectangle de sa voisine, où un autre nom se trouvait
-/// encore plus au bord. Perdre une vraie carte coûte plus que garder une
-/// citation qu'on décoche.
+/// **La distance au bord le plus proche ne peut pas trancher.** Le nom et la
+/// citation siègent aux deux **extrémités opposées** de la carte : mesuré sur un
+/// même rectangle, le nom est à 9 % et la citation à 93 %. Prendre la distance
+/// au bord le plus proche les ramène toutes deux à moins de 10 % et les rend
+/// indiscernables. Il faut donc une position orientée, et savoir quel bout porte
+/// le nom.
 ///
-/// Mesuré, en fraction de la carte, sur les lignes présentes dans un rectangle
-/// qui en a élu une autre :
+/// **Le milieu ne suffit pas, il faut le bout.** Sur une photo aux rectangles
+/// imparfaits — cartes jointives soudées en blocs —, la position relative d'un
+/// nom se décale : *Croisade de Murdock* tombait à 56 %, à peine au-delà du
+/// milieu, et se faisait rejeter comme citation. Les vraies citations, elles,
+/// siègent au bout : 93 % quand les noms sont à 6-14 %, 14 % quand ils sont à
+/// 93-103 %. Exiger le dernier tiers laisse dix points de marge au pire cas
+/// mesuré, et vingt-trois à la citation la plus timide.
+const double citationEnd = 0.70;
+
+/// Quel bout d'une carte porte son nom, déduit de la photo entière.
 ///
-/// | | profondeur |
-/// |---|---|
-/// | vrai nom débordant de chez la voisine | 2,7 % à 8 % |
-/// | citation d'ambiance | 14 % — et 15 à 22 % sur une autre photo |
+/// **Toutes les cartes d'une photo sont posées dans le même sens**, mais ce sens
+/// change d'une photo à l'autre : mesuré, les noms siègent à 6-14 % de leurs
+/// rectangles sur une photo, et à 93-103 % sur une autre. Aucune constante ne
+/// peut donc l'encoder — il faut le lire dans la photo.
 ///
-/// Onze pour cent tient le milieu. Un nom reste donc rejeté seulement s'il est
-/// **à la fois** moins au bord qu'un autre et franchement enfoncé dans la carte.
-const double citationDepth = 0.11;
+/// Les rectangles ne portant **qu'une seule** correspondance donnent la réponse
+/// sans ambiguïté : cette correspondance est forcément le nom. La majorité
+/// tranche pour les autres.
+///
+/// Rend `true` si le nom siège du côté des petites valeurs.
+bool nameSitsLow(Iterable<double> lonelyNames) {
+  var low = 0;
+  var high = 0;
+  for (final along in lonelyNames) {
+    if (along < 0.5) {
+      low++;
+    } else {
+      high++;
+    }
+  }
+  return low >= high;
+}
 
 /// Écart de surface toléré avec la carte médiane.
 ///

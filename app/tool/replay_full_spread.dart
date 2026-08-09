@@ -1,10 +1,14 @@
 /// Rejoue un scan d'étalement complet — filtrage des citations compris.
 ///
-/// **Ce que les outils précédents ne pouvaient pas montrer.** `replay_spread`
-/// rejoue le filtrage des lignes, `find_cards` la délimitation des cartes ; ni
-/// l'un ni l'autre ne dit ce que l'utilisateur verra, puisque le résultat final
-/// naît de leur croisement. Cet outil rejoue la chaîne entière sur un journal et
-/// sa photo, sans appareil.
+/// **Ce que les autres outils ne peuvent pas montrer.** `replay_spread` rejoue
+/// le filtrage des lignes, `find_cards` la délimitation des cartes ; ni l'un ni
+/// l'autre ne dit ce que l'utilisateur verra, puisque le résultat naît de leur
+/// croisement. Cet outil rejoue la chaîne entière sur un journal et sa photo,
+/// sans appareil ni reconstruction.
+///
+/// Il reproduit ce que fait `ScanService._citationsAmong` : c'est la seule façon
+/// de régler le filtrage sur ce que l'application exécute réellement. Les deux
+/// doivent rester alignés — un écart ici rendrait la mesure trompeuse.
 ///
 /// Usage :
 ///   dart run tool/replay_full_spread.dart mesure.log photo.jpg [index-du-scan]
@@ -12,7 +16,6 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/scan/domain/card_segmentation.dart';
@@ -63,12 +66,12 @@ void main(List<String> args) {
   final candidates = spreadNameCandidates(lines);
 
   // Le nom trouvé tient lieu d'identité : le journal ne porte pas l'oracle_id.
-  final byName = <String, List<NameCandidate>>{};
+  final places = <String, List<NameCandidate>>{};
   for (final match in matches) {
     final read = match['read'] as String;
     final name = match['matched'] as String;
     for (final c in candidates) {
-      if (c.text == read) byName.putIfAbsent(name, () => []).add(c);
+      if (c.text == read) places.putIfAbsent(name, () => []).add(c);
     }
   }
 
@@ -77,9 +80,9 @@ void main(List<String> args) {
       ? const <CardBounds>[]
       : singleCards(findCards(photo));
 
-  final elected = <String>{};
-  final suspect = <String>{};
-  for (final card in cards) {
+  final byCard = <int, Map<String, double>>{};
+  for (var i = 0; i < cards.length; i++) {
+    final card = cards[i];
     final mx = card.width * boundsMargin;
     final my = card.height * boundsMargin;
     final horizontal = card.width > card.height;
@@ -87,33 +90,59 @@ void main(List<String> args) {
     final hi = horizontal ? card.right : card.bottom;
     if (hi - lo <= 0) continue;
 
-    String? nearest;
-    var shallowest = double.infinity;
-    final present = <String>{};
-    for (final entry in byName.entries) {
+    final along = <String, double>{};
+    for (final entry in places.entries) {
       for (final line in entry.value) {
         if (line.left < card.left - mx || line.left > card.right + mx) continue;
         if (line.top < card.top - my || line.top > card.bottom + my) continue;
         final axis = horizontal ? line.left : line.top;
-        final depth = min((axis - lo).abs(), (axis - hi).abs()) / (hi - lo);
-        if (depth >= citationDepth) present.add(entry.key);
-        if (depth < shallowest) {
-          shallowest = depth;
-          nearest = entry.key;
+        final at = (axis - lo) / (hi - lo);
+        final seen = along[entry.key];
+        if (seen == null || (at - 0.5).abs() < (seen - 0.5).abs()) {
+          along[entry.key] = at;
         }
       }
     }
-    if (nearest == null) continue;
-    elected.add(nearest);
-    suspect.addAll(present.where((id) => id != nearest));
+    if (along.isNotEmpty) byCard[i] = along;
   }
-  final rejected = suspect.difference(elected);
 
-  stdout.writeln('${lines.length} lignes, ${candidates.length} candidates, '
-      '${byName.length} cartes avant filtrage');
-  stdout.writeln('${cards.length} rectangles de carte isolée');
+  final lonely = [
+    for (final along in byCard.values)
+      if (along.length == 1) along.values.first,
+  ];
+  final low = nameSitsLow(lonely);
+
+  final suspect = <String>{};
+  final elected = <String>{};
+  for (final along in byCard.values) {
+    for (final entry in along.entries) {
+      if (entry.value < 0 || entry.value > 1) continue;
+      final fromNameEnd = low ? entry.value : 1 - entry.value;
+      (fromNameEnd > citationEnd ? suspect : elected).add(entry.key);
+    }
+  }
+  final rejected = lonely.isEmpty ? <String>{} : suspect.difference(elected);
+
+  stdout.writeln(
+    '${lines.length} lignes, ${candidates.length} candidates, '
+    '${places.length} cartes avant filtrage',
+  );
+  stdout.writeln(
+    '${cards.length} rectangles de carte isolée ; noms du côté '
+    '${low ? "bas" : "haut"} (${lonely.length} rectangles sans ambiguïté)',
+  );
+
+  stdout.writeln('\npositions le long de chaque carte :');
+  for (final along in byCard.values) {
+    final parts = along.entries.map((e) {
+      final name = e.key.length > 24 ? e.key.substring(0, 24) : e.key;
+      return '$name à ${(e.value * 100).round()} %';
+    });
+    stdout.writeln('   ${parts.join('  |  ')}');
+  }
+
   stdout.writeln('\ncartes retenues :');
-  for (final name in byName.keys.where((n) => !rejected.contains(n))) {
+  for (final name in places.keys.where((n) => !rejected.contains(n))) {
     stdout.writeln('   $name');
   }
   stdout.writeln('\nrejetées comme citations (${rejected.length}) :');
