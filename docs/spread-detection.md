@@ -257,3 +257,24 @@ La voie du nom est aujourd'hui nettement plus robuste que celle des bords, et
 c'est elle qui porte le produit. La segmentation reste un chantier, pas un
 acquis.
 
+## La citation récurrente, mesurée et écartée
+
+*Hypothèse* : une citation d'ambiance est isolée au milieu du texte d'une autre
+carte, tandis qu'un nom siège au bord du sien. La distance à l'occurrence la
+plus proche devrait donc les séparer.
+
+*Mesuré sur la photo de quinze cartes*, en hauteurs de texte :
+
+| | distance à l'occurrence la plus proche |
+|---|---|
+| citations Ka-Zar | 7 et 8 |
+| noms de cartes voisines | 26 à 27 |
+| **mais** *Powerful Broker* et *Technique régénérative* | **7 et 8** |
+
+Le fossé existe pour la plupart des cartes, et deux vraies cartes tombent
+exactement dans la zone des citations. La règle les perdrait — et perdre une
+vraie carte coûte plus qu'accepter une citation qu'on décoche.
+
+La distance seule ne suffit donc pas. Ce qui manque reste le même : savoir *à
+quelle carte* appartient la ligne, donc où elle se trouve **dans** sa carte.
+
