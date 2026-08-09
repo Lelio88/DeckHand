@@ -113,6 +113,32 @@ class FakeCardRepository implements CardRepository {
 
   @override
   Future<List<CardHit>> byOracleIds(List<String> oracleIds) async => results;
+
+  /// Noms cherchés lors du dernier appel groupé.
+  List<String>? lastBulkQuery;
+
+  /// Panne à simuler. Le scan d'étalement doit la laisser remonter et non la
+  /// convertir en « aucune carte trouvée ».
+  Object? searchError;
+
+  @override
+  Future<Map<String, CardHit>> searchMany(
+    List<String> names, {
+    Game game = Game.magic,
+  }) async {
+    lastBulkQuery = names;
+    if (searchError != null) throw searchError!;
+    // La correspondance se fait sur le nom demandé, comme côté serveur : le
+    // faux catalogue rend un résultat pour toute ligne qui porte le nom d'une
+    // carte connue.
+    return {
+      for (final name in names)
+        for (final hit in results)
+          if (name.toLowerCase() == hit.matchedName.toLowerCase() ||
+              name.toLowerCase() == hit.name.toLowerCase())
+            name: hit,
+    };
+  }
 }
 
 class FakeCollectionRepository implements CollectionRepository {

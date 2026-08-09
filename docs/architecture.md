@@ -363,6 +363,41 @@ produisent 141 lignes ; un éventail qui masque les trois quarts de chaque carte
 n'en donne que 93. Ranger ses cartes dégradait donc le résultat — exactement
 l'inverse de ce que l'écran recommande.
 
+### Une requête pour toute la photo, pas une par ligne
+
+Le scan cherchait chaque ligne candidate par un appel séparé. Sur une photo de
+dix-sept cartes — 141 lignes lues, 112 retenues — cela prenait **77 secondes**,
+et les grouper par vagues de vingt-cinq n'y changeait rien.
+
+**Le chiffre qui tranche : chaque vague durait quinze secondes, quelle que soit
+la vague.** Vingt-cinq requêtes lancées de front mettent le même temps que
+vingt-cinq requêtes enchaînées — 25 × 600 ms. Le serveur les traite l'une après
+l'autre ; la concurrence côté client n'achète rien, et le total vaut
+mécaniquement « nombre de lignes × 600 ms ». Régler la taille des vagues ne
+pouvait donc rien donner : c'est le nombre d'allers-retours qu'il fallait
+supprimer.
+
+Pire, la connexion lâchait en route. Dix-huit requêtes sur cent douze mouraient
+depuis un poste filaire ; depuis un téléphone tenant vingt-cinq connexions TLS
+ouvertes un quart de minute, **toutes**. L'écran restait alors vide — et vide
+d'une manière indiscernable d'un étalement illisible, puisque le code
+convertissait chaque échec en « aucune carte trouvée ».
+
+`search_cards_bulk` prend le tableau de noms d'un coup : un aller-retour, une
+exécution, un plan de requête. Les mêmes 112 lignes reviennent en **3,3 s**, et
+le nombre de cartes trouvées passe de 6 à 15. La latence n'est plus payée
+qu'une fois.
+
+Elle ne remplace pas `search_cards`, qui sert la recherche interactive — là,
+l'utilisateur veut plusieurs propositions pour **un** nom ; ici c'est l'inverse,
+un seul résultat pour **beaucoup** de noms.
+
+**L'erreur ne doit jamais ressembler à un résultat.** Le `catch` qui rendait une
+liste vide a coûté une session entière de diagnostic : le journal montrait 112
+recherches sans résultat, ce qui accusait la reconnaissance alors que le réseau
+était en cause. Il a fallu rejouer les requêtes depuis le poste pour le voir. La
+panne remonte désormais jusqu'à l'écran.
+
 **Validé sur un étalement de dix-neuf cartes en éventail** : 16 reconnues,
 **aucune fausse**. Les trois manquantes échappent au réglage pour trois raisons
 distinctes — un nom non lu par l'appareil, un nom lu trop mal pour atteindre le

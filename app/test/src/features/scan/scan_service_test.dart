@@ -219,6 +219,74 @@ void main() {
       );
     });
   });
+
+  group("l'étalement interroge le catalogue en un seul aller-retour", () {
+    ScanService serviceReading(List<ReadLine> lines, FakeCardRepository cards) =>
+        ScanService(
+          ArtHashIndex.fromEntries([]),
+          FakeCardTextReader()..lines = lines,
+          cards,
+        );
+
+    test('toutes les lignes partent dans la même requête', () async {
+      // **Ce test protège une mesure, pas un goût.** Une requête par ligne
+      // coûtait 77 secondes sur une photo de dix-sept cartes : 112 lignes
+      // candidates, et le serveur les traitant l'une après l'autre, les
+      // grouper par vagues de 25 ne changeait rien — chaque vague durait 15 s,
+      // soit exactement 25 × 600 ms. En un appel, les mêmes lignes reviennent
+      // en 3,3 s.
+      final cards = FakeCardRepository()
+        ..results = [
+          _spreadHit('11111111-1111-1111-1111-111111111111', 'Foudre'),
+          _spreadHit('22222222-2222-2222-2222-222222222222', 'Anneau solaire'),
+        ];
+      final service = serviceReading(const [
+        ReadLine('Foudre', 0.10, 0.03),
+        ReadLine('Anneau solaire', 0.50, 0.03),
+      ], cards);
+
+      final found = await service.recogniseSpread('etalement.jpg');
+
+      expect(found.map((c) => c.name), ['Foudre', 'Anneau solaire']);
+      expect(
+        cards.lastBulkQuery,
+        ['Foudre', 'Anneau solaire'],
+        reason: "les deux noms doivent partir ensemble ; s'ils partaient un "
+            "par un, le dernier appel ne porterait que le second",
+      );
+    });
+
+    test('une panne du catalogue remonte au lieu de passer pour un vide', () async {
+      // **La régression qui a coûté le plus cher.** Le code rattrapait toute
+      // erreur en rendant « aucune carte trouvée ». Une coupure réseau
+      // devenait alors indiscernable d'un étalement illisible : l'écran
+      // restait muet, et le journal ne portait aucune trace de la panne.
+      // Il a fallu rejouer les requêtes depuis le poste pour comprendre.
+      final cards = FakeCardRepository()
+        ..results = [_spreadHit('33333333-3333-3333-3333-333333333333', 'Foudre')]
+        ..searchError = Exception('connexion perdue');
+      final service = serviceReading(const [
+        ReadLine('Foudre', 0.10, 0.03),
+      ], cards);
+
+      await expectLater(
+        service.recogniseSpread('etalement.jpg'),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test('une photo sans nom lisible ne sollicite pas le réseau', () async {
+      // Un aller-retour à vide se paierait quand même 600 ms, et le serveur
+      // n'a rien à en faire.
+      final cards = FakeCardRepository();
+      final service = serviceReading(const [
+        ReadLine('© 2026 Wizards of the Coast', 0.96, 0.02),
+      ], cards);
+
+      expect(await service.recogniseSpread('etalement.jpg'), isEmpty);
+      expect(cards.lastBulkQuery, isNull);
+    });
+  });
 }
 
 CardHit _hit(String oracleId) => CardHit(
@@ -229,4 +297,16 @@ CardHit _hit(String oracleId) => CardHit(
   legalPauper: true,
   legalModern: true,
   legalCommander: true,
+);
+
+/// Carte du catalogue telle que la rend la recherche groupée.
+CardHit _spreadHit(String oracleId, String name) => CardHit(
+  oracleId: oracleId,
+  name: name,
+  matchedName: name,
+  matchedLang: 'fr',
+  legalPauper: true,
+  legalModern: true,
+  legalCommander: true,
+  score: 1,
 );

@@ -53,6 +53,24 @@ class _FakeCatalogue implements CardRepository {
 
   @override
   Future<List<CardHit>> byOracleIds(List<String> oracleIds) async => cards;
+
+  /// Panne a simuler, pour verifier que l'ecran la montre au lieu de rendre
+  /// une liste vide indiscernable d'un etalement illisible.
+  Object? searchError;
+
+  @override
+  Future<Map<String, CardHit>> searchMany(
+    List<String> names, {
+    Game game = Game.magic,
+  }) async {
+    if (searchError != null) throw searchError!;
+    return {
+      for (final name in names)
+        for (final card in cards)
+          if (card.matchedName.toLowerCase() == name.toLowerCase())
+            name: card,
+    };
+  }
 }
 
 /// Photo toujours disponible : la prise de vue n'est pas le sujet ici.

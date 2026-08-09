@@ -70,6 +70,48 @@ class CardRepository {
         .map(CardHit.fromJson)
         .toList(growable: false);
   }
+
+  /// Meilleure correspondance pour chacun des noms donnés, en **un seul**
+  /// aller-retour.
+  ///
+  /// **Pourquoi cette méthode existe plutôt qu'une boucle sur [search].** Le
+  /// scan d'étalement cherchait un nom par appel. Mesuré sur une photo de
+  /// dix-sept cartes — 112 lignes candidates —, cela prenait **77 secondes**,
+  /// et les grouper par vagues de 25 n'y changeait rien : chaque vague durait
+  /// 15 secondes, soit exactement 25 × 600 ms. Le serveur traite les requêtes
+  /// l'une après l'autre ; la concurrence côté client n'achète rien et le total
+  /// vaut mécaniquement « nombre de lignes × 600 ms ».
+  ///
+  /// Pire, la connexion lâchait en route : 18 requêtes sur 112 mouraient depuis
+  /// un poste filaire, et toutes depuis un téléphone tenant vingt-cinq
+  /// connexions ouvertes un quart de minute. L'écran ne montrait alors aucune
+  /// carte — sans dire pourquoi.
+  ///
+  /// En un appel, les mêmes 112 lignes reviennent en **3,3 secondes**.
+  ///
+  /// Le résultat est indexé par le nom demandé : un même nom lu deux fois sur
+  /// la photo ne compte qu'une entrée, et l'appelant retrouve sa ligne sans
+  /// dépendre de l'ordre des lignes rendues.
+  Future<Map<String, CardHit>> searchMany(
+    List<String> names, {
+    Game game = Game.magic,
+  }) async {
+    final wanted = names
+        .map((n) => n.trim())
+        .where((n) => n.isNotEmpty)
+        .toList(growable: false);
+    if (wanted.isEmpty) return const {};
+
+    final rows = await _client.rpc<List<dynamic>>(
+      'search_cards_bulk',
+      params: {'p_names': wanted, 'p_game': game.id},
+    );
+
+    return {
+      for (final row in rows.cast<Map<String, dynamic>>())
+        row['query'] as String: CardHit.fromJson(row),
+    };
+  }
 }
 
 final cardRepositoryProvider = Provider<CardRepository>(

@@ -32,6 +32,15 @@ class _RecordingCatalogue implements CardRepository {
 
   @override
   Future<List<CardHit>> byOracleIds(List<String> oracleIds) async => const [];
+
+  @override
+  Future<Map<String, CardHit>> searchMany(
+    List<String> names, {
+    Game game = Game.magic,
+  }) async {
+    lastGame = game;
+    return const {};
+  }
 }
 
 void main() {

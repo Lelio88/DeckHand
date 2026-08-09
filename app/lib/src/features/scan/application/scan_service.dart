@@ -93,8 +93,6 @@ class ScanOutcome {
 /// rapprochements approximatifs.
 const double _decisiveScore = 0.9;
 
-/// Recherches lancées simultanément lors d'un scan d'étalement.
-const int _searchBatch = 25;
 
 class ScanService {
   const ScanService(this._index, this._reader, this._cards);
@@ -159,34 +157,34 @@ class ScanService {
     _diagnoseRead(lines, candidates);
     if (candidates.isEmpty) return const [];
 
-    // **Par lots, ni une par une ni toutes d'un coup.** Les enchaîner rendrait
-    // l'attente insupportable ; en lancer cent cinquante simultanément
-    // saturerait la connexion et le serveur pour un gain nul. Vingt-cinq à la
-    // fois tient l'attente à quelques centaines de millisecondes par vague.
-    final results = <List<CardHit>>[];
-    for (var start = 0; start < candidates.length; start += _searchBatch) {
-      final batch = candidates.skip(start).take(_searchBatch);
-      results.addAll(
-        await Future.wait(
-          batch.map((candidate) async {
-            try {
-              return await _cards.search(candidate.text, limit: 1);
-            } catch (_) {
-              return const <CardHit>[];
-            }
-          }),
-        ),
+    // **Un seul aller-retour pour toutes les lignes.** Voir
+    // `CardRepository.searchMany` : une requête par ligne coûtait 77 secondes
+    // sur une photo de dix-sept cartes, contre 3,3 en un appel groupé.
+    //
+    // **L'échec n'est plus avalé.** La version précédente rattrapait chaque
+    // erreur en rendant « aucune carte trouvée » : une coupure réseau
+    // ressemblait alors trait pour trait à un étalement illisible, et l'écran
+    // restait muet. L'erreur remonte désormais à l'appelant, qui l'affiche.
+    final Map<String, CardHit> results;
+    try {
+      results = await _cards.searchMany(
+        candidates.map((c) => c.text).toList(growable: false),
       );
+    } catch (error) {
+      diagnose('spread_search_failed', {
+        'candidates': candidates.length,
+        'error': error.toString(),
+      });
+      rethrow;
     }
 
     final found = <String, CardHit>{};
-    for (var i = 0; i < results.length; i++) {
-      final hits = results[i];
-      if (hits.isEmpty) {
+    for (var i = 0; i < candidates.length; i++) {
+      final hit = results[candidates[i].text];
+      if (hit == null) {
         _diagnoseMatch(candidates[i], null, kept: false);
         continue;
       }
-      final hit = hits.first;
       // Deux garde-fous, contre deux erreurs différentes. Le score sépare la
       // trouvaille du hasard : dans un catalogue de 31 634 cartes, n'importe
       // quelle ligne trouve *quelque chose*. La longueur écarte le fragment :
