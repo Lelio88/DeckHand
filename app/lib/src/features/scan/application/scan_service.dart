@@ -93,6 +93,9 @@ class ScanOutcome {
 /// rapprochements approximatifs.
 const double _decisiveScore = 0.9;
 
+/// Recherches lancées simultanément lors d'un scan d'étalement.
+const int _searchBatch = 25;
+
 class ScanService {
   const ScanService(this._index, this._reader, this._cards);
 
@@ -156,17 +159,25 @@ class ScanService {
     _diagnoseRead(lines, candidates);
     if (candidates.isEmpty) return const [];
 
-    // Les recherches partent ensemble : une photo d'étalement en produit des
-    // dizaines, et les enchaîner rendrait l'attente insupportable.
-    final results = await Future.wait(
-      candidates.map((candidate) async {
-        try {
-          return await _cards.search(candidate.text, limit: 1);
-        } catch (_) {
-          return const <CardHit>[];
-        }
-      }),
-    );
+    // **Par lots, ni une par une ni toutes d'un coup.** Les enchaîner rendrait
+    // l'attente insupportable ; en lancer cent cinquante simultanément
+    // saturerait la connexion et le serveur pour un gain nul. Vingt-cinq à la
+    // fois tient l'attente à quelques centaines de millisecondes par vague.
+    final results = <List<CardHit>>[];
+    for (var start = 0; start < candidates.length; start += _searchBatch) {
+      final batch = candidates.skip(start).take(_searchBatch);
+      results.addAll(
+        await Future.wait(
+          batch.map((candidate) async {
+            try {
+              return await _cards.search(candidate.text, limit: 1);
+            } catch (_) {
+              return const <CardHit>[];
+            }
+          }),
+        ),
+      );
+    }
 
     final found = <String, CardHit>{};
     for (var i = 0; i < results.length; i++) {
@@ -205,7 +216,13 @@ class ScanService {
   void _diagnoseRead(List<ReadLine> lines, List<NameCandidate> candidates) {
     if (!diagnosticsEnabled) return;
     final retained = candidates.map((c) => c.text).toSet();
-    diagnose('spread_read', {'lines': lines.length, 'kept': candidates.length});
+    final size = _reader.lastImageSize;
+    diagnose('spread_read', {
+      'lines': lines.length,
+      'kept': candidates.length,
+      'w': size?.width,
+      'h': size?.height,
+    });
     for (final line in lines) {
       diagnose('spread_line', {
         'text': line.text,

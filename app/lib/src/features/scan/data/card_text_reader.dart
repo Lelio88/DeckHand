@@ -31,6 +31,14 @@ class CardTextReader {
 
   TextRecognizer? _recognizer;
 
+  /// Dimensions estimées de la dernière image lue, en pixels.
+  ///
+  /// **Uniquement pour la mesure.** Les positions des lignes sont relatives à
+  /// ces bornes ; sans elles, impossible de les rapporter à la photo depuis un
+  /// poste de travail — et donc de vérifier qu'on retrouve les bords d'une
+  /// carte à partir de son nom.
+  ({double width, double height})? lastImageSize;
+
   /// Vrai là où la reconnaissance de texte existe.
   static bool get isSupported =>
       !kIsWeb && (Platform.isAndroid || Platform.isIOS);
@@ -52,6 +60,7 @@ class CardTextReader {
       final height = _imageHeight(recognised);
       if (height <= 0) return const [];
       final width = _imageWidth(recognised);
+      lastImageSize = (width: width, height: height);
 
       return [
         for (final block in recognised.blocks)

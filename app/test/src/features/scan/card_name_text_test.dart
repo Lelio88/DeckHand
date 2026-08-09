@@ -161,4 +161,32 @@ void main() {
       expect(textHeightFromCorners(const [Point(0, 0)], 17), 17);
     });
   });
+
+  group('les parasites de bordure sont retirés', () {
+    test("un crochet en tête ne met plus une ligne de type à l'abri", () {
+      // Mesuré : « [Ephémere » a produit une carte fantôme parce que le filtre
+      // des lignes de type s'ancre en début de ligne, et que le crochet l'en
+      // protégeait.
+      expect(looksLikeCardName(cleanNameLine('[Ephémere')), isFalse);
+      // La forme anglaise place le type en second : sans « legendary » dans le
+      // motif, « Legendary Creature — Kree Soldier » passait pour un nom.
+      expect(
+        looksLikeCardName(cleanNameLine('(Legendary Creature Kree Soldier')),
+        isFalse,
+      );
+    });
+
+    test('un vrai nom parasité reste reconnaissable', () {
+      expect(
+        cleanNameLine('(Captain Mar-Vell, Space-Born'),
+        'Captain Mar-Vell, Space-Born',
+      );
+      expect(cleanNameLine('( Croisade de Murdock'), 'Croisade de Murdock');
+    });
+
+    test("une parenthèse au milieu d'un nom est préservée", () {
+      // Rien ne dit qu'aucune carte n'en porte ; on ne retire qu'aux extrémités.
+      expect(cleanNameLine('Nom (variante) suite'), 'Nom (variante) suite');
+    });
+  });
 }

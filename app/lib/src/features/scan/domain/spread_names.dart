@@ -28,11 +28,21 @@ class NameCandidate {
 
 /// Nombre maximal de lignes envoyées au catalogue.
 ///
-/// Une photo d'étalement produit des dizaines de lignes ; toutes les chercher
-/// coûterait autant de requêtes. Les noms étant courts et bien formés, le
-/// filtrage en écarte déjà l'essentiel — ce plafond n'est qu'un garde-fou contre
-/// une photo pleine de texte parasite.
-const int maxSpreadCandidates = 40;
+/// **Ce plafond a longtemps été le vrai goulot, sans qu'on le sache.** Il était
+/// à 40, et coupait les candidats **par position**, de haut en bas : sur une
+/// photo de dix-sept cartes entières, 141 lignes sont lues, 85 passent le filtre
+/// de taille, et les quarante-cinq dernières n'étaient jamais interrogées — donc
+/// les cartes des rangées du bas restaient invisibles.
+///
+/// Le symptôme trahissait la cause : désactiver le filtre de taille *dégradait*
+/// le résultat, parce que plus de lignes passaient et que le plafond coupait
+/// d'autant plus tôt dans la photo. Mesuré à seuil constant, le seul passage de
+/// 40 à 150 fait monter le rappel de 47 % à 65 %, sans une fausse carte de plus.
+///
+/// Il reste un garde-fou : chaque candidat coûte une requête, et une photo
+/// pleine de texte parasite ne doit pas en déclencher des centaines. Les
+/// requêtes partent par lots pour que ce volume reste tenable.
+const int maxSpreadCandidates = 150;
 
 /// Rapport minimal entre la hauteur d'une ligne et la hauteur médiane.
 ///

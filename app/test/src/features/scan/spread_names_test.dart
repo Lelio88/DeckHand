@@ -78,11 +78,26 @@ void main() {
     // Un nom pour quatre lignes de règles, proportion d'une carte réelle :
     // c'est ce qui fait tomber la médiane sur le corps de texte.
     final many = [
-      for (var i = 0; i < 300; i++)
-        ReadLine('Carte numéro $i', i / 300, i % 5 == 0 ? 0.03 : 0.01),
+      for (var i = 0; i < 900; i++)
+        ReadLine('Carte numéro $i', i / 900, i % 5 == 0 ? 0.03 : 0.01),
     ];
 
     expect(spreadNameCandidates(many).length, maxSpreadCandidates);
+  });
+
+  test('le plafond encaisse une photo de cartes entières', () {
+    // **Le plafond a été le vrai goulot pendant tout le développement.** Une
+    // photo de dix-sept cartes entières produit 141 lignes lues, dont 85
+    // passent le filtre : à 40, les quarante-cinq dernières n'étaient jamais
+    // cherchées, et les cartes du bas restaient invisibles. Le relevé mesuré
+    // fait passer le rappel de 47 % à 65 % à seuil constant.
+    expect(
+      maxSpreadCandidates,
+      greaterThanOrEqualTo(85),
+      reason: "sous ce seuil, une photo de dix-sept cartes perd des rangées "
+          "entières — et le symptôme est trompeur : relâcher le filtre de "
+          "taille dégrade alors le résultat au lieu de l'améliorer",
+    );
   });
 
   test('le menu fretin sous la médiane est écarté', () {

@@ -343,6 +343,25 @@ Les lignes réellement lues des deux photos sont figées en fixtures
 (`measured_spread.dart`, `measured_fan.dart`) — des hauteurs inventées
 n'auraient jamais montré cette absence de séparation.
 
+**Le plafond de candidats a longtemps été le vrai goulot.** Chaque ligne retenue
+coûte une requête au catalogue, d'où un plafond — mais il coupait **par
+position**, de haut en bas. Sur une photo de dix-sept cartes entières, 141 lignes
+sont lues, 85 passent le filtre de taille, et les quarante-cinq dernières
+n'étaient jamais interrogées : les rangées du bas restaient invisibles.
+
+Le symptôme trahissait la cause et l'a longtemps masquée : **désactiver le filtre
+de taille dégradait le résultat** (35 % de rappel contre 47 %), parce que plus de
+lignes passaient et que le plafond coupait d'autant plus tôt. À seuil constant,
+le seul passage de 40 à 150 fait monter le rappel de **47 % à 65 %**, sans une
+fausse carte de plus. Les requêtes partent désormais par lots de 25 : les
+enchaîner rendrait l'attente insupportable, en lancer cent cinquante d'un coup
+saturerait la connexion pour un gain nul.
+
+**Plus la photo est soignée, plus le plafond mordait.** Dix-sept cartes entières
+produisent 141 lignes ; un éventail qui masque les trois quarts de chaque carte
+n'en donne que 93. Ranger ses cartes dégradait donc le résultat — exactement
+l'inverse de ce que l'écran recommande.
+
 **Validé sur un étalement de dix-neuf cartes en éventail** : 16 reconnues,
 **aucune fausse**. Les trois manquantes échappent au réglage pour trois raisons
 distinctes — un nom non lu par l'appareil, un nom lu trop mal pour atteindre le

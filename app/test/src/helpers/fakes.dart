@@ -84,6 +84,9 @@ class FakeCardTextReader implements CardTextReader {
   String? lastPath;
 
   @override
+  ({double width, double height})? lastImageSize;
+
+  @override
   Future<List<ReadLine>> readLines(String path) async {
     lastPath = path;
     return lines;

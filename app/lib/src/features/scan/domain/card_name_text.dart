@@ -128,7 +128,11 @@ final _shortCaps = RegExp(r'^[A-Z]{2,6}$');
 /// « Artefact : véhicule » ou « Creature — Human Wizard » renverrait des cartes
 /// au hasard — un résultat plausible, donc plus trompeur qu'un échec franc.
 final _typeLine = RegExp(
-  r'^(cr[ÉéEe]ature|rituel|[ÉéEe]ph[ÉéEe]m[ÈèEe]re|artefact|enchantement|'
+  // `legendary` et `basic` ouvrent la ligne de type en anglais, là où le
+  // français place le nom du type en tête (« Créature légendaire »). Sans eux,
+  // « Legendary Creature — Kree Soldier » passait pour un nom de carte.
+  r'^(legendary\s+|basic\s+|snow\s+|artifact\s+)?'
+  r'(cr[ÉéEe]ature|rituel|[ÉéEe]ph[ÉéEe]m[ÈèEe]re|artefact|enchantement|'
   r'terrain|planeswalker|bataille|creature|sorcery|instant|artifact|'
   r'enchantment|land|battle|kindred|tribal)',
   caseSensitive: false,
@@ -182,6 +186,15 @@ bool looksLikeCardName(String text) {
 String cleanNameLine(String raw) {
   return raw
       .replaceAll(RegExp(r'[|_~^`]'), '')
+      // **Les bordures se lisent comme des crochets.** Le cadre de la carte et
+      // les symboles en marge sont parfois interprétés comme une parenthèse ou
+      // un crochet collé au texte. Un tel préfixe met la ligne à l'abri de tous
+      // les filtres qui s'ancrent en début de ligne : la ligne de type
+      // « Éphémère », lue « [Ephémere », a ainsi produit une carte fantôme.
+      // On ne les retire qu'aux extrémités — au milieu d'un nom, une
+      // parenthèse peut être légitime.
+      .replaceAll(RegExp(r'^[\(\[\{<«»/\\\s]+'), '')
+      .replaceAll(RegExp(r'[\)\]\}>«»/\\\s]+$'), '')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 }
