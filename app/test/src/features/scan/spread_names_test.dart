@@ -65,10 +65,19 @@ void main() {
     expect(names, ['Anneau solaire']);
   });
 
-  test('une même carte lue deux fois ne compte qu\'une fois', () {
-    final names = spreadNameCandidates([
-      ReadLine('Foudre', 0.10, 0.03),
-      ReadLine('foudre', 0.50, 0.03),
+  test('une même carte lue deux fois au même endroit ne compte qu\'une fois', () {
+    // **Ce test disait autre chose, et c'était le défaut.** Il fusionnait deux
+    // lectures identiques *quelle que soit leur position*, ce qui faisait
+    // disparaître les exemplaires multiples — quatre dinosaures n'en donnaient
+    // qu'un. Seule la proximité justifie la fusion : à cet écart-là, c'est la
+    // même carte relue.
+    //
+    // Il passait d'ailleurs pour une raison qui n'était plus la sienne : la
+    // seconde ligne « foudre » est désormais écartée pour sa minuscule, avant
+    // même que la question de la fusion se pose.
+    final names = spreadNameCandidates(const [
+      ReadLine('Foudre', 0.100, 0.03, 0.10, 0.20),
+      ReadLine('Foudre', 0.105, 0.03, 0.10, 0.20),
     ]);
 
     expect(names.length, 1);
@@ -154,5 +163,89 @@ void main() {
 
   test('une photo sans texte lisible ne propose rien', () {
     expect(spreadNameCandidates(const []), isEmpty);
+  });
+
+  group('deux lectures identiques ne sont pas forcement la meme carte', () {
+    test('deux exemplaires eloignes donnent deux candidats', () {
+      // **Mesure de terrain.** Sur une photo portant quatre exemplaires d'un
+      // meme dinosaure, l'appareil lit quatre fois le meme nom. La fusion par
+      // texte n'en gardait qu'un, et la quantite restait a 1 : la perte etait
+      // silencieuse, l'utilisateur ne voyait pas ce qui manquait.
+      final names = spreadNameCandidates(const [
+        ReadLine('Savage Land Dinosaur', 0.20, 0.010, 0.10, 0.15),
+        ReadLine('Savage Land Dinosaur', 0.60, 0.010, 0.55, 0.15),
+      ]);
+
+      expect(names.length, 2);
+    });
+
+    test('un nom coupe en deux ne compte que pour une carte', () {
+      // Les deux morceaux d'un nom trop long pour sa ligne sont sur des lignes
+      // consecutives, soit une a deux hauteurs de texte. Mesure : les
+      // exemplaires les plus rapproches etaient a 8,3 hauteurs.
+      final names = spreadNameCandidates(const [
+        ReadLine('Savage Land Dinosaur', 0.200, 0.010, 0.10, 0.15),
+        ReadLine('Savage Land Dinosaur', 0.212, 0.010, 0.10, 0.15),
+      ]);
+
+      expect(names.length, 1);
+    });
+
+    test('la distance se mesure en hauteurs de texte, pas en fractions', () {
+      // **L'unite fait tout.** En fraction d'image, un seuil casserait des
+      // qu'on s'eloigne de la table : les memes cartes occupent alors moins de
+      // place. La hauteur du texte suit cette echelle.
+      const petit = ReadLine('Foudre', 0.200, 0.004, 0.10, 0.05);
+      const loin = ReadLine('Foudre', 0.220, 0.004, 0.10, 0.05);
+
+      // 0,02 d'ecart vaut cinq hauteurs quand le texte fait 0,004 : deux cartes.
+      expect(spreadNameCandidates(const [petit, loin]).length, 2);
+
+      // Le meme ecart, avec un texte deux fois plus grand, n'en vaut plus que
+      // deux et demi : une seule carte, vue de plus pres.
+      expect(
+        spreadNameCandidates(const [
+          ReadLine('Foudre', 0.200, 0.008, 0.10, 0.05),
+          ReadLine('Foudre', 0.220, 0.008, 0.10, 0.05),
+        ]).length,
+        1,
+      );
+    });
+
+    test("deux exemplaires cote a cote se distinguent par l'abscisse", () {
+      // Poses l'un a cote de l'autre, ils sont a la meme hauteur : sans
+      // l'abscisse, rien ne les separerait.
+      final names = spreadNameCandidates(const [
+        ReadLine('Foudre', 0.30, 0.010, 0.10, 0.15),
+        ReadLine('Foudre', 0.30, 0.010, 0.40, 0.15),
+      ]);
+
+      expect(names.length, 2);
+    });
+
+    test('sans hauteur connue, on fusionne comme avant', () {
+      // La hauteur du texte est l'unite de mesure : sans elle, aucune distance
+      // n'est interpretable. Compter en trop est la seule erreur que
+      // l'utilisateur ne peut pas voir venir — a defaut d'information, on reste
+      // prudent et on fusionne.
+      final names = spreadNameCandidates(const [
+        ReadLine('Foudre', 0.10, 0),
+        ReadLine('Foudre', 0.80, 0),
+      ]);
+
+      expect(names.length, 1);
+    });
+
+    test('sans abscisse, la seule distance verticale suffit', () {
+      // Les jeux d'essai anciens ne portent pas d'abscisse. Deux lectures
+      // separees de vingt-trois hauteurs de texte restent deux cartes : l'axe
+      // manquant ne rend pas l'autre muet.
+      final names = spreadNameCandidates(const [
+        ReadLine('Foudre', 0.10, 0.03),
+        ReadLine('Foudre', 0.80, 0.03),
+      ]);
+
+      expect(names.length, 2);
+    });
   });
 }

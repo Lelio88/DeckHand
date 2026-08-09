@@ -64,6 +64,13 @@ void main(List<String> args) {
       'scans': scans.length,
       'lines': lines.length,
       'candidates': candidates.map((c) => c.text).toList(),
+      // La position accompagne chaque candidat : c'est elle qui décide du
+      // nombre d'exemplaires, et un balayage hors ligne doit pouvoir refaire ce
+      // décompte sans l'appareil.
+      'placed': [
+        for (final c in candidates)
+          {'text': c.text, 'top': c.top, 'left': c.left, 'height': c.height},
+      ],
     }),
   );
 }

@@ -86,6 +86,25 @@ class ScanOutcome {
       ScanOutcome(oracleIds: const [], isConfident: false, error: message);
 }
 
+/// Une carte repérée sur un étalement, et en combien d'exemplaires.
+///
+/// **Les exemplaires ne pouvaient pas être comptés jusqu'ici**, et c'était la
+/// limite la plus coûteuse de l'étalement : sur une collection réelle, les
+/// communes arrivent par quatre. Quatre exemplaires d'un même dinosaure étaient
+/// lus quatre fois par l'appareil, puis fusionnés en une seule carte de
+/// quantité 1 — la perte était silencieuse.
+class SpreadFind {
+  const SpreadFind(this.card, {this.copies = 1});
+
+  final CardHit card;
+
+  /// Nombre d'exemplaires distincts vus sur la photo.
+  ///
+  /// Sert de proposition, jamais de décision : l'écran la présente et
+  /// l'utilisateur l'ajuste (garde-fou §IV.8).
+  final int copies;
+}
+
 /// Score au-delà duquel un nom lu est tenu pour certain.
 ///
 /// La recherche rend 1,0 sur une égalité exacte après normalisation. Ce seuil
@@ -151,7 +170,7 @@ class ScanService {
   /// manquer (nom masqué, reflet) ; c'est assumé, l'utilisateur voit son
   /// étalement et complétera. L'inverse — inventer une carte qu'il validerait
   /// sans y penser — fausserait durablement ses suggestions de decks.
-  Future<List<CardHit>> recogniseSpread(String photoPath) async {
+  Future<List<SpreadFind>> recogniseSpread(String photoPath) async {
     final lines = await _reader.readLines(photoPath);
     final candidates = spreadNameCandidates(lines);
     _diagnoseRead(lines, candidates);
@@ -179,6 +198,7 @@ class ScanService {
     }
 
     final found = <String, CardHit>{};
+    final places = <String, List<NameCandidate>>{};
     for (var i = 0; i < candidates.length; i++) {
       final hit = results[candidates[i].text];
       if (hit == null) {
@@ -195,12 +215,38 @@ class ScanService {
           isPlausibleMatch(candidates[i].text, hit.matchedName);
       _diagnoseMatch(candidates[i], hit, kept: kept);
       if (!kept) continue;
-      // Une même carte peut être lue deux fois — nom scindé sur deux lignes,
-      // ou deux exemplaires côte à côte. Le second cas mériterait une quantité,
-      // mais rien ne permet de le distinguer du premier de façon fiable.
+      // **Les exemplaires se comptent par leur position, pas par leur texte.**
+      // Deux exemplaires d'une même carte sont rarement lus à l'identique —
+      // « Dinosaure de la Terre sauvage » et « Dinosaure de la Terre sauyage »
+      // désignent la même carte —, et un exemplaire anglais rejoint son
+      // homologue français sur la même identité. Le regroupement se fait donc
+      // ici, à l'identité de carte, et non sur la ligne lue.
       found.putIfAbsent(hit.oracleId, () => hit);
+      places.putIfAbsent(hit.oracleId, () => []).add(candidates[i]);
     }
-    return found.values.toList(growable: false);
+
+    return [
+      for (final entry in found.entries)
+        SpreadFind(entry.value, copies: _countCopies(places[entry.key]!)),
+    ];
+  }
+
+  /// Combien de cartes physiques ces lectures représentent.
+  ///
+  /// Chaque lecture est rattachée à un exemplaire déjà vu s'ils sont assez
+  /// proches, sinon elle en ouvre un nouveau. C'est ce qui distingue un nom lu
+  /// deux fois — parce que coupé, ou relu — de deux cartes posées sur la table.
+  ///
+  /// Le regroupement se fait de proche en proche : trois exemplaires alignés
+  /// forment trois foyers distincts même si chacun est éloigné du suivant de
+  /// tout juste plus que le seuil.
+  int _countCopies(List<NameCandidate> readings) {
+    final anchors = <NameCandidate>[];
+    for (final reading in readings) {
+      if (anchors.any((anchor) => areSameCard(reading, anchor))) continue;
+      anchors.add(reading);
+    }
+    return anchors.length;
   }
 
   /// Consigne ce que l'appareil a réellement lu.

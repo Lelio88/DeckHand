@@ -398,6 +398,38 @@ recherches sans résultat, ce qui accusait la reconnaissance alors que le résea
 était en cause. Il a fallu rejouer les requêtes depuis le poste pour le voir. La
 panne remonte désormais jusqu'à l'écran.
 
+### Compter les exemplaires
+
+Deux exemplaires d'une même carte ne comptaient que pour un, et la perte était
+silencieuse. La cause n'était ni le seuil ni la recherche : les candidats
+étaient **dédoublonnés par leur texte**. Quatre exemplaires d'un même dinosaure
+sont lus quatre fois, à l'identique, et trois lectures disparaissaient avant
+même d'atteindre le catalogue.
+
+Ce qui manquait pour trancher, c'est de distinguer deux cas que seul l'écart
+sépare :
+
+| cas | écart mesuré |
+|---|---|
+| un nom coupé en deux par la reconnaissance | 1 à 2 hauteurs de texte (lignes consécutives) |
+| deux exemplaires posés sur la table | **8,3 hauteurs au plus serré**, 47 et 80 sur les noms de carte |
+
+Le seuil se pose à 4 hauteurs, au large dans ce fossé. **L'unité fait tout** :
+en pixels, il casserait dès qu'on s'éloigne de la table — la hauteur du texte,
+elle, suit l'échelle de la photo.
+
+Le regroupement final se fait à l'**identité de carte**, pas à la ligne lue :
+deux exemplaires sont rarement lus à l'identique (« Dinosaure de la Terre
+sauvage » et « ...sauyage »), et un exemplaire anglais rejoint son homologue
+français sur le même `oracle_id`.
+
+Vérifié contre une vérité terrain de onze cartes — quatre dinosaures (deux
+anglais, deux français) et deux Mister Hyde : le décompte rend **×4 et ×2**. Sur
+la photo de dix-sept cartes toutes différentes, il n'invente aucun exemplaire.
+
+La quantité proposée reste une proposition : l'écran la présente, l'utilisateur
+l'ajuste (garde-fou §IV.8).
+
 ### Deux fausses cartes que ni le score ni la longueur ne voient
 
 Une ligne peut porter **exactement** le nom d'une carte sans qu'aucune carte de

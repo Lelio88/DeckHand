@@ -247,7 +247,7 @@ void main() {
 
       final found = await service.recogniseSpread('etalement.jpg');
 
-      expect(found.map((c) => c.name), ['Foudre', 'Anneau solaire']);
+      expect(found.map((f) => f.card.name), ['Foudre', 'Anneau solaire']);
       expect(
         cards.lastBulkQuery,
         ['Foudre', 'Anneau solaire'],
@@ -273,6 +273,79 @@ void main() {
         service.recogniseSpread('etalement.jpg'),
         throwsA(isA<Exception>()),
       );
+    });
+
+    test('quatre exemplaires posés donnent une quantité de quatre', () async {
+      // **Vérité terrain.** Une photo portait onze cartes dont quatre du même
+      // dinosaure — deux anglaises, deux françaises — et deux Mister Hyde.
+      // L'appareil lisait bien les quatre lignes ; elles étaient fusionnées en
+      // une carte de quantité 1, et la perte ne se voyait nulle part.
+      final cards = FakeCardRepository()
+        ..results = [_spreadHit('44444444-4444-4444-4444-444444444444', 'Dino')];
+      final service = serviceReading(const [
+        ReadLine('Dino', 0.20, 0.010, 0.10, 0.15),
+        ReadLine('Dino', 0.20, 0.010, 0.45, 0.15),
+        ReadLine('Dino', 0.60, 0.010, 0.10, 0.15),
+        ReadLine('Dino', 0.60, 0.010, 0.45, 0.15),
+      ], cards);
+
+      final found = await service.recogniseSpread('etalement.jpg');
+
+      expect(found.length, 1, reason: 'une seule identité de carte');
+      expect(found.single.copies, 4);
+    });
+
+    test('un exemplaire unique reste à un', () async {
+      // Contre-épreuve : sur la photo de dix-sept cartes toutes différentes, le
+      // décompte ne doit inventer aucun exemplaire. C'est l'erreur que
+      // l'utilisateur ne peut pas voir venir — une quantité trop haute
+      // s'enregistre sans rien signaler.
+      final cards = FakeCardRepository()
+        ..results = [_spreadHit('55555555-5555-5555-5555-555555555555', 'Foudre')];
+      final service = serviceReading(const [
+        ReadLine('Foudre', 0.20, 0.010, 0.10, 0.15),
+      ], cards);
+
+      final found = await service.recogniseSpread('etalement.jpg');
+
+      expect(found.single.copies, 1);
+    });
+
+    test('deux lectures différentes de la même carte comptent deux fois', () async {
+      // Deux exemplaires sont rarement lus à l'identique — « Dinosaure de la
+      // Terre sauvage » et « Dinosaure de la Terre sauyage » —, et un
+      // exemplaire anglais rejoint son homologue français sur la même identité.
+      // Le regroupement doit donc se faire à la carte, pas à la ligne lue.
+      final cards = FakeCardRepository()
+        ..results = [
+          _spreadHit('66666666-6666-6666-6666-666666666666', 'Dinosaure'),
+          _spreadHit('66666666-6666-6666-6666-666666666666', 'Savage Land Dino'),
+        ];
+      final service = serviceReading(const [
+        ReadLine('Dinosaure', 0.20, 0.010, 0.10, 0.15),
+        ReadLine('Savage Land Dino', 0.60, 0.010, 0.45, 0.15),
+      ], cards);
+
+      final found = await service.recogniseSpread('etalement.jpg');
+
+      expect(found.length, 1, reason: 'même identité, deux langues');
+      expect(found.single.copies, 2);
+    });
+
+    test('un nom coupé en deux ne fabrique pas un second exemplaire', () async {
+      // Deux morceaux d'un nom trop long sont sur des lignes consécutives.
+      // Mesuré : les exemplaires réels les plus rapprochés étaient à 8,3
+      // hauteurs de texte, un nom coupé tiendrait dans une ou deux.
+      final cards = FakeCardRepository()
+        ..results = [_spreadHit('77777777-7777-7777-7777-777777777777', 'Foudre')];
+      final service = serviceReading(const [
+        ReadLine('Foudre', 0.200, 0.010, 0.10, 0.15),
+        ReadLine('Foudre', 0.212, 0.010, 0.10, 0.15),
+      ], cards);
+
+      final found = await service.recogniseSpread('etalement.jpg');
+
+      expect(found.single.copies, 1);
     });
 
     test('une photo sans nom lisible ne sollicite pas le réseau', () async {

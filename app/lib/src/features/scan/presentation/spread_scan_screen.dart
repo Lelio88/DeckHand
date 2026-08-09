@@ -24,11 +24,16 @@ import '../data/photo_source.dart';
 
 /// Une carte repérée sur la photo, telle que l'utilisateur peut l'amender.
 class _Spotted {
-  _Spotted(this.card);
+  _Spotted(SpreadFind find)
+    : card = find.card,
+      quantity = find.copies;
 
   final CardHit card;
   bool keep = true;
-  int quantity = 1;
+
+  /// Quantité proposée, pré-remplie par le nombre d'exemplaires vus sur la
+  /// photo. Reste modifiable : la reconnaissance propose, l'utilisateur décide.
+  int quantity;
 
   /// Édition possédée, quand l'utilisateur a pris la peine de la désigner.
   ///

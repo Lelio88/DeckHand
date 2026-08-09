@@ -13,17 +13,69 @@
 /// cartes revient au catalogue, seul à pouvoir trancher.
 library;
 
+import 'dart:math';
+
 import 'card_name_text.dart';
 
 /// Une ligne susceptible d'être un nom de carte, avec sa position.
 class NameCandidate {
-  const NameCandidate(this.text, this.top);
+  const NameCandidate(this.text, this.top, {this.left = 0, this.height = 0});
 
   final String text;
 
   /// Position verticale, en fraction de la hauteur de l'image. Sert à regrouper
   /// les cartes d'une même rangée, et à ordonner les propositions.
   final double top;
+
+  /// Bord gauche, en fraction de la largeur de l'image.
+  ///
+  /// Deux exemplaires d'une même carte sont souvent posés côte à côte, donc à la
+  /// même hauteur : sans l'abscisse, rien ne les distinguerait d'une lecture
+  /// unique. Voir [areSameCard].
+  final double left;
+
+  /// Hauteur des caractères, en fraction de la hauteur de l'image.
+  ///
+  /// Sert d'**unité de mesure** plutôt que de grandeur en soi : elle suit la
+  /// distance de prise de vue, ce qu'un écart en pixels ne fait pas.
+  final double height;
+}
+
+/// Écart, en hauteurs de texte, en deçà duquel deux lectures identiques sont
+/// tenues pour la même carte.
+///
+/// **Mesuré, pas supposé.** Sur une photo portant quatre exemplaires d'une même
+/// carte et deux d'une autre, les lectures identiques les plus rapprochées
+/// étaient à **8,3 hauteurs de texte** l'une de l'autre, et les noms de carte
+/// à 47 et 80. À l'inverse, deux moitiés d'un nom coupé en deux tiendraient sur
+/// des lignes consécutives, soit **une à deux hauteurs**. Le seuil se pose au
+/// large dans ce fossé.
+///
+/// L'unité fait tout : en pixels, le seuil casserait dès qu'on s'éloigne de la
+/// table. La hauteur du texte suit l'échelle de la photo.
+const double sameCardDistance = 4;
+
+/// Vrai si deux lectures désignent vraisemblablement la **même** carte physique.
+///
+/// Deux cas qu'il faut distinguer, et que seule la position sépare :
+///
+/// - un nom trop long pour sa ligne, coupé en deux par la reconnaissance — les
+///   deux morceaux sont collés ;
+/// - deux exemplaires posés sur la table — au moins une largeur de carte les
+///   sépare.
+///
+/// Sans ce départage, l'écran fusionnait tout : quatre exemplaires d'un même
+/// dinosaure n'en donnaient qu'un, et la quantité restait à 1.
+bool areSameCard(NameCandidate a, NameCandidate b) {
+  // Sans hauteur connue — jeux d'essai, lecture dégradée — on retombe sur
+  // l'ancien comportement : fusionner. Compter en trop est la seule erreur que
+  // l'utilisateur ne peut pas voir venir.
+  final unit = a.height > 0 ? a.height : b.height;
+  if (unit <= 0) return true;
+
+  final dx = a.left - b.left;
+  final dy = a.top - b.top;
+  return sqrt(dx * dx + dy * dy) < unit * sameCardDistance;
 }
 
 /// Nombre maximal de lignes envoyées au catalogue.
@@ -88,7 +140,7 @@ List<NameCandidate> spreadNameCandidates(
   double heightRatio = nameHeightRatio,
   int minLength = minNameLength,
 }) {
-  final seen = <String>{};
+  final seen = <String, List<NameCandidate>>{};
   final candidates = <NameCandidate>[];
 
   final ordered = [...lines]..sort((a, b) => a.top.compareTo(b.top));
@@ -101,9 +153,23 @@ List<NameCandidate> spreadNameCandidates(
 
     final text = cleanNameLine(line.text);
     if (!looksLikeCardName(text, minLength: minLength)) continue;
-    if (!seen.add(text.toLowerCase())) continue;
 
-    candidates.add(NameCandidate(text, line.top));
+    final candidate = NameCandidate(
+      text,
+      line.top,
+      left: line.left,
+      height: line.height,
+    );
+
+    // **Deux lectures identiques ne sont pas forcément la même carte.** C'est
+    // ce qui faisait disparaître les doublons : quatre exemplaires d'un même
+    // dinosaure sont lus quatre fois, à l'identique, et n'en donnaient qu'un.
+    // La position tranche — voir [areSameCard].
+    final alike = seen.putIfAbsent(text.toLowerCase(), () => []);
+    if (alike.any((other) => areSameCard(candidate, other))) continue;
+    alike.add(candidate);
+
+    candidates.add(candidate);
     if (candidates.length >= maxSpreadCandidates) break;
   }
 
