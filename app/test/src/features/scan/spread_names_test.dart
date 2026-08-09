@@ -100,29 +100,38 @@ void main() {
     );
   });
 
-  test('le menu fretin sous la médiane est écarté', () {
-    // **Ce que le filtre fait, et pas davantage.** Il a d'abord visé le texte
-    // de règles citant un nom de carte ; deux photos réelles ont montré que la
-    // taille ne sépare pas ces deux populations — sur un étalement en éventail,
-    // le nom d'une carte du fond est plus petit que les règles d'une carte du
-    // premier plan. Ce qu'il élimine encore, ce sont les fragments et les
-    // mentions nettement plus petites que le corps du texte, d'où sortaient
-    // « Squ » → Squall et « Car » → Carom. Le vrai rempart contre les fausses
-    // cartes est le score du catalogue.
+  test('le filtre de taille est désactivé, et le reste par défaut', () {
+    // **Une conclusion, pas un oubli.** Ce filtre devait empêcher les textes de
+    // règles de fabriquer des cartes fantômes. Mesuré sur deux photos réelles,
+    // il ne sépare plus rien — le rapport entre la plus grande ligne et la
+    // médiane tombe à 1,20 sur des cartes entières — et il coûtait vingt-trois
+    // points de rappel. Ce qui écarte vraiment les fausses cartes est le seuil
+    // de score, la règle de longueur relative, le nettoyage des parasites et le
+    // filtre des lignes de type.
+    expect(nameHeightRatio, 0);
+
+    // Toutes les lignes plausibles passent donc, quelle que soit leur taille :
+    // c'est le catalogue qui tranche ensuite.
     final names = spreadNameCandidates([
       ReadLine('Anneau solaire', 0.05, 0.030),
-      ReadLine('Ajoutez deux manas incolores', 0.12, 0.030),
-      ReadLine('Foudre inflige 3 blessures', 0.16, 0.030),
-      ReadLine('MSH FR 0679', 0.20, 0.008),
-      ReadLine('Cherchauloin', 0.40, 0.030),
-      ReadLine('Squ', 0.47, 0.008),
-      ReadLine('Car', 0.51, 0.008),
+      ReadLine('Cherchauloin', 0.40, 0.008),
     ]).map((c) => c.text);
 
-    expect(names, contains('Anneau solaire'));
-    expect(names, contains('Cherchauloin'));
-    expect(names, isNot(contains('Squ')));
-    expect(names, isNot(contains('Car')));
+    expect(names, containsAll(['Anneau solaire', 'Cherchauloin']));
+  });
+
+  test('le filtre reste actionnable pour la mesure', () {
+    // La constante est à zéro, mais le mécanisme demeure : l'outil de balayage
+    // le rejoue sur des lignes réellement lues, et une photo future pourrait
+    // rouvrir la question.
+    final strict = spreadNameCandidates([
+      ReadLine('Anneau solaire', 0.05, 0.030),
+      ReadLine('menu fretin', 0.40, 0.008),
+      ReadLine('autre ligne courte', 0.50, 0.008),
+      ReadLine('encore une', 0.60, 0.008),
+    ], heightRatio: 1.5).map((c) => c.text);
+
+    expect(strict, isNot(contains('menu fretin')));
   });
 
   test('sans le filtre de taille, les lignes de règles redeviennent candidates', () {

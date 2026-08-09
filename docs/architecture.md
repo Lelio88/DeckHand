@@ -309,39 +309,40 @@ les règles, et écartait les noms : « Agent d'Atlas » (13 caractères) tombai
 0,82 fois la médiane quand une ligne de règles de 38 caractères montait à 2,47.
 Les coins suivent l'inclinaison ; la corrélation retombe à **0,408**.
 
-**Seuil retenu : 1,00 fois la hauteur médiane**, c'est-à-dire « au moins la
-médiane ». Deux photos réelles l'ont fixé, et la seconde a invalidé la première.
+**Le filtre de taille est désactivé, et c'est une conclusion.** Il devait
+empêcher les textes de règles de fabriquer des cartes fantômes ; quatre mesures
+successives l'ont démonté :
 
-| photo | seuil 1,00 | seuil 1,15 | seuil 1,25 |
-|---|---|---|---|
-| cinq cartes à plat | 5 justes, 1 fausse | 5 justes, 0 fausse | 3 justes, 0 fausse |
-| dix-neuf cartes en éventail | **16 justes** (84 %), 2 fausses | 8 justes (42 %) | 4 justes (21 %) |
+1. Il ne mesurait pas la taille du texte mais sa **longueur** — la hauteur venait
+   d'une boîte alignée sur les axes, qui grandit avec la ligne dès que la carte
+   penche. Corrélation de **0,965** avec le nombre de caractères.
+2. Corrigé (hauteur prise sur les coins du quadrilatère), il ne séparait plus
+   rien : sur des cartes entières, le rapport entre la plus grande ligne et la
+   médiane tombe à **1,20**. Il n'y a pas deux populations à départager.
+3. Il **masquait le vrai goulot** : plus il laissait passer de lignes, plus le
+   plafond de candidats coupait tôt dans la photo. Le désactiver *dégradait* donc
+   le résultat, ce qui entretenait l'illusion qu'il servait.
+4. Le plafond relevé, la mesure est sans appel :
 
-**Le filtre par médiane globale ne sépare pas ce qu'on croyait.** Sur un
-étalement à plat, les noms dépassent le corps de texte de 21 à 36 % et un seuil
-peut s'y glisser. Sur un éventail, les cartes sont à des distances différentes de
-l'objectif : le nom d'une carte du fond mesure 1,02 fois la médiane quand le
-texte de règles d'une carte du premier plan en mesure 1,26. Toutes les lignes
-tiennent alors entre 1,00 et 1,33, et **aucune valeur ne sépare les deux
-populations** — le seuil coupe au milieu des noms.
+| photo | avec filtre | sans filtre |
+|---|---|---|
+| dix-sept cartes à plat | 65 % rappel, 92 % précision | **88 % / 94 %** |
+| dix-neuf cartes en éventail | 84 % / 94 % | **84 % / 94 %** |
 
-Mesuré : à 1,15, « Renforts de quartier » et « Agent d'Atlas » étaient écartés
-pendant que « devenir les héros de demain » et « Hank Pym, fondateur d » étaient
-retenus.
+Ce qui écarte réellement les fausses cartes est ailleurs, et se cumule : le
+**seuil de score**, la **règle de longueur relative** (un fragment ne couvre que
+0,21 du nom qu'il trouve), le **nettoyage des parasites** de bordure et le
+**filtre des lignes de type**. C'est ce quatuor qui fait le travail.
 
-Ce que le filtre élimine encore utilement, c'est le menu fretin nettement plus
-petit que le corps du texte — fragments et mentions marginales d'où sortaient
-« Squ » → *Squall* et « Car » → *Carom*. **Le vrai rempart contre les fausses
-cartes est le seuil de score du catalogue**, pas la taille du texte.
+Le mécanisme reste dans le code, à zéro : `app/tool/sweep_spread_threshold.dart`
+le rejoue sur des lignes réellement lues, et une photo future pourrait rouvrir la
+question.
 
-**La correction de fond n'est pas un réglage.** Comparer chaque ligne aux lignes
-de son **propre bloc** — ML Kit les regroupe déjà — rendrait le tri insensible
-aux différences de distance, puisqu'une carte lointaine a un nom petit *et* des
-règles petites. Non fait : il faut instrumenter les blocs et remesurer.
-
-Les lignes réellement lues des deux photos sont figées en fixtures
-(`measured_spread.dart`, `measured_fan.dart`) — des hauteurs inventées
-n'auraient jamais montré cette absence de séparation.
+**Une longueur minimale de nom n'apporte rien non plus.** Balayée de 3 à 10
+caractères, elle ne change pas le résultat : les fragments sont déjà écartés par
+la longueur relative. À 8 caractères elle gagnerait une fausse carte, au prix de
+**662 cartes du catalogue** (2,1 % — *Shimmer*, *Abolish*, *Revive*) rendues
+invisibles au scan. Elle reste donc à 3.
 
 **Le plafond de candidats a longtemps été le vrai goulot.** Chaque ligne retenue
 coûte une requête au catalogue, d'où un plafond — mais il coupait **par

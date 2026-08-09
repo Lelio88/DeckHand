@@ -46,42 +46,32 @@ const int maxSpreadCandidates = 150;
 
 /// Rapport minimal entre la hauteur d'une ligne et la hauteur médiane.
 ///
-/// **C'est ce qui distingue un nom de son texte de règles.** Sur toute carte
-/// Magic, le nom est imprimé nettement plus gros que le corps de texte — de
-/// l'ordre du double. Or les règles citent régulièrement des noms de cartes
-/// (« Foudre inflige 3 blessures… »), et une ligne de règles qui contient un nom
-/// produisait une carte fantôme : sur un étalement de six cartes, huit étaient
-/// proposées dont trois inventées.
+/// **Zéro : ce filtre est désactivé, et c'est une conclusion, pas un oubli.**
+/// Il avait été introduit pour empêcher les textes de règles de fabriquer des
+/// cartes fantômes — sur toute carte Magic, le nom est imprimé plus gros que le
+/// corps de texte. Quatre mesures successives l'ont démonté :
 ///
-/// La hauteur médiane sert de référence plutôt qu'une valeur absolue : elle
-/// s'adapte à la distance de prise de vue.
+/// 1. Il ne mesurait pas la taille du texte mais sa **longueur** : la hauteur
+///    venait d'une boîte alignée sur les axes, qui grandit avec la ligne dès que
+///    la carte penche. Corrélation de 0,965 avec le nombre de caractères.
+/// 2. Corrigé — hauteur prise sur les coins du quadrilatère —, il ne séparait
+///    plus rien : sur un étalement de cartes entières, le rapport entre la plus
+///    grande ligne et la médiane tombe à **1,20**. Il n'y a pas deux populations.
+/// 3. Il **masquait le vrai goulot** : plus il laissait passer de lignes, plus le
+///    plafond de candidats coupait tôt dans la photo. Le désactiver *dégradait*
+///    donc le résultat, ce qui donnait l'illusion qu'il servait.
+/// 4. Le plafond relevé, la mesure est sans appel — sur dix-sept cartes à plat,
+///    88 % de rappel et 94 % de précision **sans** lui, contre 65 % et 92 %
+///    avec. Sur un éventail de dix-neuf, 84 % et 94 % dans les deux cas.
 ///
-/// **Valeur mesurée, sur un étalement réel de cinq cartes.** Le balayage donne
-/// un plateau parfait — cinq cartes sur cinq, aucune fausse — entre 1,10 et
-/// 1,20, et 1,15 en est le centre : 0,07 avant le premier faux positif
-/// (« Vigilance », mot-clé imprimé sur la carte, à 1,08 fois la médiane), 0,06
-/// avant la première carte perdue (« Agent Maria Hill », à 1,21).
+/// Ce qui écarte réellement les fausses cartes est ailleurs : le seuil de score,
+/// la règle de longueur relative ([minMatchLengthRatio]), le nettoyage des
+/// parasites et le filtre des lignes de type.
 ///
-/// | seuil | justes | fausses | manquées |
-/// |---|---|---|---|
-/// | sans filtre | 5 | 3 | 0 |
-/// | 1,10 – 1,20 | **5** | **0** | **0** |
-/// | 1,25 | 3 | 0 | 2 |
-/// | 1,30 | 1 | 0 | 4 |
-///
-/// **L'écart entre un nom et son texte de règles est bien plus faible qu'on ne
-/// le croit** : de 20 à 36 %, jamais le double. La fenêtre utile est donc
-/// étroite, et elle l'est pour une raison structurelle — les cartes d'un
-/// étalement ne sont pas toutes à la même distance de l'objectif, si bien que
-/// le nom d'une carte au bord peut être plus petit que le texte de règles d'une
-/// carte au centre. Une médiane globale ne peut pas distinguer les deux ; c'est
-/// la limite de cette approche, pas un défaut de réglage.
-///
-/// **Publique parce qu'elle se mesure.** `app/tool/sweep_spread_threshold.dart`
-/// rejoue le filtrage à différents seuils sur des lignes réellement lues par
-/// l'appareil ; cette constante est la valeur qu'il cherche à départager, pas
-/// une préférence à recopier ailleurs.
-const double nameHeightRatio = 1.00;
+/// La constante et le paramètre restent : `app/tool/sweep_spread_threshold.dart`
+/// les rejoue sur des lignes réellement lues, et une photo future pourrait
+/// rouvrir la question. Mais elle a été tranchée sur des chiffres.
+const double nameHeightRatio = 0;
 
 /// Extrait les lignes plausibles comme noms de cartes, dans l'ordre de lecture.
 ///
@@ -96,6 +86,7 @@ const double nameHeightRatio = 1.00;
 List<NameCandidate> spreadNameCandidates(
   List<ReadLine> lines, {
   double heightRatio = nameHeightRatio,
+  int minLength = minNameLength,
 }) {
   final seen = <String>{};
   final candidates = <NameCandidate>[];
@@ -109,7 +100,7 @@ List<NameCandidate> spreadNameCandidates(
     if (threshold > 0 && line.height < threshold) continue;
 
     final text = cleanNameLine(line.text);
-    if (!looksLikeCardName(text)) continue;
+    if (!looksLikeCardName(text, minLength: minLength)) continue;
     if (!seen.add(text.toLowerCase())) continue;
 
     candidates.add(NameCandidate(text, line.top));
@@ -151,6 +142,18 @@ bool isPlausibleMatch(String read, String matched) {
   if (matched.isEmpty) return false;
   return read.length >= matched.length * minMatchLengthRatio;
 }
+
+/// Longueur minimale d'une ligne pour valoir nom de carte.
+///
+/// **C'est ce qui doit remplacer le filtre de taille.** Sur des cartes entières,
+/// la taille du texte ne sépare plus rien — le rapport entre la plus grande
+/// ligne et la médiane tombe à 1,20. Ce qui produit encore de fausses cartes,
+/// ce sont les fragments : « ure » trouve *Ureni's Rebuff*, « Squ » trouve
+/// *Squall*, « Car » trouve *Carom*. La règle de longueur relative ne les
+/// attrape pas, un fragment court trouvant souvent un nom court.
+///
+/// Ouvert pour la mesure, comme [nameHeightRatio].
+const int minNameLength = 3;
 
 /// Score en deçà duquel une correspondance n'est pas retenue.
 ///

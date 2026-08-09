@@ -170,8 +170,8 @@ List<String> cardNameCandidates(List<ReadLine> lines, {int limit = 3}) {
 ///
 /// Partagé avec le repérage d'étalements, qui applique les mêmes exclusions à
 /// des lignes réparties dans toute l'image.
-bool looksLikeCardName(String text) {
-  if (text.length < _minNameLength || text.length > _maxNameLength) return false;
+bool looksLikeCardName(String text, {int minLength = _minNameLength}) {
+  if (text.length < minLength || text.length > _maxNameLength) return false;
   if (_noise.hasMatch(text)) return false;
   if (_setMarkers.hasMatch(text)) return false;
   if (_shortCaps.hasMatch(text.replaceAll(' ', ''))) return false;
