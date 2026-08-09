@@ -370,6 +370,22 @@ seuil de score (« A lennifer Walters », 0,64), et un nom masqué correctement
 refusé parce que tronqué. Avant correction du seuil et de la longueur, la même
 photo donnait 13 cartes dont une fausse.
 
+**Une ligne de capacités n'est pas un nom.** Toute carte imprime ses mots-clés
+sur une ligne — « Vol, vigilance » — courte, bien formée, sans parasite : le
+score y répond *Vigilance*, qui existe vraiment, et ni la longueur ni le filtre
+des lignes de type ne peuvent s'en apercevoir. Une ligne est donc écartée dès
+qu'elle contient **deux** mots-clés ou plus.
+
+Deux, et non un : cinq cartes s'appellent exactement comme un mot-clé — *Flight*
+(« Vol »), *Lifelink*, *Persist*, *Threaten* (« Menace »), *Vigilance* — et la
+règle naïve les rendrait invisibles au scan. Vérifié sur les 62 959 noms
+indexés : **aucun** n'en contient deux, un nom de carte n'énumérant pas des
+capacités. Le pluriel sépare exactement les deux, et la règle ne coûte rien.
+
+Seuls les mots-clés permanents figurent dans la liste : ce sont ceux qu'on
+croise partout, donc ceux qui produisent des faux positifs. Ceux propres à une
+extension sont trop rares pour valoir la charge d'entretien.
+
 **Un fragment de nom ne vaut pas correspondance.** Une carte à demi recouverte
 ne livre qu'un début de nom, et ce début est souvent le préfixe exact d'une autre
 carte : « Origine de » a trouvé « Origine de Thor » avec un score de 0,94 quand

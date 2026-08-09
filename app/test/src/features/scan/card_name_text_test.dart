@@ -189,4 +189,32 @@ void main() {
       expect(cleanNameLine('Nom (variante) suite'), 'Nom (variante) suite');
     });
   });
+
+  group('les lignes de capacités ne sont pas des noms', () {
+    test('deux mots-clés sur une ligne la disqualifient', () {
+      // Le dernier faux positif mesuré : « Vol, vigilance » trouvait la carte
+      // *Vigilance*, qui existe. Ni le score, ni la longueur, ni le filtre des
+      // lignes de type ne pouvaient s'en apercevoir.
+      expect(looksLikeCardName('Vol, vigilance'), isFalse);
+      expect(looksLikeCardName('Flying, trample'), isFalse);
+      expect(looksLikeCardName('Vigilance, lien de vie'), isFalse);
+    });
+
+    test('un seul mot-clé reste un nom possible', () {
+      // **Cinq cartes s'appellent exactement comme un mot-clé** — Flight
+      // (« Vol »), Lifelink, Persist, Threaten (« Menace ») et Vigilance. Les
+      // écarter les rendrait invisibles au scan d'étalement, alors qu'aucun des
+      // 62 959 noms du catalogue ne contient deux mots-clés.
+      expect(looksLikeCardName('Vigilance'), isTrue);
+      expect(looksLikeCardName('Lien de vie'), isTrue);
+      expect(looksLikeCardName('Menace'), isTrue);
+    });
+
+    test('un mot-clé enchâssé dans un autre mot ne compte pas', () {
+      // « portée » ne doit pas se déclencher sur « Emportée », ni « vol » sur
+      // « Volcan » : sans quoi des noms parfaitement légitimes tomberaient.
+      expect(listsKeywords('Emportée par le Volcan'), isFalse);
+      expect(listsKeywords('Volcan, Emportée'), isFalse);
+    });
+  });
 }

@@ -122,6 +122,55 @@ final _setMarkers = RegExp(r'[★☆✦●◆]');
 /// Sigles en capitales : codes d'extension, mentions de langue.
 final _shortCaps = RegExp(r'^[A-Z]{2,6}$');
 
+/// Mots-clés de capacité, imprimés sur presque toute carte.
+///
+/// **Une ligne de capacités ressemble à un nom, et c'est le dernier faux positif
+/// qui résistait.** « Vol, vigilance » est courte, bien formée, sans parasite :
+/// le score y répond *Vigilance*, qui existe vraiment, et ni la longueur ni le
+/// filtre des lignes de type ne peuvent la démasquer.
+///
+/// **Seuls les mots-clés permanents figurent ici.** Ce sont ceux qu'on croise
+/// sur presque toutes les cartes, donc ceux qui produisent des faux positifs.
+/// Les mots-clés propres à une extension sont trop rares pour valoir la charge
+/// d'entretien de la liste.
+const _keywords = <String>[
+  // Français
+  'vol', 'vigilance', 'piétinement', 'célérité', 'lien de vie', 'initiative',
+  'double initiative', 'menace', 'portée', 'défenseur', 'indestructible',
+  'contact mortel', 'prouesse', 'protection', 'linceul', 'persistance',
+  'traverser', 'flash', 'hâte',
+  // Anglais
+  'flying', 'trample', 'haste', 'lifelink', 'first strike', 'double strike',
+  'reach', 'defender', 'deathtouch', 'hexproof', 'ward', 'shroud', 'prowess',
+  'persist', 'annihilator',
+];
+
+/// Vrai si la ligne énumère **plusieurs** capacités.
+///
+/// **Deux et non un, et l'écart n'est pas cosmétique.** Une carte peut
+/// s'appeler *Vigilance*, *Vol* (Flight), *Lien de vie*, *Menace* ou
+/// *Persistance* — écarter toute ligne faite d'un seul mot-clé les rendrait
+/// invisibles au scan. Mais **aucun** des 62 959 noms du catalogue n'en contient
+/// deux : un nom de carte n'énumère pas des capacités. Le pluriel est
+/// exactement ce qui sépare la ligne de capacités du nom, et la règle ne coûte
+/// donc rien.
+///
+/// Le mot doit être entier : « portée » ne doit pas se déclencher sur
+/// « Emportée », ni « vol » sur « Volcan ».
+bool listsKeywords(String text) {
+  final low = text.toLowerCase();
+  var found = 0;
+  for (final keyword in _keywords) {
+    if (RegExp(
+      r'(^|[\s,;.])' + RegExp.escape(keyword) + r'($|[\s,;.])',
+    ).hasMatch(low)) {
+      found++;
+      if (found >= 2) return true;
+    }
+  }
+  return false;
+}
+
 /// Ligne de type, qui suit immédiatement le nom sur toutes les cartes.
 ///
 /// Sans ce filtre elle deviendrait candidate dès que le nom est mal lu, et
@@ -176,6 +225,7 @@ bool looksLikeCardName(String text, {int minLength = _minNameLength}) {
   if (_setMarkers.hasMatch(text)) return false;
   if (_shortCaps.hasMatch(text.replaceAll(' ', ''))) return false;
   if (_typeLine.hasMatch(text)) return false;
+  if (listsKeywords(text)) return false;
   return true;
 }
 
