@@ -158,8 +158,30 @@ const int minNameLength = 3;
 /// Score en deçà duquel une correspondance n'est pas retenue.
 ///
 /// Une ligne quelconque trouve toujours *quelque chose* dans un catalogue de
-/// 31 634 cartes ; c'est le score qui distingue la trouvaille du hasard. Le
-/// seuil est haut à dessein : sur un étalement, mieux vaut manquer une carte —
-/// l'utilisateur la voit et la rajoute — que d'en inventer une qu'il validera
-/// sans y penser, faussant ensuite toutes les suggestions de decks.
-const double spreadScoreThreshold = 0.72;
+/// 31 634 cartes ; c'est le score qui distingue la trouvaille du hasard.
+///
+/// **Descendu de 0,72 à 0,60 après mesure sur deux photos réelles.** Ce que le
+/// seuil élevé écartait n'était pas du hasard, mais des lectures mutilées par
+/// l'appareil : « Agents du S.H.LE.LD. » (I lu L) marquait 0,60 et
+/// « Alennifer Walters » (J lu Al) 0,67, deux correspondances parfaitement
+/// justes. Le bilan du passage à 0,60 :
+///
+/// | photo | à 0,72 | à 0,60 |
+/// |---|---|---|
+/// | dix-sept cartes à plat | 15 justes, 0 fausse | **17 justes, 0 fausse** |
+/// | dix-neuf cartes en éventail | 16 justes, 1 fausse | 18 justes, 2 fausses |
+///
+/// Quatre cartes gagnées contre une fausse — « derniers mots », fragment de
+/// texte français qui tombe sur la carte anglaise *Last Word*.
+///
+/// **L'échange assume un arbitrage produit.** La règle était l'inverse : mieux
+/// vaut manquer une carte que d'en inventer une, celle-ci faussant ensuite
+/// toutes les suggestions de decks. Ce qui la renverse ici est la forme de
+/// l'écran — l'étalement propose une **liste à cocher**, jamais un ajout
+/// direct (garde-fou §IV.8). Une fausse carte y est visible et se décoche ; une
+/// carte manquante est silencieuse, et il faut la retaper. Le coût est
+/// asymétrique dans l'autre sens que ne le supposait le seuil.
+///
+/// Se remesure avec `tool/dump_fan_candidates.dart` et la fixture
+/// `test/src/features/scan/measured_flat.dart` — ne pas rebouger à vue.
+const double spreadScoreThreshold = 0.60;

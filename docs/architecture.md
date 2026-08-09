@@ -398,6 +398,46 @@ recherches sans résultat, ce qui accusait la reconnaissance alors que le résea
 était en cause. Il a fallu rejouer les requêtes depuis le poste pour le voir. La
 panne remonte désormais jusqu'à l'écran.
 
+### Le seuil de score : 0,60, et pourquoi pas 0,72
+
+Ce que le seuil élevé écartait n'était pas du hasard, mais des lectures
+mutilées. L'appareil confond des lettres sur les noms courts en capitales :
+« Agents du S.H.LE.LD. » (I lu L) marquait 0,60 et « Alennifer Walters » (J lu
+Al) 0,67 — deux correspondances parfaitement justes, refusées par un seuil à
+0,72.
+
+Mesuré sur les deux photos, filtres appliqués :
+
+| photo | à 0,72 | à 0,60 |
+|---|---|---|
+| dix-sept cartes à plat | 15 justes, 0 fausse | **17 justes, 0 fausse** |
+| dix-neuf cartes en éventail | 16 justes, 1 fausse | 18 justes, 2 fausses |
+
+Quatre cartes gagnées contre une fausse — « derniers mots », fragment de texte
+français qui tombe sur la carte anglaise *Last Word*.
+
+**La borne inférieure est mesurée, pas supposée** : à 0,53, « Vieilance » — le
+mot-clé *vigilance* mal lu — trouve la carte *Vigilance*, qui existe. Le seuil
+retenu est le dernier cran qui la refuse.
+
+**L'échange renverse un arbitrage, assumé.** La règle antérieure disait l'inverse
+— mieux vaut manquer une carte que d'en inventer une. Ce qui la renverse est la
+forme de l'écran : l'étalement propose une **liste à cocher**, jamais un ajout
+direct. Une fausse carte y est visible et se décoche ; une carte manquante est
+silencieuse, et il faut la retaper. Le coût est asymétrique dans l'autre sens
+que ne le supposait le seuil.
+
+Deux pièges de méthode rencontrés en réglant ceci, à ne pas refaire :
+
+1. **Mesurer sans les filtres Dart gonfle les fausses.** Une première mesure
+   interrogeait la base directement et comptait « Éphémere → Ephemerate » parmi
+   les erreurs : le filtre des lignes de type l'écarte pourtant bien avant la
+   recherche. `tool/dump_fan_candidates.dart` imprime les candidats tels que
+   l'application les produit.
+2. **Une seule photo ne suffit pas.** À plat, descendre le seuil ne coûte
+   aucune fausse ; en éventail, il en coûte une. Tout réglage tiré d'une photo
+   se vérifie sur l'autre.
+
 **Validé sur un étalement de dix-neuf cartes en éventail** : 16 reconnues,
 **aucune fausse**. Les trois manquantes échappent au réglage pour trois raisons
 distinctes — un nom non lu par l'appareil, un nom lu trop mal pour atteindre le
