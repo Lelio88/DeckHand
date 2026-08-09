@@ -160,3 +160,51 @@ d'impasses est consignée plus haut. Il reste ouvert, et il résoudrait d'un cou
 plusieurs limites : rattacher chaque ligne à sa carte, compter les cartes
 physiquement présentes, et écarter les citations.
 
+---
+
+# Rattacher une ligne à sa carte : ce qui marche, et ce qui reste
+
+Les rectangles de cartes étant connus, on peut enfin demander : cette ligne
+est-elle le **nom** de la carte ou une **citation** imprimée dessus ?
+
+## La ligne de type ne sert pas de boussole
+
+*Hypothèse* : la ligne de type siège à 57 % de la hauteur d'une carte, donc plus
+près du bas que du haut. Le bord le plus éloigné d'elle serait le haut.
+
+*Mesuré sur dix cartes* : elle tombe à 53, 53, 51, 52, 52, 61, 50, 53, 63, 52 %.
+Sept fois sur dix, **à trois points du milieu**. L'écart théorique de sept points
+est noyé par l'imprécision du rectangle et de la lecture : le choix du bord
+devient pile ou face, et il l'a été.
+
+## Le nom est plus collé à son bord que la citation au sien
+
+Les mêmes mesures montrent autre chose. Là où l'orientation était juste :
+
+| | distance au bord le plus proche |
+|---|---|
+| nom de la carte | **2 % à 5 %** |
+| citation d'ambiance | 15 % à 22 % |
+
+Il n'y a donc pas besoin de savoir quel bord est le haut. Il suffit de garder,
+par carte, la correspondance **la plus collée à une extrémité** — ce qui impose
+au passage un invariant vrai : *une carte porte un seul nom*.
+
+*Mesuré sur la photo à doublons* : **sept identités sur huit, et zéro fausse
+carte**. Les quatre faux positifs qui résistaient à tout — Ka-Zar sur trois
+cartes, *Down*, *Turn*, *Sacrifice* — tombent d'un coup. La huitième identité
+manque parce que deux cartes jointives partagent un rectangle : c'est le défaut
+de segmentation, pas celui de la règle.
+
+## La tension qui reste à trancher
+
+Le nom est imprimé à deux pour cent du bord, si bien que son centre tombe parfois
+**hors** du rectangle, là où le masque s'arrête sur la bordure noire. Il faut
+donc élargir le rectangle avant d'y chercher les lignes — mais trop l'élargir y
+fait entrer le nom de la carte voisine, que la règle « un seul nom par carte »
+rejette alors à tort.
+
+À 6 % de marge, deux cartes voisines se volent leur nom sur la photo mesurée. La
+bonne valeur se situe entre « le nom rentre » et « le voisin n'entre pas », et
+elle n'est pas encore mesurée. C'est l'étape suivante, et elle est bien posée.
+

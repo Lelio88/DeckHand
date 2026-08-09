@@ -32,15 +32,29 @@ Future<void> main(List<String> args) async {
     exit(65);
   }
 
-  final started = DateTime.now();
-  final cards = findCards(photo);
-  final elapsed = DateTime.now().difference(started);
+  final widths = args.length > 2
+      ? args[2].split(',').map(int.parse).toList()
+      : const [800];
+
+  final runs = <Map<String, Object>>[];
+  for (final width in widths) {
+    final started = DateTime.now();
+    final cards = findCards(photo, workWidth: width);
+    runs.add({
+      'width': width,
+      'ms': DateTime.now().difference(started).inMilliseconds,
+      'cards': cards.length,
+    });
+  }
+  final cards = findCards(photo, workWidth: widths.first);
+  final elapsed = Duration(milliseconds: runs.first['ms']! as int);
 
   stdout.writeln(
     jsonEncode({
       'image': '${photo.width}x${photo.height}',
       'ms': elapsed.inMilliseconds,
       'cards': cards.length,
+      'runs': runs,
       if (args.length > 1) 'expected': int.parse(args[1]),
       'bounds': [
         for (final c in cards)

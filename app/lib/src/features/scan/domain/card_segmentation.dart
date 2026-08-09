@@ -45,11 +45,31 @@ class CardBounds {
 
 /// Largeur de travail, en pixels.
 ///
-/// **Un compromis mesuré, pas un chiffre rond.** À cette taille, un pixel vaut
-/// environ un tiers de millimètre sur une photo cadrée à quatre cartes de large,
-/// ce qui laisse une bonne dizaine de pixels au jour minimal recommandé. Doubler
-/// la résolution quadruplerait le coût de l'inondation et de l'étiquetage pour
-/// ne gagner que sur des jours trop étroits pour être conseillés.
+/// **L'endroit où la courbe s'aplatit.** Mesuré sur une photo de onze cartes,
+/// en faisant varier la seule résolution :
+///
+/// | largeur | pixels | durée | cartes trouvées |
+/// |---|---|---|---|
+/// | 400 px | 212 k | 192 ms | 7 |
+/// | 600 px | 478 k | 310 ms | 9 |
+/// | **800 px** | 850 k | **499 ms** | **10** |
+/// | 1200 px | 1 912 k | 871 ms | 10 |
+/// | 1600 px | 3 400 k | 1 400 ms | 10 |
+///
+/// Deux enseignements. En dessous de 800, le résultat se dégrade franchement :
+/// les jours entre cartes ne font plus assez de pixels pour séparer les formes.
+/// Au-dessus, **on ne gagne plus rien** — les mêmes dix cartes, pour trois fois
+/// le temps.
+///
+/// Le coût suit à peu près le nombre de pixels : quadrupler la surface
+/// multiplie la durée par 2,8, pas par 4 — l'inondation et l'étiquetage
+/// parcourent chaque pixel un petit nombre de fois, et le redimensionnement
+/// initial se paie une fois pour toutes.
+///
+/// La contrepartie physique : à cette taille, un pixel vaut environ un tiers de
+/// millimètre sur une photo cadrée à quatre cartes de large. Monter la
+/// résolution permettrait des jours plus fins entre les cartes — mais des jours
+/// qu'on ne conseillerait pas, puisqu'ils ne tiendraient qu'à quelques pixels.
 const int _workWidth = 800;
 
 /// Part de la surface encrée en deçà de laquelle une forme est du bruit.
@@ -78,9 +98,13 @@ const double recommendedGapMillimetres = 5;
 /// Rend leurs rectangles en fractions de l'image, dans l'ordre de lecture.
 /// Une liste vide signifie que rien ne ressemble à une carte — image trop
 /// sombre, cartes jointives, ou cadrage trop lointain.
-List<CardBounds> findCards(img.Image photo) {
-  final work = photo.width > _workWidth
-      ? img.copyResize(photo, width: _workWidth)
+///
+/// [workWidth] n'est ouvert que pour la mesure : `tool/find_cards.dart` compare
+/// coût et résultat à plusieurs résolutions. Le produit appelle toujours cette
+/// fonction sans l'argument.
+List<CardBounds> findCards(img.Image photo, {int workWidth = _workWidth}) {
+  final work = photo.width > workWidth
+      ? img.copyResize(photo, width: workWidth)
       : photo;
   final w = work.width;
   final h = work.height;
