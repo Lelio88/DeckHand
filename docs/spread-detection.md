@@ -102,3 +102,61 @@ reste. C'est une expérience dégradée, pas une impasse.
 
 Le jalon 2 — une carte à la fois — ne dépend en rien de ce travail et
 fonctionne.
+
+---
+
+# Deuxième vague d'impasses : distinguer un nom d'une citation
+
+L'approche par lecture de noms a remplacé le découpage d'image et fonctionne —
+17 cartes sur 17 sur une photo à plat. Deux fausses cartes résistent pourtant, et
+les pistes bon marché pour les écarter ont toutes été mesurées puis abandonnées.
+
+**Le cas restant.** Le texte d'ambiance, en bas d'une carte, cite un personnage
+qui porte souvent le nom d'une vraie carte : « —Ka-Zar of the Savage Land ». Le
+tiret d'ouverture suffit dans la plupart des cas et coûte zéro (aucun des 63 220
+noms n'en porte), mais **la reconnaissance manque parfois ce tiret** : sur quatre
+lectures de Ka-Zar, trois le portaient et une non. Celle-là passe. S'y ajoute
+« Sacrificz », mot de règles capitalisé en début de phrase, que rien ne signale.
+
+## Les rangées — les faux positifs tombent dessus
+
+*Hypothèse* : les cartes sont posées en rangées, les vrais noms sont donc alignés
+en hauteur, tandis qu'une attribution siège au bas de sa carte.
+
+*Mesuré* : les onze vrais noms forment bien quatre rangées nettes
+(y ≈ 0,172 / 0,387 / 0,594 / 0,821, écarts de 0,19 entre rangées contre 0,02 à
+l'intérieur). Mais **les quatre faux positifs tombent tous sur une rangée**, à
+0,013 à 0,020 près.
+
+*Pourquoi* : les cartes sont posées bord à bord. Le bas d'une carte de la rangée
+N — donc son texte d'ambiance — se trouve à la même hauteur que le haut de la
+carte de la rangée N+1, donc que son nom. Les deux populations se superposent par
+construction, quelle que soit la finesse du regroupement.
+
+## La taille du texte, deuxième tentative
+
+Le filtre de taille avait déjà été abandonné pour trier les 141 lignes lues.
+Question plus étroite ici : parmi les lignes qui ont **survécu à tous les filtres
+et trouvé une carte**, la taille sépare-t-elle les vraies des fausses ? Le nom est
+imprimé plus gros que le texte d'ambiance.
+
+*Mesuré sur la photo à doublons* : vraies cartes 13 à 19 px, fausses 12 à 18 px.
+**Les intervalles se chevauchent** — une attribution mesurait 18 px quand un vrai
+nom en mesurait 13.
+
+*Coût vérifié sur la photo à plat*, où aucune fausse n'apparaît : un seuil à
+1,2 fois la médiane des lignes ferait perdre **15 cartes sur 17**. Toute valeur
+plus haute les perd toutes.
+
+## Ce qu'il resterait
+
+Les deux faux positifs restants ont la même cause profonde : **on ne sait pas à
+quelle carte appartient une ligne**. Un nom et une citation ne se distinguent
+que par leur place *dans leur carte* — en haut, en bas —, information qu'aucune
+mesure globale ne peut reconstituer.
+
+C'est le chantier « détecter les bords d'une carte », dont la première vague
+d'impasses est consignée plus haut. Il reste ouvert, et il résoudrait d'un coup
+plusieurs limites : rattacher chaque ligne à sa carte, compter les cartes
+physiquement présentes, et écarter les citations.
+
