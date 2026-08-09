@@ -181,8 +181,8 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       return const _Note(
         icon: Icons.grid_view,
         text:
-            'Étalez vos cartes sans les faire se chevaucher, '
-            'puis photographiez l\'ensemble.',
+            'Étalez vos cartes en laissant un jour entre elles — '
+            'un demi-centimètre suffit —, puis photographiez l\'ensemble.',
       );
     }
     if (_spotted.isEmpty) {
