@@ -6,9 +6,12 @@
 /// centaines d'euros ne doit pas se présenter comme « presque à portée ».
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../printings/presentation/card_art_view.dart';
 import '../data/deck_repository.dart';
 import '../domain/deck_suggestion.dart';
 import '../domain/mana_color.dart';
@@ -23,6 +26,10 @@ class DeckSuggestionsScreen extends ConsumerWidget {
     return Column(
       children: [
         const _FormatSelector(),
+        // La recherche par commandant n'a de sens que là où il y en a un :
+        // l'afficher en Pauper offrirait un champ qui ne peut rien trouver.
+        if (ref.watch(selectedFormatProvider) == DeckFormat.commander)
+          const _CommanderSearch(),
         const _FilterBar(),
         Expanded(
           child: suggestions.when(
@@ -53,13 +60,87 @@ class _FormatSelector extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: SegmentedButton<DeckFormat>(
+        // **Un nom de format ne se coupe pas.** « Commander » se rompait en
+        // « Command / er » sur un écran de téléphone, les segments se
+        // partageant la largeur à parts égales quelle que soit la longueur du
+        // mot. `softWrap: false` le garde d'un tenant, et l'icône de coche est
+        // retirée pour lui rendre la place qu'elle prenait.
+        showSelectedIcon: false,
         segments: [
           for (final format in DeckFormat.values)
-            ButtonSegment(value: format, label: Text(format.label)),
+            ButtonSegment(
+              value: format,
+              label: Text(format.label, softWrap: false, maxLines: 1),
+            ),
         ],
         selected: {selected},
         onSelectionChanged: (values) =>
             ref.read(selectedFormatProvider.notifier).select(values.first),
+      ),
+    );
+  }
+}
+
+/// Recherche d'un deck par son commandant.
+///
+/// **C'est ainsi qu'on choisit un deck Commander** : on part du général qu'on
+/// veut jouer, pas du nom commercial du produit qui le contient. Le nom cherché
+/// passe par le même index que la saisie de collection — donc le français
+/// fonctionne, et les fautes de frappe sont tolérées.
+class _CommanderSearch extends ConsumerStatefulWidget {
+  const _CommanderSearch();
+
+  @override
+  ConsumerState<_CommanderSearch> createState() => _CommanderSearchState();
+}
+
+class _CommanderSearchState extends ConsumerState<_CommanderSearch> {
+  final _controller = TextEditingController();
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// La frappe attend une pause : sans cela « galadriel » relancerait neuf fois
+  /// une requête qui compare une collection à des centaines de decklists.
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) {
+        ref.read(deckFiltersProvider.notifier).searchCommander(value);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: TextField(
+        controller: _controller,
+        onChanged: _onChanged,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Chercher un commandant',
+          prefixIcon: const Icon(Icons.workspace_premium_outlined, size: 20),
+          isDense: true,
+          suffixIcon: _controller.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'Effacer',
+                  onPressed: () {
+                    _controller.clear();
+                    _onChanged('');
+                    setState(() {});
+                  },
+                ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       ),
     );
   }
@@ -115,13 +196,16 @@ class _FilterBar extends ConsumerWidget {
             visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: 8),
-          // « Précons » plutôt qu'« Accessibles » : le mot désignait la
-          // provenance de la liste — un deck vendu tout fait — mais se lisait
-          // comme une promesse de prix, juste à côté d'un filtre de budget qui,
-          // lui, parle bien d'argent.
+          // **« Tout faits » plutôt que « Précons ».** Le filtre désigne les
+          // decks vendus prêts à jouer, par opposition aux listes de tournoi.
+          // « Accessibles » se lisait comme une promesse de prix, à côté d'un
+          // filtre de budget qui parle bien d'argent ; « Précons » n'a rien dit
+          // à qui ne connaît pas l'abréviation. Le mot doit se comprendre sans
+          // rien savoir du vocabulaire du jeu.
           FilterChip(
-            label: const Text('Précons'),
-            tooltip: 'Decks vendus tout faits, plutôt que listes de tournoi',
+            label: const Text('Tout faits'),
+            tooltip:
+                'Decks vendus prêts à jouer, plutôt que listes de tournoi',
             selected: filters.accessibleOnly,
             onSelected: (_) => notifier.toggleAccessible(),
             visualDensity: VisualDensity.compact,
@@ -134,9 +218,13 @@ class _FilterBar extends ConsumerWidget {
               for (final budget in _budgets)
                 PopupMenuItem(value: budget, child: Text(_label(budget))),
             ],
+            // **Un chevron, pas un symbole monétaire.** L'euro décrivait ce
+            // qu'on choisit ; il ne disait pas qu'il y avait quelque chose à
+            // choisir, et le contrôle passait pour une étiquette au milieu de
+            // chips qui, eux, se cochent.
             child: Chip(
               label: Text(_label(filters.maxCostEur)),
-              avatar: const Icon(Icons.euro, size: 16),
+              avatar: const Icon(Icons.expand_more, size: 18),
               visualDensity: VisualDensity.compact,
               backgroundColor: filters.maxCostEur == null
                   ? null
@@ -204,6 +292,62 @@ class _ColorChip extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Le commandant d'un deck, qu'un appui montre en grand.
+///
+/// **Voir la carte compte autant que lire son nom.** Un nom de commandant ne
+/// dit pas ce qu'il fait ; l'illustration et le cadre, si — et c'est souvent
+/// elle qu'on reconnaît d'un coup d'œil quand on a déjà croisé la carte. Le
+/// geste est l'appui simple et non le maintien : ici la ligne entière n'ouvre
+/// rien d'autre, il n'y a donc pas de conflit à arbitrer.
+class _CommanderLine extends StatelessWidget {
+  const _CommanderLine({required this.deck});
+
+  final DeckSuggestion deck;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: () => showCardArt(
+        context,
+        oracleId: deck.commanderOracleId!,
+        title: deck.commanderName!,
+      ),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+        child: Row(
+          children: [
+            Icon(
+              Icons.workspace_premium_outlined,
+              size: 15,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                deck.commanderName!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.image_outlined,
+              size: 14,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
         ),
       ),
     );
@@ -326,16 +470,24 @@ class _DeckTile extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                children: [
-                  _Tag(
-                    deck.isCompetitive ? 'Tournoi' : 'Précon',
-                    emphasised: !deck.isCompetitive,
-                  ),
-                  _Tag(deck.sourceName),
-                ],
-              ),
+              // **Le commandant à la place de la provenance.** « Précon » et
+              // « MTGJSON » décrivaient d'où venait la liste — ce que le
+              // bandeau d'attribution dit déjà en fin d'écran, et ce qui ne
+              // renseigne en rien sur ce qu'on va jouer. Le commandant, lui,
+              // est ce par quoi on choisit un deck.
+              if (deck.hasCommander)
+                _CommanderLine(deck: deck)
+              else
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    _Tag(
+                      deck.isCompetitive ? 'Tournoi' : 'Tout fait',
+                      emphasised: !deck.isCompetitive,
+                    ),
+                    _Tag(deck.sourceName),
+                  ],
+                ),
             ],
           ),
         ),

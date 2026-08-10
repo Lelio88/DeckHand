@@ -34,6 +34,9 @@ class DeckRepository {
         // Trié pour que la requête soit la même d'une sélection à l'autre : le
         // serveur n'a que faire de l'ordre dans lequel on a touché les pastilles.
         'p_colors': (filters.colors.toList()..sort()),
+        'p_commander': filters.commander.trim().isEmpty
+            ? null
+            : filters.commander.trim(),
       },
     );
     return rows
@@ -68,6 +71,7 @@ class DeckFilters {
     this.accessibleOnly = false,
     this.maxCostEur,
     this.colors = const {},
+    this.commander = '',
   });
 
   /// N'afficher que les decks sans carte manquante.
@@ -88,20 +92,32 @@ class DeckFilters {
   /// voulait justement du mono-rouge.
   final Set<String> colors;
 
+  /// Nom de commandant cherché. Vide = tous.
+  ///
+  /// C'est la façon dont on choisit un deck Commander : on part du général
+  /// qu'on veut jouer. La recherche accepte le nom français comme l'anglais.
+  final String commander;
+
   bool get isActive =>
-      buildableOnly || accessibleOnly || maxCostEur != null || colors.isNotEmpty;
+      buildableOnly ||
+      accessibleOnly ||
+      maxCostEur != null ||
+      colors.isNotEmpty ||
+      commander.trim().isNotEmpty;
 
   DeckFilters copyWith({
     bool? buildableOnly,
     bool? accessibleOnly,
     double? maxCostEur,
     Set<String>? colors,
+    String? commander,
     bool clearCost = false,
   }) => DeckFilters(
     buildableOnly: buildableOnly ?? this.buildableOnly,
     accessibleOnly: accessibleOnly ?? this.accessibleOnly,
     maxCostEur: clearCost ? null : (maxCostEur ?? this.maxCostEur),
     colors: colors ?? this.colors,
+    commander: commander ?? this.commander,
   );
 }
 
@@ -124,6 +140,8 @@ class DeckFiltersNotifier extends Notifier<DeckFilters> {
     if (!next.remove(symbol)) next.add(symbol);
     state = state.copyWith(colors: next);
   }
+
+  void searchCommander(String name) => state = state.copyWith(commander: name);
 
   void reset() => state = const DeckFilters();
 }

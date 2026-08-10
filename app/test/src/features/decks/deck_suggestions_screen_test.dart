@@ -30,6 +30,14 @@ Future<FakeDeckRepository> pumpDecksScreen(
   final decks = FakeDeckRepository()..results = results;
   final collection = FakeCollectionRepository();
 
+  // **Un écran de test plus large que le défaut.** La barre de filtres défile
+  // horizontalement : sur les 800 points du gabarit par défaut, les pastilles
+  // de couleur tombent hors du viewport et un appui les manque en silence.
+  tester.view.physicalSize = const Size(1400, 1600);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -87,15 +95,16 @@ void main() {
     expect(decks.lastFilters?.buildableOnly, isTrue);
   });
 
-  testWidgets('« Précons » restreint aux decks vendus tout faits', (
+  testWidgets('« Tout faits » restreint aux decks vendus prêts à jouer', (
     tester,
   ) async {
-    // Le filtre s'appelait « Accessibles » : le mot désignait la provenance de
-    // la liste mais se lisait comme une promesse de prix, juste à côté d'un
-    // filtre de budget qui, lui, parle bien d'argent.
+    // Le filtre s'est appelé « Accessibles », qui se lisait comme une promesse
+    // de prix à côté d'un filtre de budget, puis « Précons », qui ne dit rien à
+    // qui ne connaît pas l'abréviation. Le mot doit se comprendre sans rien
+    // savoir du vocabulaire du jeu.
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
 
-    await tester.tap(find.text('Précons'));
+    await tester.tap(find.text('Tout faits'));
     await tester.pumpAndSettle();
 
     expect(decks.lastFilters?.accessibleOnly, isTrue);
@@ -107,10 +116,71 @@ void main() {
     // justement du mono-rouge.
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
 
-    await tester.tap(find.byTooltip('Rouge'));
+    // Le tap vise l'`InkWell` de la pastille et non son `Tooltip` : ce
+    // dernier enveloppe la zone sensible sans la porter, et un appui sur son
+    // centre peut manquer l'InkWell.
+    await tester.tap(
+      find.descendant(
+        of: find.byTooltip('Rouge'),
+        matching: find.byType(InkWell),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(decks.lastFilters?.colors, {'R'});
+  });
+
+  group('le commandant', () {
+    // Il identifie un deck bien mieux que sa provenance : on choisit son
+    // général avant tout le reste, et deux listes au même nom de produit n'ont
+    // rien à voir si leurs commandants diffèrent.
+    testWidgets('remplace la provenance sur la ligne', (tester) async {
+      await pumpDecksScreen(
+        tester,
+        results: [
+          fakeDeck(
+            tier: 'accessible',
+            commanderOracleId: 'oracle-cmd',
+            commanderName: 'Galadriel, reine elfe',
+          ),
+        ],
+      );
+
+      expect(find.text('Galadriel, reine elfe'), findsOneWidget);
+      expect(find.text('Tout fait'), findsNothing);
+      expect(find.text('TopDeck.gg'), findsNothing);
+    });
+
+    testWidgets('un deck sans commandant garde ses étiquettes', (tester) async {
+      await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      expect(find.text('Tournoi'), findsOneWidget);
+    });
+
+    testWidgets('le nom cherché atteint le dépôt', (tester) async {
+      final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      await tester.tap(find.text('Commander'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Chercher un commandant'),
+        'galadriel',
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      expect(decks.lastFilters?.commander, 'galadriel');
+    });
+
+    testWidgets("la recherche ne paraît qu'en Commander", (tester) async {
+      // En Pauper, un champ de commandant ne pourrait rien trouver.
+      await pumpDecksScreen(tester, results: [fakeDeck()]);
+      expect(find.text('Chercher un commandant'), findsNothing);
+
+      await tester.tap(find.text('Commander'));
+      await tester.pumpAndSettle();
+      expect(find.text('Chercher un commandant'), findsOneWidget);
+    });
   });
 
   testWidgets('remettre à zéro efface tous les filtres', (tester) async {

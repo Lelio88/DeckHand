@@ -39,6 +39,8 @@ DeckSuggestion fakeDeck({
   int total = 60,
   int owned = 50,
   double cost = 12.5,
+  String? commanderOracleId,
+  String? commanderName,
 }) => DeckSuggestion(
   deckId: id,
   deckName: name,
@@ -50,6 +52,8 @@ DeckSuggestion fakeDeck({
   missingCards: total - owned,
   completion: owned / total,
   missingCostEur: cost,
+  commanderOracleId: commanderOracleId,
+  commanderName: commanderName,
 );
 
 /// Enregistre les filtres reçus — c'est précisément ce qui n'était pas transmis

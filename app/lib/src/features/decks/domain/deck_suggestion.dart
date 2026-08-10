@@ -29,6 +29,8 @@ class DeckSuggestion {
     required this.missingCostEur,
     this.attribution,
     this.colors = const [],
+    this.commanderOracleId,
+    this.commanderName,
   });
 
   final String deckId;
@@ -59,6 +61,19 @@ class DeckSuggestion {
   /// WUBRG. Vide pour un deck incolore, qui se joue partout.
   final List<String> colors;
 
+  /// Commandant du deck, quand le format en a un.
+  ///
+  /// **C'est lui qui identifie un deck Commander**, bien mieux que sa
+  /// provenance : on choisit son général avant tout le reste, et deux listes
+  /// portant le même nom de produit n'ont rien à voir si leurs commandants
+  /// diffèrent.
+  final String? commanderOracleId;
+
+  /// Nom du commandant, en français quand la traduction existe.
+  final String? commanderName;
+
+  bool get hasCommander => commanderOracleId != null && commanderName != null;
+
   bool get isBuildable => missingCards == 0;
   bool get isCompetitive => tier == 'competitive';
 
@@ -80,6 +95,8 @@ class DeckSuggestion {
             growable: false,
           ) ??
           const [],
+      commanderOracleId: json['commander_oracle_id'] as String?,
+      commanderName: json['commander_name'] as String?,
     );
   }
 }
