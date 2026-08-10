@@ -29,6 +29,13 @@ from typing import Any
 # n'a pas à entrer dans le catalogue.
 RELEVANT_FORMATS: tuple[str, ...] = ("pauper", "modern", "commander")
 
+# Mises en page qui désignent un objet imprimé mais injouable en deck : jetons,
+# jetons recto-verso, emblèmes. Ils sortent des mêmes boosters et se rangent dans
+# les mêmes classeurs.
+TOKEN_LAYOUTS: frozenset[str] = frozenset(
+    {"token", "double_faced_token", "emblem"}
+)
+
 # Variantes typographiques d'apostrophe rencontrées dans les noms de cartes.
 _APOSTROPHES = "’ʼ‘´`"
 
@@ -70,6 +77,10 @@ class CardPrint:
     finishes: list[str]
     illustration_id: str | None
     released_at: str | None
+    # Illustration débordant du cadre habituel. C'est une propriété de
+    # l'impression, pas de la carte : la même carte existe en version ordinaire
+    # et en pleine illustration, et un collectionneur les range à part.
+    full_art: bool = False
 
 
 def normalize_name(name: str) -> str:
@@ -99,6 +110,32 @@ def is_relevant(legalities: dict[str, str]) -> bool:
     la porte.
     """
     return any(legalities.get(fmt) == "legal" for fmt in RELEVANT_FORMATS)
+
+
+def is_token(payload: dict[str, Any]) -> bool:
+    """Vrai pour un jeton, un jeton recto-verso ou un emblème.
+
+    Le type se lit dans `layout` et non dans `type_line` : « Token Creature »
+    n'est pas une convention garantie, alors que la mise en page l'est.
+    """
+    return payload.get("layout") in TOKEN_LAYOUTS
+
+
+def should_ingest(payload: dict[str, Any]) -> bool:
+    """Vrai si la carte a sa place au catalogue.
+
+    **Deux motifs, et deux seulement.** Une carte y entre parce qu'elle se joue
+    dans un format couvert, ou parce qu'elle se range dans une boîte. Les jetons
+    relèvent du second : ils ne sont légaux nulle part — ce ne sont pas des
+    cartes de deck — mais ils occupent une case de classeur comme les autres, et
+    les exclure rendait une collection physique impossible à saisir en entier.
+
+    Leur absence de légalité les tient d'elle-même à l'écart des suggestions de
+    decks : `legal_pauper`, `legal_modern` et `legal_commander` restent faux, et
+    c'est sur ces colonnes que le moteur travaille. Aucun garde-fou
+    supplémentaire n'est nécessaire.
+    """
+    return is_relevant(payload.get("legalities") or {}) or is_token(payload)
 
 
 def _as_float(value: Any) -> float | None:
@@ -193,6 +230,7 @@ def parse_print(payload: dict[str, Any]) -> CardPrint:
         price_eur_foil=_as_float(prices.get("eur_foil")),
         price_usd_foil=_as_float(prices.get("usd_foil")),
         finishes=payload.get("finishes") or [],
+        full_art=bool(payload.get("full_art")),
         illustration_id=_illustration_id(payload),
         released_at=payload.get("released_at"),
     )

@@ -15,8 +15,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../diagnostics/diagnostics.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../printings/data/printing_repository.dart';
+import '../../printings/domain/card_printing.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../application/scan_service.dart';
@@ -35,7 +38,7 @@ class _Spotted {
   /// photo. Reste modifiable : la reconnaissance propose, l'utilisateur décide.
   int quantity;
 
-  /// Édition possédée, quand l'utilisateur a pris la peine de la désigner.
+  /// Édition possédée, quand elle est connue.
   ///
   /// **Facultative, et elle doit le rester.** L'intérêt de l'étalement est de
   /// saisir vingt cartes d'un geste ; imposer un choix d'édition par carte
@@ -46,6 +49,10 @@ class _Spotted {
   /// écarté : la géométrie d'une carte n'est reconstructible qu'à ±13 %, et
   /// au-delà de 5 % une carte sur trois recevrait la mauvaise édition. Un
   /// geste juste vaut mieux qu'un calcul faux.
+  ///
+  /// Elle est en revanche remplie d'office quand la carte n'a **qu'une seule**
+  /// édition : il n'y a alors rien à deviner, et rien à choisir. C'est le cas
+  /// de quatre cartes du catalogue sur dix.
   PrintingChoice? printing;
 }
 
@@ -97,11 +104,61 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
           ..addAll(found.map(_Spotted.new));
         _scanned = true;
       });
+      await _fillSoleEditions();
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Précise d'office les cartes qui n'admettent qu'une seule édition.
+  ///
+  /// **Ce n'est pas une devinette** : quand le catalogue ne connaît qu'une
+  /// édition, la désigner n'apporte aucune information que la carte elle-même
+  /// ne porte déjà. Demander le geste quand même revenait à faire ouvrir une
+  /// liste d'un seul élément, vingt fois de suite.
+  ///
+  /// L'échec est sans conséquence sur le scan : les lignes restent affichées et
+  /// l'édition se précise à la main, comme avant. Le journal de mesure en garde
+  /// trace pour qui enquête.
+  Future<void> _fillSoleEditions() async {
+    final repository = ref.read(printingRepositoryProvider);
+
+    // Groupé par langue du nom trouvé : au plus deux requêtes, une par langue
+    // présente sur la photo, plutôt qu'une par carte.
+    final byLang = <String, Set<String>>{};
+    for (final spotted in _spotted) {
+      byLang
+          .putIfAbsent(spotted.card.matchedLang, () => <String>{})
+          .add(spotted.card.oracleId);
+    }
+
+    final sole = <String, CardPrinting>{};
+    try {
+      for (final entry in byLang.entries) {
+        sole.addAll(
+          await repository.soleEditions(entry.value, lang: entry.key),
+        );
+      }
+    } catch (e) {
+      diagnose('sole_editions_failed', {'error': '$e'});
+      return;
+    }
+
+    if (!mounted || sole.isEmpty) return;
+    setState(() {
+      for (final spotted in _spotted) {
+        final only = sole[spotted.card.oracleId];
+        if (only == null) continue;
+        // Une édition qui n'existe qu'en brillante l'est d'office : enregistrer
+        // sa jumelle normale reviendrait à inventer un exemplaire impossible.
+        spotted.printing ??= PrintingChoice(
+          only,
+          isFoil: !only.hasNonfoil && only.hasFoil,
+        );
+      }
+    });
   }
 
   Future<void> _saveAll() async {
@@ -505,6 +562,15 @@ class _Note extends StatelessWidget {
 /// **Discrète à dessein.** Sur une liste de vingt cartes, un bouton par ligne
 /// encombrerait ; c'est un texte qui se touche, effacé tant qu'aucune édition
 /// n'est choisie, affirmé une fois qu'elle l'est.
+///
+/// **Le numéro de collection s'affiche avec l'extension.** L'édition étant
+/// désormais parfois retenue sans geste de l'utilisateur, il faut qu'un coup
+/// d'œil suffise à la confronter à ce qui est imprimé en bas de la carte —
+/// c'est là que se joue la confirmation exigée par le garde-fou §IV.8.
+///
+/// **La finition se règle ici**, sans ouvrir le sélecteur : c'est le seul choix
+/// que le catalogue ne peut pas faire à notre place quand l'édition est unique,
+/// et le seul qui distingue deux exemplaires par ailleurs identiques.
 class _EditionLine extends StatelessWidget {
   const _EditionLine({required this.item, required this.onChanged});
 
@@ -528,43 +594,130 @@ class _EditionLine extends StatelessWidget {
     onChanged();
   }
 
+  /// Bascule normal / brillant sans quitter la liste.
+  void _toggleFoil() {
+    final printing = item.printing;
+    if (printing == null) return;
+    item.printing = PrintingChoice(printing.printing, isFoil: !printing.isFoil);
+    onChanged();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final printing = item.printing;
 
-    return InkWell(
-      onTap: () => _choose(context),
-      borderRadius: BorderRadius.circular(6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              printing == null ? Icons.style_outlined : Icons.style,
-              size: 14,
-              color: printing == null
-                  ? theme.colorScheme.onSurfaceVariant
-                  : theme.colorScheme.primary,
-            ),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(
-                printing == null
-                    ? "Préciser l'édition"
-                    : '${printing.printing.setCode.toUpperCase()}'
-                          '${printing.isFoil ? " · brillante" : ""}',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: printing == null
-                      ? theme.colorScheme.onSurfaceVariant
-                      : theme.colorScheme.primary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: InkWell(
+            onTap: () => _choose(context),
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    printing == null ? Icons.style_outlined : Icons.style,
+                    size: 14,
+                    color: printing == null
+                        ? theme.colorScheme.onSurfaceVariant
+                        : theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      printing == null
+                          ? "Préciser l'édition"
+                          : _label(printing.printing),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: printing == null
+                            ? theme.colorScheme.onSurfaceVariant
+                            : theme.colorScheme.primary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
+        ),
+        // Sans édition retenue, la finition n'a rien à régler : le prix est
+        // alors celui de l'impression la moins chère, toutes finitions
+        // confondues.
+        if (printing != null && printing.printing.hasFoil) ...[
+          const SizedBox(width: 8),
+          _FoilChip(
+            value: printing.isFoil,
+            // Une édition qui n'existe qu'en brillante ne se débascule pas.
+            onTap: printing.printing.hasNonfoil ? _toggleFoil : null,
+          ),
+        ],
+      ],
+    );
+  }
+
+  static String _label(CardPrinting printing) {
+    final number = printing.collectorNumber;
+    return [
+      printing.setCode.toUpperCase(),
+      if (number != null) '#$number',
+    ].join(' ');
+  }
+}
+
+/// Marqueur de finition brillante, à même la liste.
+///
+/// Assez petit pour ne pas concurrencer la case à cocher et les quantités, mais
+/// touchable : c'est un réglage qu'on prend au vol, en regardant la carte.
+class _FoilChip extends StatelessWidget {
+  const _FoilChip({required this.value, required this.onTap});
+
+  final bool value;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = value
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Tooltip(
+      message: value ? 'Exemplaire brillant' : 'Exemplaire normal',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: value ? theme.colorScheme.primaryContainer : null,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: value
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                value ? Icons.auto_awesome : Icons.auto_awesome_outlined,
+                size: 12,
+                color: color,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Foil',
+                style: theme.textTheme.labelSmall?.copyWith(color: color),
+              ),
+            ],
+          ),
         ),
       ),
     );

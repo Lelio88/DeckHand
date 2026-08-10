@@ -34,6 +34,7 @@ import '../data/art_index_repository.dart';
 import '../data/card_text_reader.dart';
 import '../domain/art_box.dart';
 import '../domain/art_hash_index.dart';
+import '../domain/card_bounds.dart';
 import '../domain/card_framing.dart';
 import '../domain/card_name_text.dart';
 import '../domain/card_segmentation.dart';
@@ -437,8 +438,17 @@ class ScanService {
       return ScanOutcome.failure('Index de reconnaissance non chargé.');
     }
 
-    final card = cropToCardFrame(decoded);
-    final outcome = _index.searchAny(artHashCandidates(card), limit: limit);
+    // **Les coins de la carte d'abord, le cadre centré à défaut.** Découper à
+    // une position fixe supposait que la carte remplisse l'image : mesuré, cet
+    // espoir ne tolère que 2 à 3 % d'écart, et aucune carte sur quarante n'était
+    // reconnue à partir d'un cadrage ordinaire. La détection ramène ce chiffre à
+    // 37 sur 40 — et quand elle renonce, on retombe exactement sur l'ancien
+    // comportement, jamais sur pire.
+    final quad = findCard(decoded);
+    final candidates = quad == null
+        ? artHashCandidates(cropToCardFrame(decoded))
+        : artHashCandidatesInQuad(decoded, quad);
+    final outcome = _index.searchAny(candidates, limit: limit);
 
     return ScanOutcome(
       oracleIds: outcome.result.candidates

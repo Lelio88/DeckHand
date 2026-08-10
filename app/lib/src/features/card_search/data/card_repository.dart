@@ -52,17 +52,26 @@ class CardRepository {
   ///
   /// Une saisie vide renvoie une liste vide sans solliciter le réseau — inutile
   /// d'interroger la base à chaque effacement du champ.
+  /// [types] restreint aux cartes portant l'un de ces types. Vide, il ne filtre
+  /// rien — le filtrage vit côté serveur, faute de quoi restreindre à
+  /// « Terrain » ne garderait que les terrains des vingt premiers résultats.
   Future<List<CardHit>> search(
     String query, {
     int limit = 20,
     Game game = Game.magic,
+    Iterable<String> types = const [],
   }) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
 
     final rows = await _client.rpc<List<dynamic>>(
       'search_cards',
-      params: {'q': trimmed, 'max_results': limit, 'p_game': game.id},
+      params: {
+        'q': trimmed,
+        'max_results': limit,
+        'p_game': game.id,
+        'p_types': types.toList(growable: false),
+      },
     );
 
     return rows
@@ -118,15 +127,36 @@ final cardRepositoryProvider = Provider<CardRepository>(
   (ref) => CardRepository(Supabase.instance.client),
 );
 
+/// Ce que l'écran de recherche demande : une saisie et des types retenus.
+///
+/// **Les types voyagent en chaîne, pas en liste.** Un `record` compare ses
+/// champs par `==`, et deux `List` de même contenu ne sont jamais égales en
+/// Dart : la clé de `family` aurait changé à chaque reconstruction de l'écran,
+/// relançant la requête, qui reconstruisait l'écran — l'écran de recherche
+/// tournait en boucle jusqu'à expiration.
+///
+/// Les types sont triés à la construction pour que deux sélections identiques
+/// faites dans un ordre différent partagent le même cache.
+typedef CardQuery = ({String text, String types});
+
+CardQuery cardQuery(String text, Iterable<String> types) =>
+    (text: text, types: (types.toList(growable: false)..sort()).join(','));
+
 /// Résultats pour une saisie donnée.
 ///
 /// `autoDispose` associé à `family` fait qu'une recherche abandonnée libère sa
 /// place : en frappant « lightning », l'utilisateur produit neuf requêtes dont
 /// une seule compte.
 final cardSearchProvider = FutureProvider.autoDispose
-    .family<List<CardHit>, String>((ref, query) {
+    .family<List<CardHit>, CardQuery>((ref, query) {
       // `watch` et non `read` : changer de jeu doit relancer la recherche
       // en cours, sinon l'écran garde les résultats de l'autre catalogue.
       final game = ref.watch(selectedGameProvider);
-      return ref.watch(cardRepositoryProvider).search(query, game: game);
+      return ref
+          .watch(cardRepositoryProvider)
+          .search(
+            query.text,
+            game: game,
+            types: query.types.isEmpty ? const [] : query.types.split(','),
+          );
     });

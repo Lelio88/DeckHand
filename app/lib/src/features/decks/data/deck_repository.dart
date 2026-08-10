@@ -30,7 +30,17 @@ class DeckRepository {
         'p_max_missing': filters.buildableOnly ? 0 : 100,
         'p_max_results': maxResults,
         'p_max_cost': filters.maxCostEur,
-        'p_tier': filters.accessibleOnly ? 'accessible' : null,
+        // `p_tier` reste offert par le serveur : le jour où une source
+        // apportera des listes de tournoi Commander, la distinction
+        // redeviendra utile. Aujourd'hui elle doublonne le format.
+        'p_tier': null,
+        // Trié pour que la requête soit la même d'une sélection à l'autre : le
+        // serveur n'a que faire de l'ordre dans lequel on a touché les pastilles.
+        'p_colors': (filters.colors.toList()..sort()),
+        'p_commander': filters.commander.trim().isEmpty
+            ? null
+            : filters.commander.trim(),
+        'p_owned_commander': filters.ownedCommanderOnly,
       },
     );
     return rows
@@ -62,31 +72,55 @@ final deckRepositoryProvider = Provider<DeckRepository>(
 class DeckFilters {
   const DeckFilters({
     this.buildableOnly = false,
-    this.accessibleOnly = false,
     this.maxCostEur,
+    this.colors = const {},
+    this.commander = '',
+    this.ownedCommanderOnly = false,
   });
 
   /// N'afficher que les decks sans carte manquante.
   final bool buildableOnly;
 
-  /// N'afficher que les decks accessibles (précons), à l'exclusion des listes
-  /// de tournoi.
-  final bool accessibleOnly;
-
   /// Plafond du coût de complétion, en euros. Nul si aucune limite.
   final double? maxCostEur;
 
-  bool get isActive => buildableOnly || accessibleOnly || maxCostEur != null;
+  /// Couleurs retenues, en symboles Scryfall (`W`, `U`, `B`, `R`, `G`).
+  ///
+  /// **C'est un tamis, pas une recherche** : ne sont proposés que les decks dont
+  /// l'identité tient dans cette sélection. Demander « rouge » et recevoir un
+  /// deck à cinq couleurs n'aiderait personne — il serait injouable pour qui
+  /// voulait justement du mono-rouge.
+  final Set<String> colors;
+
+  /// Nom de commandant cherché. Vide = tous.
+  ///
+  /// C'est la façon dont on choisit un deck Commander : on part du général
+  /// qu'on veut jouer. La recherche accepte le nom français comme l'anglais.
+  final String commander;
+
+  /// N'afficher que les decks dont on possède déjà le commandant.
+  final bool ownedCommanderOnly;
+
+  bool get isActive =>
+      buildableOnly ||
+      ownedCommanderOnly ||
+      maxCostEur != null ||
+      colors.isNotEmpty ||
+      commander.trim().isNotEmpty;
 
   DeckFilters copyWith({
     bool? buildableOnly,
-    bool? accessibleOnly,
     double? maxCostEur,
+    Set<String>? colors,
+    String? commander,
+    bool? ownedCommanderOnly,
     bool clearCost = false,
   }) => DeckFilters(
     buildableOnly: buildableOnly ?? this.buildableOnly,
-    accessibleOnly: accessibleOnly ?? this.accessibleOnly,
     maxCostEur: clearCost ? null : (maxCostEur ?? this.maxCostEur),
+    colors: colors ?? this.colors,
+    commander: commander ?? this.commander,
+    ownedCommanderOnly: ownedCommanderOnly ?? this.ownedCommanderOnly,
   );
 }
 
@@ -97,12 +131,20 @@ class DeckFiltersNotifier extends Notifier<DeckFilters> {
   void toggleBuildable() =>
       state = state.copyWith(buildableOnly: !state.buildableOnly);
 
-  void toggleAccessible() =>
-      state = state.copyWith(accessibleOnly: !state.accessibleOnly);
-
   void setMaxCost(double? value) => value == null
       ? state = state.copyWith(clearCost: true)
       : state = state.copyWith(maxCostEur: value);
+
+  void toggleColor(String symbol) {
+    final next = {...state.colors};
+    if (!next.remove(symbol)) next.add(symbol);
+    state = state.copyWith(colors: next);
+  }
+
+  void toggleOwnedCommander() =>
+      state = state.copyWith(ownedCommanderOnly: !state.ownedCommanderOnly);
+
+  void searchCommander(String name) => state = state.copyWith(commander: name);
 
   void reset() => state = const DeckFilters();
 }

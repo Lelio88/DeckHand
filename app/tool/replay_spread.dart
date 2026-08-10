@@ -20,7 +20,9 @@ import 'package:deckhand/src/features/scan/domain/spread_names.dart';
 
 void main(List<String> args) {
   if (args.isEmpty) {
-    stderr.writeln('usage : dart run tool/replay_spread.dart <journal> [index]');
+    stderr.writeln(
+      'usage : dart run tool/replay_spread.dart <journal> [index]',
+    );
     exit(64);
   }
 
