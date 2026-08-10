@@ -15,11 +15,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../config/selected_game.dart';
+import '../../binders/presentation/binder_view.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/foil_decoration.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/collection_repository.dart';
 import '../domain/collection_entry.dart';
+
+/// Les deux façons de regarder ce qu'on possède.
+///
+/// **Deux vues d'un même onglet, et non une vue et une action** — la liste dit
+/// ce qu'on a, le classeur dit ce qui manque. Elles répondent à la même question
+/// par deux chemins, et un bouton glissé parmi les filtres aurait laissé croire
+/// à un filtre de plus.
+enum CollectionMode {
+  list('Liste'),
+  binder('Classeur');
+
+  const CollectionMode(this.label);
+
+  final String label;
+}
+
+class SelectedCollectionMode extends Notifier<CollectionMode> {
+  @override
+  CollectionMode build() => CollectionMode.list;
+
+  void select(CollectionMode mode) => state = mode;
+}
+
+final collectionModeProvider =
+    NotifierProvider<SelectedCollectionMode, CollectionMode>(
+      SelectedCollectionMode.new,
+    );
 
 class CollectionScreen extends ConsumerStatefulWidget {
   const CollectionScreen({super.key});
@@ -143,10 +171,18 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         if (totals.isEmpty) return const _EmptyCollection();
 
         final entries = [...?page.asData?.value, ..._extra];
+        final mode = ref.watch(collectionModeProvider);
 
         return Column(
           children: [
             _Totals(summary: totals),
+            const _ModeSelector(),
+            // Le classeur n'a que faire de la recherche ni des tris : il est
+            // ordonné par construction, et ce qu'il montre — les cases vides —
+            // n'est pas dans la collection.
+            if (mode == CollectionMode.binder) ...[
+              const Expanded(child: BinderView()),
+            ] else ...[
             _Toolbar(
               controller: _searchController,
               view: view,
@@ -203,9 +239,37 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                 },
               ),
             ),
+            ],
           ],
         );
       },
+    );
+  }
+}
+
+/// Bascule entre la liste et le classeur.
+class _ModeSelector extends ConsumerWidget {
+  const _ModeSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(collectionModeProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+      child: Row(
+        children: [
+          for (final value in CollectionMode.values) ...[
+            ChoiceChip(
+              label: Text(value.label),
+              selected: mode == value,
+              onSelected: (_) =>
+                  ref.read(collectionModeProvider.notifier).select(value),
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 8),
+          ],
+        ],
+      ),
     );
   }
 }

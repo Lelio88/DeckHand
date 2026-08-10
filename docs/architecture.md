@@ -275,6 +275,20 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 
 **Le tri « classeur » ajoute l'extension par-dessus le numéro**, parce que le numéro seul mêle les volumes : `mar #43` et `msh #43` se suivaient, alors qu'ils sont rangés dans deux classeurs différents. L'extension désigne le classeur, le numéro la case. Les extensions sont ordonnées **alphabétiquement par code** : par date de sortie serait plus proche d'une étagère réelle, mais deux extensions parues le même jour deviendraient arbitraires, et l'ordre changerait sous les yeux de l'utilisateur au gré des rééditions. Renverser ce tri renverse le couple entier — dernière extension, dernière page — n'en inverser qu'une moitié donnerait des classeurs à l'envers contenant des pages à l'endroit. Les deux tris coexistent : le numéro seul reste le moyen de retrouver une carte dont on ne sait plus de quelle extension elle vient.
 
+### Le classeur : une vue dérivée, jamais une table
+
+**Un classeur est une édition, une case est un numéro.** Il n'y a donc rien à stocker : la case est le couple `(set_code, collector_number)`, déjà porté par `card_prints`. Le classeur se dérive de la collection au lieu de s'y ajouter, et l'on ne peut pas l'en désynchroniser — il n'en est qu'une lecture. Deux fonctions suffisent : `my_binder_shelf` pour l'étagère, `my_binder_page` pour neuf cases.
+
+**Une case n'est pas une impression.** Le catalogue porte l'anglais et le français ; le #412 anglais et le #412 français partagent la même case, la langue étant une propriété de ce qu'on y range. Chaque case élit donc une impression représentative pour son illustration et son nom — le français d'abord, l'illustration étant de toute façon identique. Le brillant ne dédouble pas non plus la case : deux cases pour un même numéro casseraient la grille physique, il est signalé sur celle qu'il occupe.
+
+**Ce que le classeur montre et qu'une liste ne montre pas, ce sont les cases vides.** `my_binder_page` part du catalogue et non de la collection : une case non possédée existe, occupe sa place, et porte son numéro. C'est une vue de complétion d'édition — la liste dit ce qu'on a, le classeur dit ce qui manque.
+
+**L'entrée est une étagère, pas un classeur.** 695 éditions au catalogue : n'y figurent que celles où au moins une carte est rangée, les autres seraient 690 classeurs vides. Mesuré sur la collection réelle : `msh` 216/453 cases (47,7 %), `tmsh` 15/27, `msc` 12/866, `mar` 3/100, `tmsc` 1/32. La page est demandée au serveur et non découpée côté application — une édition compte jusqu'à 866 cases, soit 97 feuilles.
+
+Les cartes sans édition précisée n'ont **aucune case**, par construction. Elles ne sont pas perdues pour autant : `my_collection_summary` les compte, et le bandeau de l'onglet le rappelle.
+
+Le classeur est une **vue de l'onglet Collection**, au même titre que « Construire » l'est de l'onglet Decks : liste et classeur répondent à la même question par deux chemins, quand un bouton glissé parmi les filtres aurait laissé croire à un filtre de plus. Le volume, les pages qui se tournent et le reflet des brillants relèvent d'un chantier distinct — une belle animation qui saccade serait pire qu'une grille sobre.
+
 ### Deux voies de reconnaissance, dans l'ordre
 
 Depuis le test terrain, la carte est identifiée **par son nom d'abord**, par son illustration ensuite.
