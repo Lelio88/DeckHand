@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../diagnostics/diagnostics.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
@@ -111,7 +112,13 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       oracleId: card.oracleId,
       cardName: card.matchedName,
       lang: card.matchedLang,
-      readSetCode: lines.isEmpty ? null : (codes) => readSetCode(lines, codes),
+      readSetCode: lines.isEmpty
+          ? null
+          : (codes) {
+              final read = readSetCode(lines, codes);
+              _diagnoseSetCode(lines, codes, read);
+              return read;
+            },
     );
     if (chosen == null || !mounted) return;
     await _add(
@@ -119,6 +126,40 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       printId: chosen.isUnspecified ? null : chosen.printing.printId,
       isFoil: chosen.isFoil,
     );
+  }
+
+  /// Consigne ce que la lecture du code d'extension a vu, et ce qu'elle en a
+  /// fait.
+  ///
+  /// **Un bandeau absent ne dit pas pourquoi il est absent**, et les causes
+  /// appellent des correctifs opposés : le code peut n'avoir pas été lu du tout
+  /// (cadrage, netteté), avoir été lu de travers (`M5H` — il faudrait tolérer
+  /// une faute), avoir été collé à un mot voisin (il faudrait revoir le
+  /// découpage), ou avoir été lu juste sans figurer parmi les extensions de la
+  /// carte (le catalogue écrit le code autrement que la carte). Sans le texte
+  /// brut en face des candidats, on choisirait le correctif à l'aveugle.
+  ///
+  /// Les lignes sont émises une par une : le tampon de `logcat` tronque les
+  /// entrées longues, et une carte peut en produire une quarantaine.
+  void _diagnoseSetCode(
+    List<ReadLine> lines,
+    Set<String> candidates,
+    String? read,
+  ) {
+    if (!diagnosticsEnabled) return;
+    diagnose('set_code', {
+      'read': read,
+      'candidates': candidates.length,
+      'codes': (candidates.toList()..sort()).take(20).toList(),
+      'lines': lines.length,
+    });
+    for (final line in lines) {
+      diagnose('set_code_line', {
+        'text': line.text,
+        'top': line.top,
+        'height': line.height,
+      });
+    }
   }
 
   Future<void> _add(CardHit card, {String? printId, bool isFoil = false}) async {
@@ -441,24 +482,49 @@ class _Candidate extends StatelessWidget {
   }
 }
 
-class _LoadingIndex extends StatelessWidget {
+/// Attente du premier chargement de l'index.
+///
+/// **L'avancement est affiché parce que l'attente est longue.** L'index demande
+/// une cinquantaine d'allers-retours ; un indicateur qui tourne sans chiffre ne
+/// permet pas de distinguer « ça avance » de « c'est bloqué », et c'est
+/// précisément la confusion qu'il a produite en usage réel. La barre montre la
+/// fraction reçue dès la première page ; tant qu'aucune n'est arrivée, elle
+/// reste indéterminée plutôt que d'afficher un zéro qui ne veut rien dire.
+class _LoadingIndex extends ConsumerWidget {
   const _LoadingIndex();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final progress = ref.watch(artIndexProgressProvider);
+    final fraction = progress == null || progress.total <= 0
+        ? null
+        : progress.received / progress.total;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(strokeWidth: 2),
+            SizedBox(
+              width: 180,
+              child: LinearProgressIndicator(value: fraction),
+            ),
             const SizedBox(height: 20),
             Text(
               'Chargement de l\'index de reconnaissance',
               style: theme.textTheme.titleSmall,
             ),
+            if (progress != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                '${progress.received} / ${progress.total} illustrations',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
             const SizedBox(height: 6),
             Text(
               'Une seule fois — ensuite la reconnaissance fonctionne hors ligne.',

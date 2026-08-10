@@ -35,6 +35,28 @@ import 'card_name_text.dart';
 /// rendues telles quelles par la reconnaissance, et parfois collées au code.
 final _separators = RegExp(r'[^A-Za-z0-9]+');
 
+/// Codes de langue imprimés à la suite du code d'extension.
+///
+/// **Mesuré sur le terrain** : la ligne `MSH • EN • GRACE ZHU` est parfois
+/// rendue `MSHEN GRACE ZH` par la reconnaissance, la puce séparatrice ayant
+/// disparu. Sur trois cartes scannées, une était dans ce cas — le code était
+/// parfaitement lu, et pourtant perdu faute de pouvoir le détacher.
+///
+/// **Pourquoi une liste fermée plutôt qu'un simple préfixe.** Accepter tout mot
+/// *commençant par* un code candidat ferait de « MARVEL », imprimé au bas de
+/// chaque carte de ces extensions, une désignation de l'extension `mar` — un
+/// faux positif sur la carte même qui l'affiche. Exiger que le reste soit un
+/// code de langue ferme la porte : `MARVEL` se décompose en `MAR` + `VEL`, qui
+/// n'est pas une langue.
+///
+/// La liste couvre les douze langues du catalogue, plus les abréviations
+/// imprimées qui en diffèrent (`JP` pour le japonais, `CS`/`CT` pour les deux
+/// chinois, `ZH` quand la variante n'est pas précisée).
+const _languages = {
+  'EN', 'FR', 'DE', 'IT', 'ES', 'PT', 'JA', 'JP', 'KO', 'RU',
+  'ZH', 'ZHS', 'ZHT', 'CS', 'CT', 'PH',
+};
+
 /// Le code d'extension lu, ou `null` si rien de sûr n'a été trouvé.
 ///
 /// [candidates] est l'ensemble des codes où la carte identifiée existe, tels
@@ -56,7 +78,7 @@ String? readSetCode(List<ReadLine> lines, Set<String> candidates) {
   String? found;
   for (final line in lines) {
     for (final word in line.text.split(_separators)) {
-      final match = wanted[word];
+      final match = wanted[word] ?? _codeGluedToLanguage(word, wanted);
       if (match == null) continue;
       // Deux extensions distinctes : sur un étalement, la ligne d'une carte
       // voisine peut entrer dans le champ. Deviner laquelle est la bonne
@@ -66,4 +88,17 @@ String? readSetCode(List<ReadLine> lines, Set<String> candidates) {
     }
   }
   return found;
+}
+
+/// Le code d'extension d'un mot où il a été collé à la langue, s'il y en a un.
+///
+/// La séparation n'est tentée que si le reste du mot est **exactement** un code
+/// de langue : `MSHEN` → `msh`, mais `MARVEL` reste `MARVEL`.
+String? _codeGluedToLanguage(String word, Map<String, String> wanted) {
+  for (final entry in wanted.entries) {
+    if (word.length <= entry.key.length) continue;
+    if (!word.startsWith(entry.key)) continue;
+    if (_languages.contains(word.substring(entry.key.length))) return entry.value;
+  }
+  return null;
 }
