@@ -59,6 +59,7 @@ class ScanOutcome {
     required this.isConfident,
     this.method = ScanMethod.art,
     this.readName,
+    this.readLines = const [],
     this.frame,
     this.error,
   });
@@ -77,12 +78,32 @@ class ScanOutcome {
   /// trompe, le voir explique l'erreur au lieu de la rendre incompréhensible.
   final String? readName;
 
+  /// **Tout** le texte lu sur la photo, et pas seulement le nom.
+  ///
+  /// La reconnaissance rend aussi le type, les règles, l'illustrateur et la
+  /// ligne d'extension ; jusqu'ici tout cela était jeté après avoir servi à
+  /// trouver le nom. Or c'est là que se lit le code d'extension, qui précise
+  /// l'édition — voir `readSetCode`. Les conserver ne coûte rien : elles sont
+  /// déjà en mémoire.
+  final List<ReadLine> readLines;
+
   /// Cadre ayant donné la meilleure correspondance, utile au diagnostic.
   final CardFrame? frame;
 
   final String? error;
 
   bool get isEmpty => oracleIds.isEmpty;
+
+  /// Le même résultat, augmenté du texte lu sur la photo.
+  ScanOutcome withLines(List<ReadLine> lines) => ScanOutcome(
+        oracleIds: oracleIds,
+        isConfident: isConfident,
+        method: method,
+        readName: readName,
+        readLines: lines,
+        frame: frame,
+        error: error,
+      );
 
   factory ScanOutcome.failure(String message) =>
       ScanOutcome(oracleIds: const [], isConfident: false, error: message);
@@ -135,12 +156,23 @@ class ScanService {
     // L'empreinte est calculée d'abord : elle ne dépend d'aucun service externe
     // et sert de recours quel que soit le sort de la lecture du texte.
     final art = _byArt(photoBytes, limit: limit);
-    final names = await _readNames(photoPath);
+    // Les lignes brutes sont gardées : le nom en sort, mais aussi la ligne
+    // d'extension dont l'écran a besoin pour préciser l'édition.
+    final lines = photoPath == null
+        ? const <ReadLine>[]
+        : await _reader.readLines(photoPath);
+    final names = cardNameCandidates(lines);
 
-    if (names.isEmpty) return art;
+    // Même quand le nom n'a rien donné, le texte lu garde sa valeur : la carte
+    // identifiée par son illustration a, elle aussi, une extension à préciser.
+    // Un nom illisible n'implique pas un code illisible — il est plus court et
+    // en capitales.
+    final byArt = art.withLines(lines);
+
+    if (names.isEmpty) return byArt;
 
     final found = await _searchNames(names, limit: limit);
-    if (found.isEmpty) return art;
+    if (found.isEmpty) return byArt;
 
     // Les deux voies concordent : le doute est levé, quelle que soit la
     // distance d'empreinte — c'est la confirmation croisée qui fait foi.
@@ -158,6 +190,7 @@ class ScanService {
       isConfident: confirmed || found.length == 1,
       method: confirmed ? ScanMethod.nameAndArt : ScanMethod.name,
       readName: names.first,
+      readLines: lines,
       frame: art.frame,
     );
   }
@@ -457,11 +490,6 @@ class ScanService {
       isConfident: outcome.result.isConfident,
       frame: outcome.source,
     );
-  }
-
-  Future<List<String>> _readNames(String? path) async {
-    if (path == null) return const [];
-    return cardNameCandidates(await _reader.readLines(path));
   }
 
   /// Confronte les noms lus au catalogue.

@@ -20,6 +20,8 @@ import '../../printings/presentation/printing_picker.dart';
 import '../application/scan_service.dart';
 import '../data/art_index_repository.dart';
 import '../data/photo_source.dart';
+import '../domain/card_name_text.dart';
+import '../domain/set_code_text.dart';
 
 class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key});
@@ -100,11 +102,16 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   /// le faire. Or c'est ici qu'on la tient en main, donc le seul moment où l'on
   /// sait de quelle extension elle vient et si elle brille.
   Future<void> _addWithPrinting(CardHit card) async {
+    // Le texte lu sur la photo porte la ligne d'extension. Elle ne sert que si
+    // la carte a plusieurs éditions — d'où la fonction, appelée par le
+    // sélecteur une fois qu'il sait lesquelles.
+    final lines = _outcome?.readLines ?? const <ReadLine>[];
     final chosen = await showPrintingPicker(
       context,
       oracleId: card.oracleId,
       cardName: card.matchedName,
       lang: card.matchedLang,
+      readSetCode: lines.isEmpty ? null : (codes) => readSetCode(lines, codes),
     );
     if (chosen == null || !mounted) return;
     await _add(
