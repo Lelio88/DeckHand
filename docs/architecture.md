@@ -297,7 +297,31 @@ Deux cartes scannées, deux échecs, **deux causes distinctes** — mesurées, p
 | 5 % | 15 | incertaine |
 | 10 % | 24 | perdue |
 
-Un décalage latéral de 2 % suffit également à franchir le seuil. **Le pipeline tolère 2 à 3 % d'écart** — soit 2,6 mm sur la hauteur d'une carte. Aucun cadrage à main levée n'atteint cette précision.
+Un décalage latéral de 2 % suffit également à franchir le seuil. **Le pipeline tolérait 2 à 3 % d'écart** — soit 2,6 mm sur la hauteur d'une carte. Aucun cadrage à main levée n'atteint cette précision. C'est ce constat qui a fait passer la lecture du nom devant l'empreinte, et c'est lui que la détection des bords lève (voir ci-dessous).
+
+### La détection des bords, mesurée avant et après
+
+`api/app/measure/framing_bench.py` compose des photos dont on connaît le défaut — marge de table, décalage, rotation — et mesure la distance de l'empreinte obtenue à celle de l'index. **Le tirage des cartes est reproductible** : un `ORDER BY random()` aurait rendu deux exécutions incomparables, et l'écart entre deux versions du code se serait confondu avec l'écart entre deux paquets de cartes.
+
+Sur 40 cartes, seuil de confiance à 12 bits :
+
+| Régime (marge · décalage · rotation) | Cadrage centré | Détection des bords |
+|---|---|---|
+| parfait — 0 % · 0 % · 0° | 1 bit · 39/40 | 3 bits · 39/40 |
+| soigné — 3 % · 1 % · 0,5° | 12 · 23/40 | 4 · 33/40 |
+| ordinaire — 8 % · 3 % · 2° | 22 · **0/40** | 3 · **37/40** |
+| à la volée — 15 % · 6 % · 5° | 27 · **0/40** | 3 · **37/40** |
+| négligent — 25 % · 10 % · 9° | 29 · **0/40** | 3 · **37/40** |
+
+**La médiane ne bouge plus avec le soin apporté à la photo** : le cadrage a cessé d'être le facteur limitant. Cinq détections sur 200 ont renoncé et sont retombées sur le cadrage centré, c'est-à-dire sur le comportement antérieur.
+
+**Pourquoi ce cas réussit là où l'étalement a échoué.** Les impasses de [`spread-detection.md`](./spread-detection.md) portent toutes sur une photo de plusieurs cartes, et ce qui y ruine la segmentation est le **contact** : deux voisines se soudent en une forme unique, de proche en proche. Sur une carte seule, il n'y a pas de voisine à toucher.
+
+**Les quatre coins plutôt que la boîte englobante.** Une carte tournée de cinq degrés a une boîte nettement plus large qu'elle ; y découper une zone en proportions raterait l'illustration autant qu'avant. Les coins s'obtiennent par les extrêmes des sommes et des différences des coordonnées — exact pour un rectangle quelle que soit sa rotation, et insensible au bruit du contour.
+
+**L'image n'est jamais redressée.** Redresser demanderait de résoudre une homographie puis de rééchantillonner toute la photo pour n'en garder qu'un huitième. La zone voulue est lue directement, en interpolant les quatre coins puis les quatre pixels voisins. Le plus proche voisin coûtait trois bits — mesuré — sur un seuil qui n'en compte que douze.
+
+**Limites mesurées.** Le régime « soigné » est le moins bon des cinq (33/40) : à 3 % de marge, la carte frôle le bord de la photo, et l'inondation du fond depuis les bords a peu de prise pour la contourner. Et un fond parfaitement uniforme privait le seuil de table de toute matière — corrigé, mais c'est le genre de cas qu'une photo réelle ne produit jamais et qu'un test de synthèse révèle immédiatement.
 
 Cette exigence n'était pas visible dans les mesures antérieures (100 % de reconnaissance, 0 faux positif) parce qu'elles partaient des `art_crop` de Scryfall, c'est-à-dire d'illustrations déjà découpées au pixel près. **Le protocole validait le comparateur d'empreintes, jamais la chaîne photo → illustration.**
 
