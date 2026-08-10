@@ -175,7 +175,12 @@ void main() {
       entries: [entry(quantity: 3, unitPrice: null)],
     );
 
-    expect(find.text('Prix inconnu'), findsOneWidget);
+    expect(
+      find.text('—'),
+      findsOneWidget,
+      reason: 'un tiret dit l\'absence de cote ; un zéro ferait croire à une '
+          'carte sans valeur',
+    );
   });
 
   testWidgets('ajouter un exemplaire passe par le dépôt', (tester) async {
@@ -412,12 +417,16 @@ void main() {
       expect(decoration.color, isNotNull);
     });
 
-    testWidgets("l'icône nomme ce que le fond signale", (tester) async {
+    testWidgets('le mot accompagne le fond, sans icône', (tester) async {
+      // L'icône a été retirée : le fond irisé porte déjà le signal, et le mot
+      // le nomme. Une troisième marque pour la même information encombrait une
+      // ligne qui doit tenir sur la largeur d'un téléphone.
       await pumpCollection(tester, entries: [foilEntry()]);
-      expect(find.byIcon(Icons.auto_awesome), findsOneWidget);
+      expect(find.textContaining('foil'), findsOneWidget);
+      expect(find.byIcon(Icons.auto_awesome), findsNothing);
 
       await pumpCollection(tester, entries: [foilEntry(isFoil: false)]);
-      expect(find.byIcon(Icons.auto_awesome), findsNothing);
+      expect(find.textContaining('foil'), findsNothing);
     });
   });
 
@@ -436,7 +445,11 @@ void main() {
       );
 
       expect(find.textContaining('Modern Horizons 2'), findsOneWidget);
-      expect(find.textContaining('MH2 #123'), findsOneWidget);
+      expect(
+        find.text('#123'),
+        findsOneWidget,
+        reason: 'le numéro accompagne le nom, là où on le cherche pour ranger',
+      );
     });
 
     testWidgets('une édition inconnue invite à la préciser', (tester) async {

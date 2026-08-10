@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../config/selected_game.dart';
+import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/foil_decoration.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/collection_repository.dart';
@@ -470,80 +471,120 @@ class _EntryTile extends ConsumerWidget {
     );
     final repository = ref.read(collectionRepositoryProvider);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-      decoration: foilDecoration(theme, foil: entry.isFoil),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.displayName,
-                  style: theme.textTheme.titleMedium,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (entry.displayName != entry.name)
-                  Text(entry.name, style: muted, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                _PrintingLine(
-                  entry: entry,
-                  onTap: () => _changePrinting(context, ref),
-                ),
-                Text(
-                  entry.unitPriceEur == null
-                      ? 'Prix inconnu'
-                      : '${entry.unitPriceEur!.toStringAsFixed(2)} € l\'unité',
-                  style: muted,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
-            tooltip: 'Retirer un exemplaire',
-            onPressed: () => _change(
-              ref,
-              () => repository.remove(
-                entry.oracleId,
-                printId: entry.printId,
-                isFoil: entry.isFoil,
+    return GestureDetector(
+      // Même geste que partout ailleurs — étalement, dictée, sélecteur : on
+      // maintient une ligne pour voir la carte. Ici il sert à retrouver dans une
+      // liste de deux mille entrées celle qu'on a en main.
+      onLongPress: () => showCardArt(
+        context,
+        oracleId: entry.oracleId,
+        title: entry.displayName,
+        printId: entry.printId,
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+        decoration: foilDecoration(theme, foil: entry.isFoil),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          entry.displayName,
+                          style: theme.textTheme.titleMedium,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Le numéro suit le nom parce que c'est ainsi qu'on range :
+                      // on cherche une carte, puis sa place. Le mettre plus bas
+                      // avec l'extension obligeait à descendre le regard pour la
+                      // moitié de l'information dont on se sert.
+                      if (entry.collectorNumber != null) ...[
+                        const SizedBox(width: 8),
+                        Text('#${entry.collectorNumber}', style: muted),
+                      ],
+                    ],
+                  ),
+                  if (entry.displayName != entry.name)
+                    Text(
+                      entry.name,
+                      style: muted,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  const SizedBox(height: 2),
+                  _PrintingLine(
+                    entry: entry,
+                    onTap: () => _changePrinting(context, ref),
+                  ),
+                ],
               ),
             ),
-          ),
-          SizedBox(
-            width: 28,
-            child: Text(
-              '${entry.quantity}',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            tooltip: 'Ajouter un exemplaire',
-            onPressed: () => _change(
-              ref,
-              () => repository.add(
-                entry.oracleId,
-                printId: entry.printId,
-                isFoil: entry.isFoil,
+            IconButton(
+              icon: const Icon(Icons.remove_circle_outline),
+              tooltip: 'Retirer un exemplaire',
+              onPressed: () => _change(
+                ref,
+                () => repository.remove(
+                  entry.oracleId,
+                  printId: entry.printId,
+                  isFoil: entry.isFoil,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 4),
-          SizedBox(
-            width: 62,
-            child: Text(
-              entry.linePriceEur == null
-                  ? '—'
-                  : '${entry.linePriceEur!.toStringAsFixed(2)} €',
-              textAlign: TextAlign.right,
-              style: theme.textTheme.titleSmall,
+            SizedBox(
+              width: 28,
+              child: Text(
+                '${entry.quantity}',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium,
+              ),
             ),
-          ),
-        ],
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: 'Ajouter un exemplaire',
+              onPressed: () => _change(
+                ref,
+                () => repository.add(
+                  entry.oracleId,
+                  printId: entry.printId,
+                  isFoil: entry.isFoil,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 66,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    entry.linePriceEur == null
+                        ? '—'
+                        : '${entry.linePriceEur!.toStringAsFixed(2)} €',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  // Le prix unitaire n'apparaît qu'en présence de plusieurs
+                  // exemplaires : sur un exemplaire unique il répéterait le
+                  // nombre du dessus.
+                  if (entry.quantity > 1 && entry.unitPriceEur != null)
+                    Text(
+                      '${entry.unitPriceEur!.toStringAsFixed(2)} €/u',
+                      textAlign: TextAlign.right,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -575,15 +616,6 @@ class _PrintingLine extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(known ? Icons.style : Icons.style_outlined, size: 13, color: color),
-            const SizedBox(width: 5),
-            // Le fond irisé se voit au défilement, l'icône nomme ce qu'il
-            // signifie une fois la ligne regardée. L'un sans l'autre laisserait
-            // deviner.
-            if (entry.isFoil) ...[
-              Icon(Icons.auto_awesome, size: 13, color: theme.colorScheme.primary),
-              const SizedBox(width: 4),
-            ],
             Flexible(
               child: Text(
                 '${entry.printingLabel ?? 'Édition non précisée'}${entry.isFoil ? ' · foil' : ''}',

@@ -259,6 +259,8 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 
 **La collection compte des éditions, le deckbuilding compte des cartes.** `my_collection_summary.distinct_cards` dénombre les couples (extension, numéro) — une carte sans édition précisée en valant un. Compter les `oracle_id` annonçait « 180 cartes dont 179 références distinctes » à qui possède deux Plaines numérotées 277 et 278 : Scryfall donne un identifiant oracle unique à tous les terrains de base d'un même type, et la collection en connaît 871 éditions. Les deux lectures sont justes, mais pas au même endroit — deux illustrations occupent deux cases d'un classeur, quand `deck_suggestions` doit continuer de voir deux exemplaires de la même carte. Conséquences assumées de cette unité : la même édition en français et en anglais compte pour une, le brillant aussi, la finition n'étant pas un numéro.
 
+**`add_to_collection` et `remove_from_collection` rendent le total de la carte**, toutes éditions et finitions confondues — le même nombre que `search_cards.owned`, et donc celui qu'affichent « Déjà N » et « vous en avez N ». Ils rendaient auparavant la quantité de la ligne touchée : les deux coïncidaient tant qu'on ne possédait qu'une version d'une carte, et divergeaient dès la seconde. Posséder un Marais sans édition, en choisir une, ajouter : la base créait une deuxième ligne à un exemplaire et renvoyait 1, si bien que l'écran affichait « Déjà 1 » avant comme après — pour deux Marais en collection. Le décompte par édition n'est pas perdu : le sélecteur le porte ligne par ligne, où il a du sens.
+
 **Ce qui reste à préciser est atteignable.** `my_collection(p_unspecified_only)` restreint la page aux exemplaires sans édition, et l'écran expose le filtre dès qu'il en existe. Les compter sans donner le moyen de les rejoindre laissait un chantier visible et inaccessible : sur deux mille cartes, on ne les retrouve pas une à une dans la liste. Le filtre reste affiché tant qu'il est actif, même une fois le compte tombé à zéro — sinon le bouton disparaîtrait en laissant une liste filtrée et vide, sans moyen d'en sortir.
 
 **La collection se trie aussi par numéro de collection.** Les autres critères — nom, valeur, quantité, date d'entrée — répondent à des questions d'inventaire ; celui-ci répond à la seule qu'on se pose une carte à la main devant une boîte : où va-t-elle ? Le tri porte sur la partie chiffrée du numéro, `collector_number` étant un `text` qui accepte les suffixes (`43a`, `★43`) et rangerait sinon 100 avant 2. Les cartes sans édition précisée n'ont pas de numéro et ferment la marche, ce qui les désigne du même geste comme celles qui restent à préciser.
@@ -711,6 +713,19 @@ paliers sont ce qui fait remonter « Sol Ring » avant « Soliton » quand on ta
 **Performance mesurée** : 64 ms de médiane depuis un client, dont 45 ms de latence
 réseau vers la région Londres. Le premier appel après une période d'inactivité coûte
 plusieurs centaines de millisecondes — c'est un démarrage à froid, pas la requête.
+
+**Le filtre par type est servi par la même fonction** (`p_types`), et non appliqué à
+la liste reçue : restreindre après coup ne garderait que les terrains des vingt
+premiers résultats, soit souvent aucun. Le filtre porte sur des sous-chaînes anglaises
+de `type_line` ; une carte cumulant ses types (« Artifact Creature ») répond aux deux,
+ce qui est la lecture juste. Les libellés français et la liste par jeu vivent côté
+application (Magic en compte huit d'usage courant, Riftbound six), ce qui évite de
+toucher au serveur chaque fois qu'un catalogue gagne un type.
+
+**Le catalogue exclut les tokens** : `is_relevant` ne retient que les cartes légales
+dans au moins un format couvert, et un token ne l'est nulle part. Conséquence assumée
+tant que le produit vise le deckbuilding — mais qui empêche de saisir une boîte
+complète, où les tokens sont rangés avec le reste.
 
 Un index de préfixe (`text_pattern_ops`) a été essayé puis **retiré** : il n'apportait
 aucun gain. Le motif de recherche provient d'un sous-select, il est donc inconnu au

@@ -26,16 +26,25 @@ import '../data/printing_repository.dart';
 /// l'illustration est la même, mais le choix évite de rapatrier deux fois la
 /// liste. [title] est affiché sous l'image : sur une carte reconnue de travers,
 /// c'est lui qui explique ce que l'on regarde.
+///
+/// [printId] désigne l'édition possédée quand elle est connue. Une carte
+/// rééditée change parfois d'illustration : montrer celle d'une autre édition
+/// ferait douter de sa propre saisie.
 Future<void> showCardArt(
   BuildContext context, {
   required String oracleId,
   required String title,
   String? lang,
+  String? printId,
 }) {
   return showDialog<void>(
     context: context,
-    builder: (_) =>
-        _CardArtDialog(oracleId: oracleId, title: title, lang: lang),
+    builder: (_) => _CardArtDialog(
+      oracleId: oracleId,
+      title: title,
+      lang: lang,
+      printId: printId,
+    ),
   );
 }
 
@@ -44,11 +53,13 @@ class _CardArtDialog extends ConsumerWidget {
     required this.oracleId,
     required this.title,
     this.lang,
+    this.printId,
   });
 
   final String oracleId;
   final String title;
   final String? lang;
+  final String? printId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,13 +74,20 @@ class _CardArtDialog extends ConsumerWidget {
         children: [
           printings.when(
             data: (list) {
-              // La première impression qui porte une illustration : les plus
-              // anciennes n'en ont pas toujours, et une liste sans image ne
-              // doit pas se solder par un cadre vide sans explication.
-              final url = list
-                  .map((p) => p.artCropUrl)
-                  .where((u) => u != null)
-                  .firstOrNull;
+              // L'édition possédée d'abord, la première illustrée ensuite : les
+              // plus anciennes impressions n'ont pas toujours d'image, et une
+              // liste sans illustration ne doit pas se solder par un cadre vide
+              // sans explication.
+              final url =
+                  list
+                      .where((p) => p.printId == printId)
+                      .map((p) => p.artCropUrl)
+                      .where((u) => u != null)
+                      .firstOrNull ??
+                  list
+                      .map((p) => p.artCropUrl)
+                      .where((u) => u != null)
+                      .firstOrNull;
               if (url == null) {
                 return const _Absent("Pas d'illustration connue.");
               }

@@ -64,11 +64,14 @@ class CollectionEntry {
 
   bool get hasPrinting => printId != null;
 
-  /// Édition telle qu'affichée : « Modern Horizons 2 · MH2 #123 ».
+  /// Édition telle qu'affichée : « Modern Horizons 2 · MH2 ».
+  ///
+  /// Le numéro n'y figure pas : il accompagne le nom de la carte, là où on le
+  /// cherche pour ranger. Le répéter ici allongerait une ligne qui doit tenir
+  /// sur la largeur d'un téléphone.
   String? get printingLabel {
     if (setCode == null) return null;
-    final number = collectorNumber == null ? '' : ' #$collectorNumber';
-    return '${setName ?? setCode!.toUpperCase()} · ${setCode!.toUpperCase()}$number';
+    return '${setName ?? setCode!.toUpperCase()} · ${setCode!.toUpperCase()}';
   }
 
   /// Nom à afficher : le français s'il existe, l'anglais sinon.
