@@ -180,4 +180,23 @@ void main() {
 
     expect(find.text('Déjà 3'), findsOneWidget);
   });
+
+  testWidgets('la notification d\'ajout s\'efface d\'elle-même', (tester) async {
+    await pumpSearch(tester, results: [hit()]);
+
+    await tester.tap(find.byTooltip('Ajouter à ma collection'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byType(SnackBar),
+      findsNothing,
+      reason:
+          'porteuse d\'une action, la notification attendrait sinon un '
+          'balayage et recouvrirait les commandes de l\'écran suivant',
+    );
+  });
 }

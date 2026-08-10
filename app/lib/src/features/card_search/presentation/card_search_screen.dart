@@ -50,6 +50,17 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     });
   }
 
+  /// Ouvre un écran de saisie, après avoir effacé la notification du dernier
+  /// ajout.
+  ///
+  /// Les notifications vivent au-dessus du navigateur : sans cela, le retour
+  /// d'un ajout fait ici suivrait l'utilisateur et recouvrirait les commandes
+  /// de l'écran de prise de vue, dont les boutons sont en bas.
+  void _open(Widget screen) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+  }
+
   @override
   Widget build(BuildContext context) {
     final results = ref.watch(cardSearchProvider(_query));
@@ -70,11 +81,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               child: IconButton.filledTonal(
                 tooltip: 'Dicter des cartes',
                 icon: const Icon(Icons.mic_none),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const VoiceInputScreen(),
-                  ),
-                ),
+                onPressed: () => _open(const VoiceInputScreen()),
               ),
             ),
             Padding(
@@ -82,9 +89,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               child: IconButton.filledTonal(
                 tooltip: 'Scanner une carte',
                 icon: const Icon(Icons.photo_camera_outlined),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const ScanScreen()),
-                ),
+                onPressed: () => _open(const ScanScreen()),
               ),
             ),
             // Deux gestes distincts, donc deux boutons : « quelle carte est-ce ? »
@@ -95,11 +100,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               child: IconButton.filledTonal(
                 tooltip: 'Scanner plusieurs cartes',
                 icon: const Icon(Icons.grid_view),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const SpreadScanScreen(),
-                  ),
-                ),
+                onPressed: () => _open(const SpreadScanScreen()),
               ),
             ),
           ],
@@ -295,6 +296,12 @@ class _CardTileState extends ConsumerState<_CardTile> {
                 : '${hit.matchedName} · ${printing.printing.setCode.toUpperCase()}${printing.isFoil ? " foil" : ""} — vous en avez $total',
           ),
           duration: const Duration(seconds: 4),
+          // Flutter fait persister indéfiniment toute notification porteuse
+          // d'une action : la durée ci-dessus serait ignorée et le bandeau
+          // attendrait un balayage, recouvrant entre-temps les commandes de
+          // l'écran suivant. L'action est ici une commodité, pas une question
+          // posée — elle n'a pas à retenir l'écran.
+          persist: false,
           // Sans édition choisie, la notification sert de rampe d'accès vers le
           // sélecteur : c'est l'instant où l'on tient la carte, donc le seul où
           // l'on sait de quelle extension elle vient.
