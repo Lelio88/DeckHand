@@ -10,10 +10,15 @@
 /// cohabitent dans une collection. L'interrupteur en tête met à jour tous les prix
 /// affichés, pour qu'on compare ce qu'on possède réellement.
 ///
-/// **Une seule langue.** La liste montrait chaque édition deux fois, en français et
-/// en anglais, alors que la langue est déjà déterminée : on a trouvé la carte par son
-/// nom français, donc c'est la version française qu'on tient. Le doublon allongeait
-/// la liste sans rien apprendre.
+/// **Une ligne par édition, pas par langue.** La liste montrait chaque édition deux
+/// fois, en français et en anglais, sans rien apprendre. Filtrer sur la langue du nom
+/// trouvé supprimait bien le doublon, mais cachait aussi les éditions que Scryfall n'a
+/// pas encore cataloguées dans cette langue — un joueur tenant « Ne bougez pas ! »
+/// (MAR #43, français) ne se voyait proposer qu'une autre extension, six fois plus
+/// chère. La langue est donc devenue une **préférence** : l'édition est servie dans
+/// celle qu'on cherche quand elle existe, en anglais sinon, mais aucune ne disparaît.
+/// Ce qu'identifie une ligne est le couple extension + numéro, c'est-à-dire l'objet
+/// physique — la langue du texte imprimé ne le change pas, et n'en change pas le prix.
 library;
 
 import 'dart:async';

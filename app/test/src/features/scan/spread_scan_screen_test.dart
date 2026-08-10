@@ -98,12 +98,19 @@ CardHit _hit(String oracleId, String name, {String lang = 'fr'}) => CardHit(
 
 /// Monte l'écran, déclenche un scan, et rend les doublures pour inspection.
 Future<({FakeCollectionRepository collection, FakePrintingRepository printings})>
-pumpSpreadScan(WidgetTester tester, {required List<CardHit> found}) async {
+pumpSpreadScan(
+  WidgetTester tester, {
+  required List<CardHit> found,
+  Map<String, CardPrinting> sole = const {},
+  Object? soleError,
+}) async {
   final collection = FakeCollectionRepository();
   final printings = FakePrintingRepository()
     ..printings = const [
       CardPrinting(printId: 'print-msh', setCode: 'msh', setName: 'Marvel', lang: 'fr'),
-    ];
+    ]
+    ..sole = sole
+    ..soleError = soleError;
   final cards = _FakeCatalogue(found);
   // Une ligne par carte, assez grande pour passer le filtre de taille : ce
   // n'est pas lui qu'on éprouve ici.
@@ -231,6 +238,145 @@ void main() {
       reason: "une édition affichée mais non transmise vaudrait pire que pas "
           "d'édition : la valorisation paraîtrait précise en restant fausse",
     );
+  });
+
+  group("l'édition unique se précise toute seule", () {
+    // **Ce que ce groupe protège.** Quatre cartes du catalogue sur dix n'ont
+    // qu'une édition. Faire ouvrir pour elles une liste d'un seul élément, vingt
+    // fois de suite, était le geste le plus coûteux de l'écran — et le plus
+    // vide, puisqu'aucune information n'en sortait que la carte ne portait déjà.
+    const soleMar = CardPrinting(
+      printId: 'print-mar-43',
+      setCode: 'mar',
+      setName: 'Marvel Universe',
+      collectorNumber: '43',
+      lang: 'en',
+      hasNonfoil: true,
+      hasFoil: true,
+    );
+
+    testWidgets('elle est retenue sans aucun geste', (tester) async {
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Ne bougez pas !')],
+        sole: const {'id-1': soleMar},
+      );
+
+      // Extension **et** numéro : c'est ce que porte le bas de la carte, donc
+      // le seul moyen de vérifier d'un coup d'œil une édition qu'on n'a pas
+      // choisie soi-même.
+      expect(find.text('MAR #43'), findsOneWidget);
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(fakes.collection.quantities.keys.single.$2, 'print-mar-43');
+    });
+
+    testWidgets('la carte à plusieurs éditions reste à préciser', (
+      tester,
+    ) async {
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Ne bougez pas !')],
+      );
+
+      expect(
+        find.text("Préciser l'édition"),
+        findsOneWidget,
+        reason: 'sans réponse unique, choisir à la place de l\'utilisateur '
+            'reviendrait à inventer une édition',
+      );
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+      expect(fakes.collection.quantities.keys.single.$2, isNull);
+    });
+
+    testWidgets('la finition se règle sans ouvrir le sélecteur', (
+      tester,
+    ) async {
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Ne bougez pas !')],
+        sole: const {'id-1': soleMar},
+      );
+
+      await tester.tap(find.text('Foil'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(
+        fakes.collection.added.single.isFoil,
+        isTrue,
+        reason: 'un brillant enregistré comme normal sous-évalue la collection '
+            'du simple au triple',
+      );
+    });
+
+    testWidgets("une édition qui n'existe qu'en brillante l'est d'office", (
+      tester,
+    ) async {
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Ne bougez pas !')],
+        sole: const {
+          'id-1': CardPrinting(
+            printId: 'print-bundle',
+            setCode: 'mar',
+            collectorNumber: '43',
+            lang: 'en',
+            hasNonfoil: false,
+            hasFoil: true,
+          ),
+        },
+      );
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(
+        fakes.collection.added.single.isFoil,
+        isTrue,
+        reason: 'enregistrer sa jumelle normale reviendrait à inventer un '
+            'exemplaire qui n\'a jamais été imprimé',
+      );
+    });
+
+    testWidgets('une panne du catalogue laisse la liste intacte', (
+      tester,
+    ) async {
+      // Le préremplissage est un confort ; son échec doit rendre l'écran tel
+      // qu'il était avant, jamais effacer un scan qui a réussi.
+      await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Ne bougez pas !'), _hit('id-2', "Agent d'Atlas")],
+        soleError: Exception('catalogue injoignable'),
+      );
+
+      expect(find.text('Ne bougez pas !'), findsOneWidget);
+      expect(find.text("Agent d'Atlas"), findsOneWidget);
+      expect(find.text("Préciser l'édition"), findsNWidgets(2));
+    });
+
+    testWidgets('les cartes sont demandées en un seul lot', (tester) async {
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: [
+          _hit('id-1', 'Ne bougez pas !'),
+          _hit('id-2', "Agent d'Atlas"),
+          _hit('id-3', 'Renforts de quartier'),
+        ],
+      );
+
+      expect(
+        fakes.printings.soleAsked,
+        ['id-1', 'id-2', 'id-3'],
+        reason: 'une requête par carte coûtait 77 s sur dix-sept cartes ; la '
+            'leçon vaut ici comme pour la recherche par lot',
+      );
+    });
   });
 
   group('le décompte des cartes trouvées', () {

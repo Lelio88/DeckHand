@@ -161,6 +161,15 @@ class FakeCollectionRepository implements CollectionRepository {
   /// Dernier déplacement d'édition demandé.
   ({String oracleId, String? from, String? to, int? quantity})? lastPrintingMove;
 
+  /// Ajouts recus, dans l'ordre et sans agregation.
+  ///
+  /// `quantities` ignore la finition : deux exemplaires normal et brillant y
+  /// tombent dans la meme case. Cette liste la retient, faute de quoi un
+  /// exemplaire enregistre dans la mauvaise finition serait indetectable —
+  /// c'est pourtant un ecart de prix du simple au triple.
+  final List<({String oracleId, String? printId, bool isFoil, int quantity})>
+  added = [];
+
   @override
   Future<int> add(
     String oracleId, {
@@ -168,6 +177,12 @@ class FakeCollectionRepository implements CollectionRepository {
     String? printId,
     bool isFoil = false,
   }) async {
+    added.add((
+      oracleId: oracleId,
+      printId: printId,
+      isFoil: isFoil,
+      quantity: quantity,
+    ));
     final key = (oracleId, printId);
     quantities[key] = (quantities[key] ?? 0) + quantity;
     return quantities[key]!;
@@ -273,5 +288,29 @@ class FakePrintingRepository implements PrintingRepository {
               p.setCode.toLowerCase().startsWith(needle),
         )
         .toList(growable: false);
+  }
+
+  /// Editions uniques, par oracle. Ce que le catalogue repondrait pour les
+  /// cartes qui n'en ont qu'une ; les autres sont simplement absentes.
+  Map<String, CardPrinting> sole = const {};
+
+  /// Cartes pour lesquelles l'edition unique a ete demandee, dans l'ordre.
+  final List<String> soleAsked = [];
+
+  /// Erreur a lever a la place de la reponse.
+  Object? soleError;
+
+  @override
+  Future<Map<String, CardPrinting>> soleEditions(
+    Iterable<String> oracleIds, {
+    String? lang,
+  }) async {
+    soleAsked.addAll(oracleIds);
+    lastLang = lang;
+    if (soleError != null) throw soleError!;
+    return {
+      for (final id in oracleIds)
+        if (sole[id] != null) id: sole[id]!,
+    };
   }
 }
