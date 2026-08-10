@@ -104,7 +104,9 @@ void main() {
     await gesture.moveBy(const Offset(-200, 0));
     await tester.pump();
 
-    expect(find.text('page 5'), findsOneWidget);
+    // La feuille en mouvement est découpée en lamelles pour se courber : sa
+    // face est donc construite plusieurs fois, une par tranche.
+    expect(find.text('page 5'), findsWidgets);
     expect(find.text('page 6'), findsWidgets);
 
     await gesture.up();

@@ -384,31 +384,27 @@ void main() {
       return repository;
     }
 
-    /// Amène une puce à l'écran avant de la toucher.
+    /// Choisit une option dans l'un des deux menus.
     ///
-    /// Le sélecteur défile horizontalement — trois ordres et trois finitions ne
-    /// tiennent pas sur la largeur d'un téléphone — et un `ListView` ne
-    /// construit pas ce qui dépasse.
-    Future<void> tapChip(WidgetTester tester, String label) async {
-      await tester.dragUntilVisible(
-        find.text(label),
-        find.byType(ListView).first,
-        const Offset(-120, 0),
-      );
+    /// Les six puces d'autrefois débordaient de l'écran et volaient la hauteur
+    /// d'une rangée de cartes ; deux menus tiennent sur une ligne. Le libellé
+    /// choisi s'affiche aussi dans le champ, d'où le `last` : c'est l'entrée du
+    /// menu déroulé qu'on vise, pas son écho.
+    Future<void> choose(WidgetTester tester, Finder menu, String label) async {
+      await tester.tap(menu);
       await tester.pumpAndSettle();
-      // Sur le libellé plutôt que sur la puce : une puce ramenée au bord de
-      // l'écran reste partiellement hors champ, et le tap tomberait à côté.
-      await tester.ensureVisible(find.text(label));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(label));
+      await tester.tap(find.text(label).last);
       await tester.pumpAndSettle();
     }
+
+    final sortMenu = find.byType(DropdownButtonFormField<BinderSort>);
+    final finishMenu = find.byType(DropdownButtonFormField<FinishFilter>);
 
     testWidgets('le tri atteint le serveur', (tester) async {
       // Trier neuf cases côté application trierait une page, pas un classeur.
       final repository = await openBinder(tester);
 
-      await tapChip(tester, 'Valeur');
+      await choose(tester, sortMenu, 'Valeur');
 
       expect(repository.requested.last.sort, BinderSort.price);
     });
@@ -420,7 +416,7 @@ void main() {
 
       await tester.tap(find.byTooltip('Page suivante'));
       await tester.pumpAndSettle();
-      await tapChip(tester, 'Nom');
+      await choose(tester, sortMenu, 'Nom');
 
       expect(
         repository.requested.any((r) => r.page == 1 && r.sort == BinderSort.name),
@@ -431,7 +427,7 @@ void main() {
     testWidgets('le filtre de finition atteint le serveur', (tester) async {
       final repository = await openBinder(tester);
 
-      await tapChip(tester, 'Brillantes');
+      await choose(tester, finishMenu, 'Brillantes');
 
       expect(repository.requested.last.finish, FinishFilter.foil);
     });
@@ -441,7 +437,7 @@ void main() {
       // 97 feuilles, ouvrir à la première serait ouvrir sur du vide.
       final repository = await openBinder(tester);
 
-      await tapChip(tester, 'Brillantes');
+      await choose(tester, finishMenu, 'Brillantes');
 
       expect(repository.jumps, contains(FinishFilter.foil));
       expect(
@@ -458,7 +454,7 @@ void main() {
       final repository = await openBinder(tester);
       repository.jumps.clear();
 
-      await tapChip(tester, 'Valeur');
+      await choose(tester, sortMenu, 'Valeur');
 
       expect(repository.jumps, isEmpty);
     });
