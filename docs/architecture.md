@@ -286,7 +286,7 @@ Le nom est le seul repère stable : il figure en première ligne sur toutes les 
 
 Deux cartes scannées, deux échecs, **deux causes distinctes** — mesurées, pas supposées.
 
-**1. L'index d'empreintes est trop mince.** Il ne contient qu'une illustration par carte. Sur Farseek (55 impressions), l'illustration indexée est celle de Ravnica 2005 ; l'exemplaire tenu venait de *Marvel Super Heroes Commander* (2026), à une distance de 32 — hors de portée du seuil de confiance de 12. Sur un échantillon de 11 impressions de cette carte, 8 partagent la même illustration et 3 en ont une radicalement différente (distances 18, 33, 36). L'affirmation « une carte rééditée garde le plus souvent son illustration » est donc vraie aux trois quarts, et fausse pour le quart restant — assez pour faire échouer un scan sur quatre.
+**1. L'index d'empreintes était trop mince** — corrigé depuis par la migration 021, voir « Éditions » plus bas. Il ne contenait alors qu'une illustration par carte. Sur Farseek (55 impressions), l'illustration indexée est celle de Ravnica 2005 ; l'exemplaire tenu venait de *Marvel Super Heroes Commander* (2026), à une distance de 32 — hors de portée du seuil de confiance de 12. Sur un échantillon de 11 impressions de cette carte, 8 partagent la même illustration et 3 en ont une radicalement différente (distances 18, 33, 36). L'affirmation « une carte rééditée garde le plus souvent son illustration » est donc vraie aux trois quarts, et fausse pour le quart restant — assez pour faire échouer un scan sur quatre.
 
 **2. Le pipeline exige un cadrage irréaliste.** Sur Big Wheel, l'illustration *était* indexée (distance 0) et le gabarit la découpe correctement (distance 1) : le scan aurait dû réussir. Il a échoué sur le cadrage. Tolérance mesurée en simulant une marge de table autour de la carte :
 
@@ -697,9 +697,13 @@ Le filtre de langue exclusif qui précédait supprimait bien le doublon fr/en, m
 
 Effet recherché : le nombre d'éditions d'une carte ne dépend plus de la langue interrogée. « Cette carte n'a qu'une seule édition » devient une affirmation stable, et `sole_editions` la sert pour tout un lot en un aller-retour. **12 863 cartes du catalogue sur 32 669 sont dans ce cas** — quatre sur dix. L'écran d'étalement les précise donc d'office : il n'y a rien à deviner quand il n'y a rien à choisir, et faire ouvrir vingt fois une liste d'un seul élément était le geste le plus coûteux de l'écran. La finition, elle, reste un choix — réglable à même la ligne, puisque c'est le seul que le catalogue ne peut pas faire à notre place.
 
-**L'index d'empreintes ne suit pas ce volume.** `pending_prints` ne retient qu'une impression de référence par carte *sans aucune empreinte* : le filtre porte sur la carte, pas sur l'impression. Sans cela, l'ingestion des éditions réclamerait 130 000 téléchargements d'images et quintuplerait l'index que l'application télécharge — pour peu de gain, une carte rééditée gardant le plus souvent son illustration. Le départage privilégie l'anglais puis la sortie la plus ancienne, jamais le prix : un critère fondé sur la cote désignerait une impression différente au gré des fluctuations et ferait recalculer des empreintes déjà connues.
+**L'index d'empreintes porte une empreinte par illustration, pas par carte.** `pending_prints` retient une impression par `illustration_id` encore dépourvu d'empreinte. C'est ce qui rend une réédition à l'art changé reconnaissable — un scan sur quatre échouait sans cela, mesuré sur Farseek.
 
-(Indexer *toutes* les illustrations reconnaîtrait les rééditions à l'art changé — piste réelle, non prise ici, qui se paierait en poids d'index côté application.)
+L'`illustration_id` de Scryfall évite l'explosion redoutée : commun à toutes les impressions qui réutilisent la même œuvre, il ramène les 166 998 impressions à **49 484 illustrations réellement distinctes**, toutes couvertes par l'index. Hacher les impressions aurait demandé trois fois plus de téléchargements pour le même résultat. Les 867 impressions sans `illustration_id` sont écartées : sans lui, rien ne dit si leur image a déjà été hachée.
+
+Le départage privilégie l'anglais puis la sortie la plus ancienne, jamais le prix : un critère fondé sur la cote désignerait une impression différente au gré des fluctuations et ferait recalculer des empreintes déjà connues.
+
+Restent 147 cartes sans aucune empreinte, toutes des jetons : 110 n'ont pas d'`illustration_id` chez Scryfall — encarts, biographies, jetons recto-verso — et les autres n'ont pas d'illustration exploitable.
 
 ---
 
