@@ -329,7 +329,19 @@ L'onglet Collection n'a plus qu'une vue. Chacun des services de la liste a trouv
 
 Ce qu'on y gagne est ce qu'aucune liste ne montrait : **les cases vides**. Le bandeau de totaux subsiste — il porte sur la collection entière et vient d'un appel distinct, si bien qu'aucun filtre ne le fait varier. `my_collection` reste en base, désormais sans appelant : la fonction est juste, et la ressortir coûterait moins que la réécrire.
 
-Le volume et les pages qui se tournent relèvent d'un chantier distinct : une belle animation qui saccade serait pire qu'une grille sobre.
+### Les feuilles se tournent
+
+**Un vrai retournement, pas un fondu ni un glissement.** Ce qu'on reconnaît d'un classeur qu'on feuillette, c'est la feuille qui pivote sur sa reliure : elle se soulève, montre sa tranche, laisse voir la suivante par-dessous, puis retombe en présentant son dos. Un fondu enchaîné donnerait la même information sans donner la même chose à voir. `page_turn.dart` porte la mécanique.
+
+**La reliure est à gauche**, comme un classeur à anneaux ouvert à plat : glisser vers la gauche avance, vers la droite on revient. L'axe de rotation change avec le sens — bord gauche pour avancer, bord droit pour reculer — sans quoi la feuille pivoterait autour du mauvais côté et sortirait de la reliure. Le dos d'une feuille est la page suivante **en miroir** : sans cette inversion, la grille apparaîtrait à l'envers, première case à droite.
+
+**Le geste pilote l'animation, il ne la déclenche pas.** La feuille suit le doigt et l'on peut revenir en arrière en cours de route ; elle ne bascule qu'au-delà du tiers de la largeur, ou plus tôt si le geste est vif (600 px/s). Un frôlement pendant qu'on regarde ne tourne donc rien. La page ne change qu'une fois la feuille retombée : la changer à mi-course rechargerait la grille sous le doigt.
+
+**La charge est tenue par le voisinage, pas par la taille des images.** L'issue prescrivait les vignettes ; la carte entière a été préférée — c'est elle qu'on range dans une case — et le coût est absorbé autrement : seules les feuilles **immédiatement voisines** sont préchargées, et hors mouvement une seule feuille est construite. Précharger plus loin rapatrierait un classeur entier pour en montrer un neuvième.
+
+**Une glissière traverse le classeur d'un geste.** 97 feuilles ne se parcourent pas une par une ; le retournement sert à feuilleter de proche en proche, la glissière à changer de région.
+
+Ce qui reste à mesurer est la **fluidité sur un vrai téléphone** : neuf cartes entières par feuille, dix-huit pendant un retournement. C'est le point que l'issue #12 désigne comme le vrai risque, et il ne se juge pas au simulateur.
 
 ### Deux voies de reconnaissance, dans l'ordre
 

@@ -328,8 +328,12 @@ void main() {
       await tester.tap(find.byTooltip('Page suivante'));
       await tester.pumpAndSettle();
 
-      expect(repository.requested.last.page, 2);
-      expect(repository.requested.last.setCode, 'msh');
+      // `any` et non `last` : les feuilles voisines sont préchargées, donc la
+      // dernière requête est celle d'une voisine.
+      expect(
+        repository.requested.any((r) => r.setCode == 'msh' && r.page == 2),
+        isTrue,
+      );
     });
 
     testWidgets('la première page n\'a pas de précédente', (tester) async {
@@ -418,7 +422,10 @@ void main() {
       await tester.pumpAndSettle();
       await tapChip(tester, 'Nom');
 
-      expect(repository.requested.last.page, 1);
+      expect(
+        repository.requested.any((r) => r.page == 1 && r.sort == BinderSort.name),
+        isTrue,
+      );
     });
 
     testWidgets('le filtre de finition atteint le serveur', (tester) async {
@@ -437,7 +444,12 @@ void main() {
       await tapChip(tester, 'Brillantes');
 
       expect(repository.jumps, contains(FinishFilter.foil));
-      expect(repository.requested.last.page, 42);
+      expect(
+        repository.requested.any(
+          (r) => r.page == 42 && r.finish == FinishFilter.foil,
+        ),
+        isTrue,
+      );
     });
 
     testWidgets('trier par valeur ne saute nulle part', (tester) async {
@@ -564,8 +576,10 @@ void main() {
       await tester.tap(find.text('World War Hulk'));
       await tester.pumpAndSettle();
 
-      expect(repository.requested.last.setCode, 'msh');
-      expect(repository.requested.last.page, 22);
+      expect(
+        repository.requested.any((r) => r.setCode == 'msh' && r.page == 22),
+        isTrue,
+      );
     });
   });
 
