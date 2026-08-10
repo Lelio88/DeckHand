@@ -227,7 +227,6 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
         added += item.quantity;
       }
       ref.invalidate(collectionProvider);
-      ref.invalidate(collectionPageProvider);
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(

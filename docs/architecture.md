@@ -309,7 +309,27 @@ Les cartes sans édition précisée n'ont **aucune case**, par construction. Ell
 
 L'illustration y est celle d'une impression **représentative**, faute d'impression désignée. C'est faux au sens strict — ce n'est pas forcément l'exemplaire qu'on tient — et sans conséquence : cette vue sert à reconnaître une carte pour lui donner son édition.
 
-Le classeur est la **vue par défaut de l'onglet Collection**, au même titre que « Construire » est une vue de l'onglet Decks. La liste reste pour ce qu'aucun régime de classeur ne couvre : **chercher une carte par son nom**. Le volume et les pages qui se tournent relèvent d'un chantier distinct : une belle animation qui saccade serait pire qu'une grille sobre.
+### Chercher une carte, et agir sur une case
+
+**Chercher était la dernière chose qu'une liste faisait mieux qu'un classeur.** L'ordre des numéros ne répond pas à « où est ma Foudre ? » : il faudrait connaître l'extension et tourner les feuilles. `my_binder_find` rend donc la **page**, pas seulement la case, et le résultat y mène d'un geste. La recherche ne porte que sur les cartes possédées — chercher dans un classeur, c'est chercher parmi ses cartes ; proposer les 33 000 autres du catalogue ferait doublon avec la recherche de cartes, qui existe ailleurs.
+
+**Toucher une case ouvre ce qu'on peut en faire** : ajouter un exemplaire, en retirer un, corriger l'édition. Ces gestes vivaient dans la liste, et le retrait n'existait nulle part ailleurs — les perdre en la supprimant aurait été une régression déguisée en simplification. Une case vide n'ouvre rien : il n'y a rien à retirer d'une carte qu'on ne possède pas.
+
+### La liste triable a été supprimée
+
+L'onglet Collection n'a plus qu'une vue. Chacun des services de la liste a trouvé un équivalent qui ne dénature pas le rangement :
+
+| Ce que la liste faisait | Ce qui le fait |
+|---|---|
+| Trier par valeur, par nom | Les régimes de lecture du classeur |
+| Filtrer sur la finition | Le filtre du classeur, trous conservés |
+| Atteindre les cartes sans édition | La pile « à trier » |
+| Chercher une carte par son nom | La recherche de l'étagère, qui donne la page |
+| Ajouter, retirer, corriger l'édition | Les actions d'une case |
+
+Ce qu'on y gagne est ce qu'aucune liste ne montrait : **les cases vides**. Le bandeau de totaux subsiste — il porte sur la collection entière et vient d'un appel distinct, si bien qu'aucun filtre ne le fait varier. `my_collection` reste en base, désormais sans appelant : la fonction est juste, et la ressortir coûterait moins que la réécrire.
+
+Le volume et les pages qui se tournent relèvent d'un chantier distinct : une belle animation qui saccade serait pire qu'une grille sobre.
 
 ### Deux voies de reconnaissance, dans l'ordre
 

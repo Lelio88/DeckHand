@@ -163,23 +163,7 @@ class FakeCollectionRepository implements CollectionRepository {
   /// `UNIQUE NULLS NOT DISTINCT` côté base.
   final Map<(String, String?), int> quantities = {};
 
-  /// Contenu servi par `page`, dans l'ordre où il a été posé.
-  List<CollectionEntry> entries = const [];
   CollectionSummary totals = CollectionSummary.empty;
-
-  /// Ce que la dernière consultation a demandé — c'est ce qui permet de vérifier
-  /// que l'écran transmet bien la recherche et le tri, et pas seulement qu'il
-  /// les affiche.
-  String? lastQuery;
-  CollectionSort? lastSort;
-  int? lastOffset;
-  bool? lastUnspecifiedOnly;
-
-  /// Sens et filtres de la derniere consultation. Le serveur les applique :
-  /// ce qui s'observe ici, c'est qu'ils lui parviennent.
-  bool? lastDescending;
-  FinishFilter? lastFinish;
-  bool? lastFullArt;
 
   /// Dernier déplacement d'édition demandé.
   ({String oracleId, String? from, String? to, int? quantity})? lastPrintingMove;
@@ -258,34 +242,6 @@ class FakeCollectionRepository implements CollectionRepository {
     final target = (oracleId, toPrintId);
     quantities[target] = (quantities[target] ?? 0) + moved;
     return quantities[target]!;
-  }
-
-  @override
-  Future<List<CollectionEntry>> page({
-    String? query,
-    CollectionSort sort = CollectionSort.name,
-    int offset = 0,
-    int limit = collectionPageSize,
-    Game game = Game.magic,
-    bool unspecifiedOnly = false,
-    bool? descending,
-    FinishFilter finish = FinishFilter.all,
-    bool? fullArt,
-  }) async {
-    lastQuery = query;
-    lastSort = sort;
-    lastOffset = offset;
-    lastUnspecifiedOnly = unspecifiedOnly;
-    lastDescending = descending;
-    lastFinish = finish;
-    lastFullArt = fullArt;
-    // Le filtre est appliqué par le serveur : le reproduire ici permet
-    // d'observer une liste vide quand rien n'est a preciser, comme en vrai.
-    final shown = unspecifiedOnly
-        ? entries.where((e) => !e.hasPrinting).toList(growable: false)
-        : entries;
-    if (offset >= shown.length) return const [];
-    return shown.sublist(offset, (offset + limit).clamp(0, shown.length));
   }
 
   @override

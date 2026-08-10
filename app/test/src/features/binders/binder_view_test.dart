@@ -55,6 +55,10 @@ BinderCell cell({
 }) => BinderCell(
   collectorNumber: number,
   owned: owned,
+  // Une case occupée désigne une carte du catalogue ; une case vide n'en
+  // désigne aucune, et c'est ce qui lui interdit toute action.
+  oracleId: owned > 0 ? 'oracle-$number' : null,
+  printId: owned > 0 ? 'print-$number' : null,
   name: name ?? (owned > 0 ? 'Agent d\'Atlas' : null),
   hasFoil: hasFoil,
   artCropUrl: art,
@@ -113,6 +117,22 @@ class FakeBinderRepository implements BinderRepository {
     int page = 1,
     int perPage = binderPageSize,
   }) async => pile;
+
+  /// Cartes trouvées par la recherche, quelle que soit la requête.
+  List<BinderFind> found = const [];
+
+  /// Ce qui a été cherché, pour vérifier que la frappe atteint le serveur.
+  final searches = <String>[];
+
+  @override
+  Future<List<BinderFind>> find(
+    String query, {
+    Game game = Game.magic,
+    int limit = 20,
+  }) async {
+    searches.add(query);
+    return found;
+  }
 }
 
 Future<FakeBinderRepository> pumpBinder(
@@ -475,6 +495,121 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Rien à trier'), findsOneWidget);
+    });
+  });
+
+  group('chercher une carte', () {
+    // C'est la seule chose qu'une liste faisait mieux qu'un classeur, et la
+    // dernière raison qu'on avait de la garder.
+    testWidgets('la frappe atteint le serveur, après l\'anti-rebond', (
+      tester,
+    ) async {
+      final repository = await pumpBinder(tester, entries: [shelfEntry()]);
+
+      await tester.enterText(find.byType(TextField), 'hulk');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(repository.searches, contains('hulk'));
+    });
+
+    testWidgets('le résultat dit la page, pas seulement la case', (
+      tester,
+    ) async {
+      // Connaître l'extension et le numéro ne suffit pas : il resterait 97
+      // feuilles à tourner.
+      final repository = await pumpBinder(tester, entries: [shelfEntry()]);
+      repository.found = const [
+        BinderFind(
+          oracleId: 'o1',
+          name: 'World War Hulk',
+          setCode: 'msh',
+          setName: 'Marvel Super Heroes',
+          collectorNumber: '197',
+          page: 22,
+          owned: 1,
+        ),
+      ];
+
+      await tester.enterText(find.byType(TextField), 'hulk');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(find.text('World War Hulk'), findsOneWidget);
+      expect(find.textContaining('page 22'), findsOneWidget);
+    });
+
+    testWidgets('toucher un résultat ouvre le classeur à sa page', (
+      tester,
+    ) async {
+      final repository = await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '197', owned: 1, art: _art)],
+      );
+      repository.found = const [
+        BinderFind(
+          oracleId: 'o1',
+          name: 'World War Hulk',
+          setCode: 'msh',
+          collectorNumber: '197',
+          page: 22,
+          owned: 1,
+        ),
+      ];
+
+      await tester.enterText(find.byType(TextField), 'hulk');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('World War Hulk'));
+      await tester.pumpAndSettle();
+
+      expect(repository.requested.last.setCode, 'msh');
+      expect(repository.requested.last.page, 22);
+    });
+  });
+
+  group('les gestes sur une case', () {
+    // Ajouter, retirer, corriger l'édition vivaient dans la liste, qui n'existe
+    // plus. Les perdre aurait été une régression déguisée en simplification —
+    // le retrait, notamment, n'existe nulle part ailleurs.
+    Future<void> openActions(WidgetTester tester) async {
+      await tester.tap(find.text('Marvel Super Heroes'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Image).first);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('toucher une case ouvre ce qu\'on peut en faire', (
+      tester,
+    ) async {
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '1', owned: 2, art: _art)],
+      );
+
+      await openActions(tester);
+
+      expect(find.text('Ajouter un exemplaire'), findsOneWidget);
+      expect(find.text('Retirer un exemplaire'), findsOneWidget);
+      expect(find.text('Corriger l\'édition'), findsOneWidget);
+    });
+
+    testWidgets('une case vide n\'ouvre rien', (tester) async {
+      // Il n'y a rien à ajouter ni à retirer d'une carte qu'on ne possède pas.
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '2')],
+      );
+
+      await tester.tap(find.text('Marvel Super Heroes'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('#2').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ajouter un exemplaire'), findsNothing);
     });
   });
 

@@ -170,7 +170,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           .read(collectionRepositoryProvider)
           .add(card.oracleId, printId: printId, isFoil: isFoil);
       ref.invalidate(collectionProvider);
-      ref.invalidate(collectionPageProvider);
       if (!mounted) return;
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(

@@ -316,7 +316,6 @@ class _CardTileState extends ConsumerState<_CardTile> {
             quantity: quantity,
           );
       ref.invalidate(collectionProvider);
-      ref.invalidate(collectionPageProvider);
       if (!mounted) return;
       setState(() => _printing = chosen);
       messenger.hideCurrentSnackBar();
@@ -350,7 +349,6 @@ class _CardTileState extends ConsumerState<_CardTile> {
             isFoil: printing?.isFoil ?? false,
           );
       ref.invalidate(collectionProvider);
-      ref.invalidate(collectionPageProvider);
       if (!mounted) return;
       setState(() => _owned = total);
       // Sans cela les messages s'empilent et l'utilisateur lit un retour périmé :
@@ -390,7 +388,6 @@ class _CardTileState extends ConsumerState<_CardTile> {
                           isFoil: printing.isFoil,
                         );
                     ref.invalidate(collectionProvider);
-                    ref.invalidate(collectionPageProvider);
                     if (mounted) setState(() => _owned = left);
                   },
                 ),

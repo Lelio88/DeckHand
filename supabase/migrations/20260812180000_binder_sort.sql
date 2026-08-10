@@ -74,10 +74,16 @@ AS $$
     -- **Le prix se prend sur la case, pas sur l'impression représentative.**
     -- Celle-ci est choisie française pour son nom imprimé, or Scryfall ne cote
     -- pratiquement que l'anglais : trier par valeur ne triait rien, toutes les
-    -- cases valant zéro. La case étant le même objet physique quelle que soit
-    -- la langue, son prix est celui de la plus chère de ses impressions.
+    -- cases valant zéro. Sur cette collection, 200 lignes sur 274 n'ont pas de
+    -- cote sur leur propre impression.
+    --
+    -- `print_price` porte déjà cette règle — repli sur la version anglaise de la
+    -- même case, puis sur l'autre finition — et, contrairement à un simple
+    -- maximum, elle **distingue le brillant du normal**. Filtrer sur les
+    -- brillants en triant sur des prix de cartes mates n'aurait aucun sens.
     prices AS (
-        SELECT p.collector_number, MAX(p.price_eur) AS price_eur
+        SELECT p.collector_number,
+               MAX(public.print_price(p.scryfall_id, p_finish = 'foil')) AS price_eur
         FROM public.card_prints p
         WHERE p.set_code = p_set_code
         GROUP BY p.collector_number

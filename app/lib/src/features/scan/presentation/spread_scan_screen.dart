@@ -182,7 +182,6 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         added += item.quantity;
       }
       ref.invalidate(collectionProvider);
-      ref.invalidate(collectionPageProvider);
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(

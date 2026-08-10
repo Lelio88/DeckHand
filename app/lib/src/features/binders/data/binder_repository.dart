@@ -36,6 +36,34 @@ class BinderRepository {
         .toList(growable: false);
   }
 
+  /// Où sont rangées les cartes possédées dont le nom correspond.
+  ///
+  /// La seule chose qu'une liste faisait mieux qu'un classeur : « où est ma
+  /// Foudre ? » n'a pas de réponse quand on n'a que l'ordre des numéros et 97
+  /// feuilles à tourner.
+  Future<List<BinderFind>> find(
+    String query, {
+    Game game = Game.magic,
+    int limit = 20,
+  }) async {
+    final needle = query.trim();
+    if (needle.isEmpty) return const [];
+
+    final rows = await _client.rpc<List<dynamic>>(
+      'my_binder_find',
+      params: {
+        'p_query': needle,
+        'p_game': game.id,
+        'p_per_page': binderPageSize,
+        'p_limit': limit,
+      },
+    );
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(BinderFind.fromJson)
+        .toList(growable: false);
+  }
+
   /// Les cartes possédées dont l'édition n'est pas précisée.
   ///
   /// Elles n'ont aucune case : sans impression désignée, il n'y a ni extension
@@ -158,6 +186,27 @@ final binderFirstPageProvider =
           .watch(binderRepositoryProvider)
           .firstPage(args.setCode, finish: args.finish),
     );
+
+/// Ce qui est cherché dans les classeurs, ou une chaîne vide.
+class BinderQuery extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String query) => state = query.trim();
+}
+
+final binderQueryProvider = NotifierProvider<BinderQuery, String>(
+  BinderQuery.new,
+);
+
+/// Où sont les cartes correspondant à la recherche en cours.
+final binderFindProvider = FutureProvider<List<BinderFind>>((ref) {
+  final query = ref.watch(binderQueryProvider);
+  if (query.isEmpty) return const <BinderFind>[];
+  return ref
+      .watch(binderRepositoryProvider)
+      .find(query, game: ref.watch(selectedGameProvider));
+});
 
 /// Une page de la pile à trier.
 final unsortedPileProvider = FutureProvider.family<List<UnsortedCard>, int>(

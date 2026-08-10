@@ -93,6 +93,52 @@ class BinderShelfEntry {
   );
 }
 
+/// Où une carte possédée est rangée.
+///
+/// **C'est la seule chose qu'une liste faisait mieux qu'un classeur** : « où est
+/// ma Foudre ? » n'a pas de réponse quand on n'a que l'ordre des numéros et 97
+/// feuilles à tourner. La réponse porte donc la page, pas seulement la case.
+class BinderFind {
+  const BinderFind({
+    required this.oracleId,
+    required this.name,
+    required this.setCode,
+    required this.collectorNumber,
+    required this.page,
+    required this.owned,
+    this.printedName,
+    this.setName,
+    this.artCropUrl,
+  });
+
+  final String oracleId;
+  final String name;
+  final String? printedName;
+  final String setCode;
+  final String? setName;
+  final String collectorNumber;
+
+  /// Feuille où la trouver, dans l'ordre du rangement.
+  final int page;
+
+  final int owned;
+  final String? artCropUrl;
+
+  String get shownName => printedName ?? name;
+
+  factory BinderFind.fromJson(Map<String, dynamic> json) => BinderFind(
+    oracleId: json['oracle_id'] as String,
+    name: (json['name'] as String?) ?? '',
+    printedName: json['printed_name'] as String?,
+    setCode: json['set_code'] as String,
+    setName: json['set_name'] as String?,
+    collectorNumber: (json['collector_number'] as String?) ?? '',
+    page: (json['page'] as num?)?.toInt() ?? 1,
+    owned: (json['owned'] as num?)?.toInt() ?? 0,
+    artCropUrl: json['art_crop_url'] as String?,
+  );
+}
+
 /// Une carte de la pile à trier : possédée, mais sans case.
 ///
 /// **Ce n'est pas une case et la classe le dit** — aucun numéro de collection,
