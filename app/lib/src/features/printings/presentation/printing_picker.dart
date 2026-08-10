@@ -45,6 +45,15 @@ class PrintingChoice {
 
 const _unspecified = CardPrinting(printId: '', setCode: '', lang: 'en');
 
+/// Désigne, parmi les extensions où la carte existe, celle qui a été lue.
+///
+/// **Pourquoi une fonction plutôt qu'un code tout fait.** Seul le sélecteur sait
+/// dans quelles extensions la carte existe — il vient de les charger — et seul
+/// l'appelant sait ce qui a été lu sur la photo. Aucun des deux ne peut trancher
+/// seul, et se passer une fonction évite au sélecteur de connaître le scan, ou
+/// au scan de recharger les éditions pour rien.
+typedef SetCodeReader = String? Function(Set<String> setCodes);
+
 Future<PrintingChoice?> showPrintingPicker(
   BuildContext context, {
   required String oracleId,
@@ -53,6 +62,7 @@ Future<PrintingChoice?> showPrintingPicker(
   bool currentIsFoil = false,
   bool allowUnspecified = false,
   String? lang,
+  SetCodeReader? readSetCode,
 }) {
   return showModalBottomSheet<PrintingChoice>(
     context: context,
@@ -65,6 +75,7 @@ Future<PrintingChoice?> showPrintingPicker(
       currentIsFoil: currentIsFoil,
       allowUnspecified: allowUnspecified,
       lang: lang,
+      readSetCode: readSetCode,
     ),
   );
 }
@@ -77,6 +88,7 @@ class _PrintingPicker extends ConsumerStatefulWidget {
     required this.currentIsFoil,
     required this.allowUnspecified,
     required this.lang,
+    required this.readSetCode,
   });
 
   final String oracleId;
@@ -85,6 +97,7 @@ class _PrintingPicker extends ConsumerStatefulWidget {
   final bool currentIsFoil;
   final bool allowUnspecified;
   final String? lang;
+  final SetCodeReader? readSetCode;
 
   @override
   ConsumerState<_PrintingPicker> createState() => _PrintingPickerState();
@@ -198,25 +211,51 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                 // Une finition jamais imprimée n'a pas à figurer : proposer
                 // « brillant » sur une carte qui n'existe qu'en normal ferait
                 // enregistrer un exemplaire impossible.
-                final shown = list
+                final matching = list
                     .where((p) => _foil ? p.hasFoil : p.hasNonfoil)
                     .toList(growable: false);
 
-                if (shown.isEmpty) return _Empty(query: _query, foil: _foil);
+                if (matching.isEmpty) return _Empty(query: _query, foil: _foil);
+
+                // L'extension lue sur la photo remonte en tête. C'est tout ce
+                // qu'on en fait : elle n'est ni cochée ni ajoutée d'office,
+                // parce qu'une édition fausse range la carte dans la mauvaise
+                // case (garde-fou §IV.8 — l'utilisateur confirme en tapant).
+                // Sur une carte rééditée quarante fois, ce simple ordre est ce
+                // qui rend le geste tenable.
+                final read = widget.readSetCode?.call({
+                  for (final p in matching) p.setCode,
+                });
+                final shown = read == null
+                    ? matching
+                    : [
+                        ...matching.where((p) => p.setCode == read),
+                        ...matching.where((p) => p.setCode != read),
+                      ];
+                final readCount = read == null
+                    ? 0
+                    : matching.where((p) => p.setCode == read).length;
 
                 return ListView.builder(
                   controller: scrollController,
-                  itemCount: shown.length,
-                  itemBuilder: (context, index) => _PrintingTile(
-                    printing: shown[index],
-                    foil: _foil,
-                    selected:
-                        shown[index].printId == widget.currentPrintId &&
-                        _foil == widget.currentIsFoil,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(PrintingChoice(shown[index], isFoil: _foil)),
-                  ),
+                  itemCount: shown.length + (read == null ? 0 : 1),
+                  itemBuilder: (context, index) {
+                    if (read != null) {
+                      if (index == 0) return _ReadOnCard(setCode: read);
+                      index -= 1;
+                    }
+                    return _PrintingTile(
+                      printing: shown[index],
+                      foil: _foil,
+                      readOnCard: index < readCount,
+                      selected:
+                          shown[index].printId == widget.currentPrintId &&
+                          _foil == widget.currentIsFoil,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(PrintingChoice(shown[index], isFoil: _foil)),
+                    );
+                  },
                 );
               },
             ),
@@ -302,18 +341,60 @@ class _Empty extends StatelessWidget {
 const double _thumbWidth = 92;
 const double _thumbHeight = 68;
 
+/// En-tête annonçant l'extension lue sur la photo.
+///
+/// Dire **ce qui a été lu** plutôt que réordonner en silence : si la lecture se
+/// trompe, l'utilisateur comprend pourquoi les mauvaises éditions sont en tête
+/// au lieu de subir un ordre inexplicable. C'est la même règle que le nom lu,
+/// affiché tel quel après un scan.
+class _ReadOnCard extends StatelessWidget {
+  const _ReadOnCard({required this.setCode});
+
+  final String setCode;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.center_focus_weak,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Extension lue sur la carte : ${setCode.toUpperCase()}',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PrintingTile extends StatelessWidget {
   const _PrintingTile({
     required this.printing,
     required this.foil,
     required this.selected,
     required this.onTap,
+    this.readOnCard = false,
   });
 
   final CardPrinting printing;
   final bool foil;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Vrai quand cette édition porte le code lu sur la photo.
+  final bool readOnCard;
 
   @override
   Widget build(BuildContext context) {
@@ -332,10 +413,27 @@ class _PrintingTile extends StatelessWidget {
           : () => _showArt(context, printing),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       leading: _Thumbnail(url: printing.artCropUrl),
-      title: Text(
-        printing.setName ?? printing.setCode.toUpperCase(),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              printing.setName ?? printing.setCode.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          // Le code peut désigner plusieurs éditions d'une même extension —
+          // 17 % des cas mesurés. Le marquer sur chacune évite de laisser
+          // croire que la première est la bonne.
+          if (readOnCard) ...[
+            const SizedBox(width: 6),
+            Icon(
+              Icons.center_focus_weak,
+              size: 14,
+              color: theme.colorScheme.primary,
+            ),
+          ],
+        ],
       ),
       subtitle: Text(
         [
