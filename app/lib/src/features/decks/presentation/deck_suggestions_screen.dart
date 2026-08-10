@@ -11,43 +11,119 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../builder/presentation/deck_builder_screen.dart';
+import '../../builder/presentation/deck_builder_view.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../data/deck_repository.dart';
 import '../domain/deck_suggestion.dart';
 import '../domain/mana_color.dart';
+
+/// Les deux façons de répondre à « que puis-je jouer ? ».
+///
+/// **Deux vues d'un même onglet, et non une vue et une action.** Consulter le
+/// corpus et construire depuis sa collection répondent à la même question par
+/// deux chemins ; les mettre sur un même sélecteur le dit, là où un bouton
+/// glissé parmi les filtres laissait croire à un filtre de plus.
+enum DeckMode {
+  /// Les decks du corpus, confrontés à la collection.
+  existing('Préconstruits'),
+
+  /// Un deck bâti avec la seule collection.
+  building('Construire');
+
+  const DeckMode(this.label);
+
+  final String label;
+}
+
+/// Un `Notifier` et non un `StateProvider` : ce dernier a été retiré de
+/// Riverpod 3.
+class SelectedDeckMode extends Notifier<DeckMode> {
+  @override
+  DeckMode build() => DeckMode.existing;
+
+  void select(DeckMode mode) => state = mode;
+}
+
+final deckModeProvider = NotifierProvider<SelectedDeckMode, DeckMode>(
+  SelectedDeckMode.new,
+);
 
 class DeckSuggestionsScreen extends ConsumerWidget {
   const DeckSuggestionsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final suggestions = ref.watch(deckSuggestionsProvider);
+    final mode = ref.watch(deckModeProvider);
+    final format = ref.watch(selectedFormatProvider);
 
     return Column(
       children: [
+        const _ModeSelector(),
+        // **Le format est commun aux deux vues** : on cherche un deck Commander
+        // ou on en construit un, mais le format se choisit avant de savoir
+        // lequel des deux chemins on prendra.
         const _FormatSelector(),
-        // La recherche par commandant n'a de sens que là où il y en a un :
-        // l'afficher en Pauper offrirait un champ qui ne peut rien trouver.
-        if (ref.watch(selectedFormatProvider) == DeckFormat.commander)
-          const _CommanderSearch(),
-        const _FilterBar(),
-        Expanded(
-          child: suggestions.when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            error: (error, _) => Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Text('Suggestions indisponibles : $error'),
-              ),
-            ),
-            data: (decks) => decks.isEmpty
-                ? _NoDeck(filtered: ref.watch(deckFiltersProvider).isActive)
-                : _DeckList(decks: decks),
-          ),
-        ),
+        if (mode == DeckMode.building)
+          Expanded(child: DeckBuilderView(format: format))
+        else
+          ..._existing(context, ref, format),
       ],
+    );
+  }
+
+  List<Widget> _existing(
+    BuildContext context,
+    WidgetRef ref,
+    DeckFormat format,
+  ) {
+    final suggestions = ref.watch(deckSuggestionsProvider);
+    return [
+      // La recherche par commandant n'a de sens que là où il y en a un :
+      // l'afficher en Pauper offrirait un champ qui ne peut rien trouver.
+      if (format == DeckFormat.commander) const _CommanderSearch(),
+      const _FilterBar(),
+      Expanded(
+        child: suggestions.when(
+          loading: () =>
+              const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          error: (error, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text('Suggestions indisponibles : $error'),
+            ),
+          ),
+          data: (decks) => decks.isEmpty
+              ? _NoDeck(filtered: ref.watch(deckFiltersProvider).isActive)
+              : _DeckList(decks: decks),
+        ),
+      ),
+    ];
+  }
+}
+
+/// Bascule entre les decks du corpus et la construction.
+class _ModeSelector extends ConsumerWidget {
+  const _ModeSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(deckModeProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
+      child: Row(
+        children: [
+          for (final value in DeckMode.values) ...[
+            ChoiceChip(
+              label: Text(value.label),
+              selected: mode == value,
+              onSelected: (_) =>
+                  ref.read(deckModeProvider.notifier).select(value),
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 8),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -83,24 +159,6 @@ class _FormatSelector extends ConsumerWidget {
                   .select(values.first),
             ),
           ),
-          // **Hors de la barre de filtres.** Placé parmi les chips, il se
-          // lisait comme un filtre de plus ; rien ne disait qu'il ouvrait un
-          // écran. À côté du sélecteur de format, il retrouve sa nature : ni
-          // l'un ni l'autre ne filtre la liste, tous deux changent ce qu'on
-          // regarde. La flèche annonce le départ.
-          if (selected == DeckFormat.commander) ...[
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const DeckBuilderScreen(),
-                ),
-              ),
-              icon: const Icon(Icons.arrow_forward, size: 18),
-              iconAlignment: IconAlignment.end,
-              label: const Text('Construire'),
-            ),
-          ],
         ],
       ),
     );

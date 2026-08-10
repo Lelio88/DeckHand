@@ -1,8 +1,11 @@
-/// Écran de construction : un deck bâti avec ce qu'on possède.
+/// Vue de construction : un deck bâti avec ce qu'on possède.
 ///
-/// **Poussé par-dessus, comme le scan et la dictée.** Construire un deck est un
-/// geste ponctuel qui produit un résultat, pas un lieu où l'on séjourne — c'est
-/// la règle que la coque de navigation suit déjà pour les gestes de saisie.
+/// **Une vue de l'onglet Decks, et non un écran poussé.** Le premier essai en
+/// faisait une action, ouverte par un bouton glissé parmi les filtres : rien
+/// n'annonçait qu'elle menait ailleurs, et elle se lisait comme un filtre de
+/// plus. Or consulter le corpus et construire depuis sa collection sont deux
+/// façons de répondre à la même question — « que puis-je jouer ? » —, ce qu'un
+/// sélecteur en tête d'onglet dit mieux qu'un bouton.
 ///
 /// **Le deck est jetable, et c'est un choix.** Rien n'est enregistré : on
 /// construit, on lit, on recopie, on ferme. Conserver les decks demanderait une
@@ -36,14 +39,18 @@ const _roleLabels = {
   CardRole.land: 'terrains',
 };
 
-class DeckBuilderScreen extends ConsumerStatefulWidget {
-  const DeckBuilderScreen({super.key});
+class DeckBuilderView extends ConsumerStatefulWidget {
+  const DeckBuilderView({super.key, required this.format});
+
+  /// Format visé. Le constructeur ne sait bâtir que du Commander : les autres
+  /// formats reçoivent une explication, pas un deck bancal.
+  final DeckFormat format;
 
   @override
-  ConsumerState<DeckBuilderScreen> createState() => _DeckBuilderScreenState();
+  ConsumerState<DeckBuilderView> createState() => _DeckBuilderViewState();
 }
 
-class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
+class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
   static const _builder = DeckBuilder();
 
   /// Général retenu. Nul tant qu'on n'a pas choisi : l'écran montre alors la
@@ -52,34 +59,23 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final collection = ref.watch(
-      buildableCollectionProvider(DeckFormat.commander),
-    );
+    if (widget.format != DeckFormat.commander) {
+      return const _Note(
+        'La construction automatique ne couvre que le Commander.\n\n'
+        "Les 725 decks Pauper du corpus s'étalent de 25 à 40 % de créatures "
+        "et de 23 à 43 % de sorts : ce sont des archétypes distincts, qu'une "
+        "moyenne fondrait en un deck qui n'existe nulle part. Les 190 "
+        "précons Commander, eux, se ressemblent assez pour servir de modèle.",
+      );
+    }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Construire un deck'),
-        actions: [
-          if (_commander != null)
-            TextButton(
-              onPressed: () => setState(() => _commander = null),
-              child: const Text('Changer de général'),
-            ),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: collection.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              error: (error, _) => _Note('Collection illisible : $error'),
-              data: (cards) => _content(cards),
-            ),
-          ),
-        ),
-      ),
+    final collection = ref.watch(buildableCollectionProvider(widget.format));
+
+    return collection.when(
+      loading: () =>
+          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      error: (error, _) => _Note('Collection illisible : $error'),
+      data: _content,
     );
   }
 
@@ -100,7 +96,10 @@ class _DeckBuilderScreenState extends ConsumerState<DeckBuilderScreen> {
       );
     }
 
-    return _DeckView(deck: _builder.build(cards, commander));
+    return _DeckView(
+      deck: _builder.build(cards, commander),
+      onChangeCommander: () => setState(() => _commander = null),
+    );
   }
 }
 
@@ -179,9 +178,10 @@ class _CommanderPicker extends StatelessWidget {
 
 /// Le deck produit, et ce qu'on peut lui reprocher.
 class _DeckView extends StatelessWidget {
-  const _DeckView({required this.deck});
+  const _DeckView({required this.deck, required this.onChangeCommander});
 
   final BuiltDeck deck;
+  final VoidCallback onChangeCommander;
 
   @override
   Widget build(BuildContext context) {
@@ -193,12 +193,30 @@ class _DeckView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
-        Text(deck.commander.displayName, style: theme.textTheme.titleLarge),
-        Text(
-          deck.commander.typeLine,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    deck.commander.displayName,
+                    style: theme.textTheme.titleLarge,
+                  ),
+                  Text(
+                    deck.commander.typeLine,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: onChangeCommander,
+              child: const Text('Changer'),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         _Summary(deck: deck),

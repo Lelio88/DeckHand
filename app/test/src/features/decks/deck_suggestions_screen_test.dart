@@ -55,6 +55,43 @@ Future<FakeDeckRepository> pumpDecksScreen(
 }
 
 void main() {
+  group('les deux façons de répondre', () {
+    // Consulter le corpus et construire depuis sa collection répondent à la
+    // même question par deux chemins : un sélecteur le dit, là où un bouton
+    // glissé parmi les filtres laissait croire à un filtre de plus.
+    testWidgets('le corpus est montré par défaut', (tester) async {
+      await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      expect(find.text('Préconstruits'), findsOneWidget);
+      expect(find.text('Construire'), findsOneWidget);
+      expect(find.text('Deck de test'), findsOneWidget);
+    });
+
+    testWidgets('basculer sur « Construire » change la vue', (tester) async {
+      await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      await tester.tap(find.text('Construire'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Deck de test'), findsNothing);
+    });
+
+    testWidgets('le format reste choisi en changeant de vue', (tester) async {
+      // Le format se décide avant de savoir lequel des deux chemins on prend :
+      // le perdre en basculant obligerait à le rechoisir chaque fois.
+      final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      await tester.tap(find.text('Commander'));
+      await tester.pumpAndSettle();
+      expect(decks.lastFormat, DeckFormat.commander);
+
+      await tester.tap(find.text('Construire'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Commander'), findsOneWidget);
+    });
+  });
+
   testWidgets('le format sélectionné est transmis au dépôt', (tester) async {
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
     expect(decks.lastFormat, DeckFormat.pauper);

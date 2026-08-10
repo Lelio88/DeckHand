@@ -1,4 +1,4 @@
-/// Tests de l'écran de construction.
+/// Tests de la vue de construction.
 ///
 /// **Ce que l'écran doit garantir**, au-delà du moteur qui est éprouvé
 /// ailleurs : qu'on choisisse son général ou qu'on laisse choisir, que le deck
@@ -10,7 +10,8 @@ library;
 import 'package:deckhand/src/features/auth/data/auth_repository.dart';
 import 'package:deckhand/src/features/builder/data/buildable_repository.dart';
 import 'package:deckhand/src/features/builder/domain/buildable_card.dart';
-import 'package:deckhand/src/features/builder/presentation/deck_builder_screen.dart';
+import 'package:deckhand/src/features/builder/presentation/deck_builder_view.dart';
+import 'package:deckhand/src/features/decks/domain/deck_suggestion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,7 +48,9 @@ Future<FakeBuildableRepository> pumpBuilder(
           (ref) => Stream<Session?>.value(fakeSession()),
         ),
       ],
-      child: const MaterialApp(home: DeckBuilderScreen()),
+      child: const MaterialApp(
+        home: Scaffold(body: DeckBuilderView(format: DeckFormat.commander)),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -158,7 +161,7 @@ void main() {
 
     await tester.tap(find.text('Général'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Changer de général'));
+    await tester.tap(find.text('Changer'));
     await tester.pumpAndSettle();
 
     expect(find.text('2 généraux possibles'), findsOneWidget);

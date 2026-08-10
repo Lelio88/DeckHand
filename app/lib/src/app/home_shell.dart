@@ -20,7 +20,7 @@ import '../features/collection/presentation/collection_screen.dart';
 import '../features/decks/presentation/deck_suggestions_screen.dart';
 
 /// Sous-titre affiché pour chaque destination, dans l'ordre des onglets.
-const _titles = ['Rechercher', 'Ma collection', 'Decks possibles', 'Mon compte'];
+const _titles = ['Rechercher', 'Ma collection', 'Decks', 'Mon compte'];
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});

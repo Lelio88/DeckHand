@@ -829,7 +829,11 @@ par exécution.
 
 ## 7. Constructeur de decks
 
-Bâtit un deck Commander de cent cartes avec la seule collection, autour d'un général choisi ou proposé. Le calcul vit **dans l'application**, en Dart pur : c'est une optimisation itérative, ce que SQL fait mal, et le résultat n'a pas à quitter le téléphone.
+Bâtit un deck Commander de cent cartes avec la seule collection, autour d'un général choisi ou proposé.
+
+**C'est une vue de l'onglet Decks, pas un écran à part.** Consulter le corpus et construire depuis sa collection répondent à la même question — « que puis-je jouer ? » — par deux chemins ; un sélecteur en tête d'onglet le dit, là où le premier essai en faisait une action ouverte par un bouton glissé parmi les filtres, que rien ne distinguait d'un filtre de plus. Le format se choisit avant le chemin et vaut pour les deux.
+
+Le calcul vit **dans l'application**, en Dart pur : c'est une optimisation itérative, ce que SQL fait mal, et le résultat n'a pas à quitter le téléphone.
 
 **Ce qu'il promet.** Pas un deck optimal — cela ne se démontre pas, cela se joue — mais un deck légal (cent cartes, un seul exemplaire de chacune, identité couleur du général respectée), cohérent avec les proportions des decks réels, et entièrement fait des cartes possédées. Les trois se vérifient ; l'optimalité, non.
 
