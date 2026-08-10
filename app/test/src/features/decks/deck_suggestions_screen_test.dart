@@ -95,21 +95,6 @@ void main() {
     expect(decks.lastFilters?.buildableOnly, isTrue);
   });
 
-  testWidgets('« Tout faits » restreint aux decks vendus prêts à jouer', (
-    tester,
-  ) async {
-    // Le filtre s'est appelé « Accessibles », qui se lisait comme une promesse
-    // de prix à côté d'un filtre de budget, puis « Précons », qui ne dit rien à
-    // qui ne connaît pas l'abréviation. Le mot doit se comprendre sans rien
-    // savoir du vocabulaire du jeu.
-    final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
-
-    await tester.tap(find.text('Tout faits'));
-    await tester.pumpAndSettle();
-
-    expect(decks.lastFilters?.accessibleOnly, isTrue);
-  });
-
   testWidgets('une couleur retenue tamise les suggestions', (tester) async {
     // Le tamis garde les decks qui *tiennent* dans la sélection : demander du
     // rouge et recevoir un deck à cinq couleurs n'aiderait pas qui voulait

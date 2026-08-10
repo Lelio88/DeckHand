@@ -30,7 +30,10 @@ class DeckRepository {
         'p_max_missing': filters.buildableOnly ? 0 : 100,
         'p_max_results': maxResults,
         'p_max_cost': filters.maxCostEur,
-        'p_tier': filters.accessibleOnly ? 'accessible' : null,
+        // `p_tier` reste offert par le serveur : le jour où une source
+        // apportera des listes de tournoi Commander, la distinction
+        // redeviendra utile. Aujourd'hui elle doublonne le format.
+        'p_tier': null,
         // Trié pour que la requête soit la même d'une sélection à l'autre : le
         // serveur n'a que faire de l'ordre dans lequel on a touché les pastilles.
         'p_colors': (filters.colors.toList()..sort()),
@@ -68,7 +71,6 @@ final deckRepositoryProvider = Provider<DeckRepository>(
 class DeckFilters {
   const DeckFilters({
     this.buildableOnly = false,
-    this.accessibleOnly = false,
     this.maxCostEur,
     this.colors = const {},
     this.commander = '',
@@ -76,10 +78,6 @@ class DeckFilters {
 
   /// N'afficher que les decks sans carte manquante.
   final bool buildableOnly;
-
-  /// N'afficher que les decks accessibles (précons), à l'exclusion des listes
-  /// de tournoi.
-  final bool accessibleOnly;
 
   /// Plafond du coût de complétion, en euros. Nul si aucune limite.
   final double? maxCostEur;
@@ -100,21 +98,18 @@ class DeckFilters {
 
   bool get isActive =>
       buildableOnly ||
-      accessibleOnly ||
       maxCostEur != null ||
       colors.isNotEmpty ||
       commander.trim().isNotEmpty;
 
   DeckFilters copyWith({
     bool? buildableOnly,
-    bool? accessibleOnly,
     double? maxCostEur,
     Set<String>? colors,
     String? commander,
     bool clearCost = false,
   }) => DeckFilters(
     buildableOnly: buildableOnly ?? this.buildableOnly,
-    accessibleOnly: accessibleOnly ?? this.accessibleOnly,
     maxCostEur: clearCost ? null : (maxCostEur ?? this.maxCostEur),
     colors: colors ?? this.colors,
     commander: commander ?? this.commander,
@@ -127,9 +122,6 @@ class DeckFiltersNotifier extends Notifier<DeckFilters> {
 
   void toggleBuildable() =>
       state = state.copyWith(buildableOnly: !state.buildableOnly);
-
-  void toggleAccessible() =>
-      state = state.copyWith(accessibleOnly: !state.accessibleOnly);
 
   void setMaxCost(double? value) => value == null
       ? state = state.copyWith(clearCost: true)

@@ -148,11 +148,18 @@ class _CommanderSearchState extends ConsumerState<_CommanderSearch> {
 
 /// Affinage des suggestions.
 ///
-/// Quatre questions distinctes, d'où quatre contrôles plutôt qu'un tri unique :
+/// Trois questions distinctes, d'où trois contrôles plutôt qu'un tri unique :
 /// « qu'est-ce que je peux jouer ce soir » (constructibles), « qu'est-ce qui est
-/// à ma portée » (budget), « qu'est-ce qui s'achète tout fait » (précons plutôt
-/// que listes de tournoi), et « de quelle couleur » — celle-ci venant d'ordinaire
+/// à ma portée » (budget), et « de quelle couleur » — celle-ci venant d'ordinaire
 /// en premier chez un joueur, avant même le prix.
+///
+/// **Un quatrième a été retiré.** Il séparait les decks vendus tout faits des
+/// listes de tournoi — une distinction réelle en soi, mais que ce corpus ne
+/// porte pas : les 190 decks Commander viennent tous de MTGJSON, les 838 autres
+/// tous de TopDeck.gg. Le critère était donc parfaitement corrélé au format,
+/// si bien que le filtre ne changeait rien en Commander et vidait la liste en
+/// Pauper. Il faudra le rétablir le jour où une source apportera des listes de
+/// tournoi Commander, ou des précons dans un autre format.
 ///
 /// **Une seule ligne, qui défile.** Empilées sur deux rangs, les commandes
 /// mangeaient la hauteur des suggestions, qui sont l'essentiel de l'écran. Les
@@ -193,21 +200,6 @@ class _FilterBar extends ConsumerWidget {
             label: const Text('Constructibles'),
             selected: filters.buildableOnly,
             onSelected: (_) => notifier.toggleBuildable(),
-            visualDensity: VisualDensity.compact,
-          ),
-          const SizedBox(width: 8),
-          // **« Tout faits » plutôt que « Précons ».** Le filtre désigne les
-          // decks vendus prêts à jouer, par opposition aux listes de tournoi.
-          // « Accessibles » se lisait comme une promesse de prix, à côté d'un
-          // filtre de budget qui parle bien d'argent ; « Précons » n'a rien dit
-          // à qui ne connaît pas l'abréviation. Le mot doit se comprendre sans
-          // rien savoir du vocabulaire du jeu.
-          FilterChip(
-            label: const Text('Tout faits'),
-            tooltip:
-                'Decks vendus prêts à jouer, plutôt que listes de tournoi',
-            selected: filters.accessibleOnly,
-            onSelected: (_) => notifier.toggleAccessible(),
             visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: 8),
