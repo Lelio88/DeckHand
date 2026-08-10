@@ -291,7 +291,25 @@ Les cartes sans édition précisée n'ont **aucune case**, par construction. Ell
 
 **Le brillant se montre, il ne se dit pas.** Un symbole annonce qu'une carte est brillante ; un reflet le montre — et ce qu'on reconnaît d'un classeur ouvert, c'est justement une pochette qui accroche la lumière au milieu de cartes mates. `FoilSheen` pose un dégradé de diffraction **par-dessus** l'image, là où `foilDecoration` glisse le sien derrière une ligne de texte : sur une case pleine, un fond serait entièrement masqué.
 
-Le classeur est la **vue par défaut de l'onglet Collection**, au même titre que « Construire » est une vue de l'onglet Decks. La liste reste, parce qu'elle fait trois choses qu'un classeur ne peut pas faire : chercher une carte par son nom, trier par valeur ou par date d'entrée, et **atteindre les cartes sans édition précisée** — lesquelles n'ont aucune case et seraient autrement inaccessibles. Le volume et les pages qui se tournent relèvent d'un chantier distinct : une belle animation qui saccade serait pire qu'une grille sobre.
+### Ranger ou inventorier : deux régimes, une seule différence
+
+**Le tri par numéro range, les autres inventorient**, et tout tient dans le sort des cases vides. Trié par **numéro**, le classeur montre les trous : la question posée est « que me manque-t-il ». Trié par **valeur** ou par **nom**, la question devient « mes cartes, de la plus chère à la moins chère » — et une case vide n'a alors ni valeur, ni nom, ni place dans un ordre qui ignore les numéros. Elle disparaît, et c'est ce que la demande implique. `BinderSort.keepsEmptyCells` porte cette distinction, et `my_binder_page` l'applique côté serveur : hors du rangement, les cases non possédées ne sont pas rendues.
+
+**Le filtre de finition, lui, ne change pas de régime.** Restreindre au brillant ne sort pas du rangement : l'ordre reste le numéro, seule change la définition de « possédé ». Une case vide y signifie « je n'ai pas cette carte en brillant » — c'est la complétion d'un classeur de brillants, et les trous restent à dessein.
+
+**Une page vide n'est pas une impasse.** Un filtre serré laisse des feuilles entièrement creuses : sur les 97 feuilles de `msc`, dont douze cases occupées, ouvrir à la première serait ouvrir sur du vide. `my_binder_first_page` dit où commencer — mesuré : page 42 pour `msc`, page 2 pour les brillants de `msh`. La question ne se pose que dans le régime de rangement ; ailleurs, la première page est pleine par construction.
+
+**Le prix d'une case est celui de la plus chère de ses impressions.** L'impression représentative est choisie française pour son nom imprimé, or Scryfall ne cote pratiquement que l'anglais : trier par valeur ne triait rien, toutes les cases valant zéro. La case étant le même objet physique quelle que soit la langue, son prix se prend sur l'ensemble.
+
+### La pile à trier
+
+**Une carte sans édition précisée n'a aucune case**, par construction — ni extension, ni numéro. Elle était donc invisible dès que la collection se regardait en classeur, ce qui est devenu grave le jour où le classeur est passé en vue par défaut. `my_unsorted_pile` la montre.
+
+**C'est une pile, pas un classeur**, et la fonction le dit : aucun numéro, aucune case vide, aucun taux de complétion. Elle est ordonnée **par entrée, la plus récente d'abord** — une pile se prend par le dessus, et ce qu'on vient de saisir est ce qu'on a encore en main ; trier par nom aurait enfoui la dernière carte scannée au milieu de l'alphabet. Toucher une carte ouvre le sélecteur d'édition et appelle `set_collection_print` : la pile se vide à mesure qu'on range, et l'entrée disparaît de l'étagère quand il ne reste rien.
+
+L'illustration y est celle d'une impression **représentative**, faute d'impression désignée. C'est faux au sens strict — ce n'est pas forcément l'exemplaire qu'on tient — et sans conséquence : cette vue sert à reconnaître une carte pour lui donner son édition.
+
+Le classeur est la **vue par défaut de l'onglet Collection**, au même titre que « Construire » est une vue de l'onglet Decks. La liste reste pour ce qu'aucun régime de classeur ne couvre : **chercher une carte par son nom**. Le volume et les pages qui se tournent relèvent d'un chantier distinct : une belle animation qui saccade serait pire qu'une grille sobre.
 
 ### Deux voies de reconnaissance, dans l'ordre
 

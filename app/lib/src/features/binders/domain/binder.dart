@@ -20,6 +20,34 @@ import '../../printings/domain/scryfall_image.dart';
 /// Neuf cases par page, comme une feuille de classeur physique.
 const int binderPageSize = 9;
 
+/// Comment lire un classeur.
+///
+/// **Deux régimes, et la différence porte sur les cases vides.** Par
+/// [number], le classeur range : les cases vides figurent, parce que la question
+/// posée est « que me manque-t-il ». Par [price] ou [name], il inventorie — « mes
+/// cartes, de la plus chère à la moins chère » — et une case vide n'a alors ni
+/// valeur, ni nom, ni place dans un ordre qui ignore les numéros. Elle disparaît,
+/// et c'est ce que la demande implique : on ne regarde plus ce qui manque, on
+/// regarde ce qu'on a.
+///
+/// Le filtre de finition, lui, ne change pas de régime : restreindre au brillant
+/// laisse les trous, car « je n'ai pas cette carte en brillant » reste une
+/// complétion.
+enum BinderSort {
+  number('number', 'Numéro'),
+  price('price', 'Valeur'),
+  name('name', 'Nom');
+
+  const BinderSort(this.id, this.label);
+
+  final String id;
+  final String label;
+
+  /// Vrai quand les cases vides ont un sens — donc quand une page peut être
+  /// entièrement creuse, et qu'il faut savoir où commencer.
+  bool get keepsEmptyCells => this == BinderSort.number;
+}
+
 /// Une édition sur l'étagère, avec ce qu'on en possède.
 class BinderShelfEntry {
   const BinderShelfEntry({
@@ -62,6 +90,50 @@ class BinderShelfEntry {
     releasedAt: json['released_at'] == null
         ? null
         : DateTime.tryParse(json['released_at'] as String),
+  );
+}
+
+/// Une carte de la pile à trier : possédée, mais sans case.
+///
+/// **Ce n'est pas une case et la classe le dit** — aucun numéro de collection,
+/// aucune extension. Une carte dont l'édition n'est pas précisée n'est rangeable
+/// nulle part, et c'est précisément ce qui la rend invisible dans un classeur.
+/// La pile existe pour qu'elle cesse de l'être.
+///
+/// L'illustration est celle d'une impression **représentative**, faute
+/// d'impression désignée. C'est faux au sens strict et sans conséquence : cette
+/// vue sert à reconnaître une carte pour lui donner son édition.
+class UnsortedCard {
+  const UnsortedCard({
+    required this.oracleId,
+    required this.name,
+    required this.owned,
+    this.printedName,
+    this.artCropUrl,
+    this.priceEur,
+    this.hasFoil = false,
+  });
+
+  final String oracleId;
+  final String name;
+  final String? printedName;
+  final int owned;
+  final String? artCropUrl;
+  final double? priceEur;
+  final bool hasFoil;
+
+  String get shownName => printedName ?? name;
+
+  String? get imageUrl => fullCardImage(artCropUrl);
+
+  factory UnsortedCard.fromJson(Map<String, dynamic> json) => UnsortedCard(
+    oracleId: json['oracle_id'] as String,
+    name: (json['name'] as String?) ?? '',
+    printedName: json['printed_name'] as String?,
+    owned: (json['owned'] as num?)?.toInt() ?? 0,
+    artCropUrl: json['art_crop_url'] as String?,
+    priceEur: (json['price_eur'] as num?)?.toDouble(),
+    hasFoil: (json['has_foil'] as bool?) ?? false,
   );
 }
 

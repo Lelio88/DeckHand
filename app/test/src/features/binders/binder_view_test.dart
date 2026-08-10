@@ -13,13 +13,20 @@
 library;
 
 import 'package:deckhand/src/config/selected_game.dart';
+import 'package:deckhand/src/features/auth/data/auth_repository.dart';
 import 'package:deckhand/src/features/binders/data/binder_repository.dart';
+import 'package:deckhand/src/features/collection/data/collection_repository.dart';
+import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
+import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/binders/domain/binder.dart';
 import 'package:deckhand/src/features/binders/presentation/binder_view.dart';
 import 'package:deckhand/src/features/printings/presentation/foil_decoration.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../helpers/fakes.dart';
 
 BinderShelfEntry shelfEntry({
   String setCode = 'msh',
@@ -54,13 +61,26 @@ BinderCell cell({
 );
 
 class FakeBinderRepository implements BinderRepository {
-  FakeBinderRepository({this.entries = const [], this.cells = const []});
+  FakeBinderRepository({
+    this.entries = const [],
+    this.cells = const [],
+    this.pile = const [],
+    this.firstFilledPage = 1,
+  });
 
   List<BinderShelfEntry> entries;
   List<BinderCell> cells;
+  List<UnsortedCard> pile;
 
-  /// Pages demandées, pour vérifier que la navigation atteint le serveur.
-  final requested = <({String setCode, int page})>[];
+  /// Ce que le serveur répond quand on lui demande où commencer.
+  int firstFilledPage;
+
+  /// Lectures demandées, pour vérifier que tri et filtre atteignent le serveur.
+  final requested =
+      <({String setCode, int page, BinderSort sort, FinishFilter finish})>[];
+
+  /// Finitions pour lesquelles la première page non vide a été demandée.
+  final jumps = <FinishFilter>[];
 
   @override
   Future<List<BinderShelfEntry>> shelf({Game game = Game.magic}) async => entries;
@@ -70,21 +90,65 @@ class FakeBinderRepository implements BinderRepository {
     String setCode, {
     int page = 1,
     int perPage = binderPageSize,
+    BinderSort sort = BinderSort.number,
+    FinishFilter finish = FinishFilter.all,
   }) async {
-    requested.add((setCode: setCode, page: page));
+    requested.add((setCode: setCode, page: page, sort: sort, finish: finish));
     return cells;
   }
+
+  @override
+  Future<int> firstPage(
+    String setCode, {
+    int perPage = binderPageSize,
+    FinishFilter finish = FinishFilter.all,
+  }) async {
+    jumps.add(finish);
+    return firstFilledPage;
+  }
+
+  @override
+  Future<List<UnsortedCard>> unsorted({
+    Game game = Game.magic,
+    int page = 1,
+    int perPage = binderPageSize,
+  }) async => pile;
 }
 
 Future<FakeBinderRepository> pumpBinder(
   WidgetTester tester, {
   List<BinderShelfEntry> entries = const [],
   List<BinderCell> cells = const [],
+  List<UnsortedCard> pile = const [],
+  int firstFilledPage = 1,
+  int unspecified = 0,
 }) async {
-  final repository = FakeBinderRepository(entries: entries, cells: cells);
+  final repository = FakeBinderRepository(
+    entries: entries,
+    cells: cells,
+    pile: pile,
+    firstFilledPage: firstFilledPage,
+  );
+  final collection = FakeCollectionRepository()
+    ..totals = CollectionSummary(
+      totalCards: 1,
+      distinctCards: 1,
+      totalValueEur: 0,
+      unspecifiedPrints: unspecified,
+    );
+
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [binderRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        binderRepositoryProvider.overrideWithValue(repository),
+        collectionRepositoryProvider.overrideWithValue(collection),
+        printingRepositoryProvider.overrideWithValue(FakePrintingRepository()),
+        // Les totaux — d'où vient le compte des cartes à trier — ne sont
+        // demandés que pour une session ouverte.
+        sessionProvider.overrideWith(
+          (ref) => Stream<Session?>.value(fakeSession()),
+        ),
+      ],
       child: const MaterialApp(home: Scaffold(body: BinderView())),
     ),
   );
@@ -244,7 +308,8 @@ void main() {
       await tester.tap(find.byTooltip('Page suivante'));
       await tester.pumpAndSettle();
 
-      expect(repository.requested.last, (setCode: 'msh', page: 2));
+      expect(repository.requested.last.page, 2);
+      expect(repository.requested.last.setCode, 'msh');
     });
 
     testWidgets('la première page n\'a pas de précédente', (tester) async {
@@ -279,6 +344,137 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('216 / 453 cases'), findsOneWidget);
+    });
+  });
+
+  group('les deux régimes de lecture', () {
+    Future<FakeBinderRepository> openBinder(WidgetTester tester) async {
+      final repository = await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '1', owned: 1, art: _art)],
+        firstFilledPage: 42,
+      );
+      await tester.tap(find.text('Marvel Super Heroes'));
+      await tester.pumpAndSettle();
+      return repository;
+    }
+
+    /// Amène une puce à l'écran avant de la toucher.
+    ///
+    /// Le sélecteur défile horizontalement — trois ordres et trois finitions ne
+    /// tiennent pas sur la largeur d'un téléphone — et un `ListView` ne
+    /// construit pas ce qui dépasse.
+    Future<void> tapChip(WidgetTester tester, String label) async {
+      await tester.dragUntilVisible(
+        find.text(label),
+        find.byType(ListView).first,
+        const Offset(-120, 0),
+      );
+      await tester.pumpAndSettle();
+      // Sur le libellé plutôt que sur la puce : une puce ramenée au bord de
+      // l'écran reste partiellement hors champ, et le tap tomberait à côté.
+      await tester.ensureVisible(find.text(label));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('le tri atteint le serveur', (tester) async {
+      // Trier neuf cases côté application trierait une page, pas un classeur.
+      final repository = await openBinder(tester);
+
+      await tapChip(tester, 'Valeur');
+
+      expect(repository.requested.last.sort, BinderSort.price);
+    });
+
+    testWidgets('changer d\'ordre ramène à la première page', (tester) async {
+      // La page 42 par numéro n'est pas la page 42 par valeur : garder le
+      // numéro de page d'un ordre dans un autre n'a aucun sens.
+      final repository = await openBinder(tester);
+
+      await tester.tap(find.byTooltip('Page suivante'));
+      await tester.pumpAndSettle();
+      await tapChip(tester, 'Nom');
+
+      expect(repository.requested.last.page, 1);
+    });
+
+    testWidgets('le filtre de finition atteint le serveur', (tester) async {
+      final repository = await openBinder(tester);
+
+      await tapChip(tester, 'Brillantes');
+
+      expect(repository.requested.last.finish, FinishFilter.foil);
+    });
+
+    testWidgets('filtrer saute à la première feuille non vide', (tester) async {
+      // Restreindre au brillant laisse des feuilles entièrement creuses : sur
+      // 97 feuilles, ouvrir à la première serait ouvrir sur du vide.
+      final repository = await openBinder(tester);
+
+      await tapChip(tester, 'Brillantes');
+
+      expect(repository.jumps, contains(FinishFilter.foil));
+      expect(repository.requested.last.page, 42);
+    });
+
+    testWidgets('trier par valeur ne saute nulle part', (tester) async {
+      // Hors du rangement les cases vides disparaissent : la première page est
+      // pleine par construction, et la question ne se pose pas.
+      final repository = await openBinder(tester);
+      repository.jumps.clear();
+
+      await tapChip(tester, 'Valeur');
+
+      expect(repository.jumps, isEmpty);
+    });
+  });
+
+  group('la pile à trier', () {
+    testWidgets('elle n\'apparaît que s\'il y a quelque chose à trier', (
+      tester,
+    ) async {
+      await pumpBinder(tester, entries: [shelfEntry()]);
+      expect(find.text('À trier'), findsNothing);
+
+      await pumpBinder(tester, entries: [shelfEntry()], unspecified: 4);
+      expect(find.text('À trier'), findsOneWidget);
+    });
+
+    testWidgets('elle ouvre les cartes sans case', (tester) async {
+      // Ces cartes n'ont ni extension ni numéro : sans cette pile, elles
+      // seraient invisibles dès qu'on regarde sa collection en classeur.
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        unspecified: 2,
+        pile: [
+          const UnsortedCard(
+            oracleId: 'o1',
+            name: 'Roxxon Brutes',
+            owned: 2,
+          ),
+        ],
+      );
+
+      await tester.tap(find.text('À trier'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Roxxon Brutes'), findsOneWidget);
+      expect(find.textContaining('lui donner son édition'), findsOneWidget);
+    });
+
+    testWidgets('une pile vide se félicite plutôt que de rester muette', (
+      tester,
+    ) async {
+      await pumpBinder(tester, entries: [shelfEntry()], unspecified: 1);
+
+      await tester.tap(find.text('À trier'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rien à trier'), findsOneWidget);
     });
   });
 

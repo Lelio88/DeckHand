@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/selected_game.dart';
+import '../../collection/domain/collection_entry.dart' show FinishFilter;
 import '../domain/binder.dart';
 
 class BinderRepository {
@@ -35,13 +36,37 @@ class BinderRepository {
         .toList(growable: false);
   }
 
-  /// Une page de classeur : les cases dans l'ordre des numéros, vides comprises.
+  /// Les cartes possédées dont l'édition n'est pas précisée.
   ///
-  /// [page] commence à 1, comme la première feuille d'un classeur.
+  /// Elles n'ont aucune case : sans impression désignée, il n'y a ni extension
+  /// ni numéro. Sans cette pile, elles seraient invisibles dès qu'on regarde sa
+  /// collection en classeur.
+  Future<List<UnsortedCard>> unsorted({
+    Game game = Game.magic,
+    int page = 1,
+    int perPage = binderPageSize,
+  }) async {
+    final rows = await _client.rpc<List<dynamic>>(
+      'my_unsorted_pile',
+      params: {'p_game': game.id, 'p_page': page, 'p_per_page': perPage},
+    );
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(UnsortedCard.fromJson)
+        .toList(growable: false);
+  }
+
+  /// Une page de classeur.
+  ///
+  /// [page] commence à 1, comme la première feuille d'un classeur. Trié par
+  /// numéro, les cases vides figurent ; trié par valeur ou par nom, elles
+  /// disparaissent — voir [BinderSort].
   Future<List<BinderCell>> pageOf(
     String setCode, {
     int page = 1,
     int perPage = binderPageSize,
+    BinderSort sort = BinderSort.number,
+    FinishFilter finish = FinishFilter.all,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'my_binder_page',
@@ -49,12 +74,34 @@ class BinderRepository {
         'p_set_code': setCode,
         'p_page': page,
         'p_per_page': perPage,
+        'p_sort': sort.id,
+        'p_finish': finish.id,
       },
     );
     return rows
         .cast<Map<String, dynamic>>()
         .map(BinderCell.fromJson)
         .toList(growable: false);
+  }
+
+  /// La première feuille portant au moins une carte possédée.
+  ///
+  /// Un classeur de 97 feuilles dont on ne possède que douze cartes s'ouvrirait
+  /// sinon sur du vide, et il faudrait tourner des pages au hasard.
+  Future<int> firstPage(
+    String setCode, {
+    int perPage = binderPageSize,
+    FinishFilter finish = FinishFilter.all,
+  }) async {
+    final value = await _client.rpc<int>(
+      'my_binder_first_page',
+      params: {
+        'p_set_code': setCode,
+        'p_per_page': perPage,
+        'p_finish': finish.id,
+      },
+    );
+    return value;
   }
 }
 
@@ -69,12 +116,52 @@ final binderShelfProvider = FutureProvider<List<BinderShelfEntry>>(
       .shelf(game: ref.watch(selectedGameProvider)),
 );
 
-/// Une page de classeur. La clé porte l'édition et le numéro de page : deux
-/// pages voisines sont deux requêtes distinctes, et restent en cache tant que
-/// l'écran les regarde.
+/// Comment le classeur ouvert est lu : l'ordre, et la finition retenue.
+typedef BinderReading = ({BinderSort sort, FinishFilter finish});
+
+class BinderReadingNotifier extends Notifier<BinderReading> {
+  @override
+  BinderReading build() =>
+      (sort: BinderSort.number, finish: FinishFilter.all);
+
+  void sortBy(BinderSort sort) => state = (sort: sort, finish: state.finish);
+  void filter(FinishFilter finish) => state = (sort: state.sort, finish: finish);
+}
+
+final binderReadingProvider =
+    NotifierProvider<BinderReadingNotifier, BinderReading>(
+      BinderReadingNotifier.new,
+    );
+
+/// Une page de classeur. La clé porte l'édition, la page et la lecture : deux
+/// pages voisines sont deux requêtes distinctes, et changer de tri ne réutilise
+/// pas la page précédente.
 final binderPageProvider =
-    FutureProvider.family<List<BinderCell>, ({String setCode, int page})>(
+    FutureProvider.family<
+      List<BinderCell>,
+      ({String setCode, int page, BinderSort sort, FinishFilter finish})
+    >(
       (ref, args) => ref
           .watch(binderRepositoryProvider)
-          .pageOf(args.setCode, page: args.page),
+          .pageOf(
+            args.setCode,
+            page: args.page,
+            sort: args.sort,
+            finish: args.finish,
+          ),
     );
+
+/// La première feuille non vide, pour ne pas ouvrir un classeur sur du creux.
+final binderFirstPageProvider =
+    FutureProvider.family<int, ({String setCode, FinishFilter finish})>(
+      (ref, args) => ref
+          .watch(binderRepositoryProvider)
+          .firstPage(args.setCode, finish: args.finish),
+    );
+
+/// Une page de la pile à trier.
+final unsortedPileProvider = FutureProvider.family<List<UnsortedCard>, int>(
+  (ref, page) => ref
+      .watch(binderRepositoryProvider)
+      .unsorted(game: ref.watch(selectedGameProvider), page: page),
+);
