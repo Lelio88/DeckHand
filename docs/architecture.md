@@ -288,6 +288,25 @@ Le nom est le seul repère stable : il figure en première ligne sur toutes les 
 
 **Coût :** +30 Mo d'APK (53,6 → 83,8 Mo), le modèle latin étant empaqueté. Les modules chinois, japonais, coréen et devanagari sont écartés par `android/app/proguard-rules.pro` — sans quoi R8 refuse de compiler, le plugin les référençant sans qu'ils soient présents.
 
+### L'édition se lit par son code d'extension, jamais par son numéro
+
+Une case de classeur est le couple `(set_code, collector_number)`, et le premier réflexe est de lire la ligne qui porte les deux : « 0412/0853 U • MSH • FR ». **Le numéro n'est pas lisible sur une photo à main levée.** Sur la seule lecture réelle figée (`test/src/features/scan/measured_spread.dart`, 36 lignes), il sort « C O0O5 » et « 02 » — il est imprimé deux fois plus petit que le nom, ce que la hauteur relative des caractères confirme : 0,006 à 0,008 de la hauteur de l'image contre 0,016. Le **code d'extension** de la même ligne, lui, sort juste deux fois sur deux : il est en capitales et plus large.
+
+Or le code suffit presque toujours. Mesuré au catalogue par `api/app/measure/edition_from_set.py`, sur les 31 841 cartes Magic hors jetons :
+
+| Lecture | Part |
+|---|---|
+| Couples (carte, extension) désignant **une seule case** | **83,1 %** (69 695 / 83 870) |
+| Idem, restreint au français | 87,9 % (43 957 / 50 001) |
+| Cartes n'existant que dans une seule extension | 46,5 % — déjà tranchées par `sole_editions` |
+| Pondéré par les exemplaires du corpus de decks | 72 % en cas moyen, 40,6 % en pire cas |
+
+La carte étant déjà identifiée par son nom, lire son extension précise donc son édition **sans caméra fixe et sans jamais lire le numéro**. Les deux lectures pondérées encadrent la réalité : le corpus ne dit pas de quelle extension vient l'exemplaire joué, le pire cas suppose qu'on possède toujours la réédition la plus alambiquée, le cas moyen qu'on en possède une au hasard.
+
+**On ne cherche pas un code dans l'absolu.** `readSetCode` reçoit les extensions où la carte identifiée existe — de une à quelques dizaines sur les 695 du catalogue — et ne retient qu'un mot entier, en capitales, qui coïncide avec l'une d'elles. Un nom d'illustrateur ou un mot du texte de règles n'a donc aucune chance d'en désigner une par accident, et l'exigence de capitales écarte le « one » d'un texte anglais qui désignerait sinon l'extension ONE. Deux codes distincts lus sur la même photo rendent `null` : deviner lequel est le bon serait deviner tout court.
+
+Ce que le sélecteur en fait est délibérément minimal : l'extension lue **remonte en tête**, annoncée par « Extension lue sur la carte : MSH ». Rien n'est coché ni ajouté d'office (garde-fou §IV.8) — sur une carte rééditée quarante fois, cet ordre est déjà ce qui rend le geste tenable, et l'annoncer permet de comprendre une lecture fausse au lieu de subir un ordre inexplicable. Les 17 % de couples ambigus restent départagés à la main : chaque édition portant le code lu est marquée, plutôt que de laisser croire que la première est la bonne.
+
 ### Ce que le premier test terrain a montré (2026-08-07)
 
 Deux cartes scannées, deux échecs, **deux causes distinctes** — mesurées, pas supposées.
