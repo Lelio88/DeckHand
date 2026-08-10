@@ -178,7 +178,8 @@ void main() {
     expect(
       find.text('—'),
       findsOneWidget,
-      reason: 'un tiret dit l\'absence de cote ; un zéro ferait croire à une '
+      reason:
+          'un tiret dit l\'absence de cote ; un zéro ferait croire à une '
           'carte sans valeur',
     );
   });
@@ -213,7 +214,8 @@ void main() {
       expect(
         repository.lastQuery,
         'foudre',
-        reason: 'filtrer côté écran seulement afficherait une liste non filtrée',
+        reason:
+            'filtrer côté écran seulement afficherait une liste non filtrée',
       );
     });
 
@@ -239,6 +241,25 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.lastSort, CollectionSort.number);
+    });
+
+    testWidgets('ranger comme un classeur est un tri offert', (tester) async {
+      // Le numéro seul mêle les classeurs : MAR #43 et MSH #43 se suivraient,
+      // alors qu'ils sont dans deux volumes différents. Ce tri-ci range par
+      // extension d'abord, comme on range une boîte.
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Classeur').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.lastSort, CollectionSort.binder);
+      expect(
+        repository.lastDescending,
+        isFalse,
+        reason: 'un classeur se lit de la première page à la dernière',
+      );
     });
 
     testWidgets('re-choisir le même critère inverse la liste', (tester) async {
@@ -282,7 +303,8 @@ void main() {
       expect(
         repository.lastDescending,
         isFalse,
-        reason: 'les noms se lisent de A à Z, pas dans le sens hérité du '
+        reason:
+            'les noms se lisent de A à Z, pas dans le sens hérité du '
             'critère précédent',
       );
     });
@@ -373,7 +395,10 @@ void main() {
     testWidgets('le filtre restreint la liste côté dépôt', (tester) async {
       final repository = await pumpCollection(
         tester,
-        entries: [entry(printId: 'print-mh2', setCode: 'mh2'), entry()],
+        entries: [
+          entry(printId: 'print-mh2', setCode: 'mh2'),
+          entry(),
+        ],
         totals: totalsWith(3),
       );
 
@@ -383,7 +408,8 @@ void main() {
       expect(
         repository.lastUnspecifiedOnly,
         isTrue,
-        reason: 'filtrer la page reçue viderait les pages où rien n\'est à '
+        reason:
+            'filtrer la page reçue viderait les pages où rien n\'est à '
             'préciser en croyant la collection épuisée',
       );
     });
@@ -543,13 +569,9 @@ void main() {
 
       expect(
         repository.lastPrintingMove,
-        (
-          oracleId: 'oracle-1',
-          from: null,
-          to: 'print-mh2',
-          quantity: null,
-        ),
-        reason: 'sans ce déplacement, le choix resterait affiché mais non enregistré',
+        (oracleId: 'oracle-1', from: null, to: 'print-mh2', quantity: null),
+        reason:
+            'sans ce déplacement, le choix resterait affiché mais non enregistré',
       );
     });
 
@@ -565,7 +587,8 @@ void main() {
       expect(
         repository.quantities[('oracle-1', 'print-mh2')],
         1,
-        reason: 'ajouter depuis une ligne d\'édition ne doit pas créer une '
+        reason:
+            'ajouter depuis une ligne d\'édition ne doit pas créer une '
             'ligne sans édition',
       );
     });

@@ -156,16 +156,22 @@ class CollectionSummary {
 /// Critères de consultation de la collection.
 ///
 /// Certains répondent à des questions d'inventaire — ce qui vaut le plus, ce
-/// qu'on a en double, ce qui vient d'entrer. `number` et `rarity` répondent à
-/// celle qu'on se pose une carte à la main devant une boîte : où va-t-elle ?
-/// Les cartes sans édition précisée n'ayant ni numéro ni rareté, elles ferment
-/// la marche.
+/// qu'on a en double, ce qui vient d'entrer. `binder`, `number` et `rarity`
+/// répondent à celle qu'on se pose une carte à la main devant une boîte : où
+/// va-t-elle ? Les cartes sans édition précisée n'ayant ni extension, ni numéro,
+/// ni rareté, elles ferment la marche.
+///
+/// `binder` est le rangement complet — l'extension désigne le classeur, le
+/// numéro la case — là où `number` ne connaît que la case et mêle donc les
+/// classeurs. Les deux coexistent : le numéro seul reste le moyen de retrouver
+/// une carte dont on ne sait plus de quelle extension elle vient.
 ///
 /// [startsDescending] est le sens dans lequel on veut voir le critère la
 /// première fois : on cherche d'abord ses cartes les plus chères, mais ses noms
 /// de A à Z. Le re-sélectionner inverse ce sens.
 enum CollectionSort {
   name('name', 'Nom', startsDescending: false),
+  binder('binder', 'Classeur', startsDescending: false),
   number('number', 'Numéro', startsDescending: false),
   rarity('rarity', 'Rareté', startsDescending: false),
   price('price', 'Valeur', startsDescending: true),

@@ -273,6 +273,8 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 
 **La collection se trie aussi par numéro de collection.** Les autres critères — nom, valeur, quantité, date d'entrée — répondent à des questions d'inventaire ; celui-ci répond à la seule qu'on se pose une carte à la main devant une boîte : où va-t-elle ? Le tri porte sur la partie chiffrée du numéro, `collector_number` étant un `text` qui accepte les suffixes (`43a`, `★43`) et rangerait sinon 100 avant 2. Les cartes sans édition précisée n'ont pas de numéro et ferment la marche, ce qui les désigne du même geste comme celles qui restent à préciser.
 
+**Le tri « classeur » ajoute l'extension par-dessus le numéro**, parce que le numéro seul mêle les volumes : `mar #43` et `msh #43` se suivaient, alors qu'ils sont rangés dans deux classeurs différents. L'extension désigne le classeur, le numéro la case. Les extensions sont ordonnées **alphabétiquement par code** : par date de sortie serait plus proche d'une étagère réelle, mais deux extensions parues le même jour deviendraient arbitraires, et l'ordre changerait sous les yeux de l'utilisateur au gré des rééditions. Renverser ce tri renverse le couple entier — dernière extension, dernière page — n'en inverser qu'une moitié donnerait des classeurs à l'envers contenant des pages à l'endroit. Les deux tris coexistent : le numéro seul reste le moyen de retrouver une carte dont on ne sait plus de quelle extension elle vient.
+
 ### Deux voies de reconnaissance, dans l'ordre
 
 Depuis le test terrain, la carte est identifiée **par son nom d'abord**, par son illustration ensuite.
