@@ -41,7 +41,10 @@ enum CardRole {
 ///
 /// Le français n'est pas une option : `cards.oracle_text` porte le texte de
 /// référence, qui n'est traduit nulle part dans la base.
-final _ramp = RegExp(r'add \{|search your library for a[^.]*land', caseSensitive: false);
+final _ramp = RegExp(
+  r'add \{|search your library for a[^.]*land',
+  caseSensitive: false,
+);
 final _removal = RegExp(
   r'destroy target|exile target|deals \d+ damage to target',
   caseSensitive: false,

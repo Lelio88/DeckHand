@@ -42,8 +42,9 @@ const _roleLabels = {
 class DeckBuilderView extends ConsumerStatefulWidget {
   const DeckBuilderView({super.key, required this.format});
 
-  /// Format visé. Le constructeur ne sait bâtir que du Commander : les autres
-  /// formats reçoivent une explication, pas un deck bancal.
+  /// Format visé. Chacun a son gabarit, mesuré sur son propre corpus — et sa
+  /// fiabilité : celui du Commander décrit un deck réel, ceux du Pauper et du
+  /// Modern moyennent des archétypes incompatibles, ce que la vue annonce.
   final DeckFormat format;
 
   @override
@@ -51,7 +52,8 @@ class DeckBuilderView extends ConsumerStatefulWidget {
 }
 
 class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
-  static const _builder = DeckBuilder();
+  DeckBuilder get _builder =>
+      DeckBuilder(blueprint: DeckBlueprint.of(widget.format));
 
   /// Général retenu. Nul tant qu'on n'a pas choisi : l'écran montre alors la
   /// liste des candidats plutôt qu'un deck qu'on n'a pas demandé.
@@ -59,16 +61,6 @@ class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.format != DeckFormat.commander) {
-      return const _Note(
-        'La construction automatique ne couvre que le Commander.\n\n'
-        "Les 725 decks Pauper du corpus s'étalent de 25 à 40 % de créatures "
-        "et de 23 à 43 % de sorts : ce sont des archétypes distincts, qu'une "
-        "moyenne fondrait en un deck qui n'existe nulle part. Les 190 "
-        "précons Commander, eux, se ressemblent assez pour servir de modèle.",
-      );
-    }
-
     final collection = ref.watch(buildableCollectionProvider(widget.format));
 
     return collection.when(
@@ -80,6 +72,15 @@ class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
   }
 
   Widget _content(List<BuildableCard> cards) {
+    final blueprint = DeckBlueprint.of(widget.format);
+    if (!blueprint.needsCommander) {
+      return _DeckView(
+        deck: _builder.build(cards),
+        blueprint: blueprint,
+        onChangeCommander: null,
+      );
+    }
+
     final commanders = _builder.commanders(cards);
     if (commanders.isEmpty) {
       return const _Note(
@@ -98,6 +99,7 @@ class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
 
     return _DeckView(
       deck: _builder.build(cards, commander),
+      blueprint: blueprint,
       onChangeCommander: () => setState(() => _commander = null),
     );
   }
@@ -140,7 +142,9 @@ class _CommanderPicker extends StatelessWidget {
               FilledButton.tonalIcon(
                 onPressed: () => onPick(commanders.first),
                 icon: const Icon(Icons.auto_awesome),
-                label: Text('Choisir pour moi — ${commanders.first.displayName}'),
+                label: Text(
+                  'Choisir pour moi — ${commanders.first.displayName}',
+                ),
               ),
             ],
           ),
@@ -178,47 +182,71 @@ class _CommanderPicker extends StatelessWidget {
 
 /// Le deck produit, et ce qu'on peut lui reprocher.
 class _DeckView extends StatelessWidget {
-  const _DeckView({required this.deck, required this.onChangeCommander});
+  const _DeckView({
+    required this.deck,
+    required this.blueprint,
+    required this.onChangeCommander,
+  });
 
   final BuiltDeck deck;
-  final VoidCallback onChangeCommander;
+  final DeckBlueprint blueprint;
+
+  /// Nul dans les formats sans général : il n'y a alors rien à changer.
+  final VoidCallback? onChangeCommander;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final blueprint = DeckBlueprint.commander;
-    final byName = [...deck.spells, ...deck.lands]
-      ..sort((a, b) => a.displayName.compareTo(b.displayName));
+    final commander = deck.commander;
+    // Les exemplaires multiples se regroupent : « 4 Foudre » plutot que quatre
+    // lignes identiques, comme dans toute liste de deck.
+    final counts = <String, int>{};
+    final unique = <BuildableCard>[];
+    for (final card in [...deck.spells, ...deck.lands]) {
+      if (counts.containsKey(card.oracleId)) {
+        counts[card.oracleId] = counts[card.oracleId]! + 1;
+      } else {
+        counts[card.oracleId] = 1;
+        unique.add(card);
+      }
+    }
+    unique.sort((a, b) => a.displayName.compareTo(b.displayName));
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    deck.commander.displayName,
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  Text(
-                    deck.commander.typeLine,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+        if (commander != null) ...[
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      commander.displayName,
+                      style: theme.textTheme.titleLarge,
                     ),
-                  ),
-                ],
+                    Text(
+                      commander.typeLine,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            TextButton(
-              onPressed: onChangeCommander,
-              child: const Text('Changer'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
+              TextButton(
+                onPressed: onChangeCommander,
+                child: const Text('Changer'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (blueprint.reliability == BlueprintReliability.averaged) ...[
+          const _AveragedWarning(),
+          const SizedBox(height: 12),
+        ],
         _Summary(deck: deck),
         const SizedBox(height: 16),
         Text('Ce que le deck vise', style: theme.textTheme.titleSmall),
@@ -241,19 +269,21 @@ class _DeckView extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Text(
-          '${byName.length} cartes de votre collection',
+          '${unique.length} cartes de votre collection',
           style: theme.textTheme.titleSmall,
         ),
         Text(
-          "Un seul exemplaire de chacune — le format l'exige. "
-          'Le coût de mana est indiqué à droite.',
+          blueprint.maxCopies == 1
+              ? "Un seul exemplaire de chacune — le format l'exige. "
+                    'Le coût de mana est indiqué à droite.'
+              : "Le nombre d'exemplaires précède le nom, le coût de mana suit.",
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 8),
-        for (final card in byName)
-          _CardLine(card: card),
+        for (final card in unique)
+          _CardLine(card: card, copies: counts[card.oracleId] ?? 1),
       ],
     );
   }
@@ -373,9 +403,13 @@ class _RoleGauge extends StatelessWidget {
 }
 
 class _CardLine extends StatelessWidget {
-  const _CardLine({required this.card});
+  const _CardLine({required this.card, this.copies = 1});
 
   final BuildableCard card;
+
+  /// Exemplaires retenus. Affiché seulement au-delà d'un : dans un format
+  /// singleton, un « 1 » devant chaque ligne n'apprendrait rien.
+  final int copies;
 
   @override
   Widget build(BuildContext context) {
@@ -395,10 +429,19 @@ class _CardLine extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(
           children: [
-            // **Le nom d'abord, le coût à droite.** Un nombre placé devant un
-            // nom de carte se lit comme une quantité — c'est la convention de
-            // toutes les listes de deck — et faisait croire à plusieurs
-            // exemplaires d'une carte que le format n'autorise qu'en un seul.
+            // **Un nombre devant un nom de carte est une quantité.** C'est la
+            // convention de toutes les listes de deck ; y mettre le coût de
+            // mana faisait croire à des exemplaires qu'on ne pouvait pas jouer.
+            if (copies > 1)
+              SizedBox(
+                width: 24,
+                child: Text(
+                  '\$copies',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             Expanded(
               child: Text(
                 card.displayName,
@@ -486,6 +529,50 @@ class _Note extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Ce qu'il faut penser d'un gabarit moyenné.
+///
+/// **Le dire est le minimum honnête.** Les 725 decks Pauper et les 113 Modern
+/// du corpus mêlent des archétypes incompatibles — aggro, contrôle, combo — dont
+/// la médiane décrit un deck jouable mais qui ne ressemble à aucun d'eux. Le
+/// résultat reste utile ; le présenter comme aussi fondé qu'un deck Commander
+/// serait faux.
+class _AveragedWarning extends StatelessWidget {
+  const _AveragedWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "Les decks de ce format se ressemblent peu — aggro, contrôle, "
+              "combo se partagent le corpus. Les proportions visées sont une "
+              "moyenne de tous, donc un repère plus lâche qu'en Commander.",
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -32,14 +32,15 @@ import 'deck_blueprint.dart';
 /// Un deck construit, et ce qu'on peut lui reprocher.
 class BuiltDeck {
   const BuiltDeck({
-    required this.commander,
+    this.commander,
     required this.spells,
     required this.lands,
     required this.basicLands,
     required this.diagnosis,
   });
 
-  final BuildableCard commander;
+  /// Général du deck. Nul dans les formats qui n'en ont pas.
+  final BuildableCard? commander;
 
   /// Cartes non-terrain retenues, dans l'ordre où elles ont été choisies.
   final List<BuildableCard> spells;
@@ -56,7 +57,8 @@ class BuiltDeck {
   int get basicCount => basicLands.values.fold(0, (sum, n) => sum + n);
 
   /// Cartes du deck, commandant compris.
-  int get size => 1 + spells.length + lands.length + basicCount;
+  int get size =>
+      (commander == null ? 0 : 1) + spells.length + lands.length + basicCount;
 }
 
 /// L'écart entre le deck obtenu et le gabarit visé.
@@ -105,8 +107,10 @@ class DeckBuilder {
   List<BuildableCard> commanders(List<BuildableCard> collection) {
     final candidates = collection.where((c) => c.canCommand).toList();
     candidates.sort((a, b) {
-      final opened = _playableCount(collection, b.colorIdentity)
-          .compareTo(_playableCount(collection, a.colorIdentity));
+      final opened = _playableCount(
+        collection,
+        b.colorIdentity,
+      ).compareTo(_playableCount(collection, a.colorIdentity));
       return opened != 0 ? opened : a.displayName.compareTo(b.displayName);
     });
     return candidates;
@@ -115,24 +119,55 @@ class DeckBuilder {
   int _playableCount(List<BuildableCard> collection, ColorIdentity identity) =>
       collection.where((c) => !c.isBasicLand && c.playableIn(identity)).length;
 
-  /// Construit un deck autour de [commander] avec [collection].
-  BuiltDeck build(List<BuildableCard> collection, BuildableCard commander) {
-    final identity = commander.colorIdentity;
+  /// Couleurs à jouer quand aucun général ne les impose.
+  ///
+  /// **Les deux mieux fournies, et pas davantage.** Un deck qui touche à tout
+  /// ne produit jamais le mana qu'il lui faut ; deux couleurs sont le compromis
+  /// que prennent la plupart des decks de tournoi. Les cartes incolores entrent
+  /// de toute façon, quel que soit le choix.
+  ColorIdentity dominantColors(
+    List<BuildableCard> collection, {
+    int count = 2,
+  }) {
+    final weights = <String, int>{};
+    for (final card in collection) {
+      if (card.isBasicLand) continue;
+      for (final color in card.colorIdentity) {
+        weights[color] = (weights[color] ?? 0) + card.quantity;
+      }
+    }
+    final ordered = weights.keys.toList()
+      ..sort((a, b) {
+        final byWeight = weights[b]!.compareTo(weights[a]!);
+        return byWeight != 0 ? byWeight : a.compareTo(b);
+      });
+    return ordered.take(count).toSet();
+  }
+
+  /// Construit un deck avec [collection], autour de [commander] s'il en faut un.
+  ///
+  /// Sans général — Pauper, Modern — les couleurs se déduisent de la collection
+  /// elle-même : voir [dominantColors].
+  BuiltDeck build(List<BuildableCard> collection, [BuildableCard? commander]) {
+    final identity = commander?.colorIdentity ?? dominantColors(collection);
     final pool = collection
         .where(
           (c) =>
-              c.oracleId != commander.oracleId &&
+              c.oracleId != commander?.oracleId &&
               !c.isBasicLand &&
               c.playableIn(identity),
         )
         .toList();
 
     final landTarget = blueprint.lands.countFor(blueprint.size);
-    final specials = pool.where((c) => c.isLand).take(landTarget).toList();
-    final spellSlots = blueprint.size - 1 - landTarget;
+    final specials = _expand(
+      pool.where((c) => c.isLand).toList(),
+    ).take(landTarget).toList();
+    final spellSlots =
+        blueprint.size - (commander == null ? 0 : 1) - landTarget;
 
     final spells = _fillSpells(
-      pool.where((c) => !c.isLand).toList(),
+      _expand(pool.where((c) => !c.isLand).toList()),
       spellSlots,
     );
 
@@ -151,6 +186,21 @@ class DeckBuilder {
       basicLands: basics,
       diagnosis: _judge(spells, specials, commander, basics),
     );
+  }
+
+  /// Déroule les exemplaires possédés en autant de candidats.
+  ///
+  /// **Jouer quatre exemplaires d'une bonne carte est souhaitable** dans les
+  /// formats qui l'autorisent : c'est ce qui rend un deck régulier d'une partie
+  /// à l'autre. Les copies portent le même score, donc elles se suivent
+  /// naturellement dans le choix.
+  List<BuildableCard> _expand(List<BuildableCard> pool) {
+    if (blueprint.maxCopies <= 1) return pool;
+    return [
+      for (final card in pool)
+        for (var i = 0; i < card.quantity.clamp(1, blueprint.maxCopies); i++)
+          card,
+    ];
   }
 
   /// Choisit les sorts, un par un, en comblant à chaque fois le manque le plus
@@ -259,7 +309,7 @@ class DeckBuilder {
   DeckDiagnosis _judge(
     List<BuildableCard> spells,
     List<BuildableCard> lands,
-    BuildableCard commander,
+    BuildableCard? commander,
     Map<String, int> basics,
   ) {
     final gaps = <CardRole, int>{};
@@ -269,12 +319,16 @@ class DeckBuilder {
       // Le général compte comme n'importe quelle carte : il est sur le champ de
       // bataille plus souvent qu'aucune autre.
       final withCommander =
-          have + (rolesOf(commander).contains(entry.key) ? 1 : 0);
+          have +
+          (commander != null && rolesOf(commander).contains(entry.key) ? 1 : 0);
       gaps[entry.key] = target - withCommander;
     }
 
     final size =
-        1 + spells.length + lands.length + basics.values.fold(0, (s, n) => s + n);
+        (commander == null ? 0 : 1) +
+        spells.length +
+        lands.length +
+        basics.values.fold(0, (s, n) => s + n);
     return DeckDiagnosis(
       roleGaps: gaps,
       short: (blueprint.size - size).clamp(0, blueprint.size).toInt(),

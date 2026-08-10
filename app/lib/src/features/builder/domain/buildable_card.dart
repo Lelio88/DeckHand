@@ -79,5 +79,6 @@ class BuildableCard {
   /// La règle du Commander : l'identité d'une carte doit être **contenue** dans
   /// celle du général. Une carte incolore entre partout, ce qui en fait la
   /// monnaie d'échange de tous les decks.
-  bool playableIn(ColorIdentity identity) => colorIdentity.every(identity.contains);
+  bool playableIn(ColorIdentity identity) =>
+      colorIdentity.every(identity.contains);
 }

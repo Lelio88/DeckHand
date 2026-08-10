@@ -29,7 +29,10 @@ class BuildableRepository {
       params: {'p_format': format.id, 'p_game': game.id},
     );
 
-    return rows.cast<Map<String, dynamic>>().map(_fromJson).toList(growable: false);
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(_fromJson)
+        .toList(growable: false);
   }
 
   BuildableCard _fromJson(Map<String, dynamic> json) => BuildableCard(

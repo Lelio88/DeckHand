@@ -12,6 +12,7 @@ library;
 
 import 'package:deckhand/src/features/builder/domain/buildable_card.dart';
 import 'package:deckhand/src/features/builder/domain/card_role.dart';
+import 'package:deckhand/src/features/builder/domain/deck_blueprint.dart';
 import 'package:deckhand/src/features/builder/domain/deck_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -251,6 +252,74 @@ void main() {
     });
   });
 
+  group('les formats sans général', () {
+    // Pauper et Modern se jouent à soixante cartes, jusqu'à quatre exemplaires
+    // de chacune, et sans général pour imposer les couleurs.
+    const pauper = DeckBuilder(blueprint: DeckBlueprint.pauper);
+
+    test('le deck fait soixante cartes', () {
+      final deck = pauper.build(plainCollection(60));
+
+      expect(deck.size, 60);
+      expect(deck.commander, isNull);
+    });
+
+    test('les couleurs se déduisent de la collection', () {
+      // Sans général, personne ne les impose : les deux mieux fournies
+      // l'emportent, parce qu'un deck qui touche à tout ne produit jamais le
+      // mana qu'il lui faut.
+      final colors = pauper.dominantColors([
+        ...plainCollection(30, colors: {'B'}),
+        ...plainCollection(20, colors: {'R'}),
+        ...plainCollection(5, colors: {'G'}),
+      ]);
+
+      expect(colors, {'B', 'R'});
+    });
+
+    test("les exemplaires possédés sont joués jusqu'à quatre", () {
+      // Jouer quatre exemplaires d'une bonne carte rend un deck régulier d'une
+      // partie à l'autre : c'est souhaitable, pas un pis-aller.
+      final deck = pauper.build([
+        BuildableCard(
+          oracleId: 'unique',
+          name: 'Foudre',
+          typeLine: 'Instant',
+          cmc: 1,
+          colorIdentity: const {'B'},
+          quantity: 9,
+        ),
+      ]);
+
+      expect(deck.spells.length, 4);
+    });
+
+    test('le gabarit de Commander reste singleton', () {
+      const commander = DeckBuilder();
+      final deck = commander.build([
+        card(name: 'Général', type: 'Legendary Creature — Human'),
+        BuildableCard(
+          oracleId: 'unique',
+          name: 'Foudre',
+          typeLine: 'Instant',
+          cmc: 1,
+          colorIdentity: const {'B'},
+          quantity: 9,
+        ),
+      ], card(name: 'Général', type: 'Legendary Creature — Human'));
+
+      expect(deck.spells.length, 1);
+    });
+
+    test('les gabarits moyennés se signalent comme tels', () {
+      // 725 decks Pauper mêlent aggro, contrôle et combo : leur médiane décrit
+      // un deck qui n'existe nulle part, et l'interface doit pouvoir le dire.
+      expect(DeckBlueprint.commander.reliability, BlueprintReliability.tight);
+      expect(DeckBlueprint.pauper.reliability, BlueprintReliability.averaged);
+      expect(DeckBlueprint.modern.reliability, BlueprintReliability.averaged);
+    });
+  });
+
   group('une collection trop maigre', () {
     test('rend un deck incomplet qui le dit', () {
       // Trois cartes ne font pas un deck. Le constructeur ne doit ni inventer
@@ -266,7 +335,7 @@ void main() {
       final deck = builder.build([general], general);
 
       expect(deck.spells, isEmpty);
-      expect(deck.commander.name, 'Général');
+      expect(deck.commander?.name, 'Général');
     });
   });
 }
