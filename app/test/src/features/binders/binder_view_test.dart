@@ -80,8 +80,15 @@ class FakeBinderRepository implements BinderRepository {
   int firstFilledPage;
 
   /// Lectures demandées, pour vérifier que tri et filtre atteignent le serveur.
-  final requested =
-      <({String setCode, int page, BinderSort sort, FinishFilter finish})>[];
+  final requested = <
+      ({
+        String setCode,
+        int page,
+        BinderSort sort,
+        FinishFilter finish,
+        bool descending,
+      })
+  >[];
 
   /// Finitions pour lesquelles la première page non vide a été demandée.
   final jumps = <FinishFilter>[];
@@ -96,8 +103,15 @@ class FakeBinderRepository implements BinderRepository {
     int perPage = binderPageSize,
     BinderSort sort = BinderSort.number,
     FinishFilter finish = FinishFilter.all,
+    bool descending = false,
   }) async {
-    requested.add((setCode: setCode, page: page, sort: sort, finish: finish));
+    requested.add((
+      setCode: setCode,
+      page: page,
+      sort: sort,
+      finish: finish,
+      descending: descending,
+    ));
     return cells;
   }
 
@@ -393,7 +407,10 @@ void main() {
     Future<void> choose(WidgetTester tester, Finder menu, String label) async {
       await tester.tap(menu);
       await tester.pumpAndSettle();
-      await tester.tap(find.text(label).last);
+      // `textContaining` et non `text` : l'entrée déjà choisie porte en plus
+      // la phrase qui annonce le renversement — « Valeur — Les moins chères
+      // d'abord ».
+      await tester.tap(find.textContaining(label).last);
       await tester.pumpAndSettle();
     }
 
@@ -422,6 +439,31 @@ void main() {
         repository.requested.any((r) => r.page == 1 && r.sort == BinderSort.name),
         isTrue,
       );
+    });
+
+    testWidgets('re-choisir un critère renverse le classeur', (tester) async {
+      // Le geste de l'ancienne liste : re-sélectionner un tri l'inverse. Sans
+      // lui, impossible de partir de la dernière page ou des cartes les moins
+      // chères.
+      final repository = await openBinder(tester);
+
+      await choose(tester, sortMenu, 'Valeur');
+      expect(repository.requested.last.descending, isFalse);
+
+      await choose(tester, sortMenu, 'Valeur');
+      expect(repository.requested.last.descending, isTrue);
+    });
+
+    testWidgets('changer de critère repart dans son sens naturel', (
+      tester,
+    ) async {
+      final repository = await openBinder(tester);
+
+      await choose(tester, sortMenu, 'Valeur');
+      await choose(tester, sortMenu, 'Valeur');
+      await choose(tester, sortMenu, 'Nom');
+
+      expect(repository.requested.last.descending, isFalse);
     });
 
     testWidgets('le filtre de finition atteint le serveur', (tester) async {

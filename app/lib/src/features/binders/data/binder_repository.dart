@@ -9,6 +9,8 @@
 /// neuf serait aussi lent qu'inutile.
 library;
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -95,6 +97,7 @@ class BinderRepository {
     int perPage = binderPageSize,
     BinderSort sort = BinderSort.number,
     FinishFilter finish = FinishFilter.all,
+    bool descending = false,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'my_binder_page',
@@ -104,6 +107,7 @@ class BinderRepository {
         'p_per_page': perPage,
         'p_sort': sort.id,
         'p_finish': finish.id,
+        'p_descending': descending,
       },
     );
     return rows
@@ -145,15 +149,31 @@ final binderShelfProvider = FutureProvider<List<BinderShelfEntry>>(
 );
 
 /// Comment le classeur ouvert est lu : l'ordre, et la finition retenue.
-typedef BinderReading = ({BinderSort sort, FinishFilter finish});
+typedef BinderReading = ({
+  BinderSort sort,
+  FinishFilter finish,
+  bool descending,
+});
 
 class BinderReadingNotifier extends Notifier<BinderReading> {
   @override
   BinderReading build() =>
-      (sort: BinderSort.number, finish: FinishFilter.all);
+      (sort: BinderSort.number, finish: FinishFilter.all, descending: false);
 
-  void sortBy(BinderSort sort) => state = (sort: sort, finish: state.finish);
-  void filter(FinishFilter finish) => state = (sort: state.sort, finish: finish);
+  /// Choisit un critère, ou **renverse** celui déjà choisi.
+  ///
+  /// Re-choisir le même critère retourne le classeur : c'est le geste de la
+  /// liste de collection, perdu en passant aux menus et rendu ici. Un critère
+  /// nouvellement choisi repart dans son sens naturel — première page, cartes
+  /// les plus chères, noms de A à Z.
+  void sortBy(BinderSort sort) => state = (
+    sort: sort,
+    finish: state.finish,
+    descending: sort == state.sort ? !state.descending : false,
+  );
+
+  void filter(FinishFilter finish) =>
+      state = (sort: state.sort, finish: finish, descending: state.descending);
 }
 
 final binderReadingProvider =
@@ -167,17 +187,39 @@ final binderReadingProvider =
 final binderPageProvider =
     FutureProvider.family<
       List<BinderCell>,
-      ({String setCode, int page, BinderSort sort, FinishFilter finish})
-    >(
-      (ref, args) => ref
+      ({
+        String setCode,
+        int page,
+        BinderSort sort,
+        FinishFilter finish,
+        bool descending,
+      })
+    >((ref, args) {
+      // **La page survit à sa disparition de l'écran.** Riverpod dispose un
+      // provider dès que plus personne ne l'écoute, et annule la requête en
+      // cours avec lui. Or une feuille est construite puis détruite plusieurs
+      // fois pendant un retournement — la face qui passe, celle qu'on découvre,
+      // celle qui revient — si bien que la requête était annulée puis relancée
+      // sans jamais aboutir : la page restait en chargement pour toujours.
+      //
+      // La garder en vie quelques minutes résout le blocage et évite au passage
+      // de retélécharger une feuille qu'on vient de quitter. Le cache n'est pas
+      // éternel pour autant : un classeur de 97 feuilles ne doit pas rester
+      // entier en mémoire une fois refermé.
+      final link = ref.keepAlive();
+      final timer = Timer(const Duration(minutes: 3), link.close);
+      ref.onDispose(timer.cancel);
+
+      return ref
           .watch(binderRepositoryProvider)
           .pageOf(
             args.setCode,
             page: args.page,
             sort: args.sort,
             finish: args.finish,
-          ),
-    );
+            descending: args.descending,
+          );
+    });
 
 /// La première feuille non vide, pour ne pas ouvrir un classeur sur du creux.
 final binderFirstPageProvider =

@@ -46,6 +46,17 @@ enum BinderSort {
   /// Vrai quand les cases vides ont un sens — donc quand une page peut être
   /// entièrement creuse, et qu'il faut savoir où commencer.
   bool get keepsEmptyCells => this == BinderSort.number;
+
+  /// Ce que « renversé » veut dire pour ce critère, dit en clair.
+  ///
+  /// Un même mot ne convient pas aux trois : partir de la dernière page, des
+  /// cartes les moins chères ou de la fin de l'alphabet sont trois gestes
+  /// différents.
+  String get reversedLabel => switch (this) {
+    BinderSort.number => "Dernière page d'abord",
+    BinderSort.price => "Les moins chères d'abord",
+    BinderSort.name => 'De Z à A',
+  };
 }
 
 /// Une édition sur l'étagère, avec ce qu'on en possède.
@@ -195,6 +206,7 @@ class BinderCell {
     this.rarity,
     this.artCropUrl,
     this.priceEur,
+    this.priceEurFoil,
     this.hasFoil = false,
   });
 
@@ -215,7 +227,16 @@ class BinderCell {
 
   final String? rarity;
   final String? artCropUrl;
+
+  /// Les **deux** prix de la case. Le brillant et le normal s'y rangent
+  /// ensemble — deux cases pour un même numéro casseraient la grille — mais se
+  /// vendent couramment du simple au triple : afficher l'un pour l'autre
+  /// tromperait sur ce qu'on s'apprête à ajouter.
   final double? priceEur;
+  final double? priceEurFoil;
+
+  /// Prix de la finition demandée, ou `null` si elle n'est pas cotée.
+  double? priceFor({required bool foil}) => foil ? priceEurFoil : priceEur;
 
   /// Vrai si au moins un des exemplaires rangés ici est brillant.
   final bool hasFoil;
@@ -240,6 +261,7 @@ class BinderCell {
     rarity: json['rarity'] as String?,
     artCropUrl: json['art_crop_url'] as String?,
     priceEur: (json['price_eur'] as num?)?.toDouble(),
+    priceEurFoil: (json['price_eur_foil'] as num?)?.toDouble(),
     hasFoil: (json['has_foil'] as bool?) ?? false,
   );
 }

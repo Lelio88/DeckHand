@@ -988,3 +988,11 @@ Le jalon 1 prouve la valeur du produit avant tout investissement dans la vision,
 **Le premier onglet s'appelle « Ajouter », non « Rechercher ».** On n'y vient pas pour consulter le catalogue mais pour faire entrer une carte dans sa collection : la recherche est le moyen, pas la fin. Ses filtres de type sont passés d'une rangée de puces débordante à un **menu à gauche du champ**, où ils annoncent la portée de ce qu'on va taper — plusieurs types restent cochables, l'étiquette nommant le premier et comptant les autres.
 
 **Le choix de la finition précède l'action sur une case.** Une case dit ce qu'elle contient, pas ce qu'on tient en main : on peut posséder la version normale et vouloir ajouter la brillante, qui se range dans la même case mais ne vaut pas le même prix. Sans ce choix, aucun moyen d'ajouter l'autre finition depuis le classeur.
+
+### Trois défauts que l'usage a révélés
+
+**Certaines pages chargeaient sans fin.** Riverpod dispose un provider dès que plus personne ne l'écoute, et annule la requête en cours avec lui. Or une feuille est construite puis détruite plusieurs fois pendant un retournement — la face qui passe, celle qu'on découvre, celle qui revient : la requête était annulée puis relancée sans jamais aboutir, et la page restait en chargement pour toujours. Le serveur, lui, répondait en 0,2 s pour ces mêmes pages. `ref.keepAlive()` assorti d'un délai de trois minutes lève le blocage et évite de retélécharger une feuille qu'on vient de quitter, sans garder un classeur de 97 feuilles en mémoire une fois refermé.
+
+**Une case a deux prix, pas un.** Le brillant et le normal s'y rangent ensemble mais se vendent du simple au triple : `my_binder_page` rend donc les deux, et la feuille d'action affiche celui de la finition qu'on s'apprête à ajouter. Un tiret dit l'absence de cote — un zéro ferait croire à une carte sans valeur.
+
+**Le renversement du tri avait été perdu** en passant des puces aux menus. Re-choisir un critère inverse le sens, comme dans l'ancienne liste ; l'entrée déjà sélectionnée annonce ce qu'un second appui fera — « Dernière page d'abord », « Les moins chères d'abord », « De Z à A » — plutôt que de paraître inerte. Le champ fermé, lui, ne montre que le critère : la phrase y déborderait.
