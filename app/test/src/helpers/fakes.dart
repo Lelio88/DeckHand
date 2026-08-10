@@ -42,6 +42,7 @@ DeckSuggestion fakeDeck({
   String? commanderOracleId,
   String? commanderName,
   bool commanderOwned = false,
+  int basicLands = 0,
 }) => DeckSuggestion(
   deckId: id,
   deckName: name,
@@ -56,6 +57,7 @@ DeckSuggestion fakeDeck({
   commanderOracleId: commanderOracleId,
   commanderName: commanderName,
   commanderOwned: commanderOwned,
+  basicLands: basicLands,
 );
 
 /// Enregistre les filtres reçus — c'est précisément ce qui n'était pas transmis

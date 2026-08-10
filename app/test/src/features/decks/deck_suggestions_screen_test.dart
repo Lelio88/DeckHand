@@ -203,6 +203,23 @@ void main() {
     });
   });
 
+  testWidgets('les terrains de base exclus sont annoncés', (tester) async {
+    // Une liste de cent cartes présentée sur soixante-seize ferait douter du
+    // chiffre si rien ne disait ce qu'il ignore.
+    await pumpDecksScreen(
+      tester,
+      results: [fakeDeck(total: 76, owned: 1, basicLands: 24)],
+    );
+
+    expect(find.textContaining('hors 24 terrains de base'), findsOneWidget);
+    expect(find.textContaining('sur 76'), findsOneWidget);
+  });
+
+  testWidgets("sans terrain de base, rien n'est annoncé", (tester) async {
+    await pumpDecksScreen(tester, results: [fakeDeck()]);
+    expect(find.textContaining('terrains de base'), findsNothing);
+  });
+
   testWidgets('remettre à zéro efface tous les filtres', (tester) async {
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
 

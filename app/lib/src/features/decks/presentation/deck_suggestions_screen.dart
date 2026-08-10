@@ -468,10 +468,11 @@ class _DeckTile extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      deck.isBuildable
-                          ? 'Constructible dès maintenant — ${deck.totalCards} cartes'
-                          : 'Il manque ${deck.missingCards} carte${deck.missingCards > 1 ? 's' : ''} '
-                                'sur ${deck.totalCards}',
+                      // Le décompte annonce ce qu'il ignore : une liste de
+                      // cent cartes présentée sur soixante-seize ferait
+                      // autrement douter du chiffre.
+                      '${deck.isBuildable ? 'Constructible dès maintenant — ${deck.totalCards} cartes' : 'Il manque ${deck.missingCards} carte${deck.missingCards > 1 ? 's' : ''} sur ${deck.totalCards}'}'
+                      '${deck.basicLands > 0 ? ' · hors ${deck.basicLands} terrains de base' : ''}',
                       style: muted,
                     ),
                   ),
@@ -584,37 +585,49 @@ class _MissingSheet extends ConsumerWidget {
                 itemCount: cards.length,
                 itemBuilder: (context, index) {
                   final card = cards[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 32,
-                          child: Text(
-                            '${card.missing}×',
-                            style: theme.textTheme.titleSmall,
+                  // **Maintenir montre la carte**, comme partout ailleurs.
+                  // C'est ici qu'on en a le plus besoin : la question posée
+                  // devant une liste de cartes manquantes est « qu'est-ce que
+                  // ça m'apporterait ? », à laquelle un nom seul ne répond pas.
+                  return GestureDetector(
+                    onLongPress: () => showCardArt(
+                      context,
+                      oracleId: card.oracleId,
+                      title: card.displayName,
+                    ),
+                    behavior: HitTestBehavior.opaque,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 32,
+                            child: Text(
+                              '${card.missing}×',
+                              style: theme.textTheme.titleSmall,
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(card.displayName),
-                              if (card.owned > 0)
-                                Text(
-                                  'vous en avez ${card.owned} sur ${card.needed}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(card.displayName),
+                                if (card.owned > 0)
+                                  Text(
+                                    'vous en avez ${card.owned} sur ${card.needed}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
                                   ),
-                                ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${(card.lineCostEur ?? 0).toStringAsFixed(2)} €',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ],
+                          Text(
+                            '${(card.lineCostEur ?? 0).toStringAsFixed(2)} €',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },

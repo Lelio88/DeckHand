@@ -32,6 +32,7 @@ class DeckSuggestion {
     this.commanderOracleId,
     this.commanderName,
     this.commanderOwned = false,
+    this.basicLands = 0,
   });
 
   final String deckId;
@@ -80,6 +81,17 @@ class DeckSuggestion {
   /// forment pas un deck, et c'est souvent la plus chère de la liste.
   final bool commanderOwned;
 
+  /// Terrains de base du deck, exclus de tous les autres décomptes.
+  ///
+  /// **On ne les achète pas, on les prend dans la boîte.** Les compter comme
+  /// des cartes à acquérir donnait le même pourcentage à un deck dont on a le
+  /// thème et à un deck dont on n'a rien — trente terrains suffisaient à
+  /// afficher 30 % partout, et le classement n'apprenait plus rien.
+  ///
+  /// Leur nombre reste affiché : une liste de cent cartes annoncée sur
+  /// soixante-seize se justifie d'elle-même.
+  final int basicLands;
+
   bool get hasCommander => commanderOracleId != null && commanderName != null;
 
   bool get isBuildable => missingCards == 0;
@@ -106,6 +118,7 @@ class DeckSuggestion {
       commanderOracleId: json['commander_oracle_id'] as String?,
       commanderName: json['commander_name'] as String?,
       commanderOwned: json['commander_owned'] as bool? ?? false,
+      basicLands: (json['basic_lands'] as num?)?.toInt() ?? 0,
     );
   }
 }
