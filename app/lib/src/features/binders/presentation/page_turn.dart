@@ -215,7 +215,14 @@ class _TurningLeaf extends StatelessWidget {
     final angle = t * math.pi;
     final showsBack = angle > math.pi / 2;
     final hinge = forward ? Alignment.centerLeft : Alignment.centerRight;
-    final signed = forward ? -angle : angle;
+    // **La feuille se soulève vers nous, elle ne s'enfonce pas.** Les deux sens
+    // partaient en arrière : le bord libre s'éloignait de l'œil au lieu de
+    // passer devant, ce qui donnait l'impression de pousser la page dans le
+    // classeur plutôt que de la tourner. Le défaut se remarquait surtout en
+    // revenant en arrière, où le geste et le mouvement se contredisaient, mais
+    // il valait pour les deux — c'est le signe de la rotation qui était inversé,
+    // le `z` de la perspective devenant positif là où il devait être négatif.
+    final signed = forward ? angle : -angle;
     // Le relief culmine quand la feuille est dressée, et s'efface à plat.
     final relief = math.sin(angle);
 

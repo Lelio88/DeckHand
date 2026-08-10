@@ -1,15 +1,20 @@
 /// Coque de navigation de l'application connectée.
 ///
-/// Quatre destinations : chercher une carte, consulter sa collection, voir ce
-/// qu'elle permet de construire, et son compte. Le scan et l'écran « à propos »
-/// sont ouverts par-dessus plutôt que d'être des onglets — ce sont des gestes
-/// ponctuels, pas des lieux où l'on séjourne.
+/// Quatre destinations : ajouter des cartes, consulter sa collection, voir ce
+/// qu'elle permet de construire, et son compte. Les écrans de prise de vue et
+/// « à propos » s'ouvrent par-dessus plutôt que d'être des onglets — ce sont des
+/// gestes ponctuels, pas des lieux où l'on séjourne.
+///
+/// **Le premier onglet s'appelle « Ajouter » et non « Rechercher ».** On n'y
+/// vient pas pour consulter le catalogue : on y vient pour faire entrer une
+/// carte dans sa collection, au clavier ou par l'appareil photo. La recherche
+/// est le moyen, pas la fin.
 ///
 /// **La barre du haut ne répète plus le nom de l'onglet.** « Ma collection »
 /// écrit au-dessus de la collection n'apprend rien : la barre de navigation le
 /// dit déjà, en surbrillance. Cette place revient donc à ce que chaque onglet a
-/// de plus utile à montrer d'un coup d'œil — le poids de la collection, le jeu
-/// dans lequel on cherche, la façon dont on veut des decks, le compte ouvert.
+/// de plus utile à montrer d'un coup d'œil — les façons d'ajouter des cartes, le
+/// poids de la collection, la façon dont on veut des decks, le compte ouvert.
 ///
 /// **Elle ne porte toujours aucune action destructrice.** Se déconnecter et lire
 /// les crédits vivent au bas de l'onglet Compte, où l'on ne tombe pas dessus par
@@ -19,13 +24,15 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../config/selected_game.dart';
 import '../features/account/presentation/account_screen.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/card_search/presentation/card_search_screen.dart';
 import '../features/collection/data/collection_repository.dart';
 import '../features/collection/presentation/collection_screen.dart';
 import '../features/decks/presentation/deck_suggestions_screen.dart';
+import '../features/scan/presentation/scan_screen.dart';
+import '../features/scan/presentation/spread_scan_screen.dart';
+import '../features/voice/presentation/voice_input_screen.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -69,7 +76,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.search), label: 'Rechercher'),
+          NavigationDestination(icon: Icon(Icons.add), label: 'Ajouter'),
           NavigationDestination(
             icon: Icon(Icons.style_outlined),
             selectedIcon: Icon(Icons.style),
@@ -114,7 +121,7 @@ class _TopBar extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerRight,
               child: switch (index) {
-                0 => const _GameBadge(),
+                0 => const _CaptureButtons(),
                 1 => const _CollectionWeight(),
                 2 => const _DeckModeChips(),
                 _ => const _AccountBadge(),
@@ -127,39 +134,55 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-/// Le jeu dans lequel on cherche.
+/// Les trois façons d'ajouter des cartes autrement qu'au clavier.
 ///
-/// **Il vivait au fond de l'onglet Compte**, alors qu'il commande la recherche,
-/// la collection et les decks : chercher « Agent » ne rend pas les mêmes cartes
-/// selon qu'on est en Magic ou en Riftbound. Le montrer là où l'on cherche
-/// évite de se demander pourquoi le catalogue paraît vide.
-class _GameBadge extends ConsumerWidget {
-  const _GameBadge();
+/// **Elles occupaient la ligne du champ de recherche**, qu'elles rétrécissaient
+/// d'un tiers. En haut, elles deviennent ce qu'elles sont : les entrées de
+/// l'onglet, à côté de la saisie au clavier qui reste dessous.
+///
+/// L'ordre va du geste le plus large au plus fin — une photo d'étalement pour
+/// vider une boîte, la dictée pour saisir en vrac, la photo d'une carte pour
+/// lever un doute.
+class _CaptureButtons extends StatelessWidget {
+  const _CaptureButtons();
+
+  /// Ouvre par-dessus, et fait taire la notification en cours.
+  ///
+  /// Les notifications vivent au-dessus du navigateur : sans cela, le retour
+  /// d'un ajout suivrait l'utilisateur et recouvrirait les commandes de
+  /// l'écran de prise de vue, dont les boutons sont en bas.
+  void _open(BuildContext context, Widget screen) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(selectedGameProvider);
-    return PopupMenuButton<Game>(
-      tooltip: 'Changer de jeu',
-      initialValue: selected,
-      onSelected: (game) =>
-          ref.read(selectedGameProvider.notifier).select(game),
-      itemBuilder: (context) => [
-        for (final game in Game.values)
-          PopupMenuItem(value: game, child: Text(game.label)),
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton.filledTonal(
+          tooltip: 'Photographier plusieurs cartes',
+          icon: const Icon(Icons.photo_camera_outlined),
+          onPressed: () => _open(context, const SpreadScanScreen()),
+        ),
+        const SizedBox(width: 6),
+        IconButton.filledTonal(
+          tooltip: 'Dicter des cartes',
+          icon: const Icon(Icons.mic_none),
+          onPressed: () => _open(context, const VoiceInputScreen()),
+        ),
+        const SizedBox(width: 6),
+        // L'icône annonce ce que ce mode deviendra — la caméra qui reconnaît au
+        // fil des cartes (#8). Le comportement, lui, reste la photo unique tant
+        // que le temps réel n'est pas mesuré : promettre du direct avant de
+        // l'avoir éprouvé ferait passer une limite pour une panne.
+        IconButton.filledTonal(
+          tooltip: 'Viser une carte',
+          icon: const Icon(Icons.center_focus_strong_outlined),
+          onPressed: () => _open(context, const ScanScreen()),
+        ),
       ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            selected.label,
-            style: Theme.of(context).textTheme.titleSmall,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const Icon(Icons.arrow_drop_down, size: 20),
-        ],
-      ),
     );
   }
 }

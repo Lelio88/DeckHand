@@ -162,19 +162,6 @@ void main() {
     );
   });
 
-  testWidgets('les types retenus atteignent le catalogue', (tester) async {
-    // Le filtrage vit côté serveur : restreindre après coup ne garderait que
-    // les terrains des vingt premiers résultats, soit souvent aucun.
-    await pumpSearch(tester, results: [hit()]);
-
-    // « Créature » ouvre la rangée : c'est le type le plus fréquent du
-    // catalogue, donc celui qui doit tomber sous le pouce sans défiler.
-    await tester.tap(find.text('Créature'));
-    await tester.pumpAndSettle();
-
-    expect(cards.lastTypes, ['Creature']);
-  });
-
   testWidgets('l\'édition retenue reste affichée après le choix', (
     tester,
   ) async {

@@ -15,8 +15,9 @@
 /// Ce qu'on y gagne est ce qu'aucune liste ne montrait : **les cases vides**.
 /// Une liste dit ce qu'on possède ; un classeur dit ce qui manque.
 ///
-/// Le bandeau de totaux reste : il porte sur la collection entière et vient d'un
-/// appel distinct, si bien qu'aucun filtre de classeur ne le fait varier.
+/// Le poids de la collection — son nombre de cartes et sa valeur — est annoncé
+/// par la barre du haut, qui le tient d'un appel distinct portant sur la
+/// collection entière : aucun filtre de classeur ne le fait donc varier.
 library;
 
 import 'package:flutter/material.dart';
@@ -24,7 +25,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../binders/presentation/binder_view.dart';
 import '../data/collection_repository.dart';
-import '../domain/collection_entry.dart';
 
 class CollectionScreen extends ConsumerWidget {
   const CollectionScreen({super.key});
@@ -44,68 +44,11 @@ class CollectionScreen extends ConsumerWidget {
       ),
       data: (totals) {
         if (totals.isEmpty) return const _EmptyCollection();
-        return Column(
-          children: [
-            _Totals(summary: totals),
-            const Expanded(child: BinderView()),
-          ],
-        );
+        // Le poids de la collection est annoncé par la barre du haut ; le
+        // répéter ici volait une bande de hauteur aux cartes pour redire la
+        // même chose.
+        return const BinderView();
       },
-    );
-  }
-}
-
-/// Ce que pèse la collection, indépendamment de ce qu'on regarde.
-///
-/// **Les totaux portent sur la collection entière.** Ils viennent d'un appel
-/// distinct de celui qui remplit les cases : ouvrir un classeur ou filtrer sur
-/// les brillants ne doit pas donner l'impression d'avoir perdu mille cartes.
-class _Totals extends StatelessWidget {
-  const _Totals({required this.summary});
-
-  final CollectionSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${summary.totalCards} cartes',
-                  style: theme.textTheme.titleMedium,
-                ),
-                Text(
-                  '${summary.distinctCards} références distinctes',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                // Une carte sans édition n'a pas de case : le dire ici évite de
-                // chercher en vain dans les classeurs ce qui est dans la pile.
-                if (summary.unspecifiedPrints > 0)
-                  Text(
-                    '${summary.unspecifiedPrints} sans édition — à trier',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Text(
-            '${summary.totalValueEur.toStringAsFixed(2)} €',
-            style: theme.textTheme.titleMedium,
-          ),
-        ],
-      ),
     );
   }
 }

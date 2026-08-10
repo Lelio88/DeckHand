@@ -978,7 +978,13 @@ Le jalon 1 prouve la valeur du produit avant tout investissement dans la vision,
 
 | Onglet | Ce qui s'affiche | Pourquoi |
 |---|---|---|
-| Rechercher | Le **jeu** sélectionné, changeable | Il commande la recherche, la collection et les decks, et vivait au fond de l'onglet Compte : chercher « Agent » ne rend pas les mêmes cartes en Magic et en Riftbound |
+| Ajouter | Les trois entrées non clavier : étalement, dictée, visée | Elles occupaient la ligne du champ, qu'elles rétrécissaient d'un tiers ; en haut, elles deviennent les entrées de l'onglet |
 | Collection | Le nombre de cartes | Le poids de la collection, la seule donnée qu'on veut voir sans agir |
 | Decks | Préconstruits / Construire | C'est le mode de l'onglet ; sous les filtres de format, il passait pour un filtre de plus |
 | Compte | Nom d'usage et adresse | Savoir quel compte est ouvert, sans photo ni décor |
+
+**Chaque information n'existe qu'à un endroit.** Le bandeau de totaux de la collection et le bloc d'identité du compte disaient ce que la barre du haut dit désormais ; les garder aurait volé une bande de hauteur pour redire la même chose.
+
+**Le premier onglet s'appelle « Ajouter », non « Rechercher ».** On n'y vient pas pour consulter le catalogue mais pour faire entrer une carte dans sa collection : la recherche est le moyen, pas la fin. Ses filtres de type sont passés d'une rangée de puces débordante à un **menu à gauche du champ**, où ils annoncent la portée de ce qu'on va taper — plusieurs types restent cochables, l'étiquette nommant le premier et comptant les autres.
+
+**Le choix de la finition précède l'action sur une case.** Une case dit ce qu'elle contient, pas ce qu'on tient en main : on peut posséder la version normale et vouloir ajouter la brillante, qui se range dans la même case mais ne vaut pas le même prix. Sans ce choix, aucun moyen d'ajouter l'autre finition depuis le classeur.

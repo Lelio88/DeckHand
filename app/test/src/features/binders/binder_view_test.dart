@@ -601,9 +601,12 @@ void main() {
 
       await openActions(tester);
 
-      expect(find.text('Ajouter un exemplaire'), findsOneWidget);
-      expect(find.text('Retirer un exemplaire'), findsOneWidget);
+      // Le libellé porte la finition : on peut posséder la version normale et
+      // vouloir ajouter la brillante, qui se range dans la même case.
+      expect(find.text('Ajouter un exemplaire normal'), findsOneWidget);
+      expect(find.text('Retirer un exemplaire normal'), findsOneWidget);
       expect(find.text('Corriger l\'édition'), findsOneWidget);
+      expect(find.text('Brillante'), findsOneWidget);
     });
 
     testWidgets('une case vide n\'ouvre rien', (tester) async {
@@ -619,7 +622,7 @@ void main() {
       await tester.tap(find.textContaining('#2').last);
       await tester.pumpAndSettle();
 
-      expect(find.text('Ajouter un exemplaire'), findsNothing);
+      expect(find.textContaining('Ajouter un exemplaire'), findsNothing);
     });
   });
 

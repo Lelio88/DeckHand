@@ -27,14 +27,11 @@ class AccountScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final email = ref.watch(sessionProvider).asData?.value?.user.email;
     final summary = ref.watch(collectionProvider);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       children: [
-        _Identity(email: email),
-        const SizedBox(height: 20),
 
         summary.when(
           loading: () => const Center(
@@ -98,55 +95,6 @@ class AccountScreen extends ConsumerWidget {
             style: TextStyle(color: theme.colorScheme.error),
           ),
           onTap: () => ref.read(authRepositoryProvider).signOut(),
-        ),
-      ],
-    );
-  }
-}
-
-class _Identity extends StatelessWidget {
-  const _Identity({required this.email});
-
-  final String? email;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // Faute de pseudonyme, la partie locale de l'adresse en tient lieu : c'est
-    // ce que l'utilisateur a choisi de plus proche d'un nom.
-    final handle = (email ?? '').split('@').first;
-
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: theme.colorScheme.primaryContainer,
-          child: Text(
-            handle.isEmpty ? '?' : handle.characters.first.toUpperCase(),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                handle.isEmpty ? 'Compte' : handle,
-                style: theme.textTheme.titleLarge,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                email ?? '',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
         ),
       ],
     );

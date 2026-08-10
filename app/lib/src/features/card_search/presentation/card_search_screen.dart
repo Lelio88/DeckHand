@@ -15,9 +15,6 @@ import '../../../config/selected_game.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
-import '../../scan/presentation/scan_screen.dart';
-import '../../scan/presentation/spread_scan_screen.dart';
-import '../../voice/presentation/voice_input_screen.dart';
 import '../data/card_repository.dart';
 import '../domain/card_hit.dart';
 import '../domain/card_type.dart';
@@ -56,17 +53,6 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     });
   }
 
-  /// Ouvre un écran de saisie, après avoir effacé la notification du dernier
-  /// ajout.
-  ///
-  /// Les notifications vivent au-dessus du navigateur : sans cela, le retour
-  /// d'un ajout fait ici suivrait l'utilisateur et recouvrirait les commandes
-  /// de l'écran de prise de vue, dont les boutons sont en bas.
-  void _open(Widget screen) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
-  }
-
   @override
   Widget build(BuildContext context) {
     final results = ref.watch(cardSearchProvider(cardQuery(_query, _types)));
@@ -75,53 +61,32 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _SearchField(
-                controller: _controller,
-                onChanged: _onChanged,
+        // **Le type filtre avant la recherche, il ne la suit pas.** En rangée
+        // de puces, il occupait une ligne entière au-dessus des résultats ;
+        // ramené à gauche du champ, il se lit comme ce qu'il est — la portée
+        // de ce qu'on va taper.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+          child: Row(
+            children: [
+              TypeFilter(
+                types: types,
+                selected: _types,
+                onChanged: (kinds) => setState(() {
+                  _types
+                    ..clear()
+                    ..addAll(kinds);
+                }),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 6, top: 4),
-              child: IconButton.filledTonal(
-                tooltip: 'Dicter des cartes',
-                icon: const Icon(Icons.mic_none),
-                onPressed: () => _open(const VoiceInputScreen()),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _SearchField(
+                  controller: _controller,
+                  onChanged: _onChanged,
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: 8, top: 4),
-              child: IconButton.filledTonal(
-                tooltip: 'Scanner une carte',
-                icon: const Icon(Icons.photo_camera_outlined),
-                onPressed: () => _open(const ScanScreen()),
-              ),
-            ),
-            // Deux gestes distincts, donc deux boutons : « quelle carte est-ce ? »
-            // et « lesquelles sont là ? ». Les fondre dans un seul écran
-            // obligerait à choisir un mode avant de savoir ce qu'on photographie.
-            Padding(
-              padding: const EdgeInsets.only(right: 20, top: 4),
-              child: IconButton.filledTonal(
-                tooltip: 'Scanner plusieurs cartes',
-                icon: const Icon(Icons.grid_view),
-                onPressed: () => _open(const SpreadScanScreen()),
-              ),
-            ),
-          ],
-        ),
-        _TypeFilters(
-          types: types,
-          selected: _types,
-          onToggle: (kind, on) => setState(() {
-            if (on) {
-              _types.add(kind);
-            } else {
-              _types.remove(kind);
-            }
-          }),
+            ],
+          ),
         ),
         Expanded(
           child: _query.isEmpty
@@ -149,15 +114,14 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+    return SizedBox(
       child: TextField(
         controller: controller,
         onChanged: onChanged,
         autofocus: true,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
-          hintText: 'Foudre, Sol Ring, contresort…',
+          hintText: 'Rechercher',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: controller.text.isEmpty
               ? null
@@ -186,35 +150,77 @@ class _SearchField extends StatelessWidget {
 /// mal sur la largeur d'un téléphone ; les empiler pousserait les résultats hors
 /// de l'écran alors qu'ils sont l'essentiel. Les plus fréquents viennent en
 /// tête, donc sous le pouce sans défiler.
-class _TypeFilters extends StatelessWidget {
-  const _TypeFilters({
+/// Le type de carte auquel restreindre la recherche.
+///
+/// **Un menu plutôt qu'une rangée de puces.** Les puces occupaient une ligne
+/// entière et débordaient de l'écran ; le menu tient à gauche du champ, où il
+/// annonce la portée de ce qu'on tape. Plusieurs types restent cochables — on
+/// cherche parfois « créature ou artefact » — mais l'étiquette se contente de
+/// les compter au-delà du premier, faute de place.
+class TypeFilter extends StatelessWidget {
+  const TypeFilter({
+    super.key,
     required this.types,
     required this.selected,
-    required this.onToggle,
+    required this.onChanged,
   });
 
   final List<CardType> types;
   final Set<String> selected;
-  final void Function(String kind, bool selected) onToggle;
+  final ValueChanged<Set<String>> onChanged;
+
+  String get _label {
+    if (selected.isEmpty) return 'Tous types';
+    final first = types
+        .where((t) => selected.contains(t.kind))
+        .map((t) => t.label)
+        .first;
+    return selected.length == 1 ? first : '$first +${selected.length - 1}';
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-        itemCount: types.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final type = types[index];
-          return FilterChip(
-            label: Text(type.label),
-            selected: selected.contains(type.kind),
-            onSelected: (on) => onToggle(type.kind, on),
-            visualDensity: VisualDensity.compact,
-          );
-        },
+    final theme = Theme.of(context);
+
+    return PopupMenuButton<String>(
+      tooltip: 'Filtrer par type',
+      // La feuille reste ouverte entre deux choix : cocher trois types
+      // demanderait sinon de la rouvrir trois fois.
+      onSelected: (kind) {
+        final next = Set<String>.from(selected);
+        if (kind.isEmpty) {
+          next.clear();
+        } else if (!next.remove(kind)) {
+          next.add(kind);
+        }
+        onChanged(next);
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: '', child: Text('Tous types')),
+        const PopupMenuDivider(),
+        for (final type in types)
+          CheckedPopupMenuItem(
+            value: type.kind,
+            checked: selected.contains(type.kind),
+            child: Text(type.label),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+          color: selected.isEmpty
+              ? null
+              : theme.colorScheme.secondaryContainer,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_label, style: theme.textTheme.bodyMedium),
+            const Icon(Icons.arrow_drop_down, size: 20),
+          ],
+        ),
       ),
     );
   }
