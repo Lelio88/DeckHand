@@ -60,23 +60,48 @@ class _FormatSelector extends ConsumerWidget {
     final selected = ref.watch(selectedFormatProvider);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      child: SegmentedButton<DeckFormat>(
-        // **Un nom de format ne se coupe pas.** « Commander » se rompait en
-        // « Command / er » sur un écran de téléphone, les segments se
-        // partageant la largeur à parts égales quelle que soit la longueur du
-        // mot. `softWrap: false` le garde d'un tenant, et l'icône de coche est
-        // retirée pour lui rendre la place qu'elle prenait.
-        showSelectedIcon: false,
-        segments: [
-          for (final format in DeckFormat.values)
-            ButtonSegment(
-              value: format,
-              label: Text(format.label, softWrap: false, maxLines: 1),
+      child: Row(
+        children: [
+          Expanded(
+            child: SegmentedButton<DeckFormat>(
+              // **Un nom de format ne se coupe pas.** « Commander » se rompait en
+              // « Command / er » sur un écran de téléphone, les segments se
+              // partageant la largeur à parts égales quelle que soit la longueur du
+              // mot. `softWrap: false` le garde d'un tenant, et l'icône de coche est
+              // retirée pour lui rendre la place qu'elle prenait.
+              showSelectedIcon: false,
+              segments: [
+                for (final format in DeckFormat.values)
+                  ButtonSegment(
+                    value: format,
+                    label: Text(format.label, softWrap: false, maxLines: 1),
+                  ),
+              ],
+              selected: {selected},
+              onSelectionChanged: (values) => ref
+                  .read(selectedFormatProvider.notifier)
+                  .select(values.first),
             ),
+          ),
+          // **Hors de la barre de filtres.** Placé parmi les chips, il se
+          // lisait comme un filtre de plus ; rien ne disait qu'il ouvrait un
+          // écran. À côté du sélecteur de format, il retrouve sa nature : ni
+          // l'un ni l'autre ne filtre la liste, tous deux changent ce qu'on
+          // regarde. La flèche annonce le départ.
+          if (selected == DeckFormat.commander) ...[
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const DeckBuilderScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              iconAlignment: IconAlignment.end,
+              label: const Text('Construire'),
+            ),
+          ],
         ],
-        selected: {selected},
-        onSelectionChanged: (values) =>
-            ref.read(selectedFormatProvider.notifier).select(values.first),
       ),
     );
   }
@@ -119,29 +144,55 @@ class _CommanderSearchState extends ConsumerState<_CommanderSearch> {
 
   @override
   Widget build(BuildContext context) {
+    final filters = ref.watch(deckFiltersProvider);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      child: TextField(
-        controller: _controller,
-        onChanged: _onChanged,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: 'Chercher un commandant',
-          prefixIcon: const Icon(Icons.workspace_premium_outlined, size: 20),
-          isDense: true,
-          suffixIcon: _controller.text.isEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  tooltip: 'Effacer',
-                  onPressed: () {
-                    _controller.clear();
-                    _onChanged('');
-                    setState(() {});
-                  },
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              onChanged: _onChanged,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Chercher un commandant',
+                prefixIcon: const Icon(
+                  Icons.workspace_premium_outlined,
+                  size: 20,
                 ),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+                isDense: true,
+                suffixIcon: _controller.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Effacer',
+                        onPressed: () {
+                          _controller.clear();
+                          _onChanged('');
+                          setState(() {});
+                        },
+                      ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // **Auprès du champ qui parle du général, pas parmi les filtres.**
+          // Les deux commandes portent sur la même chose — l'une le cherche,
+          // l'autre le restreint à ce qu'on possède — et les séparer obligeait
+          // à parcourir une rangée entière pour trouver la seconde.
+          FilterChip(
+            label: const Text('Possédé'),
+            tooltip: 'Ne montrer que les decks dont vous tenez déjà le général',
+            selected: filters.ownedCommanderOnly,
+            onSelected: (_) =>
+                ref.read(deckFiltersProvider.notifier).toggleOwnedCommander(),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
       ),
     );
   }
@@ -186,23 +237,6 @@ class _FilterBar extends ConsumerWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
         children: [
-          // **Construire vient avant filtrer.** L'écran répond à « que
-          // puis-je jouer ? » en regardant le corpus ; le constructeur y répond
-          // en regardant la collection. Deux chemins vers la même question, donc
-          // le même endroit — et celui-ci se pousse par-dessus, comme le scan,
-          // parce que c'est un geste ponctuel et non un lieu.
-          if (ref.watch(selectedFormatProvider) == DeckFormat.commander) ...[
-            FilledButton.tonalIcon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const DeckBuilderScreen(),
-                ),
-              ),
-              icon: const Icon(Icons.construction, size: 18),
-              label: const Text('Construire'),
-            ),
-            const SizedBox(width: 8),
-          ],
           // En tête et non en fin de rangée : c'est la sortie de secours d'un
           // filtrage trop serré, et la reléguer derrière cinq pastilles la
           // rendait invisible sans défiler — précisément quand la liste est
@@ -221,17 +255,6 @@ class _FilterBar extends ConsumerWidget {
             visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: 8),
-          // Ne paraît qu'en Commander : ailleurs, il ne pourrait rien rendre.
-          if (ref.watch(selectedFormatProvider) == DeckFormat.commander) ...[
-            FilterChip(
-              label: const Text('Commandant possédé'),
-              tooltip: 'Decks dont vous tenez déjà le général',
-              selected: filters.ownedCommanderOnly,
-              onSelected: (_) => notifier.toggleOwnedCommander(),
-              visualDensity: VisualDensity.compact,
-            ),
-            const SizedBox(width: 8),
-          ],
           PopupMenuButton<double?>(
             initialValue: filters.maxCostEur,
             onSelected: notifier.setMaxCost,

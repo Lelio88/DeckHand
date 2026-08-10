@@ -179,7 +179,9 @@ void main() {
 
       await tester.tap(find.text('Commander'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Commandant possédé'));
+      // Le filtre a rejoint le champ de recherche du commandant : les deux
+      // commandes portent sur la même chose.
+      await tester.tap(find.text('Possédé'));
       await tester.pumpAndSettle();
 
       expect(decks.lastFilters?.ownedCommanderOnly, isTrue);
@@ -189,7 +191,7 @@ void main() {
       tester,
     ) async {
       await pumpDecksScreen(tester, results: [fakeDeck()]);
-      expect(find.text('Commandant possédé'), findsNothing);
+      expect(find.text('Possédé'), findsNothing);
     });
 
     testWidgets("la recherche ne paraît qu'en Commander", (tester) async {

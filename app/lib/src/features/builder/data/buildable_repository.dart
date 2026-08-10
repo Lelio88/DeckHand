@@ -38,6 +38,7 @@ class BuildableRepository {
     printedName: json['printed_name'] as String?,
     typeLine: json['type_line'] as String? ?? '',
     cmc: (json['cmc'] as num?)?.toDouble() ?? 0,
+    manaCost: json['mana_cost'] as String? ?? '',
     colorIdentity:
         (json['color_identity'] as List<dynamic>?)?.cast<String>().toSet() ??
         <String>{},

@@ -226,7 +226,14 @@ class _DeckView extends StatelessWidget {
           '${byName.length} cartes de votre collection',
           style: theme.textTheme.titleSmall,
         ),
-        const SizedBox(height: 6),
+        Text(
+          "Un seul exemplaire de chacune — le format l'exige. "
+          'Le coût de mana est indiqué à droite.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
         for (final card in byName)
           _CardLine(card: card),
       ],
@@ -370,15 +377,10 @@ class _CardLine extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(
           children: [
-            SizedBox(
-              width: 26,
-              child: Text(
-                card.isLand ? '—' : card.cmc.toStringAsFixed(0),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
+            // **Le nom d'abord, le coût à droite.** Un nombre placé devant un
+            // nom de carte se lit comme une quantité — c'est la convention de
+            // toutes les listes de deck — et faisait croire à plusieurs
+            // exemplaires d'une carte que le format n'autorise qu'en un seul.
             Expanded(
               child: Text(
                 card.displayName,
@@ -386,13 +388,22 @@ class _CardLine extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (roles.isNotEmpty)
+            if (roles.isNotEmpty) ...[
               Text(
                 roles,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              card.manaCost.isEmpty ? '' : card.manaCost,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontFeatures: const [],
+              ),
+            ),
           ],
         ),
       ),

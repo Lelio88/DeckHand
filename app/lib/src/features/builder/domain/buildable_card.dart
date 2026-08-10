@@ -21,6 +21,7 @@ class BuildableCard {
     required this.typeLine,
     required this.cmc,
     required this.colorIdentity,
+    this.manaCost = '',
     this.printedName,
     this.oracleText = '',
     this.quantity = 1,
@@ -40,6 +41,15 @@ class BuildableCard {
   /// Coût converti de mana. Zéro pour un terrain, ce qui est exact et explique
   /// qu'on les exclue de la courbe : ils l'écraseraient.
   final double cmc;
+
+  /// Coût tel qu'il est imprimé sur la carte — `{2}{B}`, `{X}{R}`.
+  ///
+  /// **C'est lui qu'on affiche, jamais le coût converti.** Dans une liste de
+  /// deck, un nombre nu devant un nom de carte se lit comme une quantité : la
+  /// convention est universelle, et l'ignorer faisait croire à quatre
+  /// exemplaires d'une carte qu'on ne peut jouer qu'en un seul. Le coût
+  /// converti reste utile au calcul de la courbe, où il ne s'affiche pas.
+  final String manaCost;
 
   final ColorIdentity colorIdentity;
   final String oracleText;
