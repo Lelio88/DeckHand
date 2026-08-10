@@ -58,10 +58,11 @@ class DeckSuggestionsScreen extends ConsumerWidget {
 
     return Column(
       children: [
-        const _ModeSelector(),
-        // **Le format est commun aux deux vues** : on cherche un deck Commander
-        // ou on en construit un, mais le format se choisit avant de savoir
-        // lequel des deux chemins on prendra.
+        // Le choix entre « préconstruits » et « construire » a remonté dans la
+        // barre du haut : c'est le mode de l'onglet, pas un filtre de plus.
+        // **Le format, lui, est commun aux deux vues** — on cherche un deck
+        // Commander ou on en construit un, mais le format se choisit avant de
+        // savoir lequel des deux chemins on prendra.
         const _FormatSelector(),
         if (mode == DeckMode.building)
           Expanded(child: DeckBuilderView(format: format))
@@ -102,32 +103,6 @@ class DeckSuggestionsScreen extends ConsumerWidget {
 }
 
 /// Bascule entre les decks du corpus et la construction.
-class _ModeSelector extends ConsumerWidget {
-  const _ModeSelector();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final mode = ref.watch(deckModeProvider);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
-      child: Row(
-        children: [
-          for (final value in DeckMode.values) ...[
-            ChoiceChip(
-              label: Text(value.label),
-              selected: mode == value,
-              onSelected: (_) =>
-                  ref.read(deckModeProvider.notifier).select(value),
-              visualDensity: VisualDensity.compact,
-            ),
-            const SizedBox(width: 8),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 class _FormatSelector extends ConsumerWidget {
   const _FormatSelector();
 

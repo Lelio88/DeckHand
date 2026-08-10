@@ -335,13 +335,17 @@ Ce qu'on y gagne est ce qu'aucune liste ne montrait : **les cases vides**. Le ba
 
 **La reliure est à gauche**, comme un classeur à anneaux ouvert à plat : glisser vers la gauche avance, vers la droite on revient. L'axe de rotation change avec le sens — bord gauche pour avancer, bord droit pour reculer — sans quoi la feuille pivoterait autour du mauvais côté et sortirait de la reliure. Le dos d'une feuille est la page suivante **en miroir** : sans cette inversion, la grille apparaîtrait à l'envers, première case à droite.
 
-**La feuille se courbe, elle ne pivote pas d'un bloc.** La première version faisait tourner un plan rigide : la mécanique était juste, le résultat évoquait une carte à jouer qu'on retourne. La courbure fait toute la différence. Elle est obtenue en découpant la feuille en **huit lamelles verticales** dont l'angle croît de la reliure vers le bord libre — le bord se soulève avant le milieu, comme une page qu'on pince. Une déformation continue demanderait un maillage et un shader ; huit lamelles suffisent à ce que l'œil lise une courbe. Elle est **nulle aux deux extrémités et maximale à mi-course** (`sin`) : une page est plate quand elle repose. S'y ajoutent une ombre portée sur la feuille découverte, et un assombrissement qui suit le creux de la courbe — sans lumière, huit facettes ne montrent que des arêtes.
+**Le volume vient de la lumière, pas de la géométrie.** Une courbure par découpage en lamelles verticales a été tentée puis retirée : les tranches, pivotées chacune autour de son propre bord de l'angle global au lieu de l'angle relatif, se croisaient au lieu de rester jointes — les cartes apparaissaient coupées en morceaux pendant le geste. Un pliage juste demande de composer les transformations de proche en proche et de le régler à l'œil sur l'appareil ; une feuille franchement plane, correctement éclairée, vaut mieux qu'une courbure approximative qui déchire ce qu'elle montre.
+
+Restent trois choses qui donnent le relief et ne peuvent rien casser : un **reflet** qui balaie la feuille au rythme de sa rotation, une **ombre portée** sur la page qu'elle découvre, et une **arête sombre** le long de la reliure, là où une page réelle s'incurve toujours. Les trois s'annulent à plat et culminent à mi-course.
 
 **Le geste pilote l'animation, il ne la déclenche pas.** La feuille suit le doigt et l'on peut revenir en arrière en cours de route ; elle ne bascule qu'au-delà du tiers de la largeur, ou plus tôt si le geste est vif (600 px/s). Un frôlement pendant qu'on regarde ne tourne donc rien. La page ne change qu'une fois la feuille retombée : la changer à mi-course rechargerait la grille sous le doigt.
 
 **La charge est tenue par le voisinage, pas par la taille des images.** L'issue prescrivait les vignettes ; la carte entière a été préférée — c'est elle qu'on range dans une case — et le coût est absorbé autrement : seules les feuilles **immédiatement voisines** sont préchargées, et hors mouvement une seule feuille est construite. Précharger plus loin rapatrierait un classeur entier pour en montrer un neuvième.
 
 **La feuille entière tient à l'écran.** Un rapport figé à 0,716 — la proportion d'une carte — débordait en hauteur et coupait la troisième rangée. Une feuille de classeur ne défile pas, elle se tourne : c'est donc la grille qui s'adapte à la place disponible, quitte à laisser de l'air sur les côtés. Dans le même but, les six puces de tri et de finition ont laissé place à **deux menus** sur une seule ligne, et la glissière permanente a disparu — elle coûtait la hauteur d'une rangée pour un geste rare. Traverser les 51 feuilles reste possible en touchant « Page 3 sur 51 ».
+
+**Le cadre de l'agrandissement épouse la carte, pas l'écran.** Sans rapport imposé, le reflet des brillantes couvrait toute la boîte de dialogue : la carte flottait au milieu d'un rectangle irisé. Le rapport 63 × 88 — celui d'une carte — borne le reflet à ce qu'il qualifie.
 
 **L'appui long montre la carte en grand.** À trois par ligne, le texte imprimé est illisible — c'est assumé, on reconnaît l'image — mais lire une carte reste parfois nécessaire. Le reflet suit la carte agrandie : c'est le moment où l'on regarde vraiment l'exemplaire qu'on possède.
 
@@ -967,3 +971,14 @@ La différence est la **fiabilité du gabarit**, et elle est mesurée. Les 190 p
 | **4** | Saisie vocale, feuilletage temps réel. |
 
 Le jalon 1 prouve la valeur du produit avant tout investissement dans la vision, qui concentre le risque et la charge de travail.
+
+### La barre du haut porte une information, pas un titre
+
+« Ma collection » écrit au-dessus de la collection n'apprend rien : la barre de navigation le dit déjà, en surbrillance. Cette place revient donc à ce que chaque onglet a de plus utile à montrer d'un coup d'œil, collé au bord droit — l'ancrage constant est ce qui rend la valeur lisible sans la chercher.
+
+| Onglet | Ce qui s'affiche | Pourquoi |
+|---|---|---|
+| Rechercher | Le **jeu** sélectionné, changeable | Il commande la recherche, la collection et les decks, et vivait au fond de l'onglet Compte : chercher « Agent » ne rend pas les mêmes cartes en Magic et en Riftbound |
+| Collection | Le nombre de cartes | Le poids de la collection, la seule donnée qu'on veut voir sans agir |
+| Decks | Préconstruits / Construire | C'est le mode de l'onglet ; sous les filtres de format, il passait pour un filtre de plus |
+| Compte | Nom d'usage et adresse | Savoir quel compte est ouvert, sans photo ni décor |

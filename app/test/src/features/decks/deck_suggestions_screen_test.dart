@@ -56,21 +56,30 @@ Future<FakeDeckRepository> pumpDecksScreen(
 
 void main() {
   group('les deux façons de répondre', () {
+    // Le choix entre consulter le corpus et construire depuis sa collection
+    // vit désormais dans la barre du haut, hors de cet écran : ces tests le
+    // pilotent donc par son état, et non par un geste.
+    Future<void> switchToBuilding(WidgetTester tester) async {
+      final element = tester.element(find.byType(DeckSuggestionsScreen));
+      ProviderScope.containerOf(element)
+          .read(deckModeProvider.notifier)
+          .select(DeckMode.building);
+      await tester.pumpAndSettle();
+    }
+
     // Consulter le corpus et construire depuis sa collection répondent à la
     // même question par deux chemins : un sélecteur le dit, là où un bouton
     // glissé parmi les filtres laissait croire à un filtre de plus.
     testWidgets('le corpus est montré par défaut', (tester) async {
       await pumpDecksScreen(tester, results: [fakeDeck()]);
 
-      expect(find.text('Préconstruits'), findsOneWidget);
-      expect(find.text('Construire'), findsOneWidget);
       expect(find.text('Deck de test'), findsOneWidget);
     });
 
     testWidgets('basculer sur « Construire » change la vue', (tester) async {
       await pumpDecksScreen(tester, results: [fakeDeck()]);
 
-      await tester.tap(find.text('Construire'));
+      await switchToBuilding(tester);
       await tester.pumpAndSettle();
 
       expect(find.text('Deck de test'), findsNothing);
@@ -85,7 +94,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(decks.lastFormat, DeckFormat.commander);
 
-      await tester.tap(find.text('Construire'));
+      await switchToBuilding(tester);
       await tester.pumpAndSettle();
 
       expect(find.text('Commander'), findsOneWidget);
