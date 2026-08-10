@@ -8,6 +8,7 @@ import pytest
 from app.ingestion.scryfall_parse import (
     RELEVANT_FORMATS,
     is_relevant,
+    should_ingest,
     normalize_name,
     parse_card,
     parse_print,
@@ -54,6 +55,33 @@ def test_is_relevant_false_when_legal_in_no_covered_format():
 
 def test_banned_is_not_legal():
     assert not is_relevant({"modern": "banned", "commander": "banned", "pauper": "banned"})
+
+
+# --- should_ingest ----------------------------------------------------------
+
+
+def test_a_playable_card_enters_the_catalogue():
+    assert should_ingest({"layout": "normal", "legalities": {"pauper": "legal"}})
+
+
+def test_a_token_enters_the_catalogue_although_it_is_legal_nowhere():
+    # Un jeton ne se joue dans aucun format, mais il occupe une case de
+    # classeur : l'exclure rendait une collection physique impossible à saisir
+    # en entier.
+    for layout in ("token", "double_faced_token", "emblem"):
+        assert should_ingest({"layout": layout, "legalities": {}})
+
+
+def test_an_unplayable_card_that_is_not_a_token_stays_out():
+    assert not should_ingest({"layout": "normal", "legalities": {"standard": "legal"}})
+    assert not should_ingest({"layout": "art_series", "legalities": {}})
+
+
+def test_a_token_keeps_no_legality():
+    # C'est ce qui le tient à l'écart des suggestions de decks sans qu'aucun
+    # garde-fou supplémentaire soit nécessaire : le moteur travaille sur les
+    # colonnes de légalité, toutes fausses ici.
+    assert not is_relevant({})
 
 
 # --- payloads de référence --------------------------------------------------

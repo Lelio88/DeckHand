@@ -42,7 +42,7 @@ from app.config import SupabaseConfig
 from app.ingestion.scryfall_client import BULK_ALL, BULK_ORACLE, stream_bulk
 from app.ingestion.scryfall_parse import (
     CardPrint,
-    is_relevant,
+    should_ingest,
     normalize_name,
     parse_card,
     parse_print,
@@ -134,7 +134,7 @@ def ingest_cards(conn: psycopg.Connection) -> set[str]:
 
     def rows() -> Iterator[tuple[Any, ...]]:
         for payload in stream_bulk(BULK_ORACLE):
-            if not is_relevant(payload.get("legalities") or {}):
+            if not should_ingest(payload):
                 continue
             try:
                 card = parse_card(payload)
@@ -259,7 +259,7 @@ def backfill_face_names(conn: psycopg.Connection) -> int:
         for payload in stream_bulk(BULK_ORACLE):
             if not payload.get("card_faces"):
                 continue
-            if not is_relevant(payload.get("legalities") or {}):
+            if not should_ingest(payload):
                 continue
             oracle_id = payload.get("oracle_id")
             if not oracle_id:

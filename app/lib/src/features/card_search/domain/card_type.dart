@@ -40,6 +40,10 @@ const _magicTypes = <CardType>[
   CardType('Land', 'Terrain'),
   CardType('Planeswalker', 'Planeswalker'),
   CardType('Battle', 'Bataille'),
+  // Les jetons portent « Token » en tête de leur ligne de type. Ils répondent
+  // aussi au filtre de leur type de jeu — un jeton de créature est une créature
+  // —, ce qui est exact et laisse celui-ci pour les isoler.
+  CardType('Token', 'Jeton'),
 ];
 
 const _riftboundTypes = <CardType>[

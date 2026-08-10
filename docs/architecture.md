@@ -728,10 +728,17 @@ toucher au serveur chaque fois qu'un catalogue gagne un type.
 
 **Les suggestions se filtrent par couleur** (`deck_suggestions.p_colors`). L'identité couleur d'un deck est l'union de celle de ses cartes — la règle du Commander, qui vaut comme description ailleurs. La sélection est un **tamis** : seuls les decks dont l'identité tient dans les couleurs choisies sont proposés. Demander « rouge » et recevoir un deck à cinq couleurs n'aiderait pas qui voulait justement du mono-rouge. Les decks incolores restent proposés quoi qu'on demande, l'ensemble vide étant contenu dans tout autre — et ils se jouent effectivement partout.
 
-**Le catalogue exclut les tokens** : `is_relevant` ne retient que les cartes légales
-dans au moins un format couvert, et un token ne l'est nulle part. Conséquence assumée
-tant que le produit vise le deckbuilding — mais qui empêche de saisir une boîte
-complète, où les tokens sont rangés avec le reste.
+**Une carte entre au catalogue pour deux motifs, et deux seulement** (`should_ingest`) :
+parce qu'elle se joue dans un format couvert, ou parce qu'elle se range dans une boîte.
+Les jetons relèvent du second — ils ne sont légaux nulle part, mais occupent une case de
+classeur comme les autres, et les exclure rendait une collection physique impossible à
+saisir en entier. Leur absence de légalité les tient d'elle-même à l'écart des
+suggestions : le moteur travaille sur `legal_pauper`, `legal_modern` et
+`legal_commander`, toutes fausses pour eux, si bien qu'aucun garde-fou supplémentaire
+n'est nécessaire. Le type se lit dans `layout` (`token`, `double_faced_token`, `emblem`)
+et non dans `type_line`, dont la convention « Token Creature » n'est pas garantie.
+
+**Les jetons n'existent qu'en anglais.** Scryfall ne publie aucune impression localisée pour eux : 3 209 impressions, toutes anglaises, aucune avec un nom imprimé. Un jeton se saisit donc au clavier sous son nom anglais (« Soldier », « Treasure »), et la recherche par nom français ne le trouve pas. La reconnaissance par photo prend le relais — les 1 618 illustrations de jetons sont entrées à l'index d'empreintes, qui joue ici son rôle de recours quand la lecture du nom ne mène à rien.
 
 Un index de préfixe (`text_pattern_ops`) a été essayé puis **retiré** : il n'apportait
 aucun gain. Le motif de recherche provient d'un sous-select, il est donc inconnu au
