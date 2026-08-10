@@ -157,6 +157,41 @@ void main() {
       expect(decks.lastFilters?.commander, 'galadriel');
     });
 
+    testWidgets("possédé, il se distingue à l'œil", (tester) async {
+      // C'est la carte qui décide si un deck est un projet ou une liste de
+      // courses : la distinction se lit avant le nom, pas après.
+      await pumpDecksScreen(
+        tester,
+        results: [
+          fakeDeck(
+            commanderOracleId: 'oracle-cmd',
+            commanderName: 'Galadriel, reine elfe',
+            commanderOwned: true,
+          ),
+        ],
+      );
+
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    });
+
+    testWidgets('le filtre « possédé » atteint le dépôt', (tester) async {
+      final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      await tester.tap(find.text('Commander'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Commandant possédé'));
+      await tester.pumpAndSettle();
+
+      expect(decks.lastFilters?.ownedCommanderOnly, isTrue);
+    });
+
+    testWidgets("le filtre « possédé » ne paraît qu'en Commander", (
+      tester,
+    ) async {
+      await pumpDecksScreen(tester, results: [fakeDeck()]);
+      expect(find.text('Commandant possédé'), findsNothing);
+    });
+
     testWidgets("la recherche ne paraît qu'en Commander", (tester) async {
       // En Pauper, un champ de commandant ne pourrait rien trouver.
       await pumpDecksScreen(tester, results: [fakeDeck()]);

@@ -31,6 +31,7 @@ class DeckSuggestion {
     this.colors = const [],
     this.commanderOracleId,
     this.commanderName,
+    this.commanderOwned = false,
   });
 
   final String deckId;
@@ -72,6 +73,13 @@ class DeckSuggestion {
   /// Nom du commandant, en français quand la traduction existe.
   final String? commanderName;
 
+  /// Vrai si le commandant est déjà en collection.
+  ///
+  /// **C'est la carte qui décide si un deck est un projet ou une liste de
+  /// courses** : sans le général, les quatre-vingt-dix-neuf autres cartes ne
+  /// forment pas un deck, et c'est souvent la plus chère de la liste.
+  final bool commanderOwned;
+
   bool get hasCommander => commanderOracleId != null && commanderName != null;
 
   bool get isBuildable => missingCards == 0;
@@ -97,6 +105,7 @@ class DeckSuggestion {
           const [],
       commanderOracleId: json['commander_oracle_id'] as String?,
       commanderName: json['commander_name'] as String?,
+      commanderOwned: json['commander_owned'] as bool? ?? false,
     );
   }
 }

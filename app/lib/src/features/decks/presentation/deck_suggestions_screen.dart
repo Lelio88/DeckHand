@@ -203,6 +203,17 @@ class _FilterBar extends ConsumerWidget {
             visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: 8),
+          // Ne paraît qu'en Commander : ailleurs, il ne pourrait rien rendre.
+          if (ref.watch(selectedFormatProvider) == DeckFormat.commander) ...[
+            FilterChip(
+              label: const Text('Commandant possédé'),
+              tooltip: 'Decks dont vous tenez déjà le général',
+              selected: filters.ownedCommanderOnly,
+              onSelected: (_) => notifier.toggleOwnedCommander(),
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 8),
+          ],
           PopupMenuButton<double?>(
             initialValue: filters.maxCostEur,
             onSelected: notifier.setMaxCost,
@@ -316,10 +327,18 @@ class _CommanderLine extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
         child: Row(
           children: [
+            // **La coche dit ce qui décide de tout.** Sans le général, les
+            // quatre-vingt-dix-neuf autres cartes ne forment pas un deck — et
+            // c'est souvent la carte la plus chère de la liste. La distinction
+            // se lit donc avant le nom, pas après.
             Icon(
-              Icons.workspace_premium_outlined,
+              deck.commanderOwned
+                  ? Icons.check_circle
+                  : Icons.workspace_premium_outlined,
               size: 15,
-              color: theme.colorScheme.primary,
+              color: deck.commanderOwned
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: 6),
             Flexible(
@@ -328,7 +347,9 @@ class _CommanderLine extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.primary,
+                  color: deck.commanderOwned
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface,
                   fontWeight: FontWeight.w600,
                 ),
               ),

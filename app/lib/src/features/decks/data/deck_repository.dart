@@ -40,6 +40,7 @@ class DeckRepository {
         'p_commander': filters.commander.trim().isEmpty
             ? null
             : filters.commander.trim(),
+        'p_owned_commander': filters.ownedCommanderOnly,
       },
     );
     return rows
@@ -74,6 +75,7 @@ class DeckFilters {
     this.maxCostEur,
     this.colors = const {},
     this.commander = '',
+    this.ownedCommanderOnly = false,
   });
 
   /// N'afficher que les decks sans carte manquante.
@@ -96,8 +98,12 @@ class DeckFilters {
   /// qu'on veut jouer. La recherche accepte le nom français comme l'anglais.
   final String commander;
 
+  /// N'afficher que les decks dont on possède déjà le commandant.
+  final bool ownedCommanderOnly;
+
   bool get isActive =>
       buildableOnly ||
+      ownedCommanderOnly ||
       maxCostEur != null ||
       colors.isNotEmpty ||
       commander.trim().isNotEmpty;
@@ -107,12 +113,14 @@ class DeckFilters {
     double? maxCostEur,
     Set<String>? colors,
     String? commander,
+    bool? ownedCommanderOnly,
     bool clearCost = false,
   }) => DeckFilters(
     buildableOnly: buildableOnly ?? this.buildableOnly,
     maxCostEur: clearCost ? null : (maxCostEur ?? this.maxCostEur),
     colors: colors ?? this.colors,
     commander: commander ?? this.commander,
+    ownedCommanderOnly: ownedCommanderOnly ?? this.ownedCommanderOnly,
   );
 }
 
@@ -132,6 +140,9 @@ class DeckFiltersNotifier extends Notifier<DeckFilters> {
     if (!next.remove(symbol)) next.add(symbol);
     state = state.copyWith(colors: next);
   }
+
+  void toggleOwnedCommander() =>
+      state = state.copyWith(ownedCommanderOnly: !state.ownedCommanderOnly);
 
   void searchCommander(String name) => state = state.copyWith(commander: name);
 
