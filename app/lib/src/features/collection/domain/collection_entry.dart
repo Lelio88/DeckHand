@@ -113,6 +113,16 @@ class CollectionSummary {
   });
 
   final int totalCards;
+
+  /// Références distinctes : le couple (extension, numéro) fait foi, une carte
+  /// sans édition précisée en valant une.
+  ///
+  /// **Ce n'est pas le nombre de cartes au sens des règles.** Scryfall donne un
+  /// identifiant oracle unique à tous les terrains de base d'un même type :
+  /// compter les cartes ferait de 871 éditions de Plaine une seule ligne, alors
+  /// que deux illustrations différentes occupent deux cases d'un classeur. Le
+  /// deckbuilding, lui, garde l'autre lecture — posséder deux Plaines, c'est
+  /// pouvoir en jouer deux exemplaires de la même carte.
   final int distinctCards;
 
   /// Valeur totale. Les cartes sans cote connue comptent pour zéro : mieux vaut

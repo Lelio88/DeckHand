@@ -96,12 +96,18 @@ class CollectionRepository {
   }
 
   /// Une page de collection, filtrée et ordonnée.
+  ///
+  /// [unspecifiedOnly] ne retient que les exemplaires dont l'édition reste à
+  /// préciser. Le filtre vit côté serveur : appliqué sur la page reçue, il
+  /// viderait les pages où rien n'est à préciser tout en croyant la collection
+  /// épuisée.
   Future<List<CollectionEntry>> page({
     String? query,
     CollectionSort sort = CollectionSort.name,
     int offset = 0,
     int limit = collectionPageSize,
     Game game = Game.magic,
+    bool unspecifiedOnly = false,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'my_collection',
@@ -111,6 +117,7 @@ class CollectionRepository {
         'p_limit': limit,
         'p_offset': offset,
         'p_game': game.id,
+        'p_unspecified_only': unspecifiedOnly,
       },
     );
     return rows
@@ -134,16 +141,33 @@ final collectionRepositoryProvider = Provider<CollectionRepository>(
   (ref) => CollectionRepository(Supabase.instance.client),
 );
 
-/// Critères de consultation, partagés entre le champ de recherche et le tri.
-typedef CollectionView = ({String query, CollectionSort sort});
+/// Critères de consultation, partagés entre la recherche, le tri et le filtre.
+typedef CollectionView = ({
+  String query,
+  CollectionSort sort,
+  bool unspecifiedOnly,
+});
 
 class CollectionViewNotifier extends Notifier<CollectionView> {
   @override
-  CollectionView build() => (query: '', sort: CollectionSort.name);
+  CollectionView build() =>
+      (query: '', sort: CollectionSort.name, unspecifiedOnly: false);
 
-  void search(String value) => state = (query: value, sort: state.sort);
+  void search(String value) => state = (
+    query: value,
+    sort: state.sort,
+    unspecifiedOnly: state.unspecifiedOnly,
+  );
 
-  void sortBy(CollectionSort sort) => state = (query: state.query, sort: sort);
+  void sortBy(CollectionSort sort) => state = (
+    query: state.query,
+    sort: sort,
+    unspecifiedOnly: state.unspecifiedOnly,
+  );
+
+  /// Restreint la liste aux exemplaires dont l'édition reste à préciser.
+  void showUnspecifiedOnly(bool value) =>
+      state = (query: state.query, sort: state.sort, unspecifiedOnly: value);
 }
 
 final collectionViewProvider =
@@ -176,5 +200,10 @@ final collectionPageProvider = FutureProvider<List<CollectionEntry>>((
   final game = ref.watch(selectedGameProvider);
   return ref
       .watch(collectionRepositoryProvider)
-      .page(query: view.query, sort: view.sort, game: game);
+      .page(
+        query: view.query,
+        sort: view.sort,
+        game: game,
+        unspecifiedOnly: view.unspecifiedOnly,
+      );
 });

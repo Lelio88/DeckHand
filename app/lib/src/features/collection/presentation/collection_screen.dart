@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../config/selected_game.dart';
 import '../../printings/presentation/foil_decoration.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/collection_repository.dart';
@@ -85,6 +86,11 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             query: view.query,
             sort: view.sort,
             offset: first.length + _extra.length,
+            // Les critères de la première page valent pour les suivantes : les
+            // omettre ferait défiler une collection filtrée sur une suite non
+            // filtrée, et changerait de jeu en cours de liste.
+            game: ref.read(selectedGameProvider),
+            unspecifiedOnly: view.unspecifiedOnly,
           );
       if (!mounted) return;
       setState(() {
@@ -143,6 +149,14 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
               onSearch: _onSearchChanged,
               onSort: (value) =>
                   ref.read(collectionViewProvider.notifier).sortBy(value),
+              // Le filtre ne s'affiche que s'il a une prise sur quelque chose :
+              // sur une collection entièrement précisée, un bouton qui ne
+              // renverrait jamais rien encombrerait sans rien promettre.
+              unspecifiedCount: totals.unspecifiedPrints,
+              unspecifiedOnly: view.unspecifiedOnly,
+              onUnspecifiedOnly: (value) => ref
+                  .read(collectionViewProvider.notifier)
+                  .showUnspecifiedOnly(value),
             ),
             Expanded(
               child: RefreshIndicator(
@@ -153,7 +167,16 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                   _ when entries.isEmpty => _Message(
-                    'Aucune carte ne correspond à « ${view.query} ».',
+                    switch ((view.query.isEmpty, view.unspecifiedOnly)) {
+                      // Un filtre qui ne rend rien doit dire ce qu'il cherchait,
+                      // sinon la collection paraît vide.
+                      (true, true) =>
+                        'Toutes vos cartes ont leur édition précisée.',
+                      (false, true) =>
+                        'Aucune carte à préciser ne correspond à '
+                            '« ${view.query} ».',
+                      _ => 'Aucune carte ne correspond à « ${view.query} ».',
+                    },
                   ),
                   _ => ListView.separated(
                     controller: _scrollController,
@@ -179,13 +202,22 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   }
 }
 
-/// Recherche et tri, sur une seule ligne.
+/// Recherche, tri, et raccourci vers ce qui reste à préciser.
+///
+/// **Le filtre n'apparaît que s'il a prise sur quelque chose.** Sur une
+/// collection entièrement précisée, un bouton qui ne renverrait jamais rien
+/// occuperait la place sans rien promettre. Il reste en revanche affiché tant
+/// qu'il est actif, sans quoi on ne pourrait plus le désactiver après avoir
+/// précisé la dernière carte.
 class _Toolbar extends StatelessWidget {
   const _Toolbar({
     required this.controller,
     required this.sort,
     required this.onSearch,
     required this.onSort,
+    required this.unspecifiedCount,
+    required this.unspecifiedOnly,
+    required this.onUnspecifiedOnly,
   });
 
   final TextEditingController controller;
@@ -193,8 +225,41 @@ class _Toolbar extends StatelessWidget {
   final ValueChanged<String> onSearch;
   final ValueChanged<CollectionSort> onSort;
 
+  /// Exemplaires dont l'édition reste à préciser, dans la collection entière.
+  final int unspecifiedCount;
+  final bool unspecifiedOnly;
+  final ValueChanged<bool> onUnspecifiedOnly;
+
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _searchRow(context),
+        if (unspecifiedCount > 0 || unspecifiedOnly)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FilterChip(
+                selected: unspecifiedOnly,
+                onSelected: onUnspecifiedOnly,
+                avatar: Icon(
+                  unspecifiedOnly ? Icons.filter_alt : Icons.style_outlined,
+                  size: 17,
+                ),
+                label: Text(
+                  unspecifiedCount > 0
+                      ? 'À préciser · $unspecifiedCount'
+                      : 'À préciser',
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _searchRow(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: Row(

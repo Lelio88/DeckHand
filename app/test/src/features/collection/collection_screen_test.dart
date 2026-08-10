@@ -282,6 +282,90 @@ void main() {
     });
   });
 
+  group('atteindre ce qui reste à préciser', () {
+    // Compter les exemplaires sans édition sans donner le moyen de les
+    // atteindre laissait un chantier visible et inaccessible : sur une
+    // collection de deux mille cartes, les retrouver un par un dans la liste
+    // n'est pas un geste qu'on fait.
+    CollectionSummary totalsWith(int unspecified) => CollectionSummary(
+      totalCards: 10,
+      distinctCards: 8,
+      totalValueEur: 12,
+      unspecifiedPrints: unspecified,
+    );
+
+    testWidgets('le filtre restreint la liste côté dépôt', (tester) async {
+      final repository = await pumpCollection(
+        tester,
+        entries: [entry(printId: 'print-mh2', setCode: 'mh2'), entry()],
+        totals: totalsWith(3),
+      );
+
+      await tester.tap(find.text('À préciser · 3'));
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.lastUnspecifiedOnly,
+        isTrue,
+        reason: 'filtrer la page reçue viderait les pages où rien n\'est à '
+            'préciser en croyant la collection épuisée',
+      );
+    });
+
+    testWidgets('sans rien à préciser, le filtre ne s\'affiche pas', (
+      tester,
+    ) async {
+      await pumpCollection(
+        tester,
+        entries: [entry(printId: 'print-mh2', setCode: 'mh2')],
+        totals: totalsWith(0),
+      );
+
+      expect(find.textContaining('À préciser'), findsNothing);
+    });
+
+    testWidgets('le filtre reste retirable une fois le travail fait', (
+      tester,
+    ) async {
+      // Il ne suffit pas de l'afficher quand il reste des cartes : après avoir
+      // précisé la dernière, le bouton disparaîtrait en laissant la liste
+      // filtrée et vide, sans moyen d'en sortir.
+      final repository = await pumpCollection(
+        tester,
+        entries: [entry()],
+        totals: totalsWith(1),
+      );
+
+      await tester.tap(find.text('À préciser · 1'));
+      await tester.pumpAndSettle();
+
+      repository.totals = totalsWith(0);
+      await tester.tap(find.byType(RefreshIndicator));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('À préciser'), findsOneWidget);
+    });
+
+    testWidgets('une liste filtrée vide dit ce qu\'elle cherchait', (
+      tester,
+    ) async {
+      await pumpCollection(
+        tester,
+        entries: [entry(printId: 'print-mh2', setCode: 'mh2')],
+        totals: totalsWith(1),
+      );
+
+      await tester.tap(find.text('À préciser · 1'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Toutes vos cartes ont leur édition précisée.'),
+        findsOneWidget,
+        reason: 'sans cela la collection paraîtrait vide',
+      );
+    });
+  });
+
   group('le brillant se voit sans se lire', () {
     // Un « · foil » en petits caractères ne se lit qu'une fois qu'on l'a
     // cherché — or on ne cherche pas en faisant défiler. Le brillant vaut

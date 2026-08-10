@@ -157,6 +157,7 @@ class FakeCollectionRepository implements CollectionRepository {
   String? lastQuery;
   CollectionSort? lastSort;
   int? lastOffset;
+  bool? lastUnspecifiedOnly;
 
   /// Dernier déplacement d'édition demandé.
   ({String oracleId, String? from, String? to, int? quantity})? lastPrintingMove;
@@ -244,12 +245,19 @@ class FakeCollectionRepository implements CollectionRepository {
     int offset = 0,
     int limit = collectionPageSize,
     Game game = Game.magic,
+    bool unspecifiedOnly = false,
   }) async {
     lastQuery = query;
     lastSort = sort;
     lastOffset = offset;
-    if (offset >= entries.length) return const [];
-    return entries.sublist(offset, (offset + limit).clamp(0, entries.length));
+    lastUnspecifiedOnly = unspecifiedOnly;
+    // Le filtre est appliqué par le serveur : le reproduire ici permet
+    // d'observer une liste vide quand rien n'est a preciser, comme en vrai.
+    final shown = unspecifiedOnly
+        ? entries.where((e) => !e.hasPrinting).toList(growable: false)
+        : entries;
+    if (offset >= shown.length) return const [];
+    return shown.sublist(offset, (offset + limit).clamp(0, shown.length));
   }
 
   @override
