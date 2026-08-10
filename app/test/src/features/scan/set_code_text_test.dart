@@ -16,9 +16,37 @@ import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/scan/domain/set_code_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'measured_set_codes.dart';
 import 'measured_spread.dart';
 
 void main() {
+  group('sur les cartes réellement photographiées', () {
+    // Trois cartes scannées une par une, dans le mode où la lecture du code
+    // sert. Rejouer la mesure hors ligne évite de reconstruire l'application à
+    // chaque changement de règle — et fige ce qui a été obtenu ce jour-là.
+    for (final card in measuredSetCodeCards) {
+      test('${card.name} : le code est retrouvé', () {
+        expect(
+          readSetCode(card.lines, measuredCandidates),
+          card.expected,
+          reason: 'lu sur la carte, donc attendu du code',
+        );
+      });
+    }
+
+    test('aucune ne désigne une extension qu\'elle ne porte pas', () {
+      // « MARVEL » et ses lectures fautives (« OMARVEL », « ALARVEL ») sont
+      // imprimées sur ces cartes, et `mar` est un code d'extension.
+      for (final card in measuredSetCodeCards) {
+        expect(
+          readSetCode(card.lines, const {'mar'}),
+          isNull,
+          reason: '${card.name} ne vient pas de MAR',
+        );
+      }
+    });
+  });
+
   group('sur une lecture réelle', () {
     test('le code imprimé est retrouvé parmi les extensions de la carte', () {
       // « MSH FR MARC AsPINALL » — la ligne d'artiste porte le code, en
@@ -47,6 +75,24 @@ void main() {
     test('le code doit être un mot entier', () {
       // « MSHIRE » contient « MSH » sans être un code d'extension.
       expect(readSetCode([line('MSHIRE FR')], const {'msh'}), isNull);
+    });
+
+    test('le code collé à sa langue reste lisible', () {
+      // Mesuré sur le terrain : sur trois cartes scannées, la ligne
+      // « MSH • EN • GRACE ZHU » de Moonstone est sortie « MSHEN GRACE ZH ».
+      // La puce séparatrice a disparu, et le code parfaitement lu était perdu.
+      expect(
+        readSetCode([line('MSHEN GRACE ZH')], const {'msh'}),
+        'msh',
+      );
+    });
+
+    test('un mot qui commence par le code sans langue derrière ne compte pas', () {
+      // « MARVEL » est imprimé au bas de chaque carte de ces extensions, et
+      // `mar` en est une. Accepter un simple préfixe ferait de la mention
+      // d'éditeur une désignation d'extension — sur la carte qui l'affiche.
+      expect(readSetCode([line('MARVEL')], const {'mar'}), isNull);
+      expect(readSetCode([line('OMARVEL')], const {'mar'}), isNull);
     });
 
     test('les capitales font foi', () {
