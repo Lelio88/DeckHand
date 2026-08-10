@@ -70,6 +70,10 @@ class CardPrint:
     finishes: list[str]
     illustration_id: str | None
     released_at: str | None
+    # Illustration débordant du cadre habituel. C'est une propriété de
+    # l'impression, pas de la carte : la même carte existe en version ordinaire
+    # et en pleine illustration, et un collectionneur les range à part.
+    full_art: bool = False
 
 
 def normalize_name(name: str) -> str:
@@ -193,6 +197,7 @@ def parse_print(payload: dict[str, Any]) -> CardPrint:
         price_eur_foil=_as_float(prices.get("eur_foil")),
         price_usd_foil=_as_float(prices.get("usd_foil")),
         finishes=payload.get("finishes") or [],
+        full_art=bool(payload.get("full_art")),
         illustration_id=_illustration_id(payload),
         released_at=payload.get("released_at"),
     )

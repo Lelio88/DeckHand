@@ -108,6 +108,9 @@ class CollectionRepository {
     int limit = collectionPageSize,
     Game game = Game.magic,
     bool unspecifiedOnly = false,
+    bool? descending,
+    FinishFilter finish = FinishFilter.all,
+    bool? fullArt,
   }) async {
     final rows = await _client.rpc<List<dynamic>>(
       'my_collection',
@@ -118,6 +121,9 @@ class CollectionRepository {
         'p_offset': offset,
         'p_game': game.id,
         'p_unspecified_only': unspecifiedOnly,
+        'p_descending': descending ?? sort.startsDescending,
+        'p_finish': finish.id,
+        'p_full_art': fullArt,
       },
     );
     return rows
@@ -145,29 +151,79 @@ final collectionRepositoryProvider = Provider<CollectionRepository>(
 typedef CollectionView = ({
   String query,
   CollectionSort sort,
+  bool descending,
   bool unspecifiedOnly,
+  FinishFilter finish,
+  bool? fullArt,
 });
 
 class CollectionViewNotifier extends Notifier<CollectionView> {
   @override
-  CollectionView build() =>
-      (query: '', sort: CollectionSort.name, unspecifiedOnly: false);
+  CollectionView build() => (
+    query: '',
+    sort: CollectionSort.name,
+    descending: CollectionSort.name.startsDescending,
+    unspecifiedOnly: false,
+    finish: FinishFilter.all,
+    fullArt: null,
+  );
 
   void search(String value) => state = (
     query: value,
     sort: state.sort,
+    descending: state.descending,
     unspecifiedOnly: state.unspecifiedOnly,
+    finish: state.finish,
+    fullArt: state.fullArt,
   );
 
+  /// Choisit un critère de tri, ou **inverse** celui déjà choisi.
+  ///
+  /// Re-sélectionner le critère courant retourne la liste : c'est le geste que
+  /// l'on fait sans y penser, et il évite un second contrôle « croissant /
+  /// décroissant » qui n'aurait de sens qu'accolé au premier. Un critère
+  /// nouvellement choisi part dans son sens naturel — les cartes les plus chères
+  /// d'abord, mais les noms de A à Z.
   void sortBy(CollectionSort sort) => state = (
     query: state.query,
     sort: sort,
+    descending: sort == state.sort
+        ? !state.descending
+        : sort.startsDescending,
     unspecifiedOnly: state.unspecifiedOnly,
+    finish: state.finish,
+    fullArt: state.fullArt,
   );
 
   /// Restreint la liste aux exemplaires dont l'édition reste à préciser.
-  void showUnspecifiedOnly(bool value) =>
-      state = (query: state.query, sort: state.sort, unspecifiedOnly: value);
+  void showUnspecifiedOnly(bool value) => state = (
+    query: state.query,
+    sort: state.sort,
+    descending: state.descending,
+    unspecifiedOnly: value,
+    finish: state.finish,
+    fullArt: state.fullArt,
+  );
+
+  void filterFinish(FinishFilter finish) => state = (
+    query: state.query,
+    sort: state.sort,
+    descending: state.descending,
+    unspecifiedOnly: state.unspecifiedOnly,
+    finish: finish,
+    fullArt: state.fullArt,
+  );
+
+  /// `true` ne garde que les pleines illustrations, `false` que les autres,
+  /// `null` ne filtre pas.
+  void filterFullArt(bool? value) => state = (
+    query: state.query,
+    sort: state.sort,
+    descending: state.descending,
+    unspecifiedOnly: state.unspecifiedOnly,
+    finish: state.finish,
+    fullArt: value,
+  );
 }
 
 final collectionViewProvider =
@@ -205,5 +261,8 @@ final collectionPageProvider = FutureProvider<List<CollectionEntry>>((
         sort: view.sort,
         game: game,
         unspecifiedOnly: view.unspecifiedOnly,
+        descending: view.descending,
+        finish: view.finish,
+        fullArt: view.fullArt,
       );
 });

@@ -92,6 +92,9 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             // filtrée, et changerait de jeu en cours de liste.
             game: ref.read(selectedGameProvider),
             unspecifiedOnly: view.unspecifiedOnly,
+            descending: view.descending,
+            finish: view.finish,
+            fullArt: view.fullArt,
           );
       if (!mounted) return;
       setState(() {
@@ -146,10 +149,14 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             _Totals(summary: totals),
             _Toolbar(
               controller: _searchController,
-              sort: view.sort,
+              view: view,
               onSearch: _onSearchChanged,
               onSort: (value) =>
                   ref.read(collectionViewProvider.notifier).sortBy(value),
+              onFinish: (value) =>
+                  ref.read(collectionViewProvider.notifier).filterFinish(value),
+              onFullArt: (value) =>
+                  ref.read(collectionViewProvider.notifier).filterFullArt(value),
               // Le filtre ne s'affiche que s'il a une prise sur quelque chose :
               // sur une collection entièrement précisée, un bouton qui ne
               // renverrait jamais rien encombrerait sans rien promettre.
@@ -213,49 +220,81 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
 class _Toolbar extends StatelessWidget {
   const _Toolbar({
     required this.controller,
-    required this.sort,
+    required this.view,
     required this.onSearch,
     required this.onSort,
+    required this.onFinish,
+    required this.onFullArt,
     required this.unspecifiedCount,
     required this.unspecifiedOnly,
     required this.onUnspecifiedOnly,
   });
 
   final TextEditingController controller;
-  final CollectionSort sort;
+  final CollectionView view;
   final ValueChanged<String> onSearch;
   final ValueChanged<CollectionSort> onSort;
+  final ValueChanged<FinishFilter> onFinish;
+  final ValueChanged<bool?> onFullArt;
 
   /// Exemplaires dont l'édition reste à préciser, dans la collection entière.
   final int unspecifiedCount;
   final bool unspecifiedOnly;
   final ValueChanged<bool> onUnspecifiedOnly;
 
+  CollectionSort get sort => view.sort;
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         _searchRow(context),
-        if (unspecifiedCount > 0 || unspecifiedOnly)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: FilterChip(
-                selected: unspecifiedOnly,
-                onSelected: onUnspecifiedOnly,
-                avatar: Icon(
-                  unspecifiedOnly ? Icons.filter_alt : Icons.style_outlined,
-                  size: 17,
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            children: [
+              if (unspecifiedCount > 0 || unspecifiedOnly) ...[
+                FilterChip(
+                  selected: unspecifiedOnly,
+                  onSelected: onUnspecifiedOnly,
+                  visualDensity: VisualDensity.compact,
+                  avatar: Icon(
+                    unspecifiedOnly ? Icons.filter_alt : Icons.style_outlined,
+                    size: 17,
+                  ),
+                  label: Text(
+                    unspecifiedCount > 0
+                        ? 'À préciser · $unspecifiedCount'
+                        : 'À préciser',
+                  ),
                 ),
-                label: Text(
-                  unspecifiedCount > 0
-                      ? 'À préciser · $unspecifiedCount'
-                      : 'À préciser',
-                ),
+                const SizedBox(width: 8),
+              ],
+              // Trois états plutôt qu'une case à cocher : « toutes », « que les
+              // normales », « que les brillantes ». Une case ne saurait dire la
+              // deuxième, qui est pourtant celle qu'on veut en vérifiant ce
+              // qu'on possède vraiment de chaque.
+              for (final finish in FinishFilter.values)
+                if (finish != FinishFilter.all || view.finish != FinishFilter.all) ...[
+                  FilterChip(
+                    label: Text(finish.label),
+                    selected: view.finish == finish,
+                    onSelected: (_) => onFinish(finish),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              FilterChip(
+                label: const Text('Pleine illustration'),
+                selected: view.fullArt == true,
+                onSelected: (on) => onFullArt(on ? true : null),
+                visualDensity: VisualDensity.compact,
               ),
-            ),
+            ],
           ),
+        ),
       ],
     );
   }
@@ -297,7 +336,23 @@ class _Toolbar extends StatelessWidget {
             tooltip: 'Trier',
             itemBuilder: (context) => [
               for (final value in CollectionSort.values)
-                PopupMenuItem(value: value, child: Text(value.label)),
+                PopupMenuItem(
+                  value: value,
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(value.label)),
+                      // Le critère courant montre où un second appui mènera :
+                      // l'inverse de ce qui est affiché.
+                      if (value == sort)
+                        Icon(
+                          view.descending
+                              ? Icons.arrow_upward
+                              : Icons.arrow_downward,
+                          size: 16,
+                        ),
+                    ],
+                  ),
+                ),
             ],
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -307,9 +362,15 @@ class _Toolbar extends StatelessWidget {
                   color: Theme.of(context).colorScheme.outlineVariant,
                 ),
               ),
+              // La flèche dit le sens **et** l'annonce : sans elle, re-toucher
+              // le critère retournerait la liste sans que rien n'explique
+              // pourquoi.
               child: Row(
                 children: [
-                  const Icon(Icons.sort, size: 18),
+                  Icon(
+                    view.descending ? Icons.arrow_downward : Icons.arrow_upward,
+                    size: 16,
+                  ),
                   const SizedBox(width: 6),
                   Text(sort.label),
                 ],

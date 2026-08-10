@@ -31,6 +31,9 @@ class DeckRepository {
         'p_max_results': maxResults,
         'p_max_cost': filters.maxCostEur,
         'p_tier': filters.accessibleOnly ? 'accessible' : null,
+        // Trié pour que la requête soit la même d'une sélection à l'autre : le
+        // serveur n'a que faire de l'ordre dans lequel on a touché les pastilles.
+        'p_colors': (filters.colors.toList()..sort()),
       },
     );
     return rows
@@ -64,6 +67,7 @@ class DeckFilters {
     this.buildableOnly = false,
     this.accessibleOnly = false,
     this.maxCostEur,
+    this.colors = const {},
   });
 
   /// N'afficher que les decks sans carte manquante.
@@ -76,17 +80,28 @@ class DeckFilters {
   /// Plafond du coût de complétion, en euros. Nul si aucune limite.
   final double? maxCostEur;
 
-  bool get isActive => buildableOnly || accessibleOnly || maxCostEur != null;
+  /// Couleurs retenues, en symboles Scryfall (`W`, `U`, `B`, `R`, `G`).
+  ///
+  /// **C'est un tamis, pas une recherche** : ne sont proposés que les decks dont
+  /// l'identité tient dans cette sélection. Demander « rouge » et recevoir un
+  /// deck à cinq couleurs n'aiderait personne — il serait injouable pour qui
+  /// voulait justement du mono-rouge.
+  final Set<String> colors;
+
+  bool get isActive =>
+      buildableOnly || accessibleOnly || maxCostEur != null || colors.isNotEmpty;
 
   DeckFilters copyWith({
     bool? buildableOnly,
     bool? accessibleOnly,
     double? maxCostEur,
+    Set<String>? colors,
     bool clearCost = false,
   }) => DeckFilters(
     buildableOnly: buildableOnly ?? this.buildableOnly,
     accessibleOnly: accessibleOnly ?? this.accessibleOnly,
     maxCostEur: clearCost ? null : (maxCostEur ?? this.maxCostEur),
+    colors: colors ?? this.colors,
   );
 }
 
@@ -103,6 +118,12 @@ class DeckFiltersNotifier extends Notifier<DeckFilters> {
   void setMaxCost(double? value) => value == null
       ? state = state.copyWith(clearCost: true)
       : state = state.copyWith(maxCostEur: value);
+
+  void toggleColor(String symbol) {
+    final next = {...state.colors};
+    if (!next.remove(symbol)) next.add(symbol);
+    state = state.copyWith(colors: next);
+  }
 
   void reset() => state = const DeckFilters();
 }

@@ -155,19 +155,42 @@ class CollectionSummary {
 
 /// Critères de consultation de la collection.
 ///
-/// Les quatre premiers répondent à des questions d'inventaire — ce qui vaut le
-/// plus, ce qu'on a en double, ce qui vient d'entrer. `number` répond à celle
-/// qu'on se pose une carte à la main devant une boîte : où va-t-elle ? Les
-/// cartes sans édition précisée n'ayant pas de numéro, elles ferment la marche.
+/// Certains répondent à des questions d'inventaire — ce qui vaut le plus, ce
+/// qu'on a en double, ce qui vient d'entrer. `number` et `rarity` répondent à
+/// celle qu'on se pose une carte à la main devant une boîte : où va-t-elle ?
+/// Les cartes sans édition précisée n'ayant ni numéro ni rareté, elles ferment
+/// la marche.
+///
+/// [startsDescending] est le sens dans lequel on veut voir le critère la
+/// première fois : on cherche d'abord ses cartes les plus chères, mais ses noms
+/// de A à Z. Le re-sélectionner inverse ce sens.
 enum CollectionSort {
-  name('name', 'Nom'),
-  number('number', 'Numéro'),
-  price('price', 'Valeur'),
-  quantity('quantity', 'Quantité'),
-  recent('recent', 'Récent');
+  name('name', 'Nom', startsDescending: false),
+  number('number', 'Numéro', startsDescending: false),
+  rarity('rarity', 'Rareté', startsDescending: false),
+  price('price', 'Valeur', startsDescending: true),
+  quantity('quantity', 'Quantité', startsDescending: true),
+  recent('recent', 'Récent', startsDescending: true);
 
-  const CollectionSort(this.id, this.label);
+  const CollectionSort(this.id, this.label, {required this.startsDescending});
 
   final String id;
+  final String label;
+  final bool startsDescending;
+}
+
+/// Finition à laquelle restreindre la collection affichée.
+///
+/// Le brillant et le normal cohabitent avec des prix qui vont du simple au
+/// triple : les isoler est le moyen de vérifier ce qu'on possède de chaque.
+enum FinishFilter {
+  all(null, 'Toutes finitions'),
+  nonfoil('nonfoil', 'Normales'),
+  foil('foil', 'Brillantes');
+
+  const FinishFilter(this.id, this.label);
+
+  /// Valeur attendue par le serveur. Nulle pour « ne pas filtrer ».
+  final String? id;
   final String label;
 }

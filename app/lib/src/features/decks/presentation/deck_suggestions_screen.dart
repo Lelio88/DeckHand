@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/deck_repository.dart';
 import '../domain/deck_suggestion.dart';
+import '../domain/mana_color.dart';
 
 class DeckSuggestionsScreen extends ConsumerWidget {
   const DeckSuggestionsScreen({super.key});
@@ -66,10 +67,15 @@ class _FormatSelector extends ConsumerWidget {
 
 /// Affinage des suggestions.
 ///
-/// Trois questions distinctes, d'où trois contrôles plutôt qu'un tri unique :
+/// Quatre questions distinctes, d'où quatre contrôles plutôt qu'un tri unique :
 /// « qu'est-ce que je peux jouer ce soir » (constructibles), « qu'est-ce qui est
-/// à ma portée » (budget), et « montre-moi des decks vraiment accessibles »
-/// (précons plutôt que listes de tournoi).
+/// à ma portée » (budget), « qu'est-ce qui s'achète tout fait » (précons plutôt
+/// que listes de tournoi), et « de quelle couleur » — celle-ci venant d'ordinaire
+/// en premier chez un joueur, avant même le prix.
+///
+/// **Une seule ligne, qui défile.** Empilées sur deux rangs, les commandes
+/// mangeaient la hauteur des suggestions, qui sont l'essentiel de l'écran. Les
+/// plus employées viennent en tête, donc sous le pouce sans défiler.
 class _FilterBar extends ConsumerWidget {
   const _FilterBar();
 
@@ -85,23 +91,42 @@ class _FilterBar extends ConsumerWidget {
     final filters = ref.watch(deckFiltersProvider);
     final notifier = ref.read(deckFiltersProvider.notifier);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        crossAxisAlignment: WrapCrossAlignment.center,
+    return SizedBox(
+      height: 46,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
         children: [
+          // En tête et non en fin de rangée : c'est la sortie de secours d'un
+          // filtrage trop serré, et la reléguer derrière cinq pastilles la
+          // rendait invisible sans défiler — précisément quand la liste est
+          // vide et qu'on ne comprend pas pourquoi.
+          if (filters.isActive) ...[
+            TextButton(
+              onPressed: notifier.reset,
+              child: const Text('Tout afficher'),
+            ),
+            const SizedBox(width: 4),
+          ],
           FilterChip(
             label: const Text('Constructibles'),
             selected: filters.buildableOnly,
             onSelected: (_) => notifier.toggleBuildable(),
+            visualDensity: VisualDensity.compact,
           ),
+          const SizedBox(width: 8),
+          // « Précons » plutôt qu'« Accessibles » : le mot désignait la
+          // provenance de la liste — un deck vendu tout fait — mais se lisait
+          // comme une promesse de prix, juste à côté d'un filtre de budget qui,
+          // lui, parle bien d'argent.
           FilterChip(
-            label: const Text('Accessibles'),
+            label: const Text('Précons'),
+            tooltip: 'Decks vendus tout faits, plutôt que listes de tournoi',
             selected: filters.accessibleOnly,
             onSelected: (_) => notifier.toggleAccessible(),
+            visualDensity: VisualDensity.compact,
           ),
+          const SizedBox(width: 8),
           PopupMenuButton<double?>(
             initialValue: filters.maxCostEur,
             onSelected: notifier.setMaxCost,
@@ -112,17 +137,74 @@ class _FilterBar extends ConsumerWidget {
             child: Chip(
               label: Text(_label(filters.maxCostEur)),
               avatar: const Icon(Icons.euro, size: 16),
+              visualDensity: VisualDensity.compact,
               backgroundColor: filters.maxCostEur == null
                   ? null
                   : Theme.of(context).colorScheme.secondaryContainer,
             ),
           ),
-          if (filters.isActive)
-            TextButton(
-              onPressed: notifier.reset,
-              child: const Text('Tout afficher'),
+          const SizedBox(width: 8),
+          for (final color in manaColors) ...[
+            _ColorChip(
+              color: color,
+              selected: filters.colors.contains(color.symbol),
+              onTap: () => notifier.toggleColor(color.symbol),
             ),
+            const SizedBox(width: 6),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// Pastille d'une couleur de mana.
+///
+/// **Une pastille et non un mot.** Les cinq couleurs se reconnaissent à leur
+/// teinte depuis trente ans ; écrire « blanc, bleu, noir, rouge, vert » sur une
+/// ligne déjà chargée coûterait quatre fois la place pour la même information.
+/// L'initiale reste, pour qui hésite entre deux teintes voisines.
+class _ColorChip extends StatelessWidget {
+  const _ColorChip({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ManaColor color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: color.label,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.swatch,
+            border: Border.all(
+              color: selected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant,
+              width: selected ? 3 : 1,
+            ),
+          ),
+          child: Text(
+            color.symbol,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: color.onSwatch,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -248,7 +330,7 @@ class _DeckTile extends StatelessWidget {
                 spacing: 6,
                 children: [
                   _Tag(
-                    deck.isCompetitive ? 'Tournoi' : 'Accessible',
+                    deck.isCompetitive ? 'Tournoi' : 'Précon',
                     emphasised: !deck.isCompetitive,
                   ),
                   _Tag(deck.sourceName),
@@ -419,7 +501,7 @@ class _NoDeck extends StatelessWidget {
         child: Text(
           filtered
               ? 'Aucun deck ne passe ces filtres.\n'
-                    'Élargissez le budget ou décochez « Constructibles ».'
+                    'Élargissez le budget, les couleurs, ou décochez « Constructibles ».'
               : 'Aucun deck dans ce format pour l\'instant.\n'
                     'Ajoutez des cartes à votre collection, ou changez de format.',
           textAlign: TextAlign.center,

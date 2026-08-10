@@ -28,6 +28,7 @@ class DeckSuggestion {
     required this.completion,
     required this.missingCostEur,
     this.attribution,
+    this.colors = const [],
   });
 
   final String deckId;
@@ -54,6 +55,10 @@ class DeckSuggestion {
   /// Coût des cartes manquantes. Les cartes sans cote comptent pour zéro.
   final double missingCostEur;
 
+  /// Identité couleur du deck : l'union de celle de ses cartes, dans l'ordre
+  /// WUBRG. Vide pour un deck incolore, qui se joue partout.
+  final List<String> colors;
+
   bool get isBuildable => missingCards == 0;
   bool get isCompetitive => tier == 'competitive';
 
@@ -70,6 +75,11 @@ class DeckSuggestion {
       missingCards: (json['missing_cards'] as num).toInt(),
       completion: toDouble(json['completion']),
       missingCostEur: toDouble(json['missing_cost_eur']),
+      colors:
+          (json['colors'] as List<dynamic>?)?.cast<String>().toList(
+            growable: false,
+          ) ??
+          const [],
     );
   }
 }

@@ -86,6 +86,13 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 }
 
+/// Nom de l'application et lieu où l'on se trouve, sur une seule ligne.
+///
+/// **Le sous-titre est à droite du titre, pas dessous.** Empilés, ils coûtaient
+/// une trentaine de points de hauteur sur chacun des quatre écrans — au-dessus
+/// de listes qui, elles, gagnent à défiler longtemps. Côte à côte, la
+/// différence de taille et de couleur suffit à les distinguer, et la ligne
+/// reste largement dans la largeur d'un téléphone.
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.title});
 
@@ -95,21 +102,21 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 2),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
         children: [
+          Text('DeckHand', style: theme.textTheme.headlineSmall),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('DeckHand', style: theme.textTheme.headlineMedium),
-                Text(
-                  title,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+            child: Text(
+              title,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

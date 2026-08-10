@@ -62,15 +62,16 @@ PRINT_UPSERT = """
                                     set_code, set_name, collector_number, rarity,
                                     art_crop_url, price_eur, price_usd, released_at,
                                     price_eur_foil, price_usd_foil, finishes,
-                                    illustration_id)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    illustration_id, full_art)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (scryfall_id) DO UPDATE SET
         price_eur      = EXCLUDED.price_eur,
         price_usd      = EXCLUDED.price_usd,
         price_eur_foil = EXCLUDED.price_eur_foil,
         price_usd_foil = EXCLUDED.price_usd_foil,
         finishes        = EXCLUDED.finishes,
-        illustration_id = EXCLUDED.illustration_id
+        illustration_id = EXCLUDED.illustration_id,
+        full_art        = EXCLUDED.full_art
 """
 
 
@@ -92,6 +93,7 @@ def _print_row(p: CardPrint) -> tuple[Any, ...]:
         p.price_usd_foil,
         p.finishes,
         p.illustration_id,
+        p.full_art,
     )
 
 

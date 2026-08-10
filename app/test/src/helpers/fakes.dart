@@ -165,6 +165,12 @@ class FakeCollectionRepository implements CollectionRepository {
   int? lastOffset;
   bool? lastUnspecifiedOnly;
 
+  /// Sens et filtres de la derniere consultation. Le serveur les applique :
+  /// ce qui s'observe ici, c'est qu'ils lui parviennent.
+  bool? lastDescending;
+  FinishFilter? lastFinish;
+  bool? lastFullArt;
+
   /// Dernier déplacement d'édition demandé.
   ({String oracleId, String? from, String? to, int? quantity})? lastPrintingMove;
 
@@ -252,11 +258,17 @@ class FakeCollectionRepository implements CollectionRepository {
     int limit = collectionPageSize,
     Game game = Game.magic,
     bool unspecifiedOnly = false,
+    bool? descending,
+    FinishFilter finish = FinishFilter.all,
+    bool? fullArt,
   }) async {
     lastQuery = query;
     lastSort = sort;
     lastOffset = offset;
     lastUnspecifiedOnly = unspecifiedOnly;
+    lastDescending = descending;
+    lastFinish = finish;
+    lastFullArt = fullArt;
     // Le filtre est appliqué par le serveur : le reproduire ici permet
     // d'observer une liste vide quand rien n'est a preciser, comme en vrai.
     final shown = unspecifiedOnly

@@ -241,6 +241,77 @@ void main() {
       expect(repository.lastSort, CollectionSort.number);
     });
 
+    testWidgets('re-choisir le même critère inverse la liste', (tester) async {
+      // Le geste qu'on fait sans y penser. Il évite un second contrôle
+      // « croissant / décroissant » qui n'aurait de sens qu'accolé au premier.
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      Future<void> chooseValeur() async {
+        await tester.tap(find.byTooltip('Trier'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Valeur').last);
+        await tester.pumpAndSettle();
+      }
+
+      await chooseValeur();
+      expect(
+        repository.lastDescending,
+        isTrue,
+        reason: 'on cherche d\'abord ses cartes les plus chères',
+      );
+
+      await chooseValeur();
+      expect(repository.lastDescending, isFalse);
+    });
+
+    testWidgets('changer de critère repart dans son sens naturel', (
+      tester,
+    ) async {
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Valeur').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Nom').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.lastDescending,
+        isFalse,
+        reason: 'les noms se lisent de A à Z, pas dans le sens hérité du '
+            'critère précédent',
+      );
+    });
+
+    testWidgets('la rareté est un tri offert', (tester) async {
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rareté').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.lastSort, CollectionSort.rarity);
+    });
+
+    testWidgets('la finition et la pleine illustration sont transmises', (
+      tester,
+    ) async {
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.text('Brillantes'));
+      await tester.pumpAndSettle();
+      expect(repository.lastFinish, FinishFilter.foil);
+
+      await tester.tap(find.text('Pleine illustration'));
+      await tester.pumpAndSettle();
+      expect(repository.lastFullArt, isTrue);
+    });
+
     testWidgets('le tri choisi reste affiché', (tester) async {
       await pumpCollection(tester, entries: [entry()]);
 

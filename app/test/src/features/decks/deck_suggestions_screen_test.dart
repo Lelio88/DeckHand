@@ -87,13 +87,30 @@ void main() {
     expect(decks.lastFilters?.buildableOnly, isTrue);
   });
 
-  testWidgets('« Accessibles » restreint aux précons', (tester) async {
+  testWidgets('« Précons » restreint aux decks vendus tout faits', (
+    tester,
+  ) async {
+    // Le filtre s'appelait « Accessibles » : le mot désignait la provenance de
+    // la liste mais se lisait comme une promesse de prix, juste à côté d'un
+    // filtre de budget qui, lui, parle bien d'argent.
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
 
-    await tester.tap(find.text('Accessibles'));
+    await tester.tap(find.text('Précons'));
     await tester.pumpAndSettle();
 
     expect(decks.lastFilters?.accessibleOnly, isTrue);
+  });
+
+  testWidgets('une couleur retenue tamise les suggestions', (tester) async {
+    // Le tamis garde les decks qui *tiennent* dans la sélection : demander du
+    // rouge et recevoir un deck à cinq couleurs n'aiderait pas qui voulait
+    // justement du mono-rouge.
+    final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+    await tester.tap(find.byTooltip('Rouge'));
+    await tester.pumpAndSettle();
+
+    expect(decks.lastFilters?.colors, {'R'});
   });
 
   testWidgets('remettre à zéro efface tous les filtres', (tester) async {

@@ -263,6 +263,10 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 
 **Ce qui reste à préciser est atteignable.** `my_collection(p_unspecified_only)` restreint la page aux exemplaires sans édition, et l'écran expose le filtre dès qu'il en existe. Les compter sans donner le moyen de les rejoindre laissait un chantier visible et inaccessible : sur deux mille cartes, on ne les retrouve pas une à une dans la liste. Le filtre reste affiché tant qu'il est actif, même une fois le compte tombé à zéro — sinon le bouton disparaîtrait en laissant une liste filtrée et vide, sans moyen d'en sortir.
 
+**Le tri se renverse en re-choisissant son critère.** Chaque critère porte son sens naturel — les cartes les plus chères d'abord, mais les noms de A à Z — et le re-sélectionner inverse la liste. Un second contrôle « croissant / décroissant » n'aurait eu de sens qu'accolé au premier, pour un geste qu'on fait de toute façon sans y penser. Côté base, `p_descending` pilote la direction ; le sens d'origine de chaque critère est décidé par l'application (`CollectionSort.startsDescending`), qui est aussi celle qui l'affiche.
+
+**Trois filtres de rangement** : la finition (`p_finish`), la pleine illustration (`p_full_art`) et ce qui reste à préciser. `card_prints.full_art` vient de Scryfall — 7 786 impressions sur 163 456 — et décrit l'impression, pas la carte : la même carte existe dans les deux formes, et un collectionneur les range à part. La rareté s'ordonne par `rarity_rank`, qui réunit les deux jeux sur une même échelle : triée comme du texte, « common » précéderait « rare » qui précéderait « uncommon ».
+
 **La collection se trie aussi par numéro de collection.** Les autres critères — nom, valeur, quantité, date d'entrée — répondent à des questions d'inventaire ; celui-ci répond à la seule qu'on se pose une carte à la main devant une boîte : où va-t-elle ? Le tri porte sur la partie chiffrée du numéro, `collector_number` étant un `text` qui accepte les suffixes (`43a`, `★43`) et rangerait sinon 100 avant 2. Les cartes sans édition précisée n'ont pas de numéro et ferment la marche, ce qui les désigne du même geste comme celles qui restent à préciser.
 
 ### Deux voies de reconnaissance, dans l'ordre
@@ -721,6 +725,8 @@ de `type_line` ; une carte cumulant ses types (« Artifact Creature ») répond 
 ce qui est la lecture juste. Les libellés français et la liste par jeu vivent côté
 application (Magic en compte huit d'usage courant, Riftbound six), ce qui évite de
 toucher au serveur chaque fois qu'un catalogue gagne un type.
+
+**Les suggestions se filtrent par couleur** (`deck_suggestions.p_colors`). L'identité couleur d'un deck est l'union de celle de ses cartes — la règle du Commander, qui vaut comme description ailleurs. La sélection est un **tamis** : seuls les decks dont l'identité tient dans les couleurs choisies sont proposés. Demander « rouge » et recevoir un deck à cinq couleurs n'aiderait pas qui voulait justement du mono-rouge. Les decks incolores restent proposés quoi qu'on demande, l'ensemble vide étant contenu dans tout autre — et ils se jouent effectivement partout.
 
 **Le catalogue exclut les tokens** : `is_relevant` ne retient que les cartes légales
 dans au moins un format couvert, et un token ne l'est nulle part. Conséquence assumée
