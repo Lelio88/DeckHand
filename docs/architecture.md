@@ -287,7 +287,11 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 
 Les cartes sans édition précisée n'ont **aucune case**, par construction. Elles ne sont pas perdues pour autant : `my_collection_summary` les compte, et le bandeau de l'onglet le rappelle.
 
-Le classeur est une **vue de l'onglet Collection**, au même titre que « Construire » l'est de l'onglet Decks : liste et classeur répondent à la même question par deux chemins, quand un bouton glissé parmi les filtres aurait laissé croire à un filtre de plus. Le volume, les pages qui se tournent et le reflet des brillants relèvent d'un chantier distinct — une belle animation qui saccade serait pire qu'une grille sobre.
+**La case montre la carte entière, pas son illustration.** Une case de classeur contient une carte — son cadre, son nom, son coût, son numéro. N'en montrer que l'illustration donnait une planche-contact, jolie mais impossible à reconnaître comme sa propre collection. À trois par ligne le texte imprimé devient illisible, exactement comme dans un vrai classeur qu'on regarde de loin : c'est l'image qu'on reconnaît, pas le texte qu'on lit. L'URL de la carte entière est **déduite** de celle de l'illustration (`fullCardImage`), les tailles de Scryfall ne différant que par un segment de chemin — vérifié sur de vraies URL. La solution de rechange serait une colonne de plus sur 167 000 impressions et une réingestion complète ; elle redeviendra la bonne réponse si Scryfall change la forme de ses URL, ce qui casserait de toute façon `art_crop_url` du même coup.
+
+**Le brillant se montre, il ne se dit pas.** Un symbole annonce qu'une carte est brillante ; un reflet le montre — et ce qu'on reconnaît d'un classeur ouvert, c'est justement une pochette qui accroche la lumière au milieu de cartes mates. `FoilSheen` pose un dégradé de diffraction **par-dessus** l'image, là où `foilDecoration` glisse le sien derrière une ligne de texte : sur une case pleine, un fond serait entièrement masqué.
+
+Le classeur est la **vue par défaut de l'onglet Collection**, au même titre que « Construire » est une vue de l'onglet Decks. La liste reste, parce qu'elle fait trois choses qu'un classeur ne peut pas faire : chercher une carte par son nom, trier par valeur ou par date d'entrée, et **atteindre les cartes sans édition précisée** — lesquelles n'ont aucune case et seraient autrement inaccessibles. Le volume et les pages qui se tournent relèvent d'un chantier distinct : une belle animation qui saccade serait pire qu'une grille sobre.
 
 ### Deux voies de reconnaissance, dans l'ordre
 

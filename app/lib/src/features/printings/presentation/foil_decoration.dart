@@ -54,3 +54,81 @@ BoxDecoration foilDecoration(ThemeData theme, {required bool foil}) {
     ),
   );
 }
+
+/// Reflet de diffraction posé **sur** une carte brillante.
+///
+/// **Un fond ne convient pas quand la carte occupe toute la case.** Le dégradé
+/// de [foilDecoration] se glisse derrière une ligne de texte ; sur une image
+/// pleine, il serait entièrement masqué. Il faut donc le poser par-dessus, en
+/// laissant la carte lisible au travers.
+///
+/// **Un reflet plutôt qu'un symbole.** Une icône dit « cette carte est
+/// brillante » ; elle ne le montre pas. Or ce que l'on reconnaît d'un classeur
+/// ouvert, c'est justement l'éclat d'une pochette qui accroche la lumière au
+/// milieu de cartes mates.
+///
+/// Les opacités restent basses — la diffraction qualifie la carte, elle ne la
+/// remplace pas — et la bande claire traverse en diagonale, comme une pochette
+/// inclinée sous une lampe.
+class FoilSheen extends StatelessWidget {
+  const FoilSheen({
+    super.key,
+    required this.child,
+    required this.foil,
+    this.borderRadius,
+  });
+
+  final Widget child;
+
+  /// Sans brillant, l'enfant est rendu tel quel : le reflet perdrait tout son
+  /// pouvoir de signal s'il habillait aussi les cartes qu'il doit distinguer.
+  final bool foil;
+
+  final BorderRadius? borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!foil) return child;
+
+    final theme = Theme.of(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        // Le reflet ne doit pas intercepter les gestes destinés à la carte.
+        IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: borderRadius,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0x0000E5FF),
+                  Color(0x4D00E5FF), // cyan, au tiers
+                  Color(0x33B388FF), // violet
+                  Color(0x59FFD54F), // or, aux deux tiers
+                  Color(0x00FFD54F),
+                ],
+                stops: [0, 0.28, 0.5, 0.72, 1],
+              ),
+            ),
+          ),
+        ),
+        // Un liseré coloré ferme le reflet sur les bords, là où une pochette
+        // brillante renvoie le plus de lumière.
+        IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: borderRadius,
+              border: Border.all(
+                color: theme.colorScheme.primary.withValues(alpha: 0.65),
+                width: 1.5,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

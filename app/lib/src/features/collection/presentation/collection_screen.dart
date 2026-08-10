@@ -28,9 +28,16 @@ import '../domain/collection_entry.dart';
 /// ce qu'on a, le classeur dit ce qui manque. Elles répondent à la même question
 /// par deux chemins, et un bouton glissé parmi les filtres aurait laissé croire
 /// à un filtre de plus.
+///
+/// **Le classeur ouvre l'onglet** : c'est la vue qui donne envie de revenir, et
+/// la seule qui montre ce qui manque. La liste reste, parce qu'elle fait trois
+/// choses qu'un classeur ne peut pas faire — chercher une carte par son nom,
+/// trier par valeur ou par date d'entrée, et surtout **atteindre les cartes sans
+/// édition précisée**, qui n'ont aucune case par construction et seraient
+/// autrement inaccessibles.
 enum CollectionMode {
-  list('Liste'),
-  binder('Classeur');
+  binder('Classeur'),
+  list('Liste');
 
   const CollectionMode(this.label);
 
@@ -39,7 +46,7 @@ enum CollectionMode {
 
 class SelectedCollectionMode extends Notifier<CollectionMode> {
   @override
-  CollectionMode build() => CollectionMode.list;
+  CollectionMode build() => CollectionMode.binder;
 
   void select(CollectionMode mode) => state = mode;
 }

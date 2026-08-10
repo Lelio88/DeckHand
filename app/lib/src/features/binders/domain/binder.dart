@@ -15,6 +15,8 @@
 /// une liste de possessions dit ce qu'on a, un classeur dit ce qui manque.
 library;
 
+import '../../printings/domain/scryfall_image.dart';
+
 /// Neuf cases par page, comme une feuille de classeur physique.
 const int binderPageSize = 9;
 
@@ -104,6 +106,11 @@ class BinderCell {
 
   /// Nom à afficher : le français d'abord, l'oracle sinon.
   String get shownName => printedName ?? name ?? '#$collectorNumber';
+
+  /// La carte entière — cadre, nom et texte compris —, déduite de l'URL de son
+  /// illustration. C'est ce qu'on range dans un classeur : une carte, pas un
+  /// détail d'illustration.
+  String? get imageUrl => fullCardImage(artCropUrl);
 
   factory BinderCell.fromJson(Map<String, dynamic> json) => BinderCell(
     collectorNumber: json['collector_number'] as String,

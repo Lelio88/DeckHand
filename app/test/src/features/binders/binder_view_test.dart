@@ -16,6 +16,7 @@ import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/binders/data/binder_repository.dart';
 import 'package:deckhand/src/features/binders/domain/binder.dart';
 import 'package:deckhand/src/features/binders/presentation/binder_view.dart';
+import 'package:deckhand/src/features/printings/presentation/foil_decoration.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,16 +35,22 @@ BinderShelfEntry shelfEntry({
   ownedCopies: copies,
 );
 
+/// Une URL d'illustration telle que le catalogue les porte.
+const _art =
+    'https://cards.scryfall.io/art_crop/front/e/0/e040b456.jpg?1783902897';
+
 BinderCell cell({
   required String number,
   int owned = 0,
   String? name,
   bool hasFoil = false,
+  String? art,
 }) => BinderCell(
   collectorNumber: number,
   owned: owned,
   name: name ?? (owned > 0 ? 'Agent d\'Atlas' : null),
   hasFoil: hasFoil,
+  artCropUrl: art,
 );
 
 class FakeBinderRepository implements BinderRepository {
@@ -127,7 +134,12 @@ void main() {
       await pumpBinder(tester);
 
       expect(find.text('Aucun classeur'), findsOneWidget);
-      expect(find.textContaining('Précisez l\'édition'), findsOneWidget);
+      expect(
+        find.textContaining('vue Liste'),
+        findsOneWidget,
+        reason: 'le classeur ouvrant l\'onglet, il doit indiquer la sortie '
+            'plutôt que laisser croire à une collection vide',
+      );
     });
   });
 
@@ -157,18 +169,65 @@ void main() {
       expect(find.textContaining('#3'), findsWidgets);
     });
 
-    testWidgets('le brillant se signale sans prendre de case', (tester) async {
-      // Deux cases pour le même numéro casseraient la grille physique.
+    testWidgets('le brillant se montre, il ne se dit pas', (tester) async {
+      // Un symbole annonce qu'une carte est brillante ; un reflet le montre.
+      // C'est ce qu'on reconnaît d'un classeur ouvert — une pochette qui
+      // accroche la lumière au milieu de cartes mates. Deux cases pour le même
+      // numéro, elles, casseraient la grille physique.
       await pumpBinder(
         tester,
         entries: [shelfEntry()],
-        cells: [cell(number: '1', owned: 1, hasFoil: true)],
+        cells: [cell(number: '1', owned: 1, hasFoil: true, art: _art)],
       );
 
       await tester.tap(find.text('Marvel Super Heroes'));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.auto_awesome), findsOneWidget);
+      final sheen = tester.widget<FoilSheen>(find.byType(FoilSheen));
+      expect(sheen.foil, isTrue);
+      expect(
+        find.byIcon(Icons.auto_awesome),
+        findsNothing,
+        reason: 'le reflet remplace le symbole, il ne s\'y ajoute pas',
+      );
+    });
+
+    testWidgets('une carte ordinaire n\'a pas de reflet', (tester) async {
+      // Le reflet perdrait tout pouvoir de signal s'il habillait aussi les
+      // cartes qu'il doit distinguer.
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '1', owned: 1, art: _art)],
+      );
+
+      await tester.tap(find.text('Marvel Super Heroes'));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<FoilSheen>(find.byType(FoilSheen)).foil, isFalse);
+    });
+
+    testWidgets('la case montre la carte entière, pas son illustration', (
+      tester,
+    ) async {
+      // Une case de classeur contient une carte — cadre, nom, numéro compris.
+      // N'en montrer que l'illustration donnait une planche-contact, jolie mais
+      // impossible à reconnaître comme sa propre collection.
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '1', owned: 1, art: _art)],
+      );
+
+      await tester.tap(find.text('Marvel Super Heroes'));
+      await tester.pumpAndSettle();
+
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(
+        (image.image as NetworkImage).url,
+        contains('/normal/'),
+        reason: 'l\'illustration recadrée est un détail, pas une carte',
+      );
     });
 
     testWidgets('tourner la page atteint le serveur', (tester) async {

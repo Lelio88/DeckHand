@@ -13,6 +13,7 @@
 library;
 
 import 'package:deckhand/src/features/auth/data/auth_repository.dart';
+import 'package:deckhand/src/features/binders/data/binder_repository.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
 import 'package:deckhand/src/features/collection/presentation/collection_screen.dart';
@@ -24,6 +25,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../helpers/fakes.dart';
+import '../binders/binder_view_test.dart' show FakeBinderRepository;
 
 CollectionEntry entry({
   String oracleId = 'oracle-1',
@@ -74,6 +76,16 @@ CardPrinting printing({
 /// Dernier faux dépôt d'éditions posé, pour les tests qui ouvrent le sélecteur.
 late FakePrintingRepository printings;
 
+/// Force la vue liste, dont le classeur a pris la place par défaut.
+///
+/// Les tests ci-dessous portent sur la liste — recherche, tris, filtres — et
+/// non sur la vue qui ouvre l'onglet. Les écrire en tapant d'abord sur la puce
+/// « Liste » aurait ajouté un geste sans rapport à chacun d'eux.
+class ListModeFirst extends SelectedCollectionMode {
+  @override
+  CollectionMode build() => CollectionMode.list;
+}
+
 Future<FakeCollectionRepository> pumpCollection(
   WidgetTester tester, {
   List<CollectionEntry> entries = const [],
@@ -102,6 +114,7 @@ Future<FakeCollectionRepository> pumpCollection(
       overrides: [
         collectionRepositoryProvider.overrideWithValue(repository),
         printingRepositoryProvider.overrideWithValue(printings),
+        collectionModeProvider.overrideWith(ListModeFirst.new),
         sessionProvider.overrideWith(
           (ref) => Stream<Session?>.value(fakeSession()),
         ),
@@ -201,6 +214,43 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.quantities[('oracle-1', null)], 1);
+  });
+
+  testWidgets('l\'onglet ouvre sur le classeur, pas sur la liste', (
+    tester,
+  ) async {
+    // Le classeur est la vue qui montre ce qui manque ; la liste reste
+    // atteignable parce qu'elle seule cherche par nom, trie par valeur, et
+    // donne accès aux cartes sans édition — lesquelles n'ont aucune case.
+    final repository = FakeCollectionRepository()
+      ..entries = [entry()]
+      ..totals = const CollectionSummary(
+        totalCards: 2,
+        distinctCards: 1,
+        totalValueEur: 2.24,
+      );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          collectionRepositoryProvider.overrideWithValue(repository),
+          printingRepositoryProvider.overrideWithValue(
+            FakePrintingRepository(),
+          ),
+          binderRepositoryProvider.overrideWithValue(FakeBinderRepository()),
+          sessionProvider.overrideWith(
+            (ref) => Stream<Session?>.value(fakeSession()),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: CollectionScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // L'étagère est vide dans ce fake : c'est son message qui prouve qu'on est
+    // bien dans le classeur, et non dans la liste.
+    expect(find.text('Aucun classeur'), findsOneWidget);
+    expect(find.byTooltip('Trier'), findsNothing);
   });
 
   group('la consultation atteint le dépôt', () {

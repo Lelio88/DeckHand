@@ -19,6 +19,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../printings/presentation/foil_decoration.dart';
 import '../data/binder_repository.dart';
 import '../domain/binder.dart';
 
@@ -76,11 +77,13 @@ class _Shelf extends ConsumerWidget {
             icon: Icons.inbox_outlined,
             title: 'Aucun classeur',
             // Une carte sans édition précisée n'a pas de case : elle n'est
-            // rangeable nulle part. Le dire ici évite de laisser croire à une
-            // collection vide.
+            // rangeable nulle part. Le classeur étant la vue par défaut, il
+            // doit dire où sont passées les cartes plutôt que de laisser
+            // croire à une collection vide — et indiquer la sortie.
             detail:
-                'Un classeur est une édition. Précisez l\'édition de vos cartes '
-                'pour qu\'elles trouvent leur case.',
+                'Un classeur est une édition, et vos cartes n\'en ont pas encore. '
+                'La vue Liste les montre toutes, et permet de préciser leur '
+                'édition pour qu\'elles trouvent leur case.',
           );
         }
         return ListView.builder(
@@ -262,6 +265,13 @@ class _BinderHeader extends ConsumerWidget {
 }
 
 /// Une case : la carte qu'on y range, ou le creux qu'elle laisse.
+///
+/// **La carte entière, et non son illustration.** Une case de classeur contient
+/// une carte — son cadre, son nom, son coût, son numéro. N'en montrer que
+/// l'illustration donnait une planche-contact, jolie mais impossible à
+/// reconnaître comme sa propre collection. Le nom imprimé devient illisible à
+/// trois par ligne, exactement comme dans un vrai classeur qu'on regarde de
+/// loin : c'est l'image qu'on reconnaît, pas le texte qu'on lit.
 class _Cell extends StatelessWidget {
   const _Cell({required this.cell});
 
@@ -271,85 +281,86 @@ class _Cell extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final empty = cell.isEmpty;
+    final radius = BorderRadius.circular(8);
+    final image = cell.imageUrl;
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        // Une case vide se lit comme telle : creusée, sans illustration, avec
-        // son numéro pour qu'on sache ce qui manque exactement.
-        color: empty
-            ? theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4)
-            : theme.colorScheme.surfaceContainerLow,
-        border: Border.all(
-          color: empty
-              ? theme.colorScheme.outlineVariant
-              : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-          style: empty ? BorderStyle.solid : BorderStyle.solid,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: empty || cell.artCropUrl == null
-                ? Center(
-                    child: Text(
-                      '#${cell.collectorNumber}',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  )
-                : Image.network(
-                    cell.artCropUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                  ),
+    if (empty || image == null) {
+      // Une case vide se lit comme telle : creusée, sans image, et portant son
+      // numéro — c'est ce qui manque, et il faut savoir quoi exactement.
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.35,
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  empty ? '—' : cell.shownName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: empty ? theme.colorScheme.onSurfaceVariant : null,
-                  ),
-                ),
-                Row(
-                  children: [
-                    Text(
-                      '#${cell.collectorNumber}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const Spacer(),
-                    // Le brillant ne prend pas de case à lui : il se signale
-                    // sur celle qu'il occupe.
-                    if (cell.hasFoil)
-                      Icon(
-                        Icons.auto_awesome,
-                        size: 11,
-                        color: theme.colorScheme.primary,
-                      ),
-                    if (cell.owned > 1)
-                      Text(
-                        ' ×${cell.owned}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Center(
+          child: Text(
+            '#${cell.collectorNumber}',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-        ],
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: radius,
+      child: FoilSheen(
+        foil: cell.hasFoil,
+        borderRadius: radius,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(
+              image,
+              fit: BoxFit.cover,
+              // Le cadre reste visible pendant le chargement : sans lui, la
+              // grille se recompose sous les yeux à chaque page tournée.
+              loadingBuilder: (context, child, progress) => progress == null
+                  ? child
+                  : ColoredBox(color: theme.colorScheme.surfaceContainerLow),
+              errorBuilder: (_, _, _) => ColoredBox(
+                color: theme.colorScheme.surfaceContainerLow,
+                child: Center(
+                  child: Text(
+                    '#${cell.collectorNumber}',
+                    style: theme.textTheme.labelSmall,
+                  ),
+                ),
+              ),
+            ),
+            // Les doublons se comptent sur la case, pas à côté : un exemplaire
+            // de plus ne prend pas de place dans un classeur, il s'empile
+            // derrière le premier.
+            if (cell.owned > 1)
+              Positioned(
+                right: 4,
+                bottom: 4,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    child: Text(
+                      '×${cell.owned}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
