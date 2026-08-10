@@ -108,7 +108,12 @@ void main() {
     );
   });
 
-  testWidgets('l\'édition choisie est transmise à l\'ajout', (tester) async {
+  testWidgets('choisir une édition ajoute la carte sans autre geste', (
+    tester,
+  ) async {
+    // Désigner une édition, c'est avoir la carte en main : exiger ensuite un
+    // appui sur « + » ajoutait un geste après la décision, et sur deux mille
+    // cartes ce geste se paie deux mille fois.
     await pumpSearch(
       tester,
       results: [hit()],
@@ -120,15 +125,54 @@ void main() {
     await tester.tap(find.text('Modern Horizons 2').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Ajouter à ma collection'));
-    await tester.pumpAndSettle();
-
     expect(
       collection.quantities[('oracle-1', 'print-mh2')],
       1,
       reason: 'sans cela l\'édition serait affichée mais jamais enregistrée, '
           'et la carte valorisée au mauvais prix',
     );
+  });
+
+  testWidgets('« ne pas préciser » n\'ajoute rien', (tester) async {
+    // C'est un réglage qu'on annule, pas une carte qu'on tient. Ajouter ici
+    // ferait entrer un exemplaire fantôme à chaque fois qu'on se ravise.
+    await pumpSearch(
+      tester,
+      results: [hit()],
+      availablePrintings: [printing()],
+    );
+
+    await tester.tap(find.text('Toutes éditions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Modern Horizons 2').last);
+    await tester.pumpAndSettle();
+    expect(collection.quantities.values.single, 1);
+
+    // « MH2 #123 » désigne le sélecteur de la ligne ; la notification d'ajout
+    // affiche « MH2 » elle aussi, sans le numéro.
+    await tester.tap(find.textContaining('MH2 #123'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ne pas préciser l\'édition'));
+    await tester.pumpAndSettle();
+
+    expect(
+      collection.quantities.values.fold<int>(0, (sum, q) => sum + q),
+      1,
+      reason: 'se raviser sur l\'édition ne doit pas ajouter d\'exemplaire',
+    );
+  });
+
+  testWidgets('les types retenus atteignent le catalogue', (tester) async {
+    // Le filtrage vit côté serveur : restreindre après coup ne garderait que
+    // les terrains des vingt premiers résultats, soit souvent aucun.
+    await pumpSearch(tester, results: [hit()]);
+
+    // « Créature » ouvre la rangée : c'est le type le plus fréquent du
+    // catalogue, donc celui qui doit tomber sous le pouce sans défiler.
+    await tester.tap(find.text('Créature'));
+    await tester.pumpAndSettle();
+
+    expect(cards.lastTypes, ['Creature']);
   });
 
   testWidgets('l\'édition retenue reste affichée après le choix', (

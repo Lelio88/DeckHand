@@ -11,6 +11,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../config/selected_game.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
@@ -19,6 +20,7 @@ import '../../scan/presentation/spread_scan_screen.dart';
 import '../../voice/presentation/voice_input_screen.dart';
 import '../data/card_repository.dart';
 import '../domain/card_hit.dart';
+import '../domain/card_type.dart';
 
 /// Amortissement de la frappe. 250 ms : au-delà la liste semble traîner,
 /// en deçà on repart en requête entre deux touches.
@@ -35,6 +37,10 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
   final _controller = TextEditingController();
   Timer? _timer;
   String _query = '';
+
+  /// Types retenus. Vide = tous, ce qui est le cas courant : le filtre sert à
+  /// dégager une liste encombrée, pas à décrire ce qu'on cherche.
+  final Set<String> _types = {};
 
   @override
   void dispose() {
@@ -63,7 +69,8 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final results = ref.watch(cardSearchProvider(_query));
+    final results = ref.watch(cardSearchProvider(cardQuery(_query, _types)));
+    final types = cardTypesFor(ref.watch(selectedGameProvider));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -104,6 +111,17 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               ),
             ),
           ],
+        ),
+        _TypeFilters(
+          types: types,
+          selected: _types,
+          onToggle: (kind, on) => setState(() {
+            if (on) {
+              _types.add(kind);
+            } else {
+              _types.remove(kind);
+            }
+          }),
         ),
         Expanded(
           child: _query.isEmpty
@@ -162,6 +180,46 @@ class _SearchField extends StatelessWidget {
   }
 }
 
+/// Rangée de filtres par type, sous la barre de recherche.
+///
+/// **Défilable plutôt que repliée sur plusieurs lignes.** Huit types tiennent
+/// mal sur la largeur d'un téléphone ; les empiler pousserait les résultats hors
+/// de l'écran alors qu'ils sont l'essentiel. Les plus fréquents viennent en
+/// tête, donc sous le pouce sans défiler.
+class _TypeFilters extends StatelessWidget {
+  const _TypeFilters({
+    required this.types,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  final List<CardType> types;
+  final Set<String> selected;
+  final void Function(String kind, bool selected) onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+        itemCount: types.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final type = types[index];
+          return FilterChip(
+            label: Text(type.label),
+            selected: selected.contains(type.kind),
+            onSelected: (on) => onToggle(type.kind, on),
+            visualDensity: VisualDensity.compact,
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _ResultList extends StatelessWidget {
   const _ResultList({required this.hits});
 
@@ -203,7 +261,16 @@ class _CardTileState extends ConsumerState<_CardTile> {
 
   int get _quantity => _owned ?? widget.hit.owned;
 
-  /// Ouvre le sélecteur et retient l'édition choisie.
+  /// Ouvre le sélecteur, retient l'édition choisie, et ajoute la carte.
+  ///
+  /// **Désigner une édition, c'est avoir la carte en main.** Exiger ensuite un
+  /// appui sur « + » ajoutait un geste à un moment où la décision est déjà
+  /// prise, et sur une saisie de deux mille cartes ce geste se paie deux mille
+  /// fois. Le choix vaut donc validation.
+  ///
+  /// « Ne pas préciser » ne déclenche rien : c'est un réglage qu'on annule, pas
+  /// une carte qu'on tient. Le bouton « + » reste pour les exemplaires suivants
+  /// de la même édition.
   Future<void> _choosePrinting() async {
     final hit = widget.hit;
     final chosen = await showPrintingPicker(
@@ -218,7 +285,9 @@ class _CardTileState extends ConsumerState<_CardTile> {
     if (chosen == null || !mounted) return;
     // Le sélecteur renvoie une édition vide pour « ne pas préciser » — `null`
     // signifiant déjà « refermé sans choisir ».
-    setState(() => _printing = chosen.isUnspecified ? null : chosen);
+    final printing = chosen.isUnspecified ? null : chosen;
+    setState(() => _printing = printing);
+    if (printing != null) await _add();
   }
 
   /// Rattache après coup les exemplaires ajoutés sans édition.

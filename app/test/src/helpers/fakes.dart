@@ -101,13 +101,19 @@ class FakeCardRepository implements CardRepository {
   List<CardHit> results = const [];
   String? lastQuery;
 
+  /// Types demandes lors de la derniere recherche. Le filtrage est fait par le
+  /// serveur : ce qui s'observe ici, c'est qu'il lui parvienne.
+  List<String>? lastTypes;
+
   @override
   Future<List<CardHit>> search(
     String query, {
     int limit = 20,
     Game game = Game.magic,
+    Iterable<String> types = const [],
   }) async {
     lastQuery = query;
+    lastTypes = types.toList(growable: false);
     return query.trim().isEmpty ? const [] : results;
   }
 

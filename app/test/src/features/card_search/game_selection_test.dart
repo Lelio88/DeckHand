@@ -25,6 +25,7 @@ class _RecordingCatalogue implements CardRepository {
     String query, {
     int limit = 20,
     Game game = Game.magic,
+    Iterable<String> types = const [],
   }) async {
     lastGame = game;
     return const [];
@@ -53,11 +54,11 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await container.read(cardSearchProvider('foudre').future);
+    await container.read(cardSearchProvider(cardQuery('foudre', const [])).future);
     expect(catalogue.lastGame, Game.magic, reason: 'Magic par défaut');
 
     await container.read(selectedGameProvider.notifier).select(Game.riftbound);
-    await container.read(cardSearchProvider('vi').future);
+    await container.read(cardSearchProvider(cardQuery('vi', const [])).future);
 
     expect(
       catalogue.lastGame,

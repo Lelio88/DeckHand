@@ -46,6 +46,7 @@ class _FakeCatalogue implements CardRepository {
     String query, {
     int limit = 20,
     Game game = Game.magic,
+    Iterable<String> types = const [],
   }) async => cards
       .where((c) => c.matchedName.toLowerCase() == query.toLowerCase())
       .take(limit)
