@@ -220,6 +220,36 @@ void main() {
     expect(find.textContaining('terrains de base'), findsNothing);
   });
 
+  testWidgets("le détail sépare ce qui manque de ce qu'on a", (tester) async {
+    // Sans cette frontière, la liste de courses se prolongeait de cartes qui
+    // n'étaient pas à acheter, et un deck complet ouvrait sur une liste vide.
+    final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
+    decks.missing = const [
+      MissingCard(
+        oracleId: 'a',
+        name: 'Sol Ring',
+        needed: 1,
+        owned: 0,
+        missing: 1,
+        lineCostEur: 2.5,
+      ),
+      MissingCard(
+        oracleId: 'b',
+        name: 'Lightning Bolt',
+        needed: 1,
+        owned: 1,
+        missing: 0,
+      ),
+    ];
+
+    await tester.tap(find.text('Deck de test'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Déjà en collection · 1'), findsOneWidget);
+    expect(find.text('Lightning Bolt'), findsOneWidget);
+    expect(find.text('Sol Ring'), findsOneWidget);
+  });
+
   testWidgets('remettre à zéro efface tous les filtres', (tester) async {
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
 

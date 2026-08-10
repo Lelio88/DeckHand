@@ -579,61 +579,120 @@ class _MissingSheet extends ConsumerWidget {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               error: (error, _) => Center(child: Text('Erreur : $error')),
-              data: (cards) => ListView.builder(
-                controller: controller,
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                itemCount: cards.length,
-                itemBuilder: (context, index) {
-                  final card = cards[index];
-                  // **Maintenir montre la carte**, comme partout ailleurs.
-                  // C'est ici qu'on en a le plus besoin : la question posée
-                  // devant une liste de cartes manquantes est « qu'est-ce que
-                  // ça m'apporterait ? », à laquelle un nom seul ne répond pas.
-                  return GestureDetector(
-                    onLongPress: () => showCardArt(
-                      context,
-                      oracleId: card.oracleId,
-                      title: card.displayName,
-                    ),
-                    behavior: HitTestBehavior.opaque,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 32,
-                            child: Text(
-                              '${card.missing}×',
-                              style: theme.textTheme.titleSmall,
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(card.displayName),
-                                if (card.owned > 0)
-                                  Text(
-                                    'vous en avez ${card.owned} sur ${card.needed}',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '${(card.lineCostEur ?? 0).toStringAsFixed(2)} €',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        ],
+              data: (cards) {
+                // Le serveur rend d'abord ce qui manque, puis ce qu'on
+                // possède : la frontière est la première ligne acquise.
+                final firstOwned = cards.indexWhere((c) => c.missing == 0);
+                return ListView.builder(
+                  controller: controller,
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                  itemCount: cards.length,
+                  itemBuilder: (context, index) {
+                    final card = cards[index];
+                    // **Ce qu'on a déjà ferme la marche, derrière un titre.**
+                    // Sans lui, la liste de courses se prolongeait de cartes qui
+                    // n'étaient pas à acheter, et un deck complet ouvrait sur une
+                    // liste vide — on ne pouvait jamais vérifier ce qu'on avait.
+                    final separator = index == firstOwned && firstOwned > 0
+                        ? _OwnedHeader(count: cards.length - firstOwned)
+                        : null;
+                    // **Maintenir montre la carte**, comme partout ailleurs.
+                    // C'est ici qu'on en a le plus besoin : la question posée
+                    // devant une liste de cartes manquantes est « qu'est-ce que
+                    // ça m'apporterait ? », à laquelle un nom seul ne répond pas.
+                    final row = GestureDetector(
+                      onLongPress: () => showCardArt(
+                        context,
+                        oracleId: card.oracleId,
+                        title: card.displayName,
                       ),
-                    ),
-                  );
-                },
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 32,
+                              child: Text(
+                                '${card.missing}×',
+                                style: theme.textTheme.titleSmall,
+                              ),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(card.displayName),
+                                  if (card.owned > 0 && card.missing > 0)
+                                    Text(
+                                      'vous en avez ${card.owned} sur ${card.needed}',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            // Une carte acquise n'a pas de coût à afficher : le
+                            // tiret dirait « prix inconnu », le zéro « sans
+                            // valeur ». Ni l'un ni l'autre n'est vrai.
+                            if (card.missing > 0)
+                              Text(
+                                '${(card.lineCostEur ?? 0).toStringAsFixed(2)} €',
+                                style: theme.textTheme.bodyMedium,
+                              )
+                            else
+                              Icon(
+                                Icons.check,
+                                size: 18,
+                                color: theme.colorScheme.primary,
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+
+                    return separator == null
+                        ? row
+                        : Column(children: [separator, row]);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Titre séparant la liste de courses de ce qu'on possède déjà.
+class _OwnedHeader extends StatelessWidget {
+  const _OwnedHeader({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 20, bottom: 6),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              'Déjà en collection · $count',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
               ),
             ),
           ),
+          Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
         ],
       ),
     );
