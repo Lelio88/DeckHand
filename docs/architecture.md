@@ -827,7 +827,33 @@ par exécution.
 
 ---
 
-## 7. Parcours de livraison
+## 7. Constructeur de decks
+
+Bâtit un deck Commander de cent cartes avec la seule collection, autour d'un général choisi ou proposé. Le calcul vit **dans l'application**, en Dart pur : c'est une optimisation itérative, ce que SQL fait mal, et le résultat n'a pas à quitter le téléphone.
+
+**Ce qu'il promet.** Pas un deck optimal — cela ne se démontre pas, cela se joue — mais un deck légal (cent cartes, un seul exemplaire de chacune, identité couleur du général respectée), cohérent avec les proportions des decks réels, et entièrement fait des cartes possédées. Les trois se vérifient ; l'optimalité, non.
+
+**Les proportions viennent du corpus.** `api/app/measure/deck_anatomy.py` a mesuré les 190 précons : 38 % de terrains (écart interquartile de 2 points seulement), 29 % de créatures, 12 % de pioche, 6 % de rampe, 6 % de retrait, et une courbe de mana en six paliers. La sagesse populaire dit trente-sept terrains ; les decks réels en comptent trente-huit.
+
+**Commander seulement, et c'est la mesure qui l'impose.** Les mêmes traits relevés sur 725 decks Pauper s'étalent de 25 à 40 % de créatures et de 23 à 43 % d'éphémères : ce ne sont pas des variations autour d'un centre mais des archétypes distincts — aggro, contrôle, combo — qu'une moyenne fondrait en un deck qui n'existe nulle part. Les couvrir demanderait de regrouper les decks par famille avant de moyenner.
+
+**L'algorithme remplit des cases.** À chaque tour, la carte retenue est celle qui comble le manque le plus criant, rôles et courbe confondus ; glouton, sans retour arrière. À cette échelle — deux cents cartes pour soixante places — un recuit n'achèterait rien de mesurable et le résultat cesserait d'être explicable. Le départage alphabétique rend la construction reproductible : deux appels sur la même collection donnent le même deck, sans quoi on ne saurait plus lequel on a noté.
+
+**Les rôles se reconnaissent au texte oracle**, faute de mieux : aucun catalogue ne dit qu'une carte sert de retrait, mais son texte dit « Destroy target ». Grossier, et suffisant pour empêcher un deck sans retrait ni pioche — d'autant que les cibles du corpus ont été mesurées avec les mêmes motifs, ce qui rend les deux comparables. Les rôles se recouvrent volontairement : une créature qui produit du mana compte dans les deux.
+
+**Ce qui manque est dit.** Le diagnostic compare l'obtenu aux cibles et ne signale que ce qui sort de l'écart interquartile mesuré : reprocher au résultat une liberté que les decks du corpus prennent eux-mêmes n'apprendrait rien.
+
+**Le facteur limitant n'est pas l'algorithme, c'est le vivier.** Sur une collection de 205 cartes Commander, une paire de couleurs offre 72 sorts jouables pour 61 places : le constructeur en écarte onze, il ne choisit pas. La qualité d'un deck vient de la sélection, et la sélection suppose de pouvoir jeter. C'est à mesure que la collection approche les 2 000 cartes visées que les quotas commenceront à vouloir dire quelque chose.
+
+**Deux limites mesurées** sur cette collection d'essai : les créatures dépassent leur quota (39 pour 29) parce qu'une collection qui en regorge en fait entrer par la porte de la courbe, et le palier à sept manas reste vide faute de cartes assez chères. Ni l'une ni l'autre ne se corrige en tordant l'algorithme.
+
+**Le deck est jetable.** Rien n'est enregistré : on construit, on lit, on recopie, on ferme. Conserver les decks demanderait une table, un écran pour les relire et de décider ce qu'il advient d'un deck quand la collection change — un produit à lui seul, qu'il vaut mieux bâtir une fois qu'on saura si le résultat mérite d'être gardé.
+
+`my_buildable_cards` sert la collection entière et d'un coup, avec le texte oracle que la page de collection ne porte pas. La pagination n'a pas de sens ici : on ne choisit pas quelles cartes retenir en n'en voyant qu'un vingtième.
+
+---
+
+## 8. Parcours de livraison
 
 | Jalon | Contenu |
 |---|---|

@@ -16,6 +16,8 @@ import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/printings/domain/card_printing.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
 import 'package:deckhand/src/features/decks/data/deck_repository.dart';
+import 'package:deckhand/src/features/builder/data/buildable_repository.dart';
+import 'package:deckhand/src/features/builder/domain/buildable_card.dart';
 import 'package:deckhand/src/features/decks/domain/deck_suggestion.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -346,5 +348,20 @@ class FakePrintingRepository implements PrintingRepository {
       for (final id in oracleIds)
         if (sole[id] != null) id: sole[id]!,
     };
+  }
+}
+
+/// Faux depot de collection constructible.
+class FakeBuildableRepository implements BuildableRepository {
+  List<BuildableCard> cards = const [];
+  DeckFormat? lastFormat;
+
+  @override
+  Future<List<BuildableCard>> collection({
+    DeckFormat format = DeckFormat.commander,
+    Game game = Game.magic,
+  }) async {
+    lastFormat = format;
+    return cards;
   }
 }

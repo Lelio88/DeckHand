@@ -11,6 +11,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../builder/presentation/deck_builder_screen.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../data/deck_repository.dart';
 import '../domain/deck_suggestion.dart';
@@ -185,6 +186,23 @@ class _FilterBar extends ConsumerWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
         children: [
+          // **Construire vient avant filtrer.** L'écran répond à « que
+          // puis-je jouer ? » en regardant le corpus ; le constructeur y répond
+          // en regardant la collection. Deux chemins vers la même question, donc
+          // le même endroit — et celui-ci se pousse par-dessus, comme le scan,
+          // parce que c'est un geste ponctuel et non un lieu.
+          if (ref.watch(selectedFormatProvider) == DeckFormat.commander) ...[
+            FilledButton.tonalIcon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const DeckBuilderScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.construction, size: 18),
+              label: const Text('Construire'),
+            ),
+            const SizedBox(width: 8),
+          ],
           // En tête et non en fin de rangée : c'est la sortie de secours d'un
           // filtrage trop serré, et la reléguer derrière cinq pastilles la
           // rendait invisible sans défiler — précisément quand la liste est
