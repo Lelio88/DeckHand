@@ -11,6 +11,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../config/selected_game.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
@@ -19,6 +20,7 @@ import '../../scan/presentation/spread_scan_screen.dart';
 import '../../voice/presentation/voice_input_screen.dart';
 import '../data/card_repository.dart';
 import '../domain/card_hit.dart';
+import '../domain/card_type.dart';
 
 /// Amortissement de la frappe. 250 ms : au-delà la liste semble traîner,
 /// en deçà on repart en requête entre deux touches.
@@ -36,6 +38,10 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
   Timer? _timer;
   String _query = '';
 
+  /// Types retenus. Vide = tous, ce qui est le cas courant : le filtre sert à
+  /// dégager une liste encombrée, pas à décrire ce qu'on cherche.
+  final Set<String> _types = {};
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -50,9 +56,21 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     });
   }
 
+  /// Ouvre un écran de saisie, après avoir effacé la notification du dernier
+  /// ajout.
+  ///
+  /// Les notifications vivent au-dessus du navigateur : sans cela, le retour
+  /// d'un ajout fait ici suivrait l'utilisateur et recouvrirait les commandes
+  /// de l'écran de prise de vue, dont les boutons sont en bas.
+  void _open(Widget screen) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final results = ref.watch(cardSearchProvider(_query));
+    final results = ref.watch(cardSearchProvider(cardQuery(_query, _types)));
+    final types = cardTypesFor(ref.watch(selectedGameProvider));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -70,11 +88,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               child: IconButton.filledTonal(
                 tooltip: 'Dicter des cartes',
                 icon: const Icon(Icons.mic_none),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const VoiceInputScreen(),
-                  ),
-                ),
+                onPressed: () => _open(const VoiceInputScreen()),
               ),
             ),
             Padding(
@@ -82,9 +96,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               child: IconButton.filledTonal(
                 tooltip: 'Scanner une carte',
                 icon: const Icon(Icons.photo_camera_outlined),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const ScanScreen()),
-                ),
+                onPressed: () => _open(const ScanScreen()),
               ),
             ),
             // Deux gestes distincts, donc deux boutons : « quelle carte est-ce ? »
@@ -95,14 +107,21 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               child: IconButton.filledTonal(
                 tooltip: 'Scanner plusieurs cartes',
                 icon: const Icon(Icons.grid_view),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const SpreadScanScreen(),
-                  ),
-                ),
+                onPressed: () => _open(const SpreadScanScreen()),
               ),
             ),
           ],
+        ),
+        _TypeFilters(
+          types: types,
+          selected: _types,
+          onToggle: (kind, on) => setState(() {
+            if (on) {
+              _types.add(kind);
+            } else {
+              _types.remove(kind);
+            }
+          }),
         ),
         Expanded(
           child: _query.isEmpty
@@ -161,6 +180,46 @@ class _SearchField extends StatelessWidget {
   }
 }
 
+/// Rangée de filtres par type, sous la barre de recherche.
+///
+/// **Défilable plutôt que repliée sur plusieurs lignes.** Huit types tiennent
+/// mal sur la largeur d'un téléphone ; les empiler pousserait les résultats hors
+/// de l'écran alors qu'ils sont l'essentiel. Les plus fréquents viennent en
+/// tête, donc sous le pouce sans défiler.
+class _TypeFilters extends StatelessWidget {
+  const _TypeFilters({
+    required this.types,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  final List<CardType> types;
+  final Set<String> selected;
+  final void Function(String kind, bool selected) onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+        itemCount: types.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final type = types[index];
+          return FilterChip(
+            label: Text(type.label),
+            selected: selected.contains(type.kind),
+            onSelected: (on) => onToggle(type.kind, on),
+            visualDensity: VisualDensity.compact,
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _ResultList extends StatelessWidget {
   const _ResultList({required this.hits});
 
@@ -202,7 +261,16 @@ class _CardTileState extends ConsumerState<_CardTile> {
 
   int get _quantity => _owned ?? widget.hit.owned;
 
-  /// Ouvre le sélecteur et retient l'édition choisie.
+  /// Ouvre le sélecteur, retient l'édition choisie, et ajoute la carte.
+  ///
+  /// **Désigner une édition, c'est avoir la carte en main.** Exiger ensuite un
+  /// appui sur « + » ajoutait un geste à un moment où la décision est déjà
+  /// prise, et sur une saisie de deux mille cartes ce geste se paie deux mille
+  /// fois. Le choix vaut donc validation.
+  ///
+  /// « Ne pas préciser » ne déclenche rien : c'est un réglage qu'on annule, pas
+  /// une carte qu'on tient. Le bouton « + » reste pour les exemplaires suivants
+  /// de la même édition.
   Future<void> _choosePrinting() async {
     final hit = widget.hit;
     final chosen = await showPrintingPicker(
@@ -217,7 +285,9 @@ class _CardTileState extends ConsumerState<_CardTile> {
     if (chosen == null || !mounted) return;
     // Le sélecteur renvoie une édition vide pour « ne pas préciser » — `null`
     // signifiant déjà « refermé sans choisir ».
-    setState(() => _printing = chosen.isUnspecified ? null : chosen);
+    final printing = chosen.isUnspecified ? null : chosen;
+    setState(() => _printing = printing);
+    if (printing != null) await _add();
   }
 
   /// Rattache après coup les exemplaires ajoutés sans édition.
@@ -295,6 +365,12 @@ class _CardTileState extends ConsumerState<_CardTile> {
                 : '${hit.matchedName} · ${printing.printing.setCode.toUpperCase()}${printing.isFoil ? " foil" : ""} — vous en avez $total',
           ),
           duration: const Duration(seconds: 4),
+          // Flutter fait persister indéfiniment toute notification porteuse
+          // d'une action : la durée ci-dessus serait ignorée et le bandeau
+          // attendrait un balayage, recouvrant entre-temps les commandes de
+          // l'écran suivant. L'action est ici une commodité, pas une question
+          // posée — elle n'a pas à retenir l'écran.
+          persist: false,
           // Sans édition choisie, la notification sert de rampe d'accès vers le
           // sélecteur : c'est l'instant où l'on tient la carte, donc le seul où
           // l'on sait de quelle extension elle vient.
@@ -335,6 +411,21 @@ class _CardTileState extends ConsumerState<_CardTile> {
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
+    final printing = _printing;
+
+    // **La ligne décrit l'édition retenue, pas la carte en général.** Tant
+    // qu'aucune n'est choisie, l'illustration est celle d'une impression de
+    // référence et le prix celui de la moins chère — un plancher assumé. Une
+    // fois l'édition désignée, les deux doivent la suivre : c'est l'illustration
+    // qui permet de vérifier qu'on a bien désigné celle qu'on tient, et laisser
+    // le prix plancher afficherait 1,55 € sur une édition qui en vaut 9.
+    //
+    // Le repli sur le prix plancher quand l'édition n'est pas cotée n'est pas
+    // une approximation de confort : c'est exactement ce que la collection
+    // comptera pour elle (`COALESCE(prix de l'édition, prix le moins cher)`).
+    final art = printing?.printing.artCropUrl ?? hit.artUrl;
+    final price =
+        printing?.printing.priceFor(foil: printing.isFoil) ?? hit.priceEur;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
@@ -349,7 +440,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
           // premier, et le seul repère qui sépare deux cartes homonymes.
           Padding(
             padding: const EdgeInsets.only(right: 12, top: 2),
-            child: CardArtThumbnail(url: hit.artUrl),
+            child: CardArtThumbnail(url: art),
           ),
           Expanded(
             child: Column(
@@ -394,9 +485,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                hit.priceEur == null
-                    ? '—'
-                    : '${hit.priceEur!.toStringAsFixed(2)} €',
+                price == null ? '—' : '${price.toStringAsFixed(2)} €',
                 style: theme.textTheme.titleSmall,
               ),
               const SizedBox(height: 4),

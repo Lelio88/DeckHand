@@ -28,6 +28,11 @@ class DeckSuggestion {
     required this.completion,
     required this.missingCostEur,
     this.attribution,
+    this.colors = const [],
+    this.commanderOracleId,
+    this.commanderName,
+    this.commanderOwned = false,
+    this.basicLands = 0,
   });
 
   final String deckId;
@@ -54,6 +59,41 @@ class DeckSuggestion {
   /// Coût des cartes manquantes. Les cartes sans cote comptent pour zéro.
   final double missingCostEur;
 
+  /// Identité couleur du deck : l'union de celle de ses cartes, dans l'ordre
+  /// WUBRG. Vide pour un deck incolore, qui se joue partout.
+  final List<String> colors;
+
+  /// Commandant du deck, quand le format en a un.
+  ///
+  /// **C'est lui qui identifie un deck Commander**, bien mieux que sa
+  /// provenance : on choisit son général avant tout le reste, et deux listes
+  /// portant le même nom de produit n'ont rien à voir si leurs commandants
+  /// diffèrent.
+  final String? commanderOracleId;
+
+  /// Nom du commandant, en français quand la traduction existe.
+  final String? commanderName;
+
+  /// Vrai si le commandant est déjà en collection.
+  ///
+  /// **C'est la carte qui décide si un deck est un projet ou une liste de
+  /// courses** : sans le général, les quatre-vingt-dix-neuf autres cartes ne
+  /// forment pas un deck, et c'est souvent la plus chère de la liste.
+  final bool commanderOwned;
+
+  /// Terrains de base du deck, exclus de tous les autres décomptes.
+  ///
+  /// **On ne les achète pas, on les prend dans la boîte.** Les compter comme
+  /// des cartes à acquérir donnait le même pourcentage à un deck dont on a le
+  /// thème et à un deck dont on n'a rien — trente terrains suffisaient à
+  /// afficher 30 % partout, et le classement n'apprenait plus rien.
+  ///
+  /// Leur nombre reste affiché : une liste de cent cartes annoncée sur
+  /// soixante-seize se justifie d'elle-même.
+  final int basicLands;
+
+  bool get hasCommander => commanderOracleId != null && commanderName != null;
+
   bool get isBuildable => missingCards == 0;
   bool get isCompetitive => tier == 'competitive';
 
@@ -70,6 +110,15 @@ class DeckSuggestion {
       missingCards: (json['missing_cards'] as num).toInt(),
       completion: toDouble(json['completion']),
       missingCostEur: toDouble(json['missing_cost_eur']),
+      colors:
+          (json['colors'] as List<dynamic>?)?.cast<String>().toList(
+            growable: false,
+          ) ??
+          const [],
+      commanderOracleId: json['commander_oracle_id'] as String?,
+      commanderName: json['commander_name'] as String?,
+      commanderOwned: json['commander_owned'] as bool? ?? false,
+      basicLands: (json['basic_lands'] as num?)?.toInt() ?? 0,
     );
   }
 }

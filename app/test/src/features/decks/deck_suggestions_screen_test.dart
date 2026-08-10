@@ -30,6 +30,14 @@ Future<FakeDeckRepository> pumpDecksScreen(
   final decks = FakeDeckRepository()..results = results;
   final collection = FakeCollectionRepository();
 
+  // **Un écran de test plus large que le défaut.** La barre de filtres défile
+  // horizontalement : sur les 800 points du gabarit par défaut, les pastilles
+  // de couleur tombent hors du viewport et un appui les manque en silence.
+  tester.view.physicalSize = const Size(1400, 1600);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -47,6 +55,43 @@ Future<FakeDeckRepository> pumpDecksScreen(
 }
 
 void main() {
+  group('les deux façons de répondre', () {
+    // Consulter le corpus et construire depuis sa collection répondent à la
+    // même question par deux chemins : un sélecteur le dit, là où un bouton
+    // glissé parmi les filtres laissait croire à un filtre de plus.
+    testWidgets('le corpus est montré par défaut', (tester) async {
+      await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      expect(find.text('Préconstruits'), findsOneWidget);
+      expect(find.text('Construire'), findsOneWidget);
+      expect(find.text('Deck de test'), findsOneWidget);
+    });
+
+    testWidgets('basculer sur « Construire » change la vue', (tester) async {
+      await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      await tester.tap(find.text('Construire'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Deck de test'), findsNothing);
+    });
+
+    testWidgets('le format reste choisi en changeant de vue', (tester) async {
+      // Le format se décide avant de savoir lequel des deux chemins on prend :
+      // le perdre en basculant obligerait à le rechoisir chaque fois.
+      final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      await tester.tap(find.text('Commander'));
+      await tester.pumpAndSettle();
+      expect(decks.lastFormat, DeckFormat.commander);
+
+      await tester.tap(find.text('Construire'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Commander'), findsOneWidget);
+    });
+  });
+
   testWidgets('le format sélectionné est transmis au dépôt', (tester) async {
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
     expect(decks.lastFormat, DeckFormat.pauper);
@@ -87,13 +132,161 @@ void main() {
     expect(decks.lastFilters?.buildableOnly, isTrue);
   });
 
-  testWidgets('« Accessibles » restreint aux précons', (tester) async {
+  testWidgets('une couleur retenue tamise les suggestions', (tester) async {
+    // Le tamis garde les decks qui *tiennent* dans la sélection : demander du
+    // rouge et recevoir un deck à cinq couleurs n'aiderait pas qui voulait
+    // justement du mono-rouge.
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
 
-    await tester.tap(find.text('Accessibles'));
+    // Le tap vise l'`InkWell` de la pastille et non son `Tooltip` : ce
+    // dernier enveloppe la zone sensible sans la porter, et un appui sur son
+    // centre peut manquer l'InkWell.
+    await tester.tap(
+      find.descendant(
+        of: find.byTooltip('Rouge'),
+        matching: find.byType(InkWell),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    expect(decks.lastFilters?.accessibleOnly, isTrue);
+    expect(decks.lastFilters?.colors, {'R'});
+  });
+
+  group('le commandant', () {
+    // Il identifie un deck bien mieux que sa provenance : on choisit son
+    // général avant tout le reste, et deux listes au même nom de produit n'ont
+    // rien à voir si leurs commandants diffèrent.
+    testWidgets('remplace la provenance sur la ligne', (tester) async {
+      await pumpDecksScreen(
+        tester,
+        results: [
+          fakeDeck(
+            tier: 'accessible',
+            commanderOracleId: 'oracle-cmd',
+            commanderName: 'Galadriel, reine elfe',
+          ),
+        ],
+      );
+
+      expect(find.text('Galadriel, reine elfe'), findsOneWidget);
+      expect(find.text('Tout fait'), findsNothing);
+      expect(find.text('TopDeck.gg'), findsNothing);
+    });
+
+    testWidgets('un deck sans commandant garde ses étiquettes', (tester) async {
+      await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      expect(find.text('Tournoi'), findsOneWidget);
+    });
+
+    testWidgets('le nom cherché atteint le dépôt', (tester) async {
+      final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      await tester.tap(find.text('Commander'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Chercher un commandant'),
+        'galadriel',
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      expect(decks.lastFilters?.commander, 'galadriel');
+    });
+
+    testWidgets("possédé, il se distingue à l'œil", (tester) async {
+      // C'est la carte qui décide si un deck est un projet ou une liste de
+      // courses : la distinction se lit avant le nom, pas après.
+      await pumpDecksScreen(
+        tester,
+        results: [
+          fakeDeck(
+            commanderOracleId: 'oracle-cmd',
+            commanderName: 'Galadriel, reine elfe',
+            commanderOwned: true,
+          ),
+        ],
+      );
+
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    });
+
+    testWidgets('le filtre « possédé » atteint le dépôt', (tester) async {
+      final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
+
+      await tester.tap(find.text('Commander'));
+      await tester.pumpAndSettle();
+      // Le filtre a rejoint le champ de recherche du commandant : les deux
+      // commandes portent sur la même chose.
+      await tester.tap(find.text('Possédé'));
+      await tester.pumpAndSettle();
+
+      expect(decks.lastFilters?.ownedCommanderOnly, isTrue);
+    });
+
+    testWidgets("le filtre « possédé » ne paraît qu'en Commander", (
+      tester,
+    ) async {
+      await pumpDecksScreen(tester, results: [fakeDeck()]);
+      expect(find.text('Possédé'), findsNothing);
+    });
+
+    testWidgets("la recherche ne paraît qu'en Commander", (tester) async {
+      // En Pauper, un champ de commandant ne pourrait rien trouver.
+      await pumpDecksScreen(tester, results: [fakeDeck()]);
+      expect(find.text('Chercher un commandant'), findsNothing);
+
+      await tester.tap(find.text('Commander'));
+      await tester.pumpAndSettle();
+      expect(find.text('Chercher un commandant'), findsOneWidget);
+    });
+  });
+
+  testWidgets('les terrains de base exclus sont annoncés', (tester) async {
+    // Une liste de cent cartes présentée sur soixante-seize ferait douter du
+    // chiffre si rien ne disait ce qu'il ignore.
+    await pumpDecksScreen(
+      tester,
+      results: [fakeDeck(total: 76, owned: 1, basicLands: 24)],
+    );
+
+    expect(find.textContaining('hors 24 terrains de base'), findsOneWidget);
+    expect(find.textContaining('sur 76'), findsOneWidget);
+  });
+
+  testWidgets("sans terrain de base, rien n'est annoncé", (tester) async {
+    await pumpDecksScreen(tester, results: [fakeDeck()]);
+    expect(find.textContaining('terrains de base'), findsNothing);
+  });
+
+  testWidgets("le détail sépare ce qui manque de ce qu'on a", (tester) async {
+    // Sans cette frontière, la liste de courses se prolongeait de cartes qui
+    // n'étaient pas à acheter, et un deck complet ouvrait sur une liste vide.
+    final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
+    decks.missing = const [
+      MissingCard(
+        oracleId: 'a',
+        name: 'Sol Ring',
+        needed: 1,
+        owned: 0,
+        missing: 1,
+        lineCostEur: 2.5,
+      ),
+      MissingCard(
+        oracleId: 'b',
+        name: 'Lightning Bolt',
+        needed: 1,
+        owned: 1,
+        missing: 0,
+      ),
+    ];
+
+    await tester.tap(find.text('Deck de test'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Déjà en collection · 1'), findsOneWidget);
+    expect(find.text('Lightning Bolt'), findsOneWidget);
+    expect(find.text('Sol Ring'), findsOneWidget);
   });
 
   testWidgets('remettre à zéro efface tous les filtres', (tester) async {

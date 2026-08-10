@@ -35,6 +35,7 @@ CollectionEntry entry({
   String? setCode,
   String? setName,
   String? collectorNumber,
+  bool isFoil = false,
 }) => CollectionEntry(
   oracleId: oracleId,
   name: name,
@@ -50,6 +51,7 @@ CollectionEntry entry({
   setCode: setCode,
   setName: setName,
   collectorNumber: collectorNumber,
+  isFoil: isFoil,
 );
 
 CardPrinting printing({
@@ -173,7 +175,13 @@ void main() {
       entries: [entry(quantity: 3, unitPrice: null)],
     );
 
-    expect(find.text('Prix inconnu'), findsOneWidget);
+    expect(
+      find.text('—'),
+      findsOneWidget,
+      reason:
+          'un tiret dit l\'absence de cote ; un zéro ferait croire à une '
+          'carte sans valeur',
+    );
   });
 
   testWidgets('ajouter un exemplaire passe par le dépôt', (tester) async {
@@ -206,7 +214,8 @@ void main() {
       expect(
         repository.lastQuery,
         'foudre',
-        reason: 'filtrer côté écran seulement afficherait une liste non filtrée',
+        reason:
+            'filtrer côté écran seulement afficherait une liste non filtrée',
       );
     });
 
@@ -219,6 +228,110 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.lastSort, CollectionSort.price);
+    });
+
+    testWidgets('ranger par numéro est un tri offert', (tester) async {
+      // Les autres tris répondent à des questions d'inventaire ; celui-ci
+      // répond à « où va cette carte ? », une carte à la main devant sa boîte.
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Numéro').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.lastSort, CollectionSort.number);
+    });
+
+    testWidgets('ranger comme un classeur est un tri offert', (tester) async {
+      // Le numéro seul mêle les classeurs : MAR #43 et MSH #43 se suivraient,
+      // alors qu'ils sont dans deux volumes différents. Ce tri-ci range par
+      // extension d'abord, comme on range une boîte.
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Classeur').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.lastSort, CollectionSort.binder);
+      expect(
+        repository.lastDescending,
+        isFalse,
+        reason: 'un classeur se lit de la première page à la dernière',
+      );
+    });
+
+    testWidgets('re-choisir le même critère inverse la liste', (tester) async {
+      // Le geste qu'on fait sans y penser. Il évite un second contrôle
+      // « croissant / décroissant » qui n'aurait de sens qu'accolé au premier.
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      Future<void> chooseValeur() async {
+        await tester.tap(find.byTooltip('Trier'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Valeur').last);
+        await tester.pumpAndSettle();
+      }
+
+      await chooseValeur();
+      expect(
+        repository.lastDescending,
+        isTrue,
+        reason: 'on cherche d\'abord ses cartes les plus chères',
+      );
+
+      await chooseValeur();
+      expect(repository.lastDescending, isFalse);
+    });
+
+    testWidgets('changer de critère repart dans son sens naturel', (
+      tester,
+    ) async {
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Valeur').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Nom').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.lastDescending,
+        isFalse,
+        reason:
+            'les noms se lisent de A à Z, pas dans le sens hérité du '
+            'critère précédent',
+      );
+    });
+
+    testWidgets('la rareté est un tri offert', (tester) async {
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rareté').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.lastSort, CollectionSort.rarity);
+    });
+
+    testWidgets('la finition et la pleine illustration sont transmises', (
+      tester,
+    ) async {
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.text('Brillantes'));
+      await tester.pumpAndSettle();
+      expect(repository.lastFinish, FinishFilter.foil);
+
+      await tester.tap(find.text('Pleine illustration'));
+      await tester.pumpAndSettle();
+      expect(repository.lastFullArt, isTrue);
     });
 
     testWidgets('le tri choisi reste affiché', (tester) async {
@@ -267,6 +380,153 @@ void main() {
     });
   });
 
+  group('atteindre ce qui reste à préciser', () {
+    // Compter les exemplaires sans édition sans donner le moyen de les
+    // atteindre laissait un chantier visible et inaccessible : sur une
+    // collection de deux mille cartes, les retrouver un par un dans la liste
+    // n'est pas un geste qu'on fait.
+    CollectionSummary totalsWith(int unspecified) => CollectionSummary(
+      totalCards: 10,
+      distinctCards: 8,
+      totalValueEur: 12,
+      unspecifiedPrints: unspecified,
+    );
+
+    testWidgets('le filtre restreint la liste côté dépôt', (tester) async {
+      final repository = await pumpCollection(
+        tester,
+        entries: [
+          entry(printId: 'print-mh2', setCode: 'mh2'),
+          entry(),
+        ],
+        totals: totalsWith(3),
+      );
+
+      await tester.tap(find.text('À préciser · 3'));
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.lastUnspecifiedOnly,
+        isTrue,
+        reason:
+            'filtrer la page reçue viderait les pages où rien n\'est à '
+            'préciser en croyant la collection épuisée',
+      );
+    });
+
+    testWidgets('sans rien à préciser, le filtre ne s\'affiche pas', (
+      tester,
+    ) async {
+      await pumpCollection(
+        tester,
+        entries: [entry(printId: 'print-mh2', setCode: 'mh2')],
+        totals: totalsWith(0),
+      );
+
+      expect(find.textContaining('À préciser'), findsNothing);
+    });
+
+    testWidgets('le filtre reste retirable une fois le travail fait', (
+      tester,
+    ) async {
+      // Il ne suffit pas de l'afficher quand il reste des cartes : après avoir
+      // précisé la dernière, le bouton disparaîtrait en laissant la liste
+      // filtrée et vide, sans moyen d'en sortir.
+      final repository = await pumpCollection(
+        tester,
+        entries: [entry()],
+        totals: totalsWith(1),
+      );
+
+      await tester.tap(find.text('À préciser · 1'));
+      await tester.pumpAndSettle();
+
+      repository.totals = totalsWith(0);
+      await tester.tap(find.byType(RefreshIndicator));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('À préciser'), findsOneWidget);
+    });
+
+    testWidgets('une liste filtrée vide dit ce qu\'elle cherchait', (
+      tester,
+    ) async {
+      await pumpCollection(
+        tester,
+        entries: [entry(printId: 'print-mh2', setCode: 'mh2')],
+        totals: totalsWith(1),
+      );
+
+      await tester.tap(find.text('À préciser · 1'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Toutes vos cartes ont leur édition précisée.'),
+        findsOneWidget,
+        reason: 'sans cela la collection paraîtrait vide',
+      );
+    });
+  });
+
+  group('le brillant se voit sans se lire', () {
+    // Un « · foil » en petits caractères ne se lit qu'une fois qu'on l'a
+    // cherché — or on ne cherche pas en faisant défiler. Le brillant vaut
+    // couramment le double ou le triple de sa jumelle, et c'est ce qui
+    // distingue deux lignes par ailleurs identiques.
+    BoxDecoration decorationOf(WidgetTester tester) =>
+        tester
+                .widget<Container>(
+                  find
+                      .ancestor(
+                        of: find.text('Foudre'),
+                        matching: find.byType(Container),
+                      )
+                      .first,
+                )
+                .decoration!
+            as BoxDecoration;
+
+    CollectionEntry foilEntry({bool isFoil = true}) => entry(
+      printId: 'print-mh2',
+      setCode: 'mh2',
+      setName: 'Modern Horizons 2',
+      collectorNumber: '123',
+      isFoil: isFoil,
+    );
+
+    testWidgets('une ligne brillante porte un fond irisé', (tester) async {
+      await pumpCollection(tester, entries: [foilEntry()]);
+
+      final decoration = decorationOf(tester);
+      expect(decoration.gradient, isNotNull);
+      expect(decoration.border, isNotNull);
+    });
+
+    testWidgets('une ligne ordinaire garde son fond uni', (tester) async {
+      await pumpCollection(tester, entries: [foilEntry(isFoil: false)]);
+
+      final decoration = decorationOf(tester);
+      expect(
+        decoration.gradient,
+        isNull,
+        reason: 'un fond irisé partout ne distinguerait plus rien',
+      );
+      expect(decoration.color, isNotNull);
+    });
+
+    testWidgets('le mot accompagne le fond, sans icône', (tester) async {
+      // L'icône a été retirée : le fond irisé porte déjà le signal, et le mot
+      // le nomme. Une troisième marque pour la même information encombrait une
+      // ligne qui doit tenir sur la largeur d'un téléphone.
+      await pumpCollection(tester, entries: [foilEntry()]);
+      expect(find.textContaining('foil'), findsOneWidget);
+      expect(find.byIcon(Icons.auto_awesome), findsNothing);
+
+      await pumpCollection(tester, entries: [foilEntry(isFoil: false)]);
+      expect(find.textContaining('foil'), findsNothing);
+    });
+  });
+
   group('les éditions', () {
     testWidgets('une édition connue est affichée sur la ligne', (tester) async {
       await pumpCollection(
@@ -282,7 +542,11 @@ void main() {
       );
 
       expect(find.textContaining('Modern Horizons 2'), findsOneWidget);
-      expect(find.textContaining('MH2 #123'), findsOneWidget);
+      expect(
+        find.text('#123'),
+        findsOneWidget,
+        reason: 'le numéro accompagne le nom, là où on le cherche pour ranger',
+      );
     });
 
     testWidgets('une édition inconnue invite à la préciser', (tester) async {
@@ -305,13 +569,9 @@ void main() {
 
       expect(
         repository.lastPrintingMove,
-        (
-          oracleId: 'oracle-1',
-          from: null,
-          to: 'print-mh2',
-          quantity: null,
-        ),
-        reason: 'sans ce déplacement, le choix resterait affiché mais non enregistré',
+        (oracleId: 'oracle-1', from: null, to: 'print-mh2', quantity: null),
+        reason:
+            'sans ce déplacement, le choix resterait affiché mais non enregistré',
       );
     });
 
@@ -327,7 +587,8 @@ void main() {
       expect(
         repository.quantities[('oracle-1', 'print-mh2')],
         1,
-        reason: 'ajouter depuis une ligne d\'édition ne doit pas créer une '
+        reason:
+            'ajouter depuis une ligne d\'édition ne doit pas créer une '
             'ligne sans édition',
       );
     });

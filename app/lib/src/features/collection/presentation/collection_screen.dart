@@ -14,6 +14,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../config/selected_game.dart';
+import '../../printings/presentation/card_art_view.dart';
+import '../../printings/presentation/foil_decoration.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/collection_repository.dart';
 import '../domain/collection_entry.dart';
@@ -84,6 +87,14 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             query: view.query,
             sort: view.sort,
             offset: first.length + _extra.length,
+            // Les critères de la première page valent pour les suivantes : les
+            // omettre ferait défiler une collection filtrée sur une suite non
+            // filtrée, et changerait de jeu en cours de liste.
+            game: ref.read(selectedGameProvider),
+            unspecifiedOnly: view.unspecifiedOnly,
+            descending: view.descending,
+            finish: view.finish,
+            fullArt: view.fullArt,
           );
       if (!mounted) return;
       setState(() {
@@ -138,10 +149,22 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             _Totals(summary: totals),
             _Toolbar(
               controller: _searchController,
-              sort: view.sort,
+              view: view,
               onSearch: _onSearchChanged,
               onSort: (value) =>
                   ref.read(collectionViewProvider.notifier).sortBy(value),
+              onFinish: (value) =>
+                  ref.read(collectionViewProvider.notifier).filterFinish(value),
+              onFullArt: (value) =>
+                  ref.read(collectionViewProvider.notifier).filterFullArt(value),
+              // Le filtre ne s'affiche que s'il a une prise sur quelque chose :
+              // sur une collection entièrement précisée, un bouton qui ne
+              // renverrait jamais rien encombrerait sans rien promettre.
+              unspecifiedCount: totals.unspecifiedPrints,
+              unspecifiedOnly: view.unspecifiedOnly,
+              onUnspecifiedOnly: (value) => ref
+                  .read(collectionViewProvider.notifier)
+                  .showUnspecifiedOnly(value),
             ),
             Expanded(
               child: RefreshIndicator(
@@ -152,7 +175,16 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                   _ when entries.isEmpty => _Message(
-                    'Aucune carte ne correspond à « ${view.query} ».',
+                    switch ((view.query.isEmpty, view.unspecifiedOnly)) {
+                      // Un filtre qui ne rend rien doit dire ce qu'il cherchait,
+                      // sinon la collection paraît vide.
+                      (true, true) =>
+                        'Toutes vos cartes ont leur édition précisée.',
+                      (false, true) =>
+                        'Aucune carte à préciser ne correspond à '
+                            '« ${view.query} ».',
+                      _ => 'Aucune carte ne correspond à « ${view.query} ».',
+                    },
                   ),
                   _ => ListView.separated(
                     controller: _scrollController,
@@ -178,22 +210,96 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   }
 }
 
-/// Recherche et tri, sur une seule ligne.
+/// Recherche, tri, et raccourci vers ce qui reste à préciser.
+///
+/// **Le filtre n'apparaît que s'il a prise sur quelque chose.** Sur une
+/// collection entièrement précisée, un bouton qui ne renverrait jamais rien
+/// occuperait la place sans rien promettre. Il reste en revanche affiché tant
+/// qu'il est actif, sans quoi on ne pourrait plus le désactiver après avoir
+/// précisé la dernière carte.
 class _Toolbar extends StatelessWidget {
   const _Toolbar({
     required this.controller,
-    required this.sort,
+    required this.view,
     required this.onSearch,
     required this.onSort,
+    required this.onFinish,
+    required this.onFullArt,
+    required this.unspecifiedCount,
+    required this.unspecifiedOnly,
+    required this.onUnspecifiedOnly,
   });
 
   final TextEditingController controller;
-  final CollectionSort sort;
+  final CollectionView view;
   final ValueChanged<String> onSearch;
   final ValueChanged<CollectionSort> onSort;
+  final ValueChanged<FinishFilter> onFinish;
+  final ValueChanged<bool?> onFullArt;
+
+  /// Exemplaires dont l'édition reste à préciser, dans la collection entière.
+  final int unspecifiedCount;
+  final bool unspecifiedOnly;
+  final ValueChanged<bool> onUnspecifiedOnly;
+
+  CollectionSort get sort => view.sort;
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _searchRow(context),
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            children: [
+              if (unspecifiedCount > 0 || unspecifiedOnly) ...[
+                FilterChip(
+                  selected: unspecifiedOnly,
+                  onSelected: onUnspecifiedOnly,
+                  visualDensity: VisualDensity.compact,
+                  avatar: Icon(
+                    unspecifiedOnly ? Icons.filter_alt : Icons.style_outlined,
+                    size: 17,
+                  ),
+                  label: Text(
+                    unspecifiedCount > 0
+                        ? 'À préciser · $unspecifiedCount'
+                        : 'À préciser',
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              // Trois états plutôt qu'une case à cocher : « toutes », « que les
+              // normales », « que les brillantes ». Une case ne saurait dire la
+              // deuxième, qui est pourtant celle qu'on veut en vérifiant ce
+              // qu'on possède vraiment de chaque.
+              for (final finish in FinishFilter.values)
+                if (finish != FinishFilter.all || view.finish != FinishFilter.all) ...[
+                  FilterChip(
+                    label: Text(finish.label),
+                    selected: view.finish == finish,
+                    onSelected: (_) => onFinish(finish),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              FilterChip(
+                label: const Text('Pleine illustration'),
+                selected: view.fullArt == true,
+                onSelected: (on) => onFullArt(on ? true : null),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _searchRow(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: Row(
@@ -230,7 +336,23 @@ class _Toolbar extends StatelessWidget {
             tooltip: 'Trier',
             itemBuilder: (context) => [
               for (final value in CollectionSort.values)
-                PopupMenuItem(value: value, child: Text(value.label)),
+                PopupMenuItem(
+                  value: value,
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(value.label)),
+                      // Le critère courant montre où un second appui mènera :
+                      // l'inverse de ce qui est affiché.
+                      if (value == sort)
+                        Icon(
+                          view.descending
+                              ? Icons.arrow_upward
+                              : Icons.arrow_downward,
+                          size: 16,
+                        ),
+                    ],
+                  ),
+                ),
             ],
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -240,9 +362,15 @@ class _Toolbar extends StatelessWidget {
                   color: Theme.of(context).colorScheme.outlineVariant,
                 ),
               ),
+              // La flèche dit le sens **et** l'annonce : sans elle, re-toucher
+              // le critère retournerait la liste sans que rien n'explique
+              // pourquoi.
               child: Row(
                 children: [
-                  const Icon(Icons.sort, size: 18),
+                  Icon(
+                    view.descending ? Icons.arrow_downward : Icons.arrow_upward,
+                    size: 16,
+                  ),
                   const SizedBox(width: 6),
                   Text(sort.label),
                 ],
@@ -404,83 +532,120 @@ class _EntryTile extends ConsumerWidget {
     );
     final repository = ref.read(collectionRepositoryProvider);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(14),
+    return GestureDetector(
+      // Même geste que partout ailleurs — étalement, dictée, sélecteur : on
+      // maintient une ligne pour voir la carte. Ici il sert à retrouver dans une
+      // liste de deux mille entrées celle qu'on a en main.
+      onLongPress: () => showCardArt(
+        context,
+        oracleId: entry.oracleId,
+        title: entry.displayName,
+        printId: entry.printId,
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.displayName,
-                  style: theme.textTheme.titleMedium,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (entry.displayName != entry.name)
-                  Text(entry.name, style: muted, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 2),
-                _PrintingLine(
-                  entry: entry,
-                  onTap: () => _changePrinting(context, ref),
-                ),
-                Text(
-                  entry.unitPriceEur == null
-                      ? 'Prix inconnu'
-                      : '${entry.unitPriceEur!.toStringAsFixed(2)} € l\'unité',
-                  style: muted,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
-            tooltip: 'Retirer un exemplaire',
-            onPressed: () => _change(
-              ref,
-              () => repository.remove(
-                entry.oracleId,
-                printId: entry.printId,
-                isFoil: entry.isFoil,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+        decoration: foilDecoration(theme, foil: entry.isFoil),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          entry.displayName,
+                          style: theme.textTheme.titleMedium,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Le numéro suit le nom parce que c'est ainsi qu'on range :
+                      // on cherche une carte, puis sa place. Le mettre plus bas
+                      // avec l'extension obligeait à descendre le regard pour la
+                      // moitié de l'information dont on se sert.
+                      if (entry.collectorNumber != null) ...[
+                        const SizedBox(width: 8),
+                        Text('#${entry.collectorNumber}', style: muted),
+                      ],
+                    ],
+                  ),
+                  if (entry.displayName != entry.name)
+                    Text(
+                      entry.name,
+                      style: muted,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  const SizedBox(height: 2),
+                  _PrintingLine(
+                    entry: entry,
+                    onTap: () => _changePrinting(context, ref),
+                  ),
+                ],
               ),
             ),
-          ),
-          SizedBox(
-            width: 28,
-            child: Text(
-              '${entry.quantity}',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            tooltip: 'Ajouter un exemplaire',
-            onPressed: () => _change(
-              ref,
-              () => repository.add(
-                entry.oracleId,
-                printId: entry.printId,
-                isFoil: entry.isFoil,
+            IconButton(
+              icon: const Icon(Icons.remove_circle_outline),
+              tooltip: 'Retirer un exemplaire',
+              onPressed: () => _change(
+                ref,
+                () => repository.remove(
+                  entry.oracleId,
+                  printId: entry.printId,
+                  isFoil: entry.isFoil,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 4),
-          SizedBox(
-            width: 62,
-            child: Text(
-              entry.linePriceEur == null
-                  ? '—'
-                  : '${entry.linePriceEur!.toStringAsFixed(2)} €',
-              textAlign: TextAlign.right,
-              style: theme.textTheme.titleSmall,
+            SizedBox(
+              width: 28,
+              child: Text(
+                '${entry.quantity}',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium,
+              ),
             ),
-          ),
-        ],
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: 'Ajouter un exemplaire',
+              onPressed: () => _change(
+                ref,
+                () => repository.add(
+                  entry.oracleId,
+                  printId: entry.printId,
+                  isFoil: entry.isFoil,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 66,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    entry.linePriceEur == null
+                        ? '—'
+                        : '${entry.linePriceEur!.toStringAsFixed(2)} €',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  // Le prix unitaire n'apparaît qu'en présence de plusieurs
+                  // exemplaires : sur un exemplaire unique il répéterait le
+                  // nombre du dessus.
+                  if (entry.quantity > 1 && entry.unitPriceEur != null)
+                    Text(
+                      '${entry.unitPriceEur!.toStringAsFixed(2)} €/u',
+                      textAlign: TextAlign.right,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -512,8 +677,6 @@ class _PrintingLine extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(known ? Icons.style : Icons.style_outlined, size: 13, color: color),
-            const SizedBox(width: 5),
             Flexible(
               child: Text(
                 '${entry.printingLabel ?? 'Édition non précisée'}${entry.isFoil ? ' · foil' : ''}',

@@ -16,12 +16,14 @@ class PrintingRepository {
 
   final SupabaseClient _client;
 
-  /// Éditions d'une carte, restreintes à [lang] quand elle est connue.
+  /// Éditions d'une carte, une ligne par édition, [lang] servie en priorité.
   ///
-  /// Le filtre de langue supprime un doublon systématique : chaque édition
-  /// existait en français et en anglais dans la liste, alors que la langue est
-  /// déjà déterminée — on a trouvé la carte par son nom français, donc c'est la
-  /// version française qu'on tient.
+  /// La langue est une **préférence, pas un filtre**. Elle supprime un doublon
+  /// systématique — chaque édition figurait deux fois, en français et en
+  /// anglais, alors qu'on tient la carte trouvée par son nom français — mais
+  /// elle ne fait jamais disparaître une édition. Scryfall ne catalogue pas
+  /// toutes les impressions dans toutes les langues : exclure les autres
+  /// langues cachait à un joueur l'édition qu'il avait en main.
   Future<List<CardPrinting>> forCard(
     String oracleId, {
     String? query,
@@ -41,6 +43,31 @@ class PrintingRepository {
         .cast<Map<String, dynamic>>()
         .map(CardPrinting.fromJson)
         .toList(growable: false);
+  }
+
+  /// Pour chaque carte du lot n'ayant qu'une seule édition, cette édition.
+  ///
+  /// Les cartes qui en comptent plusieurs sont absentes du résultat : il n'y a
+  /// rien à choisir à leur place. Quatre cartes du catalogue sur dix n'ont
+  /// qu'une édition — autant de gestes qu'il est inutile de demander.
+  ///
+  /// **En un seul aller-retour**, comme la recherche par lot : une requête par
+  /// carte coûterait ici les mêmes secondes qu'elle coûtait au scan.
+  Future<Map<String, CardPrinting>> soleEditions(
+    Iterable<String> oracleIds, {
+    String? lang,
+  }) async {
+    final ids = oracleIds.toSet().toList(growable: false);
+    if (ids.isEmpty) return const {};
+
+    final rows = await _client.rpc<List<dynamic>>(
+      'sole_editions',
+      params: {'p_oracle_ids': ids, 'p_lang': lang},
+    );
+    return {
+      for (final row in rows.cast<Map<String, dynamic>>())
+        row['oracle_id'] as String: CardPrinting.fromJson(row),
+    };
   }
 }
 

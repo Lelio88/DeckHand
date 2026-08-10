@@ -16,6 +16,8 @@ import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/printings/domain/card_printing.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
 import 'package:deckhand/src/features/decks/data/deck_repository.dart';
+import 'package:deckhand/src/features/builder/data/buildable_repository.dart';
+import 'package:deckhand/src/features/builder/domain/buildable_card.dart';
 import 'package:deckhand/src/features/decks/domain/deck_suggestion.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -39,6 +41,10 @@ DeckSuggestion fakeDeck({
   int total = 60,
   int owned = 50,
   double cost = 12.5,
+  String? commanderOracleId,
+  String? commanderName,
+  bool commanderOwned = false,
+  int basicLands = 0,
 }) => DeckSuggestion(
   deckId: id,
   deckName: name,
@@ -50,6 +56,10 @@ DeckSuggestion fakeDeck({
   missingCards: total - owned,
   completion: owned / total,
   missingCostEur: cost,
+  commanderOracleId: commanderOracleId,
+  commanderName: commanderName,
+  commanderOwned: commanderOwned,
+  basicLands: basicLands,
 );
 
 /// Enregistre les filtres reçus — c'est précisément ce qui n'était pas transmis
@@ -101,13 +111,19 @@ class FakeCardRepository implements CardRepository {
   List<CardHit> results = const [];
   String? lastQuery;
 
+  /// Types demandes lors de la derniere recherche. Le filtrage est fait par le
+  /// serveur : ce qui s'observe ici, c'est qu'il lui parvienne.
+  List<String>? lastTypes;
+
   @override
   Future<List<CardHit>> search(
     String query, {
     int limit = 20,
     Game game = Game.magic,
+    Iterable<String> types = const [],
   }) async {
     lastQuery = query;
+    lastTypes = types.toList(growable: false);
     return query.trim().isEmpty ? const [] : results;
   }
 
@@ -157,9 +173,25 @@ class FakeCollectionRepository implements CollectionRepository {
   String? lastQuery;
   CollectionSort? lastSort;
   int? lastOffset;
+  bool? lastUnspecifiedOnly;
+
+  /// Sens et filtres de la derniere consultation. Le serveur les applique :
+  /// ce qui s'observe ici, c'est qu'ils lui parviennent.
+  bool? lastDescending;
+  FinishFilter? lastFinish;
+  bool? lastFullArt;
 
   /// Dernier déplacement d'édition demandé.
   ({String oracleId, String? from, String? to, int? quantity})? lastPrintingMove;
+
+  /// Ajouts recus, dans l'ordre et sans agregation.
+  ///
+  /// `quantities` ignore la finition : deux exemplaires normal et brillant y
+  /// tombent dans la meme case. Cette liste la retient, faute de quoi un
+  /// exemplaire enregistre dans la mauvaise finition serait indetectable —
+  /// c'est pourtant un ecart de prix du simple au triple.
+  final List<({String oracleId, String? printId, bool isFoil, int quantity})>
+  added = [];
 
   @override
   Future<int> add(
@@ -168,6 +200,12 @@ class FakeCollectionRepository implements CollectionRepository {
     String? printId,
     bool isFoil = false,
   }) async {
+    added.add((
+      oracleId: oracleId,
+      printId: printId,
+      isFoil: isFoil,
+      quantity: quantity,
+    ));
     final key = (oracleId, printId);
     quantities[key] = (quantities[key] ?? 0) + quantity;
     return quantities[key]!;
@@ -229,12 +267,25 @@ class FakeCollectionRepository implements CollectionRepository {
     int offset = 0,
     int limit = collectionPageSize,
     Game game = Game.magic,
+    bool unspecifiedOnly = false,
+    bool? descending,
+    FinishFilter finish = FinishFilter.all,
+    bool? fullArt,
   }) async {
     lastQuery = query;
     lastSort = sort;
     lastOffset = offset;
-    if (offset >= entries.length) return const [];
-    return entries.sublist(offset, (offset + limit).clamp(0, entries.length));
+    lastUnspecifiedOnly = unspecifiedOnly;
+    lastDescending = descending;
+    lastFinish = finish;
+    lastFullArt = fullArt;
+    // Le filtre est appliqué par le serveur : le reproduire ici permet
+    // d'observer une liste vide quand rien n'est a preciser, comme en vrai.
+    final shown = unspecifiedOnly
+        ? entries.where((e) => !e.hasPrinting).toList(growable: false)
+        : entries;
+    if (offset >= shown.length) return const [];
+    return shown.sublist(offset, (offset + limit).clamp(0, shown.length));
   }
 
   @override
@@ -273,5 +324,44 @@ class FakePrintingRepository implements PrintingRepository {
               p.setCode.toLowerCase().startsWith(needle),
         )
         .toList(growable: false);
+  }
+
+  /// Editions uniques, par oracle. Ce que le catalogue repondrait pour les
+  /// cartes qui n'en ont qu'une ; les autres sont simplement absentes.
+  Map<String, CardPrinting> sole = const {};
+
+  /// Cartes pour lesquelles l'edition unique a ete demandee, dans l'ordre.
+  final List<String> soleAsked = [];
+
+  /// Erreur a lever a la place de la reponse.
+  Object? soleError;
+
+  @override
+  Future<Map<String, CardPrinting>> soleEditions(
+    Iterable<String> oracleIds, {
+    String? lang,
+  }) async {
+    soleAsked.addAll(oracleIds);
+    lastLang = lang;
+    if (soleError != null) throw soleError!;
+    return {
+      for (final id in oracleIds)
+        if (sole[id] != null) id: sole[id]!,
+    };
+  }
+}
+
+/// Faux depot de collection constructible.
+class FakeBuildableRepository implements BuildableRepository {
+  List<BuildableCard> cards = const [];
+  DeckFormat? lastFormat;
+
+  @override
+  Future<List<BuildableCard>> collection({
+    DeckFormat format = DeckFormat.commander,
+    Game game = Game.magic,
+  }) async {
+    lastFormat = format;
+    return cards;
   }
 }

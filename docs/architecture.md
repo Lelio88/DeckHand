@@ -255,7 +255,25 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 
 **`deck_sources` porte l'attribution.** TopDeck.gg impose un crédit visible ; l'exigence doit voyager avec la donnée pour que l'interface ne puisse pas l'oublier.
 
-**Granularité de collection retenue** : nom + édition. L'état (NM/played) et le caractère *foil* sont ignorés — pure saisie manuelle, sans apport pour le deckbuilding.
+**Granularité de collection retenue** : carte + édition + finition. La finition entre dans la clé d'unicité (`UNIQUE NULLS NOT DISTINCT (collection_id, oracle_id, print_id, is_foil)`) parce qu'un exemplaire brillant se vend couramment le double ou le triple de sa jumelle : les confondre fausse la valorisation dans les deux sens. L'écran de collection le signale par un fond irisé, lisible au défilement là où une mention en petits caractères demandait d'être cherchée. L'état (NM/played) reste ignoré — pure saisie manuelle, sans apport pour le deckbuilding.
+
+**La collection compte des éditions, le deckbuilding compte des cartes.** `my_collection_summary.distinct_cards` dénombre les couples (extension, numéro) — une carte sans édition précisée en valant un. Compter les `oracle_id` annonçait « 180 cartes dont 179 références distinctes » à qui possède deux Plaines numérotées 277 et 278 : Scryfall donne un identifiant oracle unique à tous les terrains de base d'un même type, et la collection en connaît 871 éditions. Les deux lectures sont justes, mais pas au même endroit — deux illustrations occupent deux cases d'un classeur, quand `deck_suggestions` doit continuer de voir deux exemplaires de la même carte. Conséquences assumées de cette unité : la même édition en français et en anglais compte pour une, le brillant aussi, la finition n'étant pas un numéro.
+
+**`add_to_collection` et `remove_from_collection` rendent le total de la carte**, toutes éditions et finitions confondues — le même nombre que `search_cards.owned`, et donc celui qu'affichent « Déjà N » et « vous en avez N ». Ils rendaient auparavant la quantité de la ligne touchée : les deux coïncidaient tant qu'on ne possédait qu'une version d'une carte, et divergeaient dès la seconde. Posséder un Marais sans édition, en choisir une, ajouter : la base créait une deuxième ligne à un exemplaire et renvoyait 1, si bien que l'écran affichait « Déjà 1 » avant comme après — pour deux Marais en collection. Le décompte par édition n'est pas perdu : le sélecteur le porte ligne par ligne, où il a du sens.
+
+**Ce qui reste à préciser est atteignable.** `my_collection(p_unspecified_only)` restreint la page aux exemplaires sans édition, et l'écran expose le filtre dès qu'il en existe. Les compter sans donner le moyen de les rejoindre laissait un chantier visible et inaccessible : sur deux mille cartes, on ne les retrouve pas une à une dans la liste. Le filtre reste affiché tant qu'il est actif, même une fois le compte tombé à zéro — sinon le bouton disparaîtrait en laissant une liste filtrée et vide, sans moyen d'en sortir.
+
+**Le numéro de collection départage tous les tris.** Trier par rareté rangeait ensuite par nom, si bien qu'à l'intérieur des communes l'ordre paraissait aléatoire à qui range une boîte, où les numéros se suivent. Le numéro est donc le second critère de chaque tri — y compris par valeur, où deux cartes au même prix se suivent désormais dans l'ordre du classeur. Le nom reste en dernier recours, sans quoi deux cartes de même numéro dans deux extensions pourraient changer de place d'une page à l'autre.
+
+**Le tri se renverse en re-choisissant son critère.** Chaque critère porte son sens naturel — les cartes les plus chères d'abord, mais les noms de A à Z — et le re-sélectionner inverse la liste. Un second contrôle « croissant / décroissant » n'aurait eu de sens qu'accolé au premier, pour un geste qu'on fait de toute façon sans y penser. Côté base, `p_descending` pilote la direction ; le sens d'origine de chaque critère est décidé par l'application (`CollectionSort.startsDescending`), qui est aussi celle qui l'affiche.
+
+**Une carte sans cote se range avec celles qui valent zéro.** Le tri par valeur les plaçait en queue de liste dans les deux sens : en ordre croissant, elles arrivaient donc *après* les plus chères. Personne ne cherche une carte sans prix à côté des plus précieuses. `COALESCE(prix, 0)` remplace `NULLS LAST` — la ligne continue d'afficher un tiret, seul l'ordre change, et il dit désormais la même chose que la valorisation, qui compte déjà ces cartes pour zéro. Le cas est massif : **82 549 impressions sur 166 998 n'ont pas de cote en euros**, Scryfall ne cotant que ce qui s'échange réellement sur les places de marché suivies — 1 590 des 3 209 impressions de jetons n'ont aucun prix, un jeton ne se vendant pratiquement jamais à l'unité.
+
+**Trois filtres de rangement** : la finition (`p_finish`), la pleine illustration (`p_full_art`) et ce qui reste à préciser. `card_prints.full_art` vient de Scryfall — 7 786 impressions sur 163 456 — et décrit l'impression, pas la carte : la même carte existe dans les deux formes, et un collectionneur les range à part. La rareté s'ordonne par `rarity_rank`, qui réunit les deux jeux sur une même échelle : triée comme du texte, « common » précéderait « rare » qui précéderait « uncommon ».
+
+**La collection se trie aussi par numéro de collection.** Les autres critères — nom, valeur, quantité, date d'entrée — répondent à des questions d'inventaire ; celui-ci répond à la seule qu'on se pose une carte à la main devant une boîte : où va-t-elle ? Le tri porte sur la partie chiffrée du numéro, `collector_number` étant un `text` qui accepte les suffixes (`43a`, `★43`) et rangerait sinon 100 avant 2. Les cartes sans édition précisée n'ont pas de numéro et ferment la marche, ce qui les désigne du même geste comme celles qui restent à préciser.
+
+**Le tri « classeur » ajoute l'extension par-dessus le numéro**, parce que le numéro seul mêle les volumes : `mar #43` et `msh #43` se suivaient, alors qu'ils sont rangés dans deux classeurs différents. L'extension désigne le classeur, le numéro la case. Les extensions sont ordonnées **alphabétiquement par code** : par date de sortie serait plus proche d'une étagère réelle, mais deux extensions parues le même jour deviendraient arbitraires, et l'ordre changerait sous les yeux de l'utilisateur au gré des rééditions. Renverser ce tri renverse le couple entier — dernière extension, dernière page — n'en inverser qu'une moitié donnerait des classeurs à l'envers contenant des pages à l'endroit. Les deux tris coexistent : le numéro seul reste le moyen de retrouver une carte dont on ne sait plus de quelle extension elle vient.
 
 ### Deux voies de reconnaissance, dans l'ordre
 
@@ -274,7 +292,7 @@ Le nom est le seul repère stable : il figure en première ligne sur toutes les 
 
 Deux cartes scannées, deux échecs, **deux causes distinctes** — mesurées, pas supposées.
 
-**1. L'index d'empreintes est trop mince.** Il ne contient qu'une illustration par carte. Sur Farseek (55 impressions), l'illustration indexée est celle de Ravnica 2005 ; l'exemplaire tenu venait de *Marvel Super Heroes Commander* (2026), à une distance de 32 — hors de portée du seuil de confiance de 12. Sur un échantillon de 11 impressions de cette carte, 8 partagent la même illustration et 3 en ont une radicalement différente (distances 18, 33, 36). L'affirmation « une carte rééditée garde le plus souvent son illustration » est donc vraie aux trois quarts, et fausse pour le quart restant — assez pour faire échouer un scan sur quatre.
+**1. L'index d'empreintes était trop mince** — corrigé depuis par la migration 021, voir « Éditions » plus bas. Il ne contenait alors qu'une illustration par carte. Sur Farseek (55 impressions), l'illustration indexée est celle de Ravnica 2005 ; l'exemplaire tenu venait de *Marvel Super Heroes Commander* (2026), à une distance de 32 — hors de portée du seuil de confiance de 12. Sur un échantillon de 11 impressions de cette carte, 8 partagent la même illustration et 3 en ont une radicalement différente (distances 18, 33, 36). L'affirmation « une carte rééditée garde le plus souvent son illustration » est donc vraie aux trois quarts, et fausse pour le quart restant — assez pour faire échouer un scan sur quatre.
 
 **2. Le pipeline exige un cadrage irréaliste.** Sur Big Wheel, l'illustration *était* indexée (distance 0) et le gabarit la découpe correctement (distance 1) : le scan aurait dû réussir. Il a échoué sur le cadrage. Tolérance mesurée en simulant une marge de table autour de la carte :
 
@@ -285,7 +303,31 @@ Deux cartes scannées, deux échecs, **deux causes distinctes** — mesurées, p
 | 5 % | 15 | incertaine |
 | 10 % | 24 | perdue |
 
-Un décalage latéral de 2 % suffit également à franchir le seuil. **Le pipeline tolère 2 à 3 % d'écart** — soit 2,6 mm sur la hauteur d'une carte. Aucun cadrage à main levée n'atteint cette précision.
+Un décalage latéral de 2 % suffit également à franchir le seuil. **Le pipeline tolérait 2 à 3 % d'écart** — soit 2,6 mm sur la hauteur d'une carte. Aucun cadrage à main levée n'atteint cette précision. C'est ce constat qui a fait passer la lecture du nom devant l'empreinte, et c'est lui que la détection des bords lève (voir ci-dessous).
+
+### La détection des bords, mesurée avant et après
+
+`api/app/measure/framing_bench.py` compose des photos dont on connaît le défaut — marge de table, décalage, rotation — et mesure la distance de l'empreinte obtenue à celle de l'index. **Le tirage des cartes est reproductible** : un `ORDER BY random()` aurait rendu deux exécutions incomparables, et l'écart entre deux versions du code se serait confondu avec l'écart entre deux paquets de cartes.
+
+Sur 40 cartes, seuil de confiance à 12 bits :
+
+| Régime (marge · décalage · rotation) | Cadrage centré | Détection des bords |
+|---|---|---|
+| parfait — 0 % · 0 % · 0° | 1 bit · 39/40 | 3 bits · 39/40 |
+| soigné — 3 % · 1 % · 0,5° | 12 · 23/40 | 4 · 33/40 |
+| ordinaire — 8 % · 3 % · 2° | 22 · **0/40** | 3 · **37/40** |
+| à la volée — 15 % · 6 % · 5° | 27 · **0/40** | 3 · **37/40** |
+| négligent — 25 % · 10 % · 9° | 29 · **0/40** | 3 · **37/40** |
+
+**La médiane ne bouge plus avec le soin apporté à la photo** : le cadrage a cessé d'être le facteur limitant. Cinq détections sur 200 ont renoncé et sont retombées sur le cadrage centré, c'est-à-dire sur le comportement antérieur.
+
+**Pourquoi ce cas réussit là où l'étalement a échoué.** Les impasses de [`spread-detection.md`](./spread-detection.md) portent toutes sur une photo de plusieurs cartes, et ce qui y ruine la segmentation est le **contact** : deux voisines se soudent en une forme unique, de proche en proche. Sur une carte seule, il n'y a pas de voisine à toucher.
+
+**Les quatre coins plutôt que la boîte englobante.** Une carte tournée de cinq degrés a une boîte nettement plus large qu'elle ; y découper une zone en proportions raterait l'illustration autant qu'avant. Les coins s'obtiennent par les extrêmes des sommes et des différences des coordonnées — exact pour un rectangle quelle que soit sa rotation, et insensible au bruit du contour.
+
+**L'image n'est jamais redressée.** Redresser demanderait de résoudre une homographie puis de rééchantillonner toute la photo pour n'en garder qu'un huitième. La zone voulue est lue directement, en interpolant les quatre coins puis les quatre pixels voisins. Le plus proche voisin coûtait trois bits — mesuré — sur un seuil qui n'en compte que douze.
+
+**Limites mesurées.** Le régime « soigné » est le moins bon des cinq (33/40) : à 3 % de marge, la carte frôle le bord de la photo, et l'inondation du fond depuis les bords a peu de prise pour la contourner. Et un fond parfaitement uniforme privait le seuil de table de toute matière — corrigé, mais c'est le genre de cas qu'une photo réelle ne produit jamais et qu'un test de synthèse révèle immédiatement.
 
 Cette exigence n'était pas visible dans les mesures antérieures (100 % de reconnaissance, 0 faux positif) parce qu'elles partaient des `art_crop` de Scryfall, c'est-à-dire d'illustrations déjà découpées au pixel près. **Le protocole validait le comparateur d'empreintes, jamais la chaîne photo → illustration.**
 
@@ -679,9 +721,19 @@ Aucun plafond par carte, bien que la médiane soit de 3 impressions et le maximu
 
 `collection_items.print_id` est **nullable, et le rester est un état de plein droit** : on saisit vite, on précise plus tard. La contrainte `UNIQUE NULLS NOT DISTINCT (collection_id, oracle_id, print_id)` fait cohabiter « trois Foudre non précisées » et « une Foudre de MH2 » sur deux lignes distinctes. La valorisation suit : prix de l'édition quand elle est connue, prix le moins cher connu sinon — un plancher, jamais une invention.
 
-**L'index d'empreintes ne suit pas ce volume.** `pending_prints` ne retient qu'une impression de référence par carte *sans aucune empreinte* : le filtre porte sur la carte, pas sur l'impression. Sans cela, l'ingestion des éditions réclamerait 130 000 téléchargements d'images et quintuplerait l'index que l'application télécharge — pour peu de gain, une carte rééditée gardant le plus souvent son illustration. Le départage privilégie l'anglais puis la sortie la plus ancienne, jamais le prix : un critère fondé sur la cote désignerait une impression différente au gré des fluctuations et ferait recalculer des empreintes déjà connues.
+**Une édition est un couple (extension, numéro de collection), pas une impression.** `card_editions(oracle_ids, lang)` n'en rend qu'une ligne, servie dans la langue demandée quand elle existe, en anglais sinon ; `card_printings` et `sole_editions` s'appuient toutes deux dessus. C'est ce couple qui désigne l'objet physique : la langue du texte imprimé n'en change ni l'identité ni le prix — d'où le repli de cote déjà pratiqué par `print_price` entre impressions jumelles.
 
-(Indexer *toutes* les illustrations reconnaîtrait les rééditions à l'art changé — piste réelle, non prise ici, qui se paierait en poids d'index côté application.)
+Le filtre de langue exclusif qui précédait supprimait bien le doublon fr/en, mais **effaçait une édition dès que Scryfall n'avait pas publié sa fiche localisée**. Ce n'est pas un cas de bord : sur « Marvel Universe », seules les cartes 1 à 40 sur 100 ont une fiche française, si bien qu'une carte française bien réelle (MAR #43) se voyait remplacée dans le sélecteur par une autre extension six fois plus chère. La préférence remplace le filtre — le doublon disparaît toujours, plus aucune édition avec lui.
+
+Effet recherché : le nombre d'éditions d'une carte ne dépend plus de la langue interrogée. « Cette carte n'a qu'une seule édition » devient une affirmation stable, et `sole_editions` la sert pour tout un lot en un aller-retour. **12 863 cartes du catalogue sur 32 669 sont dans ce cas** — quatre sur dix. L'écran d'étalement les précise donc d'office : il n'y a rien à deviner quand il n'y a rien à choisir, et faire ouvrir vingt fois une liste d'un seul élément était le geste le plus coûteux de l'écran. La finition, elle, reste un choix — réglable à même la ligne, puisque c'est le seul que le catalogue ne peut pas faire à notre place.
+
+**L'index d'empreintes porte une empreinte par illustration, pas par carte.** `pending_prints` retient une impression par `illustration_id` encore dépourvu d'empreinte. C'est ce qui rend une réédition à l'art changé reconnaissable — un scan sur quatre échouait sans cela, mesuré sur Farseek.
+
+L'`illustration_id` de Scryfall évite l'explosion redoutée : commun à toutes les impressions qui réutilisent la même œuvre, il ramène les 166 998 impressions à **49 484 illustrations réellement distinctes**, toutes couvertes par l'index. Hacher les impressions aurait demandé trois fois plus de téléchargements pour le même résultat. Les 867 impressions sans `illustration_id` sont écartées : sans lui, rien ne dit si leur image a déjà été hachée.
+
+Le départage privilégie l'anglais puis la sortie la plus ancienne, jamais le prix : un critère fondé sur la cote désignerait une impression différente au gré des fluctuations et ferait recalculer des empreintes déjà connues.
+
+Restent 147 cartes sans aucune empreinte, toutes des jetons : 110 n'ont pas d'`illustration_id` chez Scryfall — encarts, biographies, jetons recto-verso — et les autres n'ont pas d'illustration exploitable.
 
 ---
 
@@ -699,6 +751,42 @@ paliers sont ce qui fait remonter « Sol Ring » avant « Soliton » quand on ta
 **Performance mesurée** : 64 ms de médiane depuis un client, dont 45 ms de latence
 réseau vers la région Londres. Le premier appel après une période d'inactivité coûte
 plusieurs centaines de millisecondes — c'est un démarrage à froid, pas la requête.
+
+**Le filtre par type est servi par la même fonction** (`p_types`), et non appliqué à
+la liste reçue : restreindre après coup ne garderait que les terrains des vingt
+premiers résultats, soit souvent aucun. Le filtre porte sur des sous-chaînes anglaises
+de `type_line` ; une carte cumulant ses types (« Artifact Creature ») répond aux deux,
+ce qui est la lecture juste. Les libellés français et la liste par jeu vivent côté
+application (Magic en compte huit d'usage courant, Riftbound six), ce qui évite de
+toucher au serveur chaque fois qu'un catalogue gagne un type.
+
+**Le commandant identifie un deck mieux que sa provenance.** `decks.commander_oracle_id` est rempli pour les 190 précons Commander ; `deck_suggestions` remonte son nom — français quand la traduction existe — et son identifiant, ce qui permet d'ouvrir la carte en grand. La ligne affiche donc le commandant à la place du couple provenance/qualité, qui décrivait d'où venait la liste sans rien dire de ce qu'on va jouer ; l'attribution reste portée par le bandeau de fin de liste, où elle satisfait l'obligation contractuelle. `p_commander` cherche par nom via `card_search_names`, donc en français comme en anglais et avec la même tolérance aux fautes de frappe que la saisie de collection.
+
+**Les suggestions se classent sur la complétion**, c'est-à-dire sur le chiffre que la ligne affiche. Elles l'étaient sur le nombre de cartes manquantes : « Forged In Stone » à 0 % passait devant « Token Triumph » à 1 % parce qu'il lui manquait deux cartes de moins, sur un deck plus court. Les deux critères sont défendables ; les mélanger ne l'est pas. Le nombre de cartes manquantes reste en second, entre deux decks également complets, puis le coût, puis le nom — l'ordre doit être total, deux pages successives ne devant pas se recouvrir.
+
+**Le détail d'un deck montre aussi ce qu'on possède.** `deck_missing_cards` écartait les cartes déjà en collection, si bien qu'un deck entièrement constructible ouvrait sur une liste vide et qu'on ne pouvait jamais vérifier ce qu'on avait. Elle rend désormais toutes les cartes du deck, `missing = 0` distinguant les acquises, et l'interface les regroupe derrière un séparateur.
+
+**Les terrains de base sortent du compte.** On ne les achète pas, on les prend dans la boîte : les compter comme des cartes à acquérir donnait 30 % de complétion à toute collection possédant une trentaine de terrains, quel que soit le deck — même chiffre pour un deck dont on a le thème et un deck dont on n'a rien, si bien que le classement n'apprenait plus rien. Mesuré sur une collection Marvel de 326 cartes : les decks Marvel étaient donnés à 21-25 % et passaient *derrière* des decks LOTR à 30 %, dont la totalité des cartes possédées était en terrains. Terrains de base exclus, les decks Marvel remontent en tête et Wakanda Forever tombe de 25/100 à 1/76 — le vrai chiffre.
+
+Le critère est `type_line LIKE 'Basic Land%'`, qui couvre les versions enneigées sans attraper les terrains légendaires ni les bicolores : une fetchland vaut vingt euros et se cherche vraiment. L'exclusion porte sur **tout** le calcul — attendues, possédées, manquantes, coût — et non sur le seul pourcentage, deux nombres qui ne compteraient pas la même chose se contredisant sur la même ligne. `basic_lands` est rendu à part pour que l'interface puisse annoncer ce qu'elle ignore. L'identité couleur, elle, continue de se lire sur le deck entier : un deck qui ne contient de rouge que dans ses Montagnes reste un deck rouge.
+
+**Le commandant possédé passe devant.** `deck_suggestions` rend `commander_owned` et sait s'y restreindre (`p_owned_commander`) ; à manque égal, les decks dont on tient déjà le général remontent. C'est la carte qui décide si un deck est un projet ou une liste de courses : sans elle, les quatre-vingt-dix-neuf autres ne forment pas un deck, et c'est souvent la plus chère de la liste.
+
+**Le corpus ne porte pas la distinction précon / tournoi.** Un filtre la proposait, jusqu'à ce que la mesure montre que `tier` est parfaitement corrélé au format : les 190 decks Commander viennent tous de MTGJSON, les 838 Pauper et Modern tous de TopDeck.gg. Le filtre ne changeait donc rien en Commander et vidait la liste en Pauper. `deck_suggestions.p_tier` reste offert par le serveur — la distinction redeviendra utile le jour où une source apportera des listes de tournoi Commander, ou des précons dans un autre format — mais l'application ne l'emploie plus.
+
+**Les suggestions se filtrent par couleur** (`deck_suggestions.p_colors`). L'identité couleur d'un deck est l'union de celle de ses cartes — la règle du Commander, qui vaut comme description ailleurs. La sélection est un **tamis** : seuls les decks dont l'identité tient dans les couleurs choisies sont proposés. Demander « rouge » et recevoir un deck à cinq couleurs n'aiderait pas qui voulait justement du mono-rouge. Les decks incolores restent proposés quoi qu'on demande, l'ensemble vide étant contenu dans tout autre — et ils se jouent effectivement partout.
+
+**Une carte entre au catalogue pour deux motifs, et deux seulement** (`should_ingest`) :
+parce qu'elle se joue dans un format couvert, ou parce qu'elle se range dans une boîte.
+Les jetons relèvent du second — ils ne sont légaux nulle part, mais occupent une case de
+classeur comme les autres, et les exclure rendait une collection physique impossible à
+saisir en entier. Leur absence de légalité les tient d'elle-même à l'écart des
+suggestions : le moteur travaille sur `legal_pauper`, `legal_modern` et
+`legal_commander`, toutes fausses pour eux, si bien qu'aucun garde-fou supplémentaire
+n'est nécessaire. Le type se lit dans `layout` (`token`, `double_faced_token`, `emblem`)
+et non dans `type_line`, dont la convention « Token Creature » n'est pas garantie.
+
+**Les jetons n'existent qu'en anglais.** Scryfall ne publie aucune impression localisée pour eux : 3 209 impressions, toutes anglaises, aucune avec un nom imprimé. Un jeton se saisit donc au clavier sous son nom anglais (« Soldier », « Treasure »), et la recherche par nom français ne le trouve pas. La reconnaissance par photo prend le relais — les 1 618 illustrations de jetons sont entrées à l'index d'empreintes, qui joue ici son rôle de recours quand la lecture du nom ne mène à rien.
 
 Un index de préfixe (`text_pattern_ops`) a été essayé puis **retiré** : il n'apportait
 aucun gain. Le motif de recherche provient d'un sous-select, il est donc inconnu au
@@ -741,7 +829,39 @@ par exécution.
 
 ---
 
-## 7. Parcours de livraison
+## 7. Constructeur de decks
+
+Bâtit un deck Commander de cent cartes avec la seule collection, autour d'un général choisi ou proposé.
+
+**C'est une vue de l'onglet Decks, pas un écran à part.** Consulter le corpus et construire depuis sa collection répondent à la même question — « que puis-je jouer ? » — par deux chemins ; un sélecteur en tête d'onglet le dit, là où le premier essai en faisait une action ouverte par un bouton glissé parmi les filtres, que rien ne distinguait d'un filtre de plus. Le format se choisit avant le chemin et vaut pour les deux.
+
+Le calcul vit **dans l'application**, en Dart pur : c'est une optimisation itérative, ce que SQL fait mal, et le résultat n'a pas à quitter le téléphone.
+
+**Ce qu'il promet.** Pas un deck optimal — cela ne se démontre pas, cela se joue — mais un deck légal (cent cartes, un seul exemplaire de chacune, identité couleur du général respectée), cohérent avec les proportions des decks réels, et entièrement fait des cartes possédées. Les trois se vérifient ; l'optimalité, non.
+
+**Les proportions viennent du corpus.** `api/app/measure/deck_anatomy.py` a mesuré les 190 précons : 38 % de terrains (écart interquartile de 2 points seulement), 29 % de créatures, 12 % de pioche, 6 % de rampe, 6 % de retrait, et une courbe de mana en six paliers. La sagesse populaire dit trente-sept terrains ; les decks réels en comptent trente-huit.
+
+**Les trois formats sont couverts, mais ne se valent pas.** Chacun porte son gabarit, mesuré sur son propre corpus : Commander à 100 cartes en un seul exemplaire, Pauper et Modern à 60 avec quatre exemplaires autorisés et sans général — les couleurs se déduisent alors des deux mieux fournies de la collection, un deck qui touche à tout ne produisant jamais le mana qu'il lui faut.
+
+La différence est la **fiabilité du gabarit**, et elle est mesurée. Les 190 précons Commander se ressemblent : leur médiane décrit un deck qui existe. Les 725 decks Pauper s'étalent de 25 à 40 % de créatures et de 23 à 43 % de sorts, les 113 Modern de même : ce sont des archétypes distincts — aggro, contrôle, combo — dont la médiane décrit un deck jouable mais qui ne ressemble à aucun d'eux. `BlueprintReliability` porte cette distinction et la vue l'annonce à l'utilisateur, plutôt que de présenter les trois comme équivalents. Les couvrir vraiment demanderait de regrouper les decks par famille avant de moyenner — un travail de classification, pas un réglage.
+
+**L'algorithme remplit des cases.** À chaque tour, la carte retenue est celle qui comble le manque le plus criant, rôles et courbe confondus ; glouton, sans retour arrière. À cette échelle — deux cents cartes pour soixante places — un recuit n'achèterait rien de mesurable et le résultat cesserait d'être explicable. Le départage alphabétique rend la construction reproductible : deux appels sur la même collection donnent le même deck, sans quoi on ne saurait plus lequel on a noté.
+
+**Les rôles se reconnaissent au texte oracle**, faute de mieux : aucun catalogue ne dit qu'une carte sert de retrait, mais son texte dit « Destroy target ». Grossier, et suffisant pour empêcher un deck sans retrait ni pioche — d'autant que les cibles du corpus ont été mesurées avec les mêmes motifs, ce qui rend les deux comparables. Les rôles se recouvrent volontairement : une créature qui produit du mana compte dans les deux.
+
+**Ce qui manque est dit.** Le diagnostic compare l'obtenu aux cibles et ne signale que ce qui sort de l'écart interquartile mesuré : reprocher au résultat une liberté que les decks du corpus prennent eux-mêmes n'apprendrait rien.
+
+**Le facteur limitant n'est pas l'algorithme, c'est le vivier.** Sur une collection de 205 cartes Commander, une paire de couleurs offre 72 sorts jouables pour 61 places : le constructeur en écarte onze, il ne choisit pas. La qualité d'un deck vient de la sélection, et la sélection suppose de pouvoir jeter. C'est à mesure que la collection approche les 2 000 cartes visées que les quotas commenceront à vouloir dire quelque chose.
+
+**Deux limites mesurées** sur cette collection d'essai : les créatures dépassent leur quota (39 pour 29) parce qu'une collection qui en regorge en fait entrer par la porte de la courbe, et le palier à sept manas reste vide faute de cartes assez chères. Ni l'une ni l'autre ne se corrige en tordant l'algorithme.
+
+**Le deck est jetable.** Rien n'est enregistré : on construit, on lit, on recopie, on ferme. Conserver les decks demanderait une table, un écran pour les relire et de décider ce qu'il advient d'un deck quand la collection change — un produit à lui seul, qu'il vaut mieux bâtir une fois qu'on saura si le résultat mérite d'être gardé.
+
+`my_buildable_cards` sert la collection entière et d'un coup, avec le texte oracle que la page de collection ne porte pas. La pagination n'a pas de sens ici : on ne choisit pas quelles cartes retenir en n'en voyant qu'un vingtième.
+
+---
+
+## 8. Parcours de livraison
 
 | Jalon | Contenu |
 |---|---|

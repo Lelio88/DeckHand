@@ -42,7 +42,7 @@ from app.config import SupabaseConfig
 from app.ingestion.scryfall_client import BULK_ALL, BULK_ORACLE, stream_bulk
 from app.ingestion.scryfall_parse import (
     CardPrint,
-    is_relevant,
+    should_ingest,
     normalize_name,
     parse_card,
     parse_print,
@@ -62,15 +62,16 @@ PRINT_UPSERT = """
                                     set_code, set_name, collector_number, rarity,
                                     art_crop_url, price_eur, price_usd, released_at,
                                     price_eur_foil, price_usd_foil, finishes,
-                                    illustration_id)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    illustration_id, full_art)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (scryfall_id) DO UPDATE SET
         price_eur      = EXCLUDED.price_eur,
         price_usd      = EXCLUDED.price_usd,
         price_eur_foil = EXCLUDED.price_eur_foil,
         price_usd_foil = EXCLUDED.price_usd_foil,
         finishes        = EXCLUDED.finishes,
-        illustration_id = EXCLUDED.illustration_id
+        illustration_id = EXCLUDED.illustration_id,
+        full_art        = EXCLUDED.full_art
 """
 
 
@@ -92,6 +93,7 @@ def _print_row(p: CardPrint) -> tuple[Any, ...]:
         p.price_usd_foil,
         p.finishes,
         p.illustration_id,
+        p.full_art,
     )
 
 
@@ -132,7 +134,7 @@ def ingest_cards(conn: psycopg.Connection) -> set[str]:
 
     def rows() -> Iterator[tuple[Any, ...]]:
         for payload in stream_bulk(BULK_ORACLE):
-            if not is_relevant(payload.get("legalities") or {}):
+            if not should_ingest(payload):
                 continue
             try:
                 card = parse_card(payload)
@@ -257,7 +259,7 @@ def backfill_face_names(conn: psycopg.Connection) -> int:
         for payload in stream_bulk(BULK_ORACLE):
             if not payload.get("card_faces"):
                 continue
-            if not is_relevant(payload.get("legalities") or {}):
+            if not should_ingest(payload):
                 continue
             oracle_id = payload.get("oracle_id")
             if not oracle_id:

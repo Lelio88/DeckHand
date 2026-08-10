@@ -27,6 +27,7 @@ library;
 import 'package:image/image.dart' as img;
 
 import 'art_hash.dart';
+import 'card_bounds.dart';
 
 /// Zone d'illustration, en proportions de la carte.
 typedef ArtBox = ({double left, double top, double right, double bottom});
@@ -113,4 +114,20 @@ Map<CardFrame, ArtHash> artHashCandidates(
 }) => {
   for (final frame in CardFrame.values)
     if (frame.game == game) frame: computeArtHash(cropArt(card, frame)),
+};
+
+/// Empreintes lues dans le quadrilatère d'une carte détectée dans la photo.
+///
+/// Même chose que [artHashCandidates], mais sans supposer que la carte remplit
+/// l'image : la zone est lue en interpolant les quatre coins. C'est ce qui rend
+/// le scan indifférent au cadrage — mesuré, la reconnaissance passe de 0 à 37
+/// sur 40 dès qu'une photo s'écarte de 8 % du cadre idéal.
+Map<CardFrame, ArtHash> artHashCandidatesInQuad(
+  img.Image photo,
+  CardQuad quad, {
+  String game = 'magic',
+}) => {
+  for (final frame in CardFrame.values)
+    if (frame.game == game)
+      frame: computeArtHash(sampleArt(photo, quad, frame.box)),
 };

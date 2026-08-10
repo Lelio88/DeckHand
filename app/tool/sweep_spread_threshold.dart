@@ -32,7 +32,20 @@ import 'package:deckhand/src/features/scan/domain/spread_names.dart';
 /// Seuils essayés. Zéro sert de témoin : c'est le comportement sans filtre,
 /// celui qui proposait huit cartes pour six étalées.
 const List<double> _sweep = [
-  0, 1.00, 1.05, 1.10, 1.15, 1.20, 1.25, 1.30, 1.35, 1.40, 1.50, 1.60, 1.75, 2.00,
+  0,
+  1.00,
+  1.05,
+  1.10,
+  1.15,
+  1.20,
+  1.25,
+  1.30,
+  1.35,
+  1.40,
+  1.50,
+  1.60,
+  1.75,
+  2.00,
 ];
 
 Future<void> main(List<String> args) async {
@@ -71,7 +84,9 @@ Future<void> main(List<String> args) async {
     expected.add(hit.oracleId);
   }
 
-  stdout.writeln('${lines.length} lignes lues, ${expected.length} cartes étalées.');
+  stdout.writeln(
+    '${lines.length} lignes lues, ${expected.length} cartes étalées.',
+  );
   stdout.writeln(_heightProfile(lines));
   stdout.writeln('');
 
@@ -83,7 +98,9 @@ Future<void> main(List<String> args) async {
     rows.add(verdict.row(ratio));
   }
 
-  stdout.writeln('| seuil | proposées | justes | fausses | manquées | rappel | précision |');
+  stdout.writeln(
+    '| seuil | proposées | justes | fausses | manquées | rappel | précision |',
+  );
   stdout.writeln('|---|---|---|---|---|---|---|');
   rows.forEach(stdout.writeln);
   stdout.writeln('');
@@ -151,8 +168,9 @@ List<ReadLine> _readLines(File log) {
 /// c'est le principe même du filtre qu'il faut revoir.
 String _heightProfile(List<ReadLine> lines) {
   final heights = lines.map((l) => l.height).toList()..sort();
-  String at(double q) => heights[(heights.length * q).clamp(0, heights.length - 1).toInt()]
-      .toStringAsFixed(4);
+  String at(double q) =>
+      heights[(heights.length * q).clamp(0, heights.length - 1).toInt()]
+          .toStringAsFixed(4);
   final median = heights[heights.length ~/ 2];
   return 'Hauteurs — min ${at(0)} · q1 ${at(0.25)} · médiane ${at(0.5)} · '
       'q3 ${at(0.75)} · max ${at(0.999)}\n'
@@ -272,7 +290,9 @@ class _Catalogue {
   Future<_Hit?> search(String query) async {
     if (_cache.containsKey(query)) return _cache[query];
 
-    final url = Uri.parse('${_secrets['SUPABASE_URL']}/rest/v1/rpc/search_cards');
+    final url = Uri.parse(
+      '${_secrets['SUPABASE_URL']}/rest/v1/rpc/search_cards',
+    );
 
     final request = await _client.postUrl(url);
     request.headers.set('apikey', _key);

@@ -42,10 +42,11 @@ Future<void> main(List<String> args) async {
   await catalogue.signIn();
 
   final expected = <String>{};
-  for (final name in File(args[1])
-      .readAsLinesSync()
-      .map((l) => l.trim())
-      .where((l) => l.isNotEmpty && !l.startsWith('#'))) {
+  for (final name
+      in File(args[1])
+          .readAsLinesSync()
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty && !l.startsWith('#'))) {
     final hit = await catalogue.search(name);
     if (hit == null) {
       stderr.writeln('Vérité terrain introuvable : « $name »');
@@ -54,9 +55,13 @@ Future<void> main(List<String> args) async {
     expected.add(hit.oracleId);
   }
 
-  stdout.writeln('${lines.length} lignes lues, ${expected.length} cartes étalées.');
+  stdout.writeln(
+    '${lines.length} lignes lues, ${expected.length} cartes étalées.',
+  );
   stdout.writeln('Filtre de taille désactivé — seule la longueur trie.\n');
-  stdout.writeln('| longueur min | proposées | justes | fausses | rappel | précision |');
+  stdout.writeln(
+    '| longueur min | proposées | justes | fausses | rappel | précision |',
+  );
   stdout.writeln('|---|---|---|---|---|---|');
 
   final wrongBy = <int, List<String>>{};
@@ -173,7 +178,9 @@ class _Catalogue {
   Future<_Hit?> search(String query) async {
     if (_cache.containsKey(query)) return _cache[query];
 
-    final url = Uri.parse('${_secrets['SUPABASE_URL']}/rest/v1/rpc/search_cards');
+    final url = Uri.parse(
+      '${_secrets['SUPABASE_URL']}/rest/v1/rpc/search_cards',
+    );
     final request = await _client.postUrl(url);
     request.headers.set('apikey', _key);
     request.headers.set('Authorization', 'Bearer ${_token ?? _key}');
