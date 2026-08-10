@@ -996,3 +996,15 @@ Le jalon 1 prouve la valeur du produit avant tout investissement dans la vision,
 **Une case a deux prix, pas un.** Le brillant et le normal s'y rangent ensemble mais se vendent du simple au triple : `my_binder_page` rend donc les deux, et la feuille d'action affiche celui de la finition qu'on s'apprête à ajouter. Un tiret dit l'absence de cote — un zéro ferait croire à une carte sans valeur.
 
 **Le renversement du tri avait été perdu** en passant des puces aux menus. Re-choisir un critère inverse le sens, comme dans l'ancienne liste ; l'entrée déjà sélectionnée annonce ce qu'un second appui fera — « Dernière page d'abord », « Les moins chères d'abord », « De Z à A » — plutôt que de paraître inerte. Le champ fermé, lui, ne montre que le critère : la phrase y déborderait.
+
+### La roue chromatique
+
+**Cinq pastilles posaient une question ambiguë.** Cocher le rouge voulait-il dire « des decks rouges » ou « des decks uniquement rouges » ? Le serveur répondait la seconde — `dc.colors <@ p_colors` —, si bien que demander du rouge écartait tous les bicolores rouges, ce que personne n'a jamais voulu en cochant une couleur. Et rien ne permettait de dire « du rouge, mais pas de bleu », qui est pourtant la question qu'on se pose devant sa collection : on connaît ses couleurs, et celles qu'on ne jouera pas.
+
+La sémantique est donc renversée et dédoublée : `p_colors` liste les couleurs que le deck **doit** porter (`p_colors <@ dc.colors`), `p_banned_colors` celles qu'il ne doit **pas** porter (`NOT (dc.colors && p_banned_colors)`). Mesuré sur le corpus Commander : sans filtre 100 decks, rouge voulu 100, rouge voulu et bleu banni 50, rouge et blanc voulus 59.
+
+**Trois états par couleur, atteints par appuis successifs** — indifférente, voulue, bannie — plutôt qu'un second contrôle ou un mode à choisir avant. Le troisième appui revient au départ.
+
+**Le pentagone, et pas une rangée.** Les cinq couleurs se disposent au dos de chaque carte dans cet ordre depuis trente ans ; un joueur y lit les alliances et les oppositions sans réfléchir — les voisines s'allient, les opposées se combattent. Une ligne perd cette information que la forme donne gratuitement. Refermée, la roue est un disque de cinq quartiers qui montre l'état du filtre sans l'ouvrir, à la place d'une seule pastille au lieu de cinq.
+
+Une phrase sous le pentagone dit ce que le filtre demande — « Decks contenant rouge, sans bleu ». La forme dit l'état couleur par couleur ; la phrase dit ce qu'on obtiendra, et c'est elle qui lève le dernier doute.

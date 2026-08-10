@@ -15,7 +15,7 @@ import '../../builder/presentation/deck_builder_view.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../data/deck_repository.dart';
 import '../domain/deck_suggestion.dart';
-import '../domain/mana_color.dart';
+import 'color_wheel.dart';
 
 /// Les deux façons de répondre à « que puis-je jouer ? ».
 ///
@@ -309,79 +309,21 @@ class _FilterBar extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
-          for (final color in manaColors) ...[
-            _ColorChip(
-              color: color,
-              selected: filters.colors.contains(color.symbol),
-              onTap: () => notifier.toggleColor(color.symbol),
-            ),
-            const SizedBox(width: 6),
-          ],
+          // **Une roue plutôt que cinq pastilles.** Elles posaient une question
+          // ambiguë — « des decks rouges » ou « uniquement rouges » ? — et ne
+          // permettaient pas de dire « du rouge, mais pas de bleu ». Le
+          // pentagone, lui, est la forme que tout joueur lit sans réfléchir.
+          ColorWheelButton(
+            wanted: filters.colors,
+            banned: filters.bannedColors,
+            onChanged: notifier.setColors,
+          ),
         ],
       ),
     );
   }
 }
 
-/// Pastille d'une couleur de mana.
-///
-/// **Une pastille et non un mot.** Les cinq couleurs se reconnaissent à leur
-/// teinte depuis trente ans ; écrire « blanc, bleu, noir, rouge, vert » sur une
-/// ligne déjà chargée coûterait quatre fois la place pour la même information.
-/// L'initiale reste, pour qui hésite entre deux teintes voisines.
-class _ColorChip extends StatelessWidget {
-  const _ColorChip({
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ManaColor color;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Tooltip(
-      message: color.label,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 34,
-          height: 34,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color.swatch,
-            border: Border.all(
-              color: selected
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.outlineVariant,
-              width: selected ? 3 : 1,
-            ),
-          ),
-          child: Text(
-            color.symbol,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: color.onSwatch,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Le commandant d'un deck, qu'un appui montre en grand.
-///
-/// **Voir la carte compte autant que lire son nom.** Un nom de commandant ne
-/// dit pas ce qu'il fait ; l'illustration et le cadre, si — et c'est souvent
-/// elle qu'on reconnaît d'un coup d'œil quand on a déjà croisé la carte. Le
-/// geste est l'appui simple et non le maintien : ici la ligne entière n'ouvre
-/// rien d'autre, il n'y a donc pas de conflit à arbitrer.
 class _CommanderLine extends StatelessWidget {
   const _CommanderLine({required this.deck});
 

@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../collection/data/collection_repository.dart';
 import '../domain/deck_suggestion.dart';
+import '../domain/mana_color.dart';
 
 class DeckRepository {
   const DeckRepository(this._client);
@@ -37,6 +38,7 @@ class DeckRepository {
         // Trié pour que la requête soit la même d'une sélection à l'autre : le
         // serveur n'a que faire de l'ordre dans lequel on a touché les pastilles.
         'p_colors': (filters.colors.toList()..sort()),
+        'p_banned_colors': (filters.bannedColors.toList()..sort()),
         'p_commander': filters.commander.trim().isEmpty
             ? null
             : filters.commander.trim(),
@@ -74,6 +76,7 @@ class DeckFilters {
     this.buildableOnly = false,
     this.maxCostEur,
     this.colors = const {},
+    this.bannedColors = const {},
     this.commander = '',
     this.ownedCommanderOnly = false,
   });
@@ -90,7 +93,11 @@ class DeckFilters {
   /// l'identité tient dans cette sélection. Demander « rouge » et recevoir un
   /// deck à cinq couleurs n'aiderait personne — il serait injouable pour qui
   /// voulait justement du mono-rouge.
+  /// Couleurs que le deck doit porter.
   final Set<String> colors;
+
+  /// Couleurs que le deck ne doit pas porter.
+  final Set<String> bannedColors;
 
   /// Nom de commandant cherché. Vide = tous.
   ///
@@ -106,12 +113,14 @@ class DeckFilters {
       ownedCommanderOnly ||
       maxCostEur != null ||
       colors.isNotEmpty ||
+      bannedColors.isNotEmpty ||
       commander.trim().isNotEmpty;
 
   DeckFilters copyWith({
     bool? buildableOnly,
     double? maxCostEur,
     Set<String>? colors,
+    Set<String>? bannedColors,
     String? commander,
     bool? ownedCommanderOnly,
     bool clearCost = false,
@@ -119,6 +128,7 @@ class DeckFilters {
     buildableOnly: buildableOnly ?? this.buildableOnly,
     maxCostEur: clearCost ? null : (maxCostEur ?? this.maxCostEur),
     colors: colors ?? this.colors,
+    bannedColors: bannedColors ?? this.bannedColors,
     commander: commander ?? this.commander,
     ownedCommanderOnly: ownedCommanderOnly ?? this.ownedCommanderOnly,
   );
@@ -135,10 +145,37 @@ class DeckFiltersNotifier extends Notifier<DeckFilters> {
       ? state = state.copyWith(clearCost: true)
       : state = state.copyWith(maxCostEur: value);
 
+  /// Remplace les deux ensembles d'un coup.
+  ///
+  /// La roue mène son propre pas-à-pas — voulue, bannie, indifférente — et ne
+  /// rend son résultat qu'à la validation : filtrer à chaque appui relancerait
+  /// une requête par pression.
+  void setColors(Set<String> wanted, Set<String> banned) =>
+      state = state.copyWith(colors: wanted, bannedColors: banned);
+
   void toggleColor(String symbol) {
-    final next = {...state.colors};
-    if (!next.remove(symbol)) next.add(symbol);
-    state = state.copyWith(colors: next);
+    // Un appui fait avancer d'un état : indifférent, voulue, bannie, puis
+    // retour. C'est le geste demandé — une pression pour vouloir, deux pour
+    // bannir — sans second contrôle.
+    final wanted = {...state.colors};
+    final banned = {...state.bannedColors};
+    final current = wanted.contains(symbol)
+        ? ManaChoice.wanted
+        : banned.contains(symbol)
+        ? ManaChoice.banned
+        : ManaChoice.neutral;
+
+    wanted.remove(symbol);
+    banned.remove(symbol);
+    switch (current.next) {
+      case ManaChoice.wanted:
+        wanted.add(symbol);
+      case ManaChoice.banned:
+        banned.add(symbol);
+      case ManaChoice.neutral:
+        break;
+    }
+    state = state.copyWith(colors: wanted, bannedColors: banned);
   }
 
   void toggleOwnedCommander() =>

@@ -15,6 +15,7 @@ import 'package:deckhand/src/features/collection/data/collection_repository.dart
 import 'package:deckhand/src/features/decks/data/deck_repository.dart';
 import 'package:deckhand/src/features/decks/domain/deck_suggestion.dart';
 import 'package:deckhand/src/features/decks/presentation/deck_suggestions_screen.dart';
+import 'package:deckhand/src/features/decks/presentation/color_wheel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -141,24 +142,21 @@ void main() {
     expect(decks.lastFilters?.buildableOnly, isTrue);
   });
 
-  testWidgets('une couleur retenue tamise les suggestions', (tester) async {
-    // Le tamis garde les decks qui *tiennent* dans la sélection : demander du
-    // rouge et recevoir un deck à cinq couleurs n'aiderait pas qui voulait
-    // justement du mono-rouge.
+  testWidgets('les couleurs choisies atteignent le serveur', (tester) async {
+    // Le tamis vit côté serveur : le sens exact du filtre — couleurs voulues,
+    // couleurs bannies — est éprouvé sur la roue elle-même. Ce qui compte ici
+    // est qu'il parvienne au dépôt.
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
 
-    // Le tap vise l'`InkWell` de la pastille et non son `Tooltip` : ce
-    // dernier enveloppe la zone sensible sans la porter, et un appui sur son
-    // centre peut manquer l'InkWell.
-    await tester.tap(
-      find.descendant(
-        of: find.byTooltip('Rouge'),
-        matching: find.byType(InkWell),
-      ),
-    );
+    await tester.tap(find.byType(ColorWheelButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('R'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Appliquer'));
     await tester.pumpAndSettle();
 
     expect(decks.lastFilters?.colors, {'R'});
+    expect(decks.lastFilters?.bannedColors, isEmpty);
   });
 
   group('le commandant', () {
