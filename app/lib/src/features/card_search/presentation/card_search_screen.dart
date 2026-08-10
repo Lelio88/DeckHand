@@ -342,6 +342,21 @@ class _CardTileState extends ConsumerState<_CardTile> {
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
+    final printing = _printing;
+
+    // **La ligne décrit l'édition retenue, pas la carte en général.** Tant
+    // qu'aucune n'est choisie, l'illustration est celle d'une impression de
+    // référence et le prix celui de la moins chère — un plancher assumé. Une
+    // fois l'édition désignée, les deux doivent la suivre : c'est l'illustration
+    // qui permet de vérifier qu'on a bien désigné celle qu'on tient, et laisser
+    // le prix plancher afficherait 1,55 € sur une édition qui en vaut 9.
+    //
+    // Le repli sur le prix plancher quand l'édition n'est pas cotée n'est pas
+    // une approximation de confort : c'est exactement ce que la collection
+    // comptera pour elle (`COALESCE(prix de l'édition, prix le moins cher)`).
+    final art = printing?.printing.artCropUrl ?? hit.artUrl;
+    final price =
+        printing?.printing.priceFor(foil: printing.isFoil) ?? hit.priceEur;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
@@ -356,7 +371,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
           // premier, et le seul repère qui sépare deux cartes homonymes.
           Padding(
             padding: const EdgeInsets.only(right: 12, top: 2),
-            child: CardArtThumbnail(url: hit.artUrl),
+            child: CardArtThumbnail(url: art),
           ),
           Expanded(
             child: Column(
@@ -401,9 +416,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                hit.priceEur == null
-                    ? '—'
-                    : '${hit.priceEur!.toStringAsFixed(2)} €',
+                price == null ? '—' : '${price.toStringAsFixed(2)} €',
                 style: theme.textTheme.titleSmall,
               ),
               const SizedBox(height: 4),
