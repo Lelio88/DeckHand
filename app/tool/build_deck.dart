@@ -10,7 +10,7 @@
 /// qui évite d'authentifier un outil de mesure contre Supabase.
 ///
 /// Usage :
-///   dart run tool/build_deck.dart <collection.json> [format] [nom du général]
+///   dart run tool/build_deck.dart `<collection.json>` [format] [général]
 library;
 
 import 'dart:convert';
