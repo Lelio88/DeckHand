@@ -35,6 +35,7 @@ CollectionEntry entry({
   String? setCode,
   String? setName,
   String? collectorNumber,
+  bool isFoil = false,
 }) => CollectionEntry(
   oracleId: oracleId,
   name: name,
@@ -50,6 +51,7 @@ CollectionEntry entry({
   setCode: setCode,
   setName: setName,
   collectorNumber: collectorNumber,
+  isFoil: isFoil,
 );
 
 CardPrinting printing({
@@ -221,6 +223,19 @@ void main() {
       expect(repository.lastSort, CollectionSort.price);
     });
 
+    testWidgets('ranger par numéro est un tri offert', (tester) async {
+      // Les autres tris répondent à des questions d'inventaire ; celui-ci
+      // répond à « où va cette carte ? », une carte à la main devant sa boîte.
+      final repository = await pumpCollection(tester, entries: [entry()]);
+
+      await tester.tap(find.byTooltip('Trier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Numéro').last);
+      await tester.pumpAndSettle();
+
+      expect(repository.lastSort, CollectionSort.number);
+    });
+
     testWidgets('le tri choisi reste affiché', (tester) async {
       await pumpCollection(tester, entries: [entry()]);
 
@@ -264,6 +279,61 @@ void main() {
             'le bandeau porte sur la collection entière : le voir tomber à zéro '
             'en cherchant donnerait l\'impression d\'avoir tout perdu',
       );
+    });
+  });
+
+  group('le brillant se voit sans se lire', () {
+    // Un « · foil » en petits caractères ne se lit qu'une fois qu'on l'a
+    // cherché — or on ne cherche pas en faisant défiler. Le brillant vaut
+    // couramment le double ou le triple de sa jumelle, et c'est ce qui
+    // distingue deux lignes par ailleurs identiques.
+    BoxDecoration decorationOf(WidgetTester tester) =>
+        tester
+                .widget<Container>(
+                  find
+                      .ancestor(
+                        of: find.text('Foudre'),
+                        matching: find.byType(Container),
+                      )
+                      .first,
+                )
+                .decoration!
+            as BoxDecoration;
+
+    CollectionEntry foilEntry({bool isFoil = true}) => entry(
+      printId: 'print-mh2',
+      setCode: 'mh2',
+      setName: 'Modern Horizons 2',
+      collectorNumber: '123',
+      isFoil: isFoil,
+    );
+
+    testWidgets('une ligne brillante porte un fond irisé', (tester) async {
+      await pumpCollection(tester, entries: [foilEntry()]);
+
+      final decoration = decorationOf(tester);
+      expect(decoration.gradient, isNotNull);
+      expect(decoration.border, isNotNull);
+    });
+
+    testWidgets('une ligne ordinaire garde son fond uni', (tester) async {
+      await pumpCollection(tester, entries: [foilEntry(isFoil: false)]);
+
+      final decoration = decorationOf(tester);
+      expect(
+        decoration.gradient,
+        isNull,
+        reason: 'un fond irisé partout ne distinguerait plus rien',
+      );
+      expect(decoration.color, isNotNull);
+    });
+
+    testWidgets("l'icône nomme ce que le fond signale", (tester) async {
+      await pumpCollection(tester, entries: [foilEntry()]);
+      expect(find.byIcon(Icons.auto_awesome), findsOneWidget);
+
+      await pumpCollection(tester, entries: [foilEntry(isFoil: false)]);
+      expect(find.byIcon(Icons.auto_awesome), findsNothing);
     });
   });
 

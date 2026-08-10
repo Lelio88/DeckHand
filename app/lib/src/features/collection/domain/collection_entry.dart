@@ -141,8 +141,14 @@ class CollectionSummary {
 }
 
 /// Critères de consultation de la collection.
+///
+/// Les quatre premiers répondent à des questions d'inventaire — ce qui vaut le
+/// plus, ce qu'on a en double, ce qui vient d'entrer. `number` répond à celle
+/// qu'on se pose une carte à la main devant une boîte : où va-t-elle ? Les
+/// cartes sans édition précisée n'ayant pas de numéro, elles ferment la marche.
 enum CollectionSort {
   name('name', 'Nom'),
+  number('number', 'Numéro'),
   price('price', 'Valeur'),
   quantity('quantity', 'Quantité'),
   recent('recent', 'Récent');

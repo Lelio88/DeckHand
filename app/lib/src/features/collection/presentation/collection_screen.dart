@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../printings/presentation/foil_decoration.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/collection_repository.dart';
 import '../domain/collection_entry.dart';
@@ -406,10 +407,7 @@ class _EntryTile extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(14),
-      ),
+      decoration: foilDecoration(theme, foil: entry.isFoil),
       child: Row(
         children: [
           Expanded(
@@ -514,6 +512,13 @@ class _PrintingLine extends StatelessWidget {
           children: [
             Icon(known ? Icons.style : Icons.style_outlined, size: 13, color: color),
             const SizedBox(width: 5),
+            // Le fond irisé se voit au défilement, l'icône nomme ce qu'il
+            // signifie une fois la ligne regardée. L'un sans l'autre laisserait
+            // deviner.
+            if (entry.isFoil) ...[
+              Icon(Icons.auto_awesome, size: 13, color: theme.colorScheme.primary),
+              const SizedBox(width: 4),
+            ],
             Flexible(
               child: Text(
                 '${entry.printingLabel ?? 'Édition non précisée'}${entry.isFoil ? ' · foil' : ''}',
