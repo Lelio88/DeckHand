@@ -1,20 +1,43 @@
 /// Un deck confronté à la collection de l'utilisateur.
 library;
 
+import '../../../config/selected_game.dart';
+
 /// Les formats couverts, dans l'ordre où ils sont proposés.
 ///
-/// Pauper vient en tête : c'est le seul où une collection ordinaire produit des
-/// decks réellement complets, les cartes chères en étant exclues d'office.
+/// Pauper vient en tête : c'est le seul où une collection Magic ordinaire
+/// produit des decks réellement complets, les cartes chères en étant exclues
+/// d'office.
 enum DeckFormat {
   pauper('pauper', 'Pauper'),
   modern('modern', 'Modern'),
-  commander('commander', 'Commander');
+  commander('commander', 'Commander'),
+  constructed('constructed', 'Construit');
 
   const DeckFormat(this.id, this.label);
 
   final String id;
   final String label;
 }
+
+const _magicFormats = [
+  DeckFormat.pauper,
+  DeckFormat.modern,
+  DeckFormat.commander,
+];
+
+const _riftboundFormats = [DeckFormat.constructed];
+
+/// Formats proposés pour un jeu.
+///
+/// **Un format n'appartient qu'à un jeu**, et proposer les trois formats Magic
+/// en Riftbound afficherait trois onglets vides — un écran qui a l'air en panne
+/// alors qu'il dit la vérité. Le pendant existe déjà pour les types de cartes
+/// (`cardTypesFor`).
+List<DeckFormat> deckFormatsFor(Game game) => switch (game) {
+  Game.magic => _magicFormats,
+  Game.riftbound => _riftboundFormats,
+};
 
 class DeckSuggestion {
   const DeckSuggestion({

@@ -11,6 +11,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../config/selected_game.dart';
 import '../../builder/presentation/deck_builder_view.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../data/deck_repository.dart';
@@ -108,7 +109,11 @@ class _FormatSelector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(selectedFormatProvider);
+    // **Les formats suivent le jeu.** Proposer Pauper en Riftbound afficherait
+    // un onglet vide, et l'écran aurait l'air en panne alors qu'il dit vrai.
+    final formats = deckFormatsFor(ref.watch(selectedGameProvider));
+    final chosen = ref.watch(selectedFormatProvider);
+    final selected = formats.contains(chosen) ? chosen : formats.first;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Row(
@@ -122,7 +127,7 @@ class _FormatSelector extends ConsumerWidget {
               // retirée pour lui rendre la place qu'elle prenait.
               showSelectedIcon: false,
               segments: [
-                for (final format in DeckFormat.values)
+                for (final format in formats)
                   ButtonSegment(
                     value: format,
                     label: Text(format.label, softWrap: false, maxLines: 1),

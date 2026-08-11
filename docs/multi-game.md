@@ -75,11 +75,14 @@ quatre-vingts homonymes, la lui montrer est la seule façon de lui faire tranche
 `search_cards` rend une URL d'illustration, et une vignette précède chaque
 résultat.
 
-**Ce qui manque encore**, et qu'aucune formulation optimiste ne doit masquer :
-le corpus de decks et la confrontation de la reconnaissance à une vraie carte
-papier. La boucle de valeur du produit — saisir, valoriser, proposer des decks —
-n'est donc pas bouclée pour Riftbound. Le corpus est **un blocage de source, pas
-de code** : aucun agrégateur de decklists n'expose d'API, et scraper est exclu.
+**Et le corpus de decks existe** — 2 500 listes de tournoi, format
+`constructed`, depuis TopDeck.gg. Voir [« Le corpus de decks »](#7-le-corpus-de-decks)
+plus bas.
+
+**Ce qui manque encore**, et qu'aucune formulation optimiste ne doit masquer : la
+confrontation de la reconnaissance à une vraie carte papier. C'est le dernier
+verrou de la boucle de valeur — saisir, valoriser, proposer des decks — et il
+demande des cartes physiques, pas du code.
 
 ---
 
@@ -115,7 +118,7 @@ pas le même statut ici.
 |---|---|---|
 | Catalogue | Scryfall — libre, *bulk data*, sans clé | **API Riot officielle** — clé requise, attribution imposée, aucun export en masse annoncé |
 | Prix | fournis par Scryfall | **ni Riot ni Riftcodex n'en servent** — relevés chez TCGplayer via l'export groupé TCGCSV, convertis en euros ([§ 6](#6-les-prix-riftbound)) |
-| Corpus de decks | TopDeck.gg + MTGJSON | sites communautaires abondants, **aucune API publique** |
+| Corpus de decks | TopDeck.gg + MTGJSON | **TopDeck.gg**, la même source — les agrégateurs communautaires, eux, n'exposent aucune API ([§ 7](#7-le-corpus-de-decks)) |
 
 ### Contraintes Riot relevées, à confirmer sur le portail
 
@@ -139,7 +142,10 @@ le débit décidera si c'est l'affaire de minutes ou d'heures.
 ### Ce qui reste ouvert
 
 - **Les prix : réglé**, voir [§ 6](#6-les-prix-riftbound).
-- **Le corpus de decks.** Plusieurs sites annoncent des dizaines de milliers de
+- **Le corpus de decks : réglé**, voir [§ 7](#7-le-corpus-de-decks). Ce qui
+  suit reste vrai des agrégateurs communautaires, et explique pourquoi la
+  réponse n'est venue d'aucun d'eux.
+- Plusieurs sites annoncent des dizaines de milliers de
   listes, mais aucun n'a d'API publique documentée à ce stade — **relevé sur la
   spec OpenAPI de Riftcodex : 25 endpoints, tous sur le catalogue et les
   extensions, aucun sur les decks.** Sans corpus, le moteur de suggestion n'a
@@ -374,3 +380,101 @@ compte réel : trois exemplaires ajoutés (deux ordinaires, un brillant) donnent
 total de **34,87 €**, égal au centime à la somme attendue
 (15,17 + 4,28 + 15,42). Le prix de la finition possédée est bien celui retenu.
 La collection réelle n'a pas été touchée.
+
+---
+
+## 7. Le corpus de decks
+
+`api/app/ingestion/topdeck_ingest.py --riftbound` — 2 500 decks, format
+`constructed`, fenêtre de 180 jours.
+
+### La sortie n'était pas une nouvelle source
+
+Le blocage était réputé contractuel, et il l'était : aucun agrégateur
+communautaire n'expose d'API. Relevé site par site, `robots.txt` en main —
+c'est la vérification que le garde-fou §IV impose avant toute dépendance :
+
+| Site | Ce que ses règles publiées disent |
+|---|---|
+| riftdecks.com | `ClaudeBot`, `Google-Extended`, `CCbot` → `Disallow: /`, et un commentaire nommant les « services concurrents » comme indésirables |
+| riftbound.gg | `anthropic-ai`, `Claude-Web`, `GPTBot`, `CCbot` → `Disallow: /` |
+| piltoverarchive.com | tout permis **sauf `/api/`**, explicitement interdit |
+| riftools.app | `Allow: /` pour tous, y compris `ClaudeBot` — le seul à publier une permission |
+
+Aucun n'ouvrait de porte utilisable : soit ils refusent l'accès automatisé, soit
+ils interdisent précisément l'API qui servirait. Et scraper reste exclu — le
+garde-fou §IV.1 a écarté EDHREC pour cette raison exacte.
+
+**La réponse était sous la main.** TopDeck.gg, la source qui alimente déjà le
+Pauper et le Modern, couvre Riftbound : `{"game": "Riftbound", "format":
+"Constructed"}` rend **159 tournois**, dont 59 portent des decklists, pour 2 501
+participations documentées. Même clé, même obligation d'attribution déjà honorée
+par `deck_sources`, aucune condition nouvelle à vérifier. Le format `Sealed`
+répond aussi (13 tournois) mais n'entre pas : un format scellé ne se confronte
+pas à une collection, on y joue ce que la boîte donne.
+
+### Deux différences avec Magic, toutes deux à notre avantage
+
+**Les cartes portent un code d'impression**, `OGS-019`, et non seulement un nom.
+Le rapprochement redevient exact : `PrintCodeResolver` traduit le couple
+(extension, numéro) en `oracle_id`, et **785 codes sur 786 se résolvent**. Le
+seul manquant est `SFD-171a`, une variante que le catalogue ne porte pas. Là où
+Magic doit composer avec la casse, les accents et les cartes à deux faces,
+Riftbound n'a aucune ambiguïté — ce qui compte d'autant plus ici que le jeu a
+80 homonymes qu'un rapprochement par nom rendrait indiscernables.
+
+Le numéro est **cadré sur trois chiffres** : la source écrit `OGN-042`, le
+catalogue retient `42`. Comparer les chaînes telles quelles échouerait sur toute
+carte numérotée sous 100, soit la majorité.
+
+**Un deck a six zones** : `Legend`, `Champion`, `Runes`, `Battlefields`,
+`Mainboard`, `Sideboard`. Toutes sauf la réserve désignent des cartes qu'il faut
+posséder — on ne joue pas sans ses runes ni ses champs de bataille —, elles sont
+donc fondues dans le pan principal, celui qui porte le calcul de complétion. Les
+omettre ferait paraître constructible une liste dont quinze cartes manquent. La
+Légende est en outre retenue à part, pour occuper `decks.commander_oracle_id`
+comme le fait un commandant : c'est ainsi qu'on choisit un deck.
+
+### Un seuil de taille, tiré de la distribution
+
+Le contrôle qualité existant ne mesurait que la **proportion de cartes
+inconnues** : une decklist enregistrée à moitié à la source le franchit sans
+peine, puisque le peu qu'elle contient se résout parfaitement. Elle
+apparaîtrait ensuite comme presque constructible — le pire défaut possible pour
+ce produit.
+
+Mesuré : sur 2 501 participations, **2 459 comptent exactement 56 cartes** hors
+réserve, l'écart total allant de 55 à 65 — sauf une liste à 5 cartes. Le seuil
+est posé à 40, très en deçà de tout deck réel et très au-dessus d'un fragment :
+il écarte l'accident sans prétendre juger les règles du jeu.
+
+### Ce qu'il a fallu changer ailleurs
+
+- `decks.format` accueille `constructed` (migration `20260815140000`).
+- `store_deck` écrit `decks.game` — il ne le faisait pas, et une source couvrant
+  deux catalogues aurait laissé les decks Riftbound étiquetés « magic ».
+- `deckFormatsFor(game)` côté application : proposer Pauper en Riftbound
+  afficherait un onglet vide, et l'écran aurait l'air en panne alors qu'il dit
+  vrai. La sélection se remet au premier format du jeu à chaque bascule.
+- **`p_game` accompagne enfin `p_format`** dans l'appel à `deck_suggestions`. Il
+  manquait : tant que Riftbound n'avait aucun deck, l'omission ne se voyait pas.
+  Un test le verrouille, comme pour la recherche de cartes.
+- Le **constructeur** n'a pas de gabarit pour ce format et le dit. Les
+  proportions d'un deck se mesurent sur un corpus ; celles de Magic ne se
+  transposent pas à un jeu qui compte des runes et des champs de bataille plutôt
+  que des terrains. `DeckBlueprint.of` rend `null` plutôt qu'un gabarit par
+  défaut, ce qui aurait produit un deck faux sous une apparence de rigueur.
+
+### Vérifié
+
+`api/app/measure/deck_math.py` prend désormais `<format> <jeu>` :
+
+```
+$ python -m app.measure.deck_math constructed riftbound
+100 decks confrontés, format constructed (riftbound).
+Aucun écart : les deux calculs concordent sur tous les decks.
+```
+
+Et par le chemin réel de l'application, sous le rôle `authenticated` :
+`deck_suggestions(p_format='constructed', p_game='riftbound')` rend des decks
+avec leur Légende, leurs cartes manquantes et leur coût en euros.

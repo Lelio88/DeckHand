@@ -55,6 +55,10 @@ void main(List<String> args) {
         )
       : DeckFormat.commander;
   final blueprint = DeckBlueprint.of(format);
+  if (blueprint == null) {
+    stderr.writeln('Aucun gabarit mesuré pour ce format.');
+    exit(64);
+  }
   final builder = DeckBuilder(blueprint: blueprint);
 
   if (!blueprint.needsCommander) {

@@ -30,9 +30,12 @@ import psycopg
 
 from app.config import SupabaseConfig, load_env_file
 
-#: Format éprouvé. Pauper est le cas qui compte — c'est le seul où une
-#: collection ordinaire produit des decks réellement complets.
+#: Format éprouvé par défaut. Pauper est le cas qui compte pour Magic — c'est
+#: le seul où une collection ordinaire produit des decks réellement complets.
+#: Le couple (format, jeu) se surcharge en ligne de commande :
+#:     python -m app.measure.deck_math constructed riftbound
 FORMAT = "pauper"
+GAME = "magic"
 
 #: Fraction des exemplaires d'un deck que l'on feint de posséder. Choisie
 #: incomplète à dessein : posséder tout ou rien ne vérifierait pas le décompte
@@ -80,7 +83,7 @@ def collection_of(conn: psycopg.Connection, email: str) -> str:
         return created[0]
 
 
-def seed(conn: psycopg.Connection, collection_id: str) -> tuple[str, list[int]]:
+def seed(conn: psycopg.Connection, collection_id: str, fmt: str, game: str) -> tuple[str, list[int]]:
     """Ajoute une partie d'un deck réel. Rend l'id du deck et les lignes créées.
 
     Le deck est choisi parmi les plus fournis en cartes distinctes : plus il y a
@@ -98,12 +101,12 @@ def seed(conn: psycopg.Connection, collection_id: str) -> tuple[str, list[int]]:
             SELECT dc.deck_id
             FROM public.deck_cards dc
             JOIN public.decks d ON d.id = dc.deck_id
-            WHERE d.format = %s AND dc.board = 'main'
+            WHERE d.format = %s AND d.game = %s AND dc.board = 'main'
             GROUP BY dc.deck_id
             ORDER BY COUNT(*) DESC, dc.deck_id
             LIMIT 1
             """,
-            (FORMAT,),
+            (fmt, game),
         )
         deck_id = cur.fetchone()[0]
 
@@ -127,7 +130,7 @@ def seed(conn: psycopg.Connection, collection_id: str) -> tuple[str, list[int]]:
     return deck_id, inserted
 
 
-def expected(conn: psycopg.Connection, collection_id: str) -> dict[str, Suggestion]:
+def expected(conn: psycopg.Connection, collection_id: str, fmt: str, game: str) -> dict[str, Suggestion]:
     """Recompte tout, sans passer par la fonction éprouvée."""
     with conn.cursor() as cur:
         cur.execute(
@@ -143,10 +146,10 @@ def expected(conn: psycopg.Connection, collection_id: str) -> dict[str, Suggesti
                 GROUP BY oracle_id
             ) mine ON mine.oracle_id = dc.oracle_id
             LEFT JOIN public.card_cheapest_price p ON p.oracle_id = dc.oracle_id
-            WHERE d.format = %s AND dc.board = 'main'
+            WHERE d.format = %s AND d.game = %s AND dc.board = 'main'
             GROUP BY dc.deck_id, d.name, dc.oracle_id, mine.owned, p.price_eur
             """,
-            (collection_id, FORMAT),
+            (collection_id, fmt, game),
         )
         rows = cur.fetchall()
 
@@ -170,7 +173,7 @@ def expected(conn: psycopg.Connection, collection_id: str) -> dict[str, Suggesti
     }
 
 
-def observed(config: SupabaseConfig, email: str, password: str) -> list[Suggestion]:
+def observed(config: SupabaseConfig, email: str, password: str, fmt: str, game: str) -> list[Suggestion]:
     """Interroge la base comme le fait l'application."""
     with httpx.Client(base_url=config.url, timeout=60) as client:
         auth = client.post(
@@ -187,7 +190,12 @@ def observed(config: SupabaseConfig, email: str, password: str) -> list[Suggesti
             headers={"apikey": config.anon_key, "Authorization": f"Bearer {token}"},
             # Aucun plafond : on veut confronter chaque deck, pas les mieux
             # classés — une erreur d'arithmétique se cache volontiers en bas.
-            json={"p_format": FORMAT, "p_max_missing": 10_000, "p_max_results": 100},
+            json={
+                "p_format": fmt,
+                "p_game": game,
+                "p_max_missing": 10_000,
+                "p_max_results": 100,
+            },
         )
         response.raise_for_status()
 
@@ -225,7 +233,9 @@ def compare(seen: list[Suggestion], truth: dict[str, Suggestion]) -> list[str]:
     return faults
 
 
-def main() -> int:
+def main(argv: list[str]) -> int:
+    fmt = argv[0] if argv else FORMAT
+    game = argv[1] if len(argv) > 1 else GAME
     values = load_env_file("supabase.env")
     email = values.get("DECKHAND_TEST_EMAIL")
     password = values.get("DECKHAND_TEST_PASSWORD")
@@ -248,12 +258,12 @@ def main() -> int:
 
         inserted: list[int] = []
         try:
-            deck_id, inserted = seed(conn, collection_id)
-            truth = expected(conn, collection_id)
-            seen = observed(config, email, password)
+            deck_id, inserted = seed(conn, collection_id, fmt, game)
+            truth = expected(conn, collection_id, fmt, game)
+            seen = observed(config, email, password, fmt, game)
 
             target = next((s for s in seen if s.deck_id == deck_id), None)
-            print(f"{len(seen)} decks confrontés, format {FORMAT}.")
+            print(f"{len(seen)} decks confrontés, format {fmt} ({game}).")
             if target:
                 print(
                     f"Deck de référence « {target.deck_name} » : "
@@ -282,4 +292,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

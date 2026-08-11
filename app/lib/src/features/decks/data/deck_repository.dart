@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/request_timeout.dart';
+import '../../../config/selected_game.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../collection/data/collection_repository.dart';
 import '../domain/deck_suggestion.dart';
@@ -23,12 +24,17 @@ class DeckRepository {
     DeckFormat format, {
     DeckFilters filters = const DeckFilters(),
     int maxResults = 30,
+    Game game = Game.magic,
   }) async {
     final rows = await _client
         .rpc<List<dynamic>>(
           'deck_suggestions',
           params: {
             'p_format': format.id,
+            // **Sans le jeu, le serveur répond « magic ».** Le format suffisait
+            // tant qu'un seul jeu avait des decks ; il ne suffit plus, et
+            // l'omission ne se serait vue qu'à un écran vide.
+            'p_game': game.id,
             // Zéro carte manquante = constructible dès maintenant.
             'p_max_missing': filters.budget.maxMissing,
             'p_max_results': maxResults,
@@ -222,9 +228,15 @@ final deckFiltersProvider = NotifierProvider<DeckFiltersNotifier, DeckFilters>(
 ///
 /// Un `Notifier` et non un `StateProvider` : ce dernier a été retiré de
 /// Riverpod 3.
+///
+/// **Il suit le jeu.** Un format n'appartient qu'à un jeu : rester sur Pauper
+/// après une bascule vers Riftbound ferait demander au serveur un format qui n'y
+/// existe pas, et l'écran annoncerait « aucun deck » sur un corpus de 2 500.
+/// C'est exactement le genre de câblage qui cède en silence — la sélection se
+/// remet donc au premier format du jeu courant.
 class SelectedFormat extends Notifier<DeckFormat> {
   @override
-  DeckFormat build() => DeckFormat.pauper;
+  DeckFormat build() => deckFormatsFor(ref.watch(selectedGameProvider)).first;
 
   void select(DeckFormat format) => state = format;
 }
@@ -247,7 +259,11 @@ final deckSuggestionsProvider =
       final filters = ref.watch(deckFiltersProvider);
       return ref
           .watch(deckRepositoryProvider)
-          .suggestions(format, filters: filters);
+          .suggestions(
+            format,
+            filters: filters,
+            game: ref.watch(selectedGameProvider),
+          );
     });
 
 final missingCardsProvider = FutureProvider.autoDispose

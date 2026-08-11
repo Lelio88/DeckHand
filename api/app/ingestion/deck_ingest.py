@@ -70,6 +70,8 @@ def store_deck(
     commander_oracle_id: str | None = None,
     source_url: str | None = None,
     recorded_at=None,
+    game: str = "magic",
+    min_main_cards: int = 0,
 ) -> bool:
     """Enregistre un deck. Renvoie False s'il a été écarté comme trop lacunaire.
 
@@ -84,20 +86,32 @@ def store_deck(
         return False
     if main_missing / total_main > MAX_UNRESOLVED_RATIO:
         return False
+    # **Un deck trop court n'est pas un deck.** Le seuil précédent ne mesurait
+    # que la proportion de cartes inconnues : une decklist enregistrée à moitié
+    # à la source la franchissait sans peine, puisque le peu qu'elle contient se
+    # résout parfaitement. Elle apparaîtrait ensuite comme presque constructible,
+    # ce qui est le pire défaut possible pour ce produit.
+    if total_main < min_main_cards:
+        return False
 
     with conn.cursor() as cur:
         deck_id = cur.execute(
             """
             INSERT INTO public.decks (source_id, external_id, name, format, tier,
-                                      commander_oracle_id, source_url, recorded_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                      commander_oracle_id, source_url, recorded_at,
+                                      game)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (source_id, external_id) DO UPDATE SET
                 name = EXCLUDED.name,
-                recorded_at = EXCLUDED.recorded_at
+                recorded_at = EXCLUDED.recorded_at,
+                -- Le jeu suit : une source qui couvre deux catalogues pourrait
+                -- réattribuer un identifiant externe, et un deck Riftbound resté
+                -- étiqueté « magic » polluerait les suggestions de l'autre jeu.
+                game = EXCLUDED.game
             RETURNING id
             """,
             (source_id, external_id, name, fmt, tier,
-             commander_oracle_id, source_url, recorded_at),
+             commander_oracle_id, source_url, recorded_at, game),
         ).fetchone()[0]
 
         # Remplacement plutôt que fusion : une decklist révisée à la source ne

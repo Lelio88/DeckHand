@@ -93,10 +93,19 @@ class DeckBlueprint {
 
   final BlueprintReliability reliability;
 
-  static DeckBlueprint of(DeckFormat format) => switch (format) {
+  /// Gabarit d'un format, ou `null` quand aucun n'a été mesuré.
+  ///
+  /// **Nul plutôt qu'un gabarit par défaut.** Les trois gabarits Magic viennent
+  /// chacun de la médiane de son propre corpus ; le format construit de
+  /// Riftbound n'en a pas — ses notions ne sont pas celles de Magic (ni
+  /// terrains, ni rampe, mais des runes et des champs de bataille), et lui
+  /// prêter des proportions mesurées ailleurs produirait un deck faux avec
+  /// l'assurance d'un deck mesuré. La vue le dit plutôt que de le deviner.
+  static DeckBlueprint? of(DeckFormat format) => switch (format) {
     DeckFormat.commander => commander,
     DeckFormat.pauper => pauper,
     DeckFormat.modern => modern,
+    DeckFormat.constructed => null,
   };
 
   /// Mesuré sur 190 précons. Le format le plus régulier du corpus.

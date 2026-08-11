@@ -68,6 +68,10 @@ DeckSuggestion fakeDeck({
 class FakeDeckRepository implements DeckRepository {
   DeckFormat? lastFormat;
   DeckFilters? lastFilters;
+
+  /// Jeu de la dernière demande. Retenu parce qu'un format sans jeu part
+  /// chercher les decks Magic : l'écran serait vide sans rien dire pourquoi.
+  Game? lastGame;
   List<DeckSuggestion> results = const [];
   List<MissingCard> missing = const [];
 
@@ -76,9 +80,11 @@ class FakeDeckRepository implements DeckRepository {
     DeckFormat format, {
     DeckFilters filters = const DeckFilters(),
     int maxResults = 30,
+    Game game = Game.magic,
   }) async {
     lastFormat = format;
     lastFilters = filters;
+    lastGame = game;
     return results;
   }
 

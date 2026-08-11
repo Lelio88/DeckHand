@@ -53,7 +53,7 @@ class DeckBuilderView extends ConsumerStatefulWidget {
 
 class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
   DeckBuilder get _builder =>
-      DeckBuilder(blueprint: DeckBlueprint.of(widget.format));
+      DeckBuilder(blueprint: DeckBlueprint.of(widget.format)!);
 
   /// Général retenu. Nul tant qu'on n'a pas choisi : l'écran montre alors la
   /// liste des candidats plutôt qu'un deck qu'on n'a pas demandé.
@@ -61,6 +61,19 @@ class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
 
   @override
   Widget build(BuildContext context) {
+    // **Sans gabarit, pas de construction.** Le format construit de Riftbound
+    // n'a pas de corpus mesuré : bâtir avec les proportions du Commander
+    // produirait un deck faux sous une apparence de rigueur.
+    if (DeckBlueprint.of(widget.format) == null) {
+      return const _Note(
+        'Aucun gabarit mesuré pour ce format.\n'
+        'Les proportions d\'un deck se mesurent sur un corpus, et celles de '
+        'Magic ne s\'y transposent pas : ce jeu compte des runes et des champs '
+        'de bataille, pas des terrains. Les decks du corpus restent '
+        'consultables dans « Préconstruits ».',
+      );
+    }
+
     final collection = ref.watch(buildableCollectionProvider(widget.format));
 
     return collection.when(
@@ -72,7 +85,7 @@ class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
   }
 
   Widget _content(List<BuildableCard> cards) {
-    final blueprint = DeckBlueprint.of(widget.format);
+    final blueprint = DeckBlueprint.of(widget.format)!;
     if (!blueprint.needsCommander) {
       return _DeckView(
         deck: _builder.build(cards),
