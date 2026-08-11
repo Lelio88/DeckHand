@@ -55,6 +55,17 @@ Future<FakeDeckRepository> pumpDecksScreen(
   return decks;
 }
 
+/// Choisit une entrée du menu de budget.
+///
+/// Un seul contrôle porte désormais « jusqu'où suis-je prêt à aller » : la puce
+/// « Constructibles » et le plafond y ont fondu.
+Future<void> chooseBudget(WidgetTester tester, String entry) async {
+  await tester.tap(find.text('Budget'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.textContaining(entry).last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   group('les deux façons de répondre', () {
     // Le choix entre consulter le corpus et construire depuis sa collection
@@ -112,35 +123,36 @@ void main() {
     expect(decks.lastFormat, DeckFormat.commander);
   });
 
-  testWidgets('le plafond de budget atteint bien la requête', (tester) async {
+  testWidgets('le budget choisi atteint la requête', (tester) async {
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
-    expect(decks.lastFilters?.maxCostEur, isNull);
+    expect(decks.lastFilters?.budget, DeckBudget.any);
 
-    await tester.tap(find.text('Tous budgets'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('≤ 10 €').last);
-    await tester.pumpAndSettle();
+    await chooseBudget(tester, 'Moins de 10 €');
 
     expect(
-      decks.lastFilters?.maxCostEur,
+      decks.lastFilters?.budget.maxCostEur,
       10,
       reason:
           'le filtre affiché doit atteindre la requête, '
-          'faute de quoi la liste contredit l\'interface',
+          "faute de quoi la liste contredit l'interface",
     );
   });
 
-  testWidgets('« Constructibles » n\'autorise aucune carte manquante', (
+  testWidgets("« rien à acheter » n'autorise aucune carte manquante", (
     tester,
   ) async {
+    // « Constructible » n'est pas « zéro euro » : une carte manquante sans cote
+    // coûte zéro et manque quand même. Le premier exige qu'il ne manque rien,
+    // les autres plafonnent une dépense — d'où une entrée à part, en tête du
+    // même menu plutôt qu'une puce séparée qui pouvait le contredire.
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
-    expect(decks.lastFilters?.buildableOnly, isFalse);
 
-    await tester.tap(find.text('Constructibles'));
-    await tester.pumpAndSettle();
+    await chooseBudget(tester, 'rien à acheter');
 
-    expect(decks.lastFilters?.buildableOnly, isTrue);
+    expect(decks.lastFilters?.budget.maxMissing, 0);
+    expect(decks.lastFilters?.budget.maxCostEur, isNull);
   });
+
 
   testWidgets('les couleurs choisies atteignent le serveur', (tester) async {
     // Le tamis vit côté serveur : le sens exact du filtre — couleurs voulues,
@@ -299,8 +311,7 @@ void main() {
   testWidgets('remettre à zéro efface tous les filtres', (tester) async {
     final decks = await pumpDecksScreen(tester, results: [fakeDeck()]);
 
-    await tester.tap(find.text('Constructibles'));
-    await tester.pumpAndSettle();
+    await chooseBudget(tester, 'rien à acheter');
     expect(find.text('Tout afficher'), findsOneWidget);
 
     await tester.tap(find.text('Tout afficher'));
@@ -351,8 +362,7 @@ void main() {
     await pumpDecksScreen(tester);
     expect(find.textContaining('Aucun deck dans ce format'), findsOneWidget);
 
-    await tester.tap(find.text('Constructibles'));
-    await tester.pumpAndSettle();
+    await chooseBudget(tester, 'rien à acheter');
 
     expect(
       find.textContaining('Aucun deck ne passe ces filtres'),

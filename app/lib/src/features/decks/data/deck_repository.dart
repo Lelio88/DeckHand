@@ -28,9 +28,9 @@ class DeckRepository {
       params: {
         'p_format': format.id,
         // Zéro carte manquante = constructible dès maintenant.
-        'p_max_missing': filters.buildableOnly ? 0 : 100,
+        'p_max_missing': filters.budget.maxMissing,
         'p_max_results': maxResults,
-        'p_max_cost': filters.maxCostEur,
+        'p_max_cost': filters.budget.maxCostEur,
         // `p_tier` reste offert par le serveur : le jour où une source
         // apportera des listes de tournoi Commander, la distinction
         // redeviendra utile. Aujourd'hui elle doublonne le format.
@@ -67,32 +67,66 @@ final deckRepositoryProvider = Provider<DeckRepository>(
   (ref) => DeckRepository(Supabase.instance.client),
 );
 
+/// Ce qu'on est prêt à dépenser pour compléter un deck.
+///
+/// **Un seul contrôle là où il y en avait deux.** « Constructibles » et le
+/// plafond de budget répondaient à la même question — jusqu'où suis-je prêt à
+/// aller — mais se cochaient séparément, si bien qu'on pouvait demander un deck
+/// sans rien à acheter *et* un budget de cinquante euros. Les fondre supprime la
+/// contradiction.
+///
+/// **« Constructible » n'est pourtant pas « zéro euro ».** Une carte manquante
+/// sans cote coûte zéro et manque quand même : le premier cas exige qu'il ne
+/// manque *rien*, les autres plafonnent une dépense. C'est pourquoi il ouvre le
+/// menu au lieu d'y figurer comme un montant.
+enum DeckBudget {
+  any('Tous budgets'),
+  buildable('Constructibles — rien à acheter'),
+  under10('Moins de 10 €'),
+  under25('Moins de 25 €'),
+  under50('Moins de 50 €'),
+  under100('Moins de 100 €');
+
+  const DeckBudget(this.label);
+
+  final String label;
+
+  /// Nombre de cartes manquantes toléré.
+  int get maxMissing => this == DeckBudget.buildable ? 0 : 100;
+
+  /// Plafond de dépense, ou `null` quand il n'y en a pas.
+  double? get maxCostEur => switch (this) {
+    DeckBudget.under10 => 10,
+    DeckBudget.under25 => 25,
+    DeckBudget.under50 => 50,
+    DeckBudget.under100 => 100,
+    _ => null,
+  };
+
+  /// Étiquette courte, pour la puce refermée.
+  String get shortLabel => switch (this) {
+    DeckBudget.any => 'Budget',
+    DeckBudget.buildable => 'Constructibles',
+    _ => label.replaceFirst('Moins de ', '< '),
+  };
+}
+
 /// Critères d'affinage des suggestions.
 ///
 /// Séparés du format parce qu'ils répondent à d'autres questions : le format dit
 /// *quoi* jouer, les filtres disent *ce qui est à portée*.
 class DeckFilters {
   const DeckFilters({
-    this.buildableOnly = false,
-    this.maxCostEur,
+    this.budget = DeckBudget.any,
     this.colors = const {},
     this.bannedColors = const {},
     this.commander = '',
     this.ownedCommanderOnly = false,
   });
 
-  /// N'afficher que les decks sans carte manquante.
-  final bool buildableOnly;
+  /// Jusqu'où l'on est prêt à aller pour compléter un deck.
+  final DeckBudget budget;
 
-  /// Plafond du coût de complétion, en euros. Nul si aucune limite.
-  final double? maxCostEur;
-
-  /// Couleurs retenues, en symboles Scryfall (`W`, `U`, `B`, `R`, `G`).
-  ///
-  /// **C'est un tamis, pas une recherche** : ne sont proposés que les decks dont
-  /// l'identité tient dans cette sélection. Demander « rouge » et recevoir un
-  /// deck à cinq couleurs n'aiderait personne — il serait injouable pour qui
-  /// voulait justement du mono-rouge.
   /// Couleurs que le deck doit porter.
   final Set<String> colors;
 
@@ -109,24 +143,20 @@ class DeckFilters {
   final bool ownedCommanderOnly;
 
   bool get isActive =>
-      buildableOnly ||
+      budget != DeckBudget.any ||
       ownedCommanderOnly ||
-      maxCostEur != null ||
       colors.isNotEmpty ||
       bannedColors.isNotEmpty ||
       commander.trim().isNotEmpty;
 
   DeckFilters copyWith({
-    bool? buildableOnly,
-    double? maxCostEur,
+    DeckBudget? budget,
     Set<String>? colors,
     Set<String>? bannedColors,
     String? commander,
     bool? ownedCommanderOnly,
-    bool clearCost = false,
   }) => DeckFilters(
-    buildableOnly: buildableOnly ?? this.buildableOnly,
-    maxCostEur: clearCost ? null : (maxCostEur ?? this.maxCostEur),
+    budget: budget ?? this.budget,
     colors: colors ?? this.colors,
     bannedColors: bannedColors ?? this.bannedColors,
     commander: commander ?? this.commander,
@@ -138,18 +168,15 @@ class DeckFiltersNotifier extends Notifier<DeckFilters> {
   @override
   DeckFilters build() => const DeckFilters();
 
-  void toggleBuildable() =>
-      state = state.copyWith(buildableOnly: !state.buildableOnly);
+  void setBudget(DeckBudget budget) => state = state.copyWith(budget: budget);
 
-  void setMaxCost(double? value) => value == null
-      ? state = state.copyWith(clearCost: true)
-      : state = state.copyWith(maxCostEur: value);
 
   /// Remplace les deux ensembles d'un coup.
   ///
   /// La roue mène son propre pas-à-pas — voulue, bannie, indifférente — et ne
   /// rend son résultat qu'à la validation : filtrer à chaque appui relancerait
-  /// une requête par pression.
+  /// une requête par pression, et le troisième appui annulant le premier, on en
+  /// paierait trois pour revenir au point de départ.
   void setColors(Set<String> wanted, Set<String> banned) =>
       state = state.copyWith(colors: wanted, bannedColors: banned);
 

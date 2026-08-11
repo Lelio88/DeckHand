@@ -1008,3 +1008,9 @@ La sémantique est donc renversée et dédoublée : `p_colors` liste les couleur
 **Le pentagone, et pas une rangée.** Les cinq couleurs se disposent au dos de chaque carte dans cet ordre depuis trente ans ; un joueur y lit les alliances et les oppositions sans réfléchir — les voisines s'allient, les opposées se combattent. Une ligne perd cette information que la forme donne gratuitement. Refermée, la roue est un disque de cinq quartiers qui montre l'état du filtre sans l'ouvrir, à la place d'une seule pastille au lieu de cinq.
 
 Une phrase sous le pentagone dit ce que le filtre demande — « Decks contenant rouge, sans bleu ». La forme dit l'état couleur par couleur ; la phrase dit ce qu'on obtiendra, et c'est elle qui lève le dernier doute.
+
+### Un seul contrôle pour « jusqu'où suis-je prêt à aller »
+
+« Constructibles » et le plafond de budget répondaient à la même question mais se cochaient séparément : on pouvait demander un deck **sans rien à acheter** *et* un budget de cinquante euros — une combinaison dont la seconde moitié ne voulait rien dire. Les deux ont fondu dans un menu unique.
+
+**« Constructible » n'est pourtant pas « zéro euro », et c'est pourquoi il ouvre le menu au lieu d'y figurer comme un montant.** Une carte manquante sans cote coûte zéro et manque quand même ; le cas exige qu'il ne manque *rien* (`p_max_missing = 0`), les autres plafonnent une dépense (`p_max_cost`). Le rapprochement est légitime — on choisit un effort — mais l'assimilation aurait été fausse, et 82 549 impressions sur 166 998 n'ayant pas de cote en euros, elle se serait vue.

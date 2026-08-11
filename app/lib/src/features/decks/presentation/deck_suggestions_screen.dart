@@ -252,13 +252,6 @@ class _CommanderSearchState extends ConsumerState<_CommanderSearch> {
 class _FilterBar extends ConsumerWidget {
   const _FilterBar();
 
-  /// Paliers de budget. Des valeurs fixes plutôt qu'un curseur : on choisit un
-  /// ordre de grandeur, pas un montant au centime près.
-  static const _budgets = <double?>[null, 10, 25, 50, 100];
-
-  String _label(double? value) =>
-      value == null ? 'Tous budgets' : '≤ ${value.round()} €';
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filters = ref.watch(deckFiltersProvider);
@@ -281,33 +274,31 @@ class _FilterBar extends ConsumerWidget {
             ),
             const SizedBox(width: 4),
           ],
-          FilterChip(
-            label: const Text('Constructibles'),
-            selected: filters.buildableOnly,
-            onSelected: (_) => notifier.toggleBuildable(),
-            visualDensity: VisualDensity.compact,
-          ),
-          const SizedBox(width: 8),
-          PopupMenuButton<double?>(
-            initialValue: filters.maxCostEur,
-            onSelected: notifier.setMaxCost,
+          // **Un seul contrôle pour « jusqu'où suis-je prêt à aller ».**
+          // « Constructibles » et le plafond de budget répondaient à la même
+          // question mais se cochaient séparément : on pouvait demander un deck
+          // sans rien à acheter *et* un budget de cinquante euros. « Rien à
+          // acheter » ouvre donc le menu — sans y figurer comme un montant, car
+          // une carte manquante sans cote coûte zéro et manque quand même.
+          PopupMenuButton<DeckBudget>(
+            initialValue: filters.budget,
+            onSelected: notifier.setBudget,
             itemBuilder: (context) => [
-              for (final budget in _budgets)
-                PopupMenuItem(value: budget, child: Text(_label(budget))),
+              for (final budget in DeckBudget.values)
+                PopupMenuItem(value: budget, child: Text(budget.label)),
             ],
-            // **Un chevron, pas un symbole monétaire.** L'euro décrivait ce
-            // qu'on choisit ; il ne disait pas qu'il y avait quelque chose à
-            // choisir, et le contrôle passait pour une étiquette au milieu de
-            // chips qui, eux, se cochent.
+            // Un chevron, pas un symbole monétaire : l'euro décrivait ce qu'on
+            // choisit, il ne disait pas qu'il y avait quelque chose à choisir.
             child: Chip(
-              label: Text(_label(filters.maxCostEur)),
+              label: Text(filters.budget.shortLabel),
               avatar: const Icon(Icons.expand_more, size: 18),
               visualDensity: VisualDensity.compact,
-              backgroundColor: filters.maxCostEur == null
+              backgroundColor: filters.budget == DeckBudget.any
                   ? null
                   : Theme.of(context).colorScheme.secondaryContainer,
             ),
           ),
+          const SizedBox(width: 8),
           const SizedBox(width: 8),
           // **Une roue plutôt que cinq pastilles.** Elles posaient une question
           // ambiguë — « des decks rouges » ou « uniquement rouges » ? — et ne
@@ -754,7 +745,7 @@ class _NoDeck extends StatelessWidget {
         child: Text(
           filtered
               ? 'Aucun deck ne passe ces filtres.\n'
-                    'Élargissez le budget, les couleurs, ou décochez « Constructibles ».'
+                    'Élargissez le budget ou les couleurs.'
               : 'Aucun deck dans ce format pour l\'instant.\n'
                     'Ajoutez des cartes à votre collection, ou changez de format.',
           textAlign: TextAlign.center,
