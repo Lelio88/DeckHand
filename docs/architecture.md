@@ -1157,6 +1157,16 @@ C'est la règle qui rend un geste annulable, et deux fonctions Postgres la viola
 
 **« Annuler » couvre les trois écritures qui font disparaître ce qu'on regarde** — retirer, corriger l'édition, ranger une carte de la pile à trier. Ajouter n'en a pas besoin : son inverse est le bouton juste en dessous. L'annulation s'exécute après la fermeture de la feuille, donc sur le `ProviderContainer` et non sur `ref`, dont l'état meurt avec le widget ; et la notification porte `persist: false`, faute de quoi Flutter la ferait attendre un balayage en recouvrant les commandes du classeur.
 
+### La dictée précise l'édition, sans la demander
+
+Deux écrans jumeaux — même liste de lignes, mêmes quantités, même « Ajouter (N) », même validation en bloc — n'enregistraient pas la même chose. L'étalement enregistrait l'édition et la finition de chaque carte ; la dictée n'enregistrait qu'un `oracle_id`, si bien que **tout ce qui passait par elle atterrissait dans la pile à trier**.
+
+Ce n'était pas grave tant qu'on croyait qu'aucune carte n'était rangeable. Mais 274 des 278 lignes de la collection réelle sont précisées, et c'est `soleEditions` qui les a produites toute seule à l'étalement : la dictée était donc la seule voie qui fabriquait systématiquement du travail pour plus tard.
+
+**Ce qui a été retenu — et ce qui a été écarté.** La parité complète (sélecteur d'édition + puce de finition sur chaque ligne) se heurte à la nature de l'écran : un modal s'ouvrirait pendant que `SpeechService` écoute encore, et les cartes s'accumuleraient derrière lui ; il faudrait suspendre l'écoute puis la reprendre. Or l'argument « mains occupées » plaide contre les **gestes**, pas contre le fait de **savoir**. La dictée appelle donc `soleEditions` sur ce qui vient d'être entendu — groupé par langue, au plus deux requêtes par énoncé — et retient l'édition des cartes qui n'en admettent qu'une. Elle l'**annonce** sur la tuile, comme l'exige le garde-fou §IV.8 pour une édition posée sans geste. Corriger reste l'affaire du classeur, et une panne du catalogue renvoie simplement à l'état d'avant : la carte part sans édition, jamais perdue.
+
+**Un défaut trouvé en écrivant le test.** `dispose()` appelait `ref.read(speechServiceProvider).stop()`, ce que Riverpod refuse — « Using "ref" when a widget is about to or has been unmounted is unsafe », `ref` s'appuyant sur un `BuildContext` qui ne vaut plus rien. Quitter l'écran pouvait donc laisser l'écoute ouverte, et avec elle l'audio qui continue de sortir de l'appareil vers le moteur du système. Le service est désormais retenu dans un champ dès le montage, remède que Riverpod indique lui-même. L'écran de dictée n'avait aucun test ; il en a cinq.
+
 ### Ce qui a été vérifié et laissé tel quel
 
 `cupertino_icons` ne figure dans aucune ligne de `lib/` ni de `test/`, et son retrait a pourtant été **annulé** : `flutter build web` avertit alors « Expected to find fonts for (MaterialIcons, packages/cupertino_icons/CupertinoIcons) ». La référence vient du framework, par les widgets Cupertino que Flutter monte pour la sélection de texte — chercher les occurrences dans le code du projet ne pouvait pas la voir. Le coût est nul de toute façon : la police est réduite de 257 628 à 1 472 octets par l'élagage d'icônes.

@@ -22,7 +22,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../printings/data/printing_repository.dart';
+import '../../printings/domain/card_printing.dart';
 import '../../printings/presentation/card_art_view.dart';
+import '../../printings/presentation/printing_picker.dart' show PrintingChoice;
 import '../data/speech_service.dart';
 import '../domain/dictation_parser.dart';
 
@@ -39,6 +42,16 @@ class _Heard {
   int quantity;
   final CardHit? match;
   final List<CardHit> alternatives;
+
+  /// Édition retenue quand le catalogue n'en connaît qu'une.
+  ///
+  /// **Elle se remplit seule, et ne se touche pas.** La dictée est la voie
+  /// « mains occupées » : un sélecteur modal s'y ouvrirait pendant que le
+  /// micro écoute encore, et les cartes s'accumuleraient derrière lui. Mais
+  /// « ne pas demander de geste » n'oblige pas à ne rien savoir — quand une
+  /// carte n'admet qu'une seule édition, la désigner n'apporte aucune
+  /// information que la carte elle-même ne porte déjà.
+  PrintingChoice? printing;
 
   bool get isResolved => match != null;
 }
@@ -86,24 +99,36 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
   bool _micActive = false;
   Timer? _micWatch;
 
+  /// Le moteur, retenu dès le montage.
+  ///
+  /// **`ref` est inutilisable dans `dispose`** : Riverpod s'appuie sur le
+  /// `BuildContext`, qui ne vaut plus rien une fois le widget démonté, et lève
+  /// « Using "ref" when a widget is about to or has been unmounted is unsafe ».
+  /// L'arrêt du micro passait par là — quitter l'écran pouvait donc laisser
+  /// l'écoute ouverte, et avec elle l'audio qui continue de sortir de
+  /// l'appareil. Le retenir dans un champ est le remède que Riverpod indique
+  /// lui-même.
+  late final SpeechService _speech = ref.read(speechServiceProvider);
+
   @override
   void initState() {
     super.initState();
     _micWatch = Timer.periodic(const Duration(milliseconds: 700), (_) {
-      final active = ref.read(speechServiceProvider).isListening;
-      if (active != _micActive && mounted) setState(() => _micActive = active);
+      if (!mounted) return;
+      final active = _speech.isListening;
+      if (active != _micActive) setState(() => _micActive = active);
     });
   }
 
   @override
   void dispose() {
     _micWatch?.cancel();
-    ref.read(speechServiceProvider).stop();
+    unawaited(_speech.stop());
     super.dispose();
   }
 
   Future<void> _toggleListening() async {
-    final speech = ref.read(speechServiceProvider);
+    final speech = _speech;
 
     if (_listening) {
       await speech.stop();
@@ -209,6 +234,59 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
       }
       _partial = '';
     });
+    await _fillSoleEditions();
+  }
+
+  /// Précise d'office les cartes qui n'admettent qu'une seule édition.
+  ///
+  /// **C'est ce qui empêche la dictée de fabriquer du travail pour plus tard.**
+  /// L'étalement le fait déjà, et c'est ce qui a précisé 274 des 278 lignes de
+  /// la collection réelle ; la dictée, elle, envoyait tout dans la pile à
+  /// trier. Le raisonnement est le même des deux côtés : une liste d'un seul
+  /// élément n'est pas un choix.
+  ///
+  /// Seules les cartes encore sans édition sont demandées, et elles sont
+  /// groupées par langue — au plus deux requêtes par énoncé plutôt qu'une par
+  /// carte. L'échec est sans conséquence : les lignes restent, et les cartes
+  /// rejoignent la pile à trier comme avant.
+  Future<void> _fillSoleEditions() async {
+    final byLang = <String, Set<String>>{};
+    for (final item in _heard) {
+      final match = item.match;
+      if (match == null || item.printing != null) continue;
+      byLang
+          .putIfAbsent(match.matchedLang, () => <String>{})
+          .add(match.oracleId);
+    }
+    if (byLang.isEmpty) return;
+
+    final repository = ref.read(printingRepositoryProvider);
+    final sole = <String, CardPrinting>{};
+    try {
+      for (final entry in byLang.entries) {
+        sole.addAll(
+          await repository.soleEditions(entry.value, lang: entry.key),
+        );
+      }
+    } catch (_) {
+      // Sans édition, la carte part « à trier » — l'état d'avant, jamais une
+      // perte. Rien ne justifie d'interrompre une dictée en cours pour cela.
+      return;
+    }
+
+    if (!mounted || sole.isEmpty) return;
+    setState(() {
+      for (final item in _heard) {
+        final only = sole[item.match?.oracleId];
+        if (only == null) continue;
+        // Une édition qui n'existe qu'en brillante l'est d'office : enregistrer
+        // sa jumelle normale reviendrait à inventer un exemplaire impossible.
+        item.printing ??= PrintingChoice(
+          only,
+          isFoil: !only.hasNonfoil && only.hasFoil,
+        );
+      }
+    });
   }
 
   Future<void> _saveAll() async {
@@ -223,7 +301,12 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
     var added = 0;
     try {
       for (final item in resolved) {
-        await repository.add(item.match!.oracleId, quantity: item.quantity);
+        await repository.add(
+          item.match!.oracleId,
+          quantity: item.quantity,
+          printId: item.printing?.printing.printId,
+          isFoil: item.printing?.isFoil ?? false,
+        );
         added += item.quantity;
       }
       ref.invalidate(collectionProvider);
@@ -411,6 +494,18 @@ class _HeardTile extends StatelessWidget {
                   style: muted,
                   overflow: TextOverflow.ellipsis,
                 ),
+                // **L'édition retenue s'annonce, elle ne se subit pas.** Elle
+                // a été choisie sans geste de l'utilisateur : il faut donc
+                // qu'un coup d'œil suffise à la confronter à ce qui est
+                // imprimé en bas de la carte. C'est la confirmation qu'exige
+                // le garde-fou §IV.8, et le même parti que l'étalement.
+                if (item.printing case final chosen?)
+                  Text(
+                    '${chosen.printing.label}'
+                    '${chosen.isFoil ? ' · brillante' : ''}',
+                    style: muted?.copyWith(color: theme.colorScheme.primary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),
