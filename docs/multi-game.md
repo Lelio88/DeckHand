@@ -17,9 +17,19 @@ gabarits sont cloisonnés par jeu — essayer un cadre Magic sur une carte
 Riftbound doublerait le calcul et le risque de correspondance fortuite.
 
 **L'index d'empreintes est construit** : 1 193 empreintes pour 1 035 cartes,
-aucun échec de téléchargement. 17 cartes (1,6 %) n'en ont aucune — leur
-illustration est partagée avec une autre carte, qui l'a hachée la première ;
-elles seront reconnues sous ce nom-là, limite déjà connue pour Magic.
+aucun échec de téléchargement, et **aucune carte sans empreinte**. Les 17 cartes
+qui n'en avaient pas — leur illustration étant partagée avec une autre carte,
+qui l'avait hachée la première — en ont reçu une par `propagate_shared_art` :
+leur donner la même empreinte est la bonne sémantique, ces cartes étant
+visuellement identiques, et le scan doit les proposer toutes plutôt que
+d'inventer une distinction que l'image ne porte pas.
+
+**Les 80 homonymes sont séparables par l'illustration** — vérifié, pas espéré.
+Quatre-vingts noms Riftbound sont portés par plusieurs cartes réellement
+différentes (161 cartes), et leur ligne de type est identique dans **tous** les
+cas : le nom et le type ne peuvent pas les départager. Leurs empreintes, elles,
+sont distinctes dans les 80 cas — **zéro collision**. La voie choisie pour ce
+jeu peut donc faire le travail qu'on lui demande.
 
 **Et il est servi par jeu.** `art_hash_page` rendait les 50 209 empreintes des
 deux catalogues, quel que soit le jeu choisi : en Riftbound, cinquante
