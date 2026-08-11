@@ -42,6 +42,20 @@ import '../../helpers/fakes.dart';
 const portrait = Size(800, 1000);
 const landscape = Size(800, 400);
 
+/// L'image nette d'une case, parmi les deux que porte chaque carte.
+///
+/// **Une carte se charge en deux temps** : une vignette de 14 Ko d'abord, la
+/// version nette par-dessus. Chercher « l'image » d'une case en trouve donc
+/// deux, et c'est la seconde qui dit ce que la case montre vraiment.
+Image sharpImage(WidgetTester tester, [Finder? within]) {
+  final images = tester
+      .widgetList<Image>(within == null
+          ? find.byType(Image)
+          : find.descendant(of: within, matching: find.byType(Image)))
+      .where((i) => !(i.image as CardImageProvider).url.contains('/small/'));
+  return images.first;
+}
+
 BinderShelfEntry shelfEntry({
   String setCode = 'msh',
   String setName = 'Marvel Super Heroes',
@@ -297,7 +311,7 @@ void main() {
       // d'une autre avant même d'avoir lu son nom.
       await pumpBinder(tester, entries: [shelfEntry(art: _art)]);
 
-      final image = tester.widget<Image>(find.byType(Image));
+      final image = sharpImage(tester);
       expect((image.image as CardImageProvider).url, _art);
       expect(
         image.fit,
@@ -431,15 +445,21 @@ void main() {
       await tester.tap(find.text('Marvel Super Heroes'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(Image), findsOneWidget);
+      // Deux images pour une seule case : la vignette légère et la carte nette
+      // qui la recouvre.
+      expect(find.byType(Image), findsNWidgets(2));
       expect(
         find.textContaining('#2'),
         findsWidgets,
         reason:
             'le numéro reste : le fantôme le complète, il ne le remplace pas',
       );
+      // Les deux images de la case partagent le même voile : on en interroge
+      // une seule, sans quoi le même widget serait trouvé deux fois.
       final ghost = tester.widget<Opacity>(
-        find.ancestor(of: find.byType(Image), matching: find.byType(Opacity)),
+        find
+            .ancestor(of: find.byType(Image), matching: find.byType(Opacity))
+            .first,
       );
       expect(
         ghost.opacity,
@@ -522,7 +542,7 @@ void main() {
       await tester.tap(find.text('Marvel Super Heroes'));
       await tester.pumpAndSettle();
 
-      final image = tester.widget<Image>(find.byType(Image));
+      final image = sharpImage(tester);
       expect(
         (image.image as CardImageProvider).url,
         contains('/normal/'),

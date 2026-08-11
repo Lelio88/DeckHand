@@ -689,6 +689,8 @@ class _AllowLandscape extends StatefulWidget {
 }
 
 class _AllowLandscapeState extends State<_AllowLandscape> {
+  bool _hidden = false;
+
   @override
   void initState() {
     super.initState();
@@ -702,11 +704,33 @@ class _AllowLandscapeState extends State<_AllowLandscape> {
   @override
   void dispose() {
     SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    _showBars();
     super.dispose();
   }
 
+  /// **Les barres du système comptent aussi.** Sur les 408 points d'un
+  /// téléphone couché, l'heure et la barre de gestes en prennent une
+  /// quarantaine — un dixième de la hauteur, soit un dixième de la taille des
+  /// cartes. Elles reviennent d'un glissement depuis le bord, et à la sortie de
+  /// l'écran quoi qu'il arrive.
+  void _sync(bool landscape) {
+    if (landscape == _hidden) return;
+    _hidden = landscape;
+    if (landscape) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      _showBars();
+    }
+  }
+
+  void _showBars() =>
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    _sync(MediaQuery.orientationOf(context) == Orientation.landscape);
+    return widget.child;
+  }
 }
 
 /// Une page de classeur : trois cases sur trois, dans l'ordre des numéros.
@@ -771,59 +795,166 @@ class _Binder extends ConsumerWidget {
       }
     }
 
-    return _AllowLandscape(
-      child: Column(
-        children: [
-          _BinderHeader(entry: entry, setCode: setCode, page: page),
-          // **Les menus de lecture ne survivent pas au paysage.** Ils coûtent
-          // une rangée de cartes sur un écran qui n'en a que trois, pour un
-          // réglage qu'on pose une fois et qu'on retrouve intact en redressant
-          // l'appareil.
-          if (!spread) _ReadingSelector(setCode: setCode),
-          Expanded(
-            child: cells.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              error: (error, _) => StateMessage(
-                icon: Icons.cloud_off,
-                title: 'Page illisible',
-                detail: '$error',
-                onRetry: () => ref.invalidate(binderPageProvider),
-              ),
-              data: (list) => list.isEmpty
-                  ? const StateMessage(
-                      icon: Icons.menu_book_outlined,
-                      title: 'Page vide',
-                      detail: 'Ce classeur n\'a pas de page à cet endroit.',
-                    )
-                  : _Sized(
-                      spread: spread,
-                      child: PageTurner(
-                        // Couché, l'unité qui se tourne est la double page : le
-                        // composant compte en feuilles, la collection en faces.
-                        page: spread ? (left + 1) ~/ 2 : page,
-                        pageCount: spread ? (pages + 1) ~/ 2 : pages,
-                        onTurned: (p) => ref
-                            .read(binderPageNumberProvider.notifier)
-                            .set(spread ? (p * 2 - 1).clamp(1, pages) : p),
-                        builder: (context, sheet) => _PageFace(
-                          setCode: setCode,
-                          page: spread ? sheet * 2 : sheet,
-                          reading: reading,
-                        ),
-                        facingBuilder: !spread
-                            ? null
-                            : (context, sheet) => _PageFace(
-                                setCode: setCode,
-                                page: sheet * 2 - 1,
-                                reading: reading,
-                              ),
-                      ),
-                    ),
+    final sheet = Column(
+      children: [
+        if (!spread) _BinderHeader(entry: entry, setCode: setCode, page: page),
+        // **Les menus de lecture ne survivent pas au paysage.** Ils coûtent
+        // une rangée de cartes sur un écran qui n'en a que trois, pour un
+        // réglage qu'on pose une fois et qu'on retrouve intact en redressant
+        // l'appareil.
+        if (!spread) _ReadingSelector(setCode: setCode),
+        Expanded(
+          child: cells.when(
+            loading: () =>
+                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            error: (error, _) => StateMessage(
+              icon: Icons.cloud_off,
+              title: 'Page illisible',
+              detail: '$error',
+              onRetry: () => ref.invalidate(binderPageProvider),
             ),
+            data: (list) => list.isEmpty
+                ? const StateMessage(
+                    icon: Icons.menu_book_outlined,
+                    title: 'Page vide',
+                    detail: 'Ce classeur n\'a pas de page à cet endroit.',
+                  )
+                : _Sized(
+                    spread: spread,
+                    child: PageTurner(
+                      // Couché, l'unité qui se tourne est la double page : le
+                      // composant compte en feuilles, la collection en faces.
+                      page: spread ? (left + 1) ~/ 2 : page,
+                      pageCount: spread ? (pages + 1) ~/ 2 : pages,
+                      onTurned: (p) => ref
+                          .read(binderPageNumberProvider.notifier)
+                          .set(spread ? (p * 2 - 1).clamp(1, pages) : p),
+                      builder: (context, sheet) => _PageFace(
+                        setCode: setCode,
+                        page: spread ? sheet * 2 : sheet,
+                        reading: reading,
+                      ),
+                      facingBuilder: !spread
+                          ? null
+                          : (context, sheet) => _PageFace(
+                              setCode: setCode,
+                              page: sheet * 2 - 1,
+                              reading: reading,
+                            ),
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
+
+    if (!spread) return _AllowLandscape(child: sheet);
+
+    // **Couché, l'entête se pose dans la marge plutôt qu'au-dessus.** Une
+    // double page ne remplit jamais la largeur d'un écran couché — trois
+    // rangées de cartes réclament de la hauteur, et deux pages n'occupent que
+    // 1,43 fois cette hauteur, quand l'écran en fait 2,2. Le vide est donc
+    // acquis sur les côtés ; l'entête y tient sans coûter une seule rangée de
+    // cartes, là où il en mangeait un sixième en haut.
+    return _AllowLandscape(
+      child: Stack(
+        children: [
+          Positioned.fill(child: sheet),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: _BinderRail(entry: entry, setCode: setCode, page: page),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// L'entête d'un classeur couché, debout dans la marge.
+///
+/// Les mêmes commandes que l'entête horizontal — revenir, savoir où l'on est,
+/// sauter d'une feuille — mais empilées, parce que c'est de la largeur qu'on a
+/// en trop et de la hauteur qu'on manque.
+class _BinderRail extends ConsumerWidget {
+  const _BinderRail({
+    required this.entry,
+    required this.setCode,
+    required this.page,
+  });
+
+  final BinderShelfEntry? entry;
+  final String setCode;
+  final int page;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final pages = entry?.pages ?? 1;
+    final first = spreadStart(page);
+    final label = first < pages ? 'Pages $first-${first + 1}' : 'Page $first';
+
+    return SizedBox(
+      width: 132,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            IconButton(
+              tooltip: 'Retour à l\'étagère',
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => ref.read(openBinderProvider.notifier).close(),
+            ),
+            const Spacer(),
+            Text(
+              entry?.setName ?? setCode.toUpperCase(),
+              style: theme.textTheme.titleSmall,
+              maxLines: 3,
+            ),
+            const SizedBox(height: 4),
+            InkWell(
+              onTap: pages <= 1
+                  ? null
+                  : () => _askPage(context, ref, page: page, pages: pages),
+              child: Text(
+                pages > 1 ? '$label sur $pages  ›' : label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: pages > 1
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Double page précédente',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: first <= 1
+                      ? null
+                      : () => ref
+                            .read(binderPageNumberProvider.notifier)
+                            .set(first - 2),
+                ),
+                IconButton(
+                  tooltip: 'Double page suivante',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed: first + 2 > pages
+                      ? null
+                      : () => ref
+                            .read(binderPageNumberProvider.notifier)
+                            .set(first + 2),
+                ),
+              ],
+            ),
+            const Spacer(),
+          ],
+        ),
       ),
     );
   }

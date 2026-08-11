@@ -31,6 +31,9 @@ const String _artCrop = '/art_crop/';
 /// Carte entière, cadre et texte compris — 488 × 680 chez Scryfall.
 const String _normal = '/normal/';
 
+/// La même carte en 146 × 204. Mesuré : **14 Ko contre 99,6 Ko**.
+const String _small = '/small/';
+
 /// L'image de la carte entière, à partir de celle de son illustration.
 ///
 /// Rend `null` quand l'illustration est inconnue, et l'URL telle quelle si elle
@@ -40,4 +43,24 @@ String? fullCardImage(String? artCropUrl) {
   if (artCropUrl == null || artCropUrl.isEmpty) return null;
   if (!artCropUrl.contains(_artCrop)) return artCropUrl;
   return artCropUrl.replaceFirst(_artCrop, _normal);
+}
+
+/// La version légère de la même carte, ou `null` si l'URL n'en a pas.
+///
+/// **Ce qu'elle sert à faire : donner à voir tout de suite.** Une feuille de
+/// classeur charge neuf cartes, une double page dix-huit ; à 99,6 Ko l'unité,
+/// cela fait 1,8 Mo avant que la page ne veuille dire quoi que ce soit. La même
+/// page en 146 × 204 pèse 126 Ko — sept fois moins — et suffit largement à
+/// reconnaître ses propres cartes, ce qui est tout ce qu'on demande à une case
+/// de classeur.
+///
+/// Elle ne remplace donc pas la grande : elle la précède. La petite s'affiche
+/// dès qu'elle arrive, la grande se pose par-dessus quand elle est là, et le
+/// surcoût de 14 Ko n'est payé qu'une fois — les deux tailles vont au cache.
+String? previewCardImage(String? url) {
+  if (url == null || url.isEmpty) return null;
+  for (final size in const [_normal, _artCrop]) {
+    if (url.contains(size)) return url.replaceFirst(size, _small);
+  }
+  return null;
 }

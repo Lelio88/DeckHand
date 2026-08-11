@@ -16,6 +16,14 @@
 ///
 /// **L'ordre est : disque, puis réseau, puis écriture du disque.** Un défaut de
 /// cache n'est jamais bloquant, et une erreur d'écriture ne se voit pas.
+///
+/// **Et la carte se montre avant d'être nette.** Scryfall sert la même carte en
+/// 146 × 204 pour 14 Ko, contre 99,6 Ko en 488 × 680 : une feuille de classeur
+/// devient donc lisible pour 126 Ko au lieu de 900, une double page pour 250 Ko
+/// au lieu de 1,8 Mo. La petite s'affiche dès qu'elle arrive, la grande se pose
+/// par-dessus quand elle est là. On ne troque rien : la version nette finit
+/// toujours par s'afficher, elle cesse simplement d'être une condition pour
+/// voir quelque chose.
 library;
 
 import 'dart:async';
@@ -26,6 +34,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/request_timeout.dart';
+import '../features/printings/domain/scryfall_image.dart';
 import 'image_store.dart';
 
 /// L'image d'une carte, ou son absence.
@@ -61,6 +70,30 @@ class CardImage extends StatelessWidget {
     final blank = placeholder ?? const SizedBox.shrink();
     if (source == null || source.isEmpty) return blank;
 
+    final preview = previewCardImage(source);
+    if (preview == null) return _full(context, source, blank);
+
+    // La vignette tient toute la place sous la grande : quand celle-ci arrive,
+    // elle la recouvre exactement, sans que rien ne bouge.
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        Positioned.fill(
+          child: _Sharp(
+            url: preview,
+            fit: fit,
+            // La vignette n'a pas d'espace réservé à elle : elle occupe celui
+            // de la grande, sans quoi la case changerait de taille en cours de
+            // chargement.
+            placeholder: blank,
+          ),
+        ),
+        _full(context, source, blank),
+      ],
+    );
+  }
+
+  Widget _full(BuildContext context, String source, Widget blank) {
     return Image(
       image: CardImageProvider(source),
       width: width,
@@ -80,6 +113,33 @@ class CardImage extends StatelessWidget {
       errorBuilder: (context, _, _) => errorBuilder?.call(context) ?? blank,
     );
   }
+}
+
+/// La vignette seule, sans fondu ni repli bavard.
+///
+/// Elle n'a pas à annoncer son échec : la grande arrive derrière, et deux
+/// messages d'erreur pour une même carte en feraient un défaut là où il n'y a
+/// qu'une image de plus.
+class _Sharp extends StatelessWidget {
+  const _Sharp({
+    required this.url,
+    required this.fit,
+    required this.placeholder,
+  });
+
+  final String url;
+  final BoxFit fit;
+  final Widget placeholder;
+
+  @override
+  Widget build(BuildContext context) => Image(
+    image: CardImageProvider(url),
+    fit: fit,
+    gaplessPlayback: true,
+    frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
+        frame == null && !wasSynchronouslyLoaded ? placeholder : child,
+    errorBuilder: (context, _, _) => placeholder,
+  );
 }
 
 /// Fournisseur d'image qui regarde le disque avant le réseau.
