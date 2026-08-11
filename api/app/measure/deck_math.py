@@ -43,6 +43,36 @@ GAME = "magic"
 OWNED_FRACTION = 0.6
 
 
+#: Ce qu'est un terrain de base, littéralement comme la fonction éprouvée.
+#:
+#: **Le harnais comptait les terrains de base, la fonction non**, et l'écart
+#: était mis au compte de la fonction. C'est l'inverse : la migration 034 sort
+#: les terrains de base de *tout* le calcul — attendues, possédées, manquantes,
+#: coût — parce qu'on ne les achète pas, on les prend dans la boîte. Les compter
+#: donnait 30 % de complétion à une collection qui ne partage avec un deck que
+#: ses Plaines, et rendait le classement muet.
+#:
+#: Le prédicat est recopié plutôt que dérivé : deux chemins vers le même nombre
+#: n'en sont plus qu'un s'ils lisent la même définition. S'il change d'un côté
+#: sans l'autre, c'est précisément ce que ce script doit faire apparaître.
+#:
+#: `LIKE` et non une égalité : couvre « Basic Land — Plains » comme « Basic Snow
+#: Land — Island », sans attraper les terrains légendaires ni les bicolores, qui
+#: eux s'achètent vraiment.
+_BASIC_LAND = "c.type_line LIKE 'Basic Land%'"
+
+
+def _basic_land_sql() -> str:
+    """Le prédicat, prêt à être inséré dans une requête paramétrée.
+
+    Le `%` du `LIKE` doit être doublé : psycopg lit ce caractère comme le début
+    d'un marqueur de paramètre et refuse la requête. Le doublement se fait ici
+    plutôt que dans la constante, pour que celle-ci reste lisible et se compare
+    à l'œil avec la migration dont elle est la copie.
+    """
+    return _BASIC_LAND.replace("%", "%%")
+
+
 @dataclass(frozen=True)
 class Suggestion:
     deck_id: str
@@ -51,6 +81,9 @@ class Suggestion:
     owned: int
     missing: int
     cost: float
+    #: Terrains de base du deck, comptés à part et **hors** des quatre nombres
+    #: ci-dessus. Voir `_BASIC_LAND` pour ce que cela recouvre.
+    basics: int = 0
 
 
 def collection_of(conn: psycopg.Connection, email: str) -> str:
@@ -83,8 +116,22 @@ def collection_of(conn: psycopg.Connection, email: str) -> str:
         return created[0]
 
 
-def seed(conn: psycopg.Connection, collection_id: str, fmt: str, game: str) -> tuple[str, list[int]]:
-    """Ajoute une partie d'un deck réel. Rend l'id du deck et les lignes créées.
+@dataclass(frozen=True)
+class Seeded:
+    """Ce qu'une mesure a écrit, et de quoi l'effacer entièrement."""
+
+    deck_id: str
+    #: Lignes de collection créées. Seules celles-là seront supprimées.
+    item_ids: list[int]
+    #: Cartes touchées, pour borner la purge du journal.
+    oracle_ids: list[str]
+    #: Dernier mouvement enregistré **avant** la mesure. Tout ce qui porte un
+    #: identifiant supérieur et concerne ces cartes vient de nous.
+    movement_mark: int
+
+
+def seed(conn: psycopg.Connection, collection_id: str, fmt: str, game: str) -> Seeded:
+    """Ajoute une partie d'un deck réel. Rend de quoi tout défaire.
 
     Le deck est choisi parmi les plus fournis en cartes distinctes : plus il y a
     de lignes, plus il y a d'occasions pour l'arithmétique de dérailler.
@@ -94,8 +141,18 @@ def seed(conn: psycopg.Connection, collection_id: str, fmt: str, game: str) -> t
     après coup les emporterait. En ne supprimant que ce qu'on a créé, une carte
     déjà possédée est laissée intacte — `ON CONFLICT DO NOTHING` fait qu'elle
     n'est même pas touchée.
+
+    **On relève aussi où en est le journal des mouvements.** Écrire dans la
+    collection déclenche un trigger qui consigne chaque entrée et chaque sortie :
+    une mesure laissait donc, pour chaque carte du deck, une acquisition suivie
+    d'une restitution que l'utilisateur n'a jamais faites. Huit cents lignes
+    fantômes pour quatre exécutions. Une mesure ne doit rien laisser derrière
+    elle, pas même dans un journal qu'elle ne regarde pas.
     """
     with conn.cursor() as cur:
+        cur.execute("SELECT COALESCE(MAX(id), 0) FROM public.collection_movements")
+        movement_mark = cur.fetchone()[0]
+
         cur.execute(
             """
             SELECT dc.deck_id
@@ -121,24 +178,39 @@ def seed(conn: psycopg.Connection, collection_id: str, fmt: str, game: str) -> t
             WHERE dc.deck_id = %s AND dc.board = 'main'
             GROUP BY dc.oracle_id
             ON CONFLICT DO NOTHING
-            RETURNING id
+            RETURNING id, oracle_id::text
             """,
             (collection_id, OWNED_FRACTION, deck_id),
         )
-        inserted = [row[0] for row in cur.fetchall()]
+        rows = cur.fetchall()
         conn.commit()
-    return deck_id, inserted
+    return Seeded(
+        deck_id=deck_id,
+        item_ids=[r[0] for r in rows],
+        oracle_ids=[r[1] for r in rows],
+        movement_mark=movement_mark,
+    )
 
 
 def expected(conn: psycopg.Connection, collection_id: str, fmt: str, game: str) -> dict[str, Suggestion]:
-    """Recompte tout, sans passer par la fonction éprouvée."""
+    """Recompte tout, sans passer par la fonction éprouvée.
+
+    **Les terrains de base sont comptés à part, et non ignorés.** Les exclure du
+    total suffirait à faire concorder les deux calculs, mais aveuglerait ce
+    script sur la règle elle-même : si la fonction cessait un jour de les
+    écarter, plus rien ne le signalerait. Ils sont donc dénombrés séparément et
+    confrontés au `basic_lands` que la fonction publie — l'exclusion devient une
+    chose vérifiée plutôt qu'une chose supposée.
+    """
     with conn.cursor() as cur:
         cur.execute(
-            """
+            f"""
             SELECT dc.deck_id, d.name, dc.oracle_id, SUM(dc.quantity)::int,
-                   COALESCE(mine.owned, 0), COALESCE(p.price_eur, 0)
+                   COALESCE(mine.owned, 0), COALESCE(p.price_eur, 0),
+                   bool_or({_basic_land_sql()}) AS is_basic
             FROM public.deck_cards dc
             JOIN public.decks d ON d.id = dc.deck_id
+            JOIN public.cards c ON c.oracle_id = dc.oracle_id
             LEFT JOIN (
                 SELECT oracle_id, SUM(quantity)::int AS owned
                 FROM public.collection_items
@@ -154,21 +226,28 @@ def expected(conn: psycopg.Connection, collection_id: str, fmt: str, game: str) 
         rows = cur.fetchall()
 
     decks: dict[str, dict] = {}
-    for deck_id, name, _oracle, needed, owned, price in rows:
+    for deck_id, name, _oracle, needed, owned, price, is_basic in rows:
         # psycopg rend des UUID, PostgREST des chaînes : sans normalisation les
         # deux calculs ne se rencontrent jamais et tout paraît diverger.
         deck_id = str(deck_id)
-        missing = max(needed - owned, 0)
         acc = decks.setdefault(
-            deck_id, {"name": name, "total": 0, "owned": 0, "missing": 0, "cost": 0.0}
+            deck_id,
+            {"name": name, "total": 0, "owned": 0, "missing": 0, "cost": 0.0, "basics": 0},
         )
+        if is_basic:
+            acc["basics"] += needed
+            continue
+
+        missing = max(needed - owned, 0)
         acc["total"] += needed
         acc["owned"] += needed - missing
         acc["missing"] += missing
         acc["cost"] += missing * float(price)
 
     return {
-        deck_id: Suggestion(deck_id, a["name"], a["total"], a["owned"], a["missing"], a["cost"])
+        deck_id: Suggestion(
+            deck_id, a["name"], a["total"], a["owned"], a["missing"], a["cost"], a["basics"]
+        )
         for deck_id, a in decks.items()
     }
 
@@ -207,6 +286,7 @@ def observed(config: SupabaseConfig, email: str, password: str, fmt: str, game: 
             r["owned_cards"],
             r["missing_cards"],
             float(r["missing_cost_eur"] or 0),
+            r.get("basic_lands") or 0,
         )
         for r in response.json()
     ]
@@ -220,7 +300,7 @@ def compare(seen: list[Suggestion], truth: dict[str, Suggestion]) -> list[str]:
         if t is None:
             faults.append(f"deck inconnu du recalcul : {s.deck_name}")
             continue
-        for field in ("total", "owned", "missing"):
+        for field in ("total", "owned", "missing", "basics"):
             if getattr(s, field) != getattr(t, field):
                 faults.append(
                     f"{s.deck_name} — {field} : annoncé {getattr(s, field)}, "
@@ -231,6 +311,53 @@ def compare(seen: list[Suggestion], truth: dict[str, Suggestion]) -> list[str]:
                 f"{s.deck_name} — coût : annoncé {s.cost:.2f} €, recalculé {t.cost:.2f} €"
             )
     return faults
+
+
+def cleanup(conn: psycopg.Connection, collection_id: str, planted: Seeded) -> int:
+    """Efface les lignes créées **et** la trace qu'elles ont laissée au journal.
+
+    Trois bornes, et chacune sert : au-delà du repère, sur les seules cartes
+    semées, et sur les seules lignes sans édition — la mesure n'en écrit pas
+    d'autres. Un ajout réel fait au même instant depuis le téléphone porterait
+    presque toujours une édition, et de toute façon une autre carte.
+
+    L'ordre importe : le journal d'abord, la collection ensuite. L'inverse
+    ferait consigner la suppression par le trigger, donc créerait la ligne même
+    qu'on cherche à retirer.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM public.collection_movements
+            WHERE collection_id = %s
+              AND id > %s
+              AND print_id IS NULL
+              AND oracle_id = ANY(%s::uuid[])
+            """,
+            (collection_id, planted.movement_mark, planted.oracle_ids),
+        )
+        erased = cur.rowcount
+
+        cur.execute(
+            "DELETE FROM public.collection_items WHERE id = ANY(%s)",
+            (planted.item_ids,),
+        )
+
+        # La suppression vient d'être consignée à son tour : même repère, mêmes
+        # cartes, même absence d'édition.
+        cur.execute(
+            """
+            DELETE FROM public.collection_movements
+            WHERE collection_id = %s
+              AND id > %s
+              AND print_id IS NULL
+              AND oracle_id = ANY(%s::uuid[])
+            """,
+            (collection_id, planted.movement_mark, planted.oracle_ids),
+        )
+        erased += cur.rowcount
+        conn.commit()
+    return erased
 
 
 def main(argv: list[str]) -> int:
@@ -256,19 +383,24 @@ def main(argv: list[str]) -> int:
         if existing:
             print(f"{existing} carte(s) déjà en collection — elles seront préservées.")
 
-        inserted: list[int] = []
+        planted: Seeded | None = None
         try:
-            deck_id, inserted = seed(conn, collection_id, fmt, game)
+            planted = seed(conn, collection_id, fmt, game)
             truth = expected(conn, collection_id, fmt, game)
             seen = observed(config, email, password, fmt, game)
 
-            target = next((s for s in seen if s.deck_id == deck_id), None)
+            target = next((s for s in seen if s.deck_id == planted.deck_id), None)
             print(f"{len(seen)} decks confrontés, format {fmt} ({game}).")
             if target:
                 print(
                     f"Deck de référence « {target.deck_name} » : "
                     f"{target.owned}/{target.total} possédées, "
                     f"{target.missing} manquantes, {target.cost:.2f} €"
+                    + (
+                        f" — {target.basics} terrains de base, hors du compte"
+                        if target.basics
+                        else ""
+                    )
                 )
 
             faults = compare(seen, truth)
@@ -281,14 +413,12 @@ def main(argv: list[str]) -> int:
             print("\nAucun écart : les deux calculs concordent sur tous les decks.")
             return 0
         finally:
-            if inserted:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "DELETE FROM public.collection_items WHERE id = ANY(%s)",
-                        (inserted,),
-                    )
-                    conn.commit()
-                print(f"{len(inserted)} ligne(s) ajoutée(s) pour la mesure, retirées.")
+            if planted and planted.item_ids:
+                erased = cleanup(conn, collection_id, planted)
+                print(
+                    f"{len(planted.item_ids)} ligne(s) ajoutée(s) pour la mesure, "
+                    f"retirées — et {erased} mouvement(s) effacé(s) du journal."
+                )
 
 
 if __name__ == "__main__":
