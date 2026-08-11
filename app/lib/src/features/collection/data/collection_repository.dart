@@ -130,6 +130,35 @@ class CollectionRepository {
     return CollectionSummary.fromJson(rows.first as Map<String, dynamic>);
   }
 
+  /// La collection du compte : son identifiant, et si elle est donnée à lire.
+  ///
+  /// **L'identifiant est celui de la collection, jamais celui du compte.** Il
+  /// sert d'adresse publique — c'est lui qui figurera dans une URL de classeur
+  /// ouvert — et il ne rattache la collection à personne : `owner_id` reste
+  /// invisible à qui n'a pas de compte.
+  Future<Publication> publication() async {
+    final rows = await _client
+        .from('collections')
+        .select('id, is_public')
+        .limit(1)
+        .timedOut();
+    if (rows.isEmpty) return Publication.none;
+    final row = rows.first;
+    return Publication(
+      collectionId: row['id'] as String,
+      isPublic: row['is_public'] as bool? ?? false,
+    );
+  }
+
+  /// Donne la collection à lire, ou la retire.
+  Future<void> publish(String collectionId, {required bool isPublic}) async {
+    await _client
+        .from('collections')
+        .update({'is_public': isPublic})
+        .eq('id', collectionId)
+        .timedOut();
+  }
+
   /// Le journal des mouvements, du plus récent au plus ancien.
   ///
   /// [oracleId] restreint à une carte — « quand ai-je acquis celle-ci ». Sans
@@ -156,6 +185,16 @@ class CollectionRepository {
         .map(CollectionMovement.fromJson)
         .toList(growable: false);
   }
+}
+
+/// L'état de publication d'une collection.
+class Publication {
+  const Publication({required this.collectionId, required this.isPublic});
+
+  final String? collectionId;
+  final bool isPublic;
+
+  static const none = Publication(collectionId: null, isPublic: false);
 }
 
 final collectionRepositoryProvider = Provider<CollectionRepository>(
@@ -188,3 +227,15 @@ final collectionHistoryProvider =
           .watch(collectionRepositoryProvider)
           .history(game: ref.watch(selectedGameProvider), oracleId: oracleId);
     });
+
+/// Publication de la collection du compte.
+///
+/// `autoDispose` : l'information ne vaut que le temps où l'on regarde l'écran
+/// de compte, et elle doit être relue après chaque bascule.
+final publicationProvider = FutureProvider.autoDispose<Publication>((
+  ref,
+) async {
+  final session = ref.watch(sessionProvider).asData?.value;
+  if (session == null) return Publication.none;
+  return ref.watch(collectionRepositoryProvider).publication();
+});

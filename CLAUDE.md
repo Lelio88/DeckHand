@@ -8,7 +8,7 @@ Transformer une collection **physique** de cartes Magic (500–2 000 cartes, ang
 
 **Second jeu, Riftbound** (cartes papier League of Legends) : catalogue ingéré et cloisonné par `cards.game`, prix relevés et decks importés — la boucle saisir → valoriser → proposer y tient. Ce qui reste est d'un autre ordre : la reconnaissance n'a jamais rencontré une carte de papier. Voir [`docs/multi-game.md`](./docs/multi-game.md).
 
-Usage privé (le propriétaire et quelques amis) sur un dépôt public. Ni produit commercial, ni service ouvert.
+Usage privé (le propriétaire et quelques amis) sur un dépôt public. Ni produit commercial, ni service ouvert — **mais une collection peut être donnée à lire.** `collections.is_public` vaut `false` par défaut : publier est un geste explicite et révocable, jamais un effet de bord. Ce qui devient lisible sans compte est ce qu'on possède et où c'est rangé ; `owner_id` reste refusé, si bien qu'une collection publiée ne se rattache à aucun compte. Conséquence sur le garde-fou §IV.2 : l'attribution cesse d'être une case dans un écran que personne n'ouvre — elle devra figurer sur toute page vue par des inconnus.
 
 ## II. Architecture
 
@@ -33,7 +33,7 @@ construire l'index d'empreintes qu'elle télécharge.
 ## IV. Garde-Fous non négociables
 
 1. **EDHREC est interdit.** Ses conditions d'utilisation prohibent explicitement les requêtes automatisées et la republication de contenu. Ses endpoints JSON sont techniquement accessibles — ne jamais les appeler.
-2. **Attribution obligatoire.** TopDeck.gg exige un crédit visible et un lien depuis tout projet consommant son API ; Scryfall l'exige également. Deux niveaux, complémentaires : chaque deck porte le crédit de sa source (`deck_sources`), pour que l'interface ne puisse pas l'oublier en affichant la donnée ; et l'écran « à propos » crédite l'ensemble des sources, y compris Scryfall dont vient tout le catalogue sans qu'aucun écran ne le montre.
+2. **Attribution obligatoire**, et **visible de qui regarde**. TopDeck.gg exige un crédit visible et un lien depuis tout projet consommant son API ; Scryfall l'exige également. Deux niveaux, complémentaires : chaque deck porte le crédit de sa source (`deck_sources`), pour que l'interface ne puisse pas l'oublier en affichant la donnée ; et l'écran « à propos » crédite l'ensemble des sources, y compris Scryfall dont vient tout le catalogue sans qu'aucun écran ne le montre.
 3. **Ne jamais paywaller ni simplement repackager les données Scryfall** — leurs conditions l'interdisent. La valeur ajoutée de DeckHand est le matching collection ↔ decks.
 4. **Respecter les débits.** Scryfall : ≤ 10 req/s, `User-Agent` descriptif obligatoire, préférer les *bulk data* aux appels unitaires. TopDeck.gg : 100 req/min.
 5. **Les prix Scryfall ne changent qu'une fois par jour.** Toute re-interrogation plus fréquente est du gaspillage.

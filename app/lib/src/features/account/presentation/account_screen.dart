@@ -76,6 +76,11 @@ class AccountScreen extends ConsumerWidget {
         const _GamePicker(),
 
         const SizedBox(height: 28),
+        Text('Partage', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        const _Publication(),
+
+        const SizedBox(height: 28),
         const Divider(),
         ListTile(
           contentPadding: EdgeInsets.zero,
@@ -281,6 +286,80 @@ class _GameTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Donner sa collection à lire, ou la reprendre.
+///
+/// **Un interrupteur, pas un jeton.** Publier est un geste explicite et
+/// révocable ; le défaut est de ne rien montrer, et il le reste tant qu'on n'y
+/// touche pas. Ce qui devient lisible est ce qu'on possède et où c'est rangé —
+/// jamais l'adresse du compte, que le serveur refuse de rendre à qui n'est pas
+/// connecté.
+class _Publication extends ConsumerWidget {
+  const _Publication();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final state = ref.watch(publicationProvider);
+
+    return state.when(
+      loading: () => const ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        title: Text('Partage'),
+      ),
+      error: (error, _) => ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.cloud_off),
+        title: const Text('Partage indisponible'),
+        subtitle: Text('$error', maxLines: 2, overflow: TextOverflow.ellipsis),
+      ),
+      data: (publication) {
+        final id = publication.collectionId;
+        if (id == null) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: publication.isPublic,
+              title: const Text('Classeurs consultables sans compte'),
+              subtitle: Text(
+                publication.isPublic
+                    ? 'N\'importe qui peut voir ce que vous possédez et où c\'est rangé.'
+                    : 'Vous seul voyez votre collection.',
+                style: theme.textTheme.bodySmall,
+              ),
+              onChanged: (wanted) async {
+                await ref
+                    .read(collectionRepositoryProvider)
+                    .publish(id, isPublic: wanted);
+                ref.invalidate(publicationProvider);
+              },
+            ),
+            if (publication.isPublic) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Adresse de partage',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              // L'identifiant de la **collection**, et non celui du compte : il
+              // n'ouvre rien d'autre que ce classeur, et ne dit pas à qui il est.
+              SelectableText(id, style: theme.textTheme.bodySmall),
+            ],
+          ],
+        );
+      },
     );
   }
 }

@@ -269,6 +269,26 @@ class FakeCollectionRepository implements CollectionRepository {
   @override
   Future<CollectionSummary> summary({Game game = Game.magic}) async => totals;
 
+  /// Publication de la collection, et ce qu'on a demandé d'en faire.
+  Publication publication_ = const Publication(
+    collectionId: 'collection-1',
+    isPublic: false,
+  );
+
+  /// Dernière bascule demandée. Retenue parce qu'un interrupteur qui ne
+  /// parvient pas au serveur laisse croire à une collection publiée qui ne
+  /// l'est pas — ou l'inverse, plus grave.
+  ({String id, bool isPublic})? lastPublish;
+
+  @override
+  Future<Publication> publication() async => publication_;
+
+  @override
+  Future<void> publish(String collectionId, {required bool isPublic}) async {
+    lastPublish = (id: collectionId, isPublic: isPublic);
+    publication_ = Publication(collectionId: collectionId, isPublic: isPublic);
+  }
+
   /// Ce que le journal rendra, quelle que soit la fenêtre demandée.
   List<CollectionMovement> movements = const [];
 
