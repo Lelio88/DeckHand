@@ -790,12 +790,17 @@ class _ReadingSelector extends ConsumerWidget {
               },
             ),
           ),
+          // **Le fantôme ne s'offre que dans le régime de rangement.** Hors de
+          // lui, les cases vides ne sont pas rendues par le serveur : un
+          // interrupteur qui ne changerait rien à l'écran laisserait croire à
+          // une panne.
+          if (reading.sort.keepsEmptyCells) const _MissingArtToggle(),
         ],
       ),
     );
   }
 
-  InputDecoration _dense(BuildContext context, IconData icon) =>
+  static InputDecoration _dense(BuildContext context, IconData icon) =>
       InputDecoration(
         isDense: true,
         prefixIcon: Icon(icon, size: 18),
@@ -803,6 +808,33 @@ class _ReadingSelector extends ConsumerWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       );
+}
+
+/// Montrer ou non, en transparence, la carte que chaque case vide attend.
+///
+/// Un bouton plutôt qu'un troisième menu : c'est un oui-ou-non, et la ligne des
+/// commandes est déjà pleine — la hauteur qu'elle prendrait est celle des
+/// cartes.
+class _MissingArtToggle extends ConsumerWidget {
+  const _MissingArtToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shown = ref.watch(showMissingArtProvider);
+
+    return IconButton(
+      onPressed: ref.read(showMissingArtProvider.notifier).toggle,
+      isSelected: shown,
+      visualDensity: VisualDensity.compact,
+      icon: Icon(
+        shown ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+        size: 20,
+      ),
+      tooltip: shown
+          ? 'Masquer les cartes manquantes'
+          : 'Montrer les cartes manquantes',
+    );
+  }
 }
 
 class _BinderHeader extends ConsumerWidget {
@@ -889,21 +921,32 @@ class _BinderHeader extends ConsumerWidget {
 /// reconnaître comme sa propre collection. Le nom imprimé devient illisible à
 /// trois par ligne, exactement comme dans un vrai classeur qu'on regarde de
 /// loin : c'est l'image qu'on reconnaît, pas le texte qu'on lit.
-class _Cell extends StatelessWidget {
+class _Cell extends ConsumerWidget {
   const _Cell({required this.cell});
 
   final BinderCell cell;
 
+  /// Ce qu'il reste d'une carte qu'on ne possède pas.
+  ///
+  /// Assez pour la reconnaître, assez peu pour qu'aucune case vide ne se
+  /// confonde avec une case pleine : c'est un manque qu'on montre, pas une
+  /// carte.
+  static const double _ghostOpacity = 0.24;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final empty = cell.isEmpty;
     final radius = BorderRadius.circular(8);
     final image = cell.imageUrl;
 
     if (empty || image == null) {
-      // Une case vide se lit comme telle : creusée, sans image, et portant son
-      // numéro — c'est ce qui manque, et il faut savoir quoi exactement.
+      final ghost = image != null && ref.watch(showMissingArtProvider);
+
+      // **Une case vide dit désormais laquelle.** Elle reste creusée et porte
+      // toujours son numéro, mais « #2 » nommait la case et non la carte : il
+      // fallait chercher ailleurs pour savoir quoi acheter. L'illustration en
+      // fantôme la nomme sans jamais la faire passer pour possédée.
       return DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: radius,
@@ -912,12 +955,48 @@ class _Cell extends StatelessWidget {
           ),
           border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
-        child: Center(
-          child: Text(
-            '#${cell.collectorNumber}',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (ghost)
+                // L'appui long agrandit la carte manquante : à trois par ligne
+                // et à un quart d'opacité, on la reconnaît sans pouvoir la
+                // lire. Toucher la case, en revanche, n'ouvre toujours rien —
+                // il n'y a rien à ajouter ni à retirer d'une carte qu'on ne
+                // possède pas.
+                GestureDetector(
+                  onLongPress: () =>
+                      showCardInFull(context, image, cell.shownName, false),
+                  child: Opacity(
+                    opacity: _ghostOpacity,
+                    child: Image.network(
+                      image,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+              Center(
+                child: Text(
+                  '#${cell.collectorNumber}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    // Sur une illustration, même fantôme, le numéro perdrait
+                    // ses contours clairs.
+                    shadows: ghost
+                        ? [
+                            Shadow(
+                              blurRadius: 4,
+                              color: theme.colorScheme.surface,
+                            ),
+                          ]
+                        : null,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       );

@@ -182,6 +182,28 @@ final binderReadingProvider =
       BinderReadingNotifier.new,
     );
 
+/// Montrer, en transparence, la carte que chaque case vide attend.
+///
+/// **Un numéro ne dit pas ce qui manque.** « #2 » nomme la case, pas la carte :
+/// il fallait chercher ailleurs pour savoir laquelle aller acheter. Le
+/// catalogue portant déjà l'illustration de toutes les cases — `my_binder_page`
+/// part de lui et non de la collection —, la montrer en fantôme ne coûte
+/// aucune requête de plus.
+///
+/// **Le réglage n'entre pas dans la clé des pages**, et c'est délibéré : il ne
+/// change pas les données rendues par le serveur, seulement leur affichage. L'y
+/// mettre ferait retélécharger tout le classeur à chaque bascule.
+class ShowMissingArt extends Notifier<bool> {
+  @override
+  bool build() => true;
+
+  void toggle() => state = !state;
+}
+
+final showMissingArtProvider = NotifierProvider<ShowMissingArt, bool>(
+  ShowMissingArt.new,
+);
+
 /// Une page de classeur. La clé porte l'édition, la page et la lecture : deux
 /// pages voisines sont deux requêtes distinctes, et changer de tri ne réutilise
 /// pas la page précédente.

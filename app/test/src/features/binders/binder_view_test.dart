@@ -347,6 +347,57 @@ void main() {
       expect(find.textContaining('#3'), findsWidgets);
     });
 
+    testWidgets('une case vide montre en fantôme la carte qui manque', (
+      tester,
+    ) async {
+      // « #2 » nomme la case, pas la carte : il fallait chercher ailleurs pour
+      // savoir laquelle acheter. Le catalogue portant déjà l'illustration de
+      // toutes les cases, la montrer ne coûte aucune requête de plus.
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '2', art: _art)],
+      );
+
+      await tester.tap(find.text('Marvel Super Heroes'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Image), findsOneWidget);
+      expect(
+        find.textContaining('#2'),
+        findsWidgets,
+        reason: 'le numéro reste : le fantôme le complète, il ne le remplace pas',
+      );
+      final ghost = tester.widget<Opacity>(
+        find.ancestor(of: find.byType(Image), matching: find.byType(Opacity)),
+      );
+      expect(
+        ghost.opacity,
+        lessThan(0.5),
+        reason: 'une case vide ne doit jamais se confondre avec une pleine',
+      );
+    });
+
+    testWidgets('le fantôme se coupe sans recharger la page', (tester) async {
+      // Le réglage ne change pas ce que le serveur rend : l'inscrire dans la
+      // clé des pages ferait retélécharger le classeur à chaque bascule.
+      final repository = await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '2', art: _art)],
+      );
+
+      await tester.tap(find.text('Marvel Super Heroes'));
+      await tester.pumpAndSettle();
+      final before = repository.requested.length;
+
+      await tester.tap(find.byTooltip('Masquer les cartes manquantes'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Image), findsNothing);
+      expect(repository.requested.length, before);
+    });
+
     testWidgets('le brillant se montre, il ne se dit pas', (tester) async {
       // Un symbole annonce qu'une carte est brillante ; un reflet le montre.
       // C'est ce qu'on reconnaît d'un classeur ouvert — une pochette qui
