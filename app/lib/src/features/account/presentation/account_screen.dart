@@ -168,9 +168,9 @@ class _GamePicker extends ConsumerWidget {
           _GameTile(
             name: game.label,
             detail: switch (game) {
-              Game.magic => '31 634 cartes, 1 028 decks',
+              Game.magic => '32 918 cartes, 1 028 decks',
               Game.riftbound =>
-                'le TCG League of Legends — 1 035 cartes, pas encore de decks',
+                'le TCG League of Legends — 1 035 cartes, 2 500 decks',
             },
             // **Les prix Riftbound sont convertis, et ça se dit ici.** Ils sont
             // relevés en dollars chez TCGplayer ; l'euro affiché passe par le
@@ -189,11 +189,11 @@ class _GamePicker extends ConsumerWidget {
         ],
         Text(
           "Le catalogue, la reconnaissance et les suggestions ne sont pas propres "
-          "à Magic. Riftbound n'a pas encore de decks : sa collection se saisit, "
-          "se consulte et se valorise, mais rien ne dit ce qu'elle permet de "
-          "construire. Une carte cotée seulement en brillante compte pour zéro "
-          "si on la possède en ordinaire — c'est le cas de près de la moitié du "
-          "catalogue, faute de cote et non par oubli.",
+          "à Magic : les deux jeux se saisissent, se valorisent et se confrontent "
+          "à des decks réels. Une réserve pour Riftbound — une carte cotée "
+          "seulement en brillante compte pour zéro si on la possède en ordinaire, "
+          "et c'est le cas de près de la moitié du catalogue, faute de cote et "
+          "non par oubli.",
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
