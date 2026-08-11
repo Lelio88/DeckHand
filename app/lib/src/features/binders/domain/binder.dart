@@ -24,10 +24,10 @@ const int binderPageSize = 9;
 ///
 /// **Deux régimes, et la différence porte sur les cases vides.** Par
 /// [number], le classeur range : les cases vides figurent, parce que la question
-/// posée est « que me manque-t-il ». Par [price], [copies] ou [name], il
-/// inventorie — « mes cartes, de la plus chère à la moins chère » — et une case
-/// vide n'a alors ni valeur, ni exemplaire, ni nom, ni place dans un ordre qui
-/// ignore les numéros. Elle disparaît, et c'est ce que la demande implique : on
+/// posée est « que me manque-t-il ». Par [price], [copies], [recent] ou [name],
+/// il inventorie — « mes cartes, de la plus chère à la moins chère » — et une
+/// case vide n'a alors ni valeur, ni exemplaire, ni date d'entrée, ni nom, ni
+/// place dans un ordre qui ignore les numéros. Elle disparaît, et c'est ce que la demande implique : on
 /// ne regarde plus ce qui manque, on regarde ce qu'on a.
 ///
 /// Le filtre de finition, lui, ne change pas de régime : restreindre au brillant
@@ -44,6 +44,15 @@ enum BinderSort {
   /// case, mais il fallait parcourir le classeur entier pour rassembler les
   /// doublons.
   copies('copies', 'Exemplaires'),
+
+  /// Les dernières cartes entrées en collection d'abord.
+  ///
+  /// **C'est le tri qui vérifie une saisie** : on vient de rentrer un lot, on
+  /// veut le revoir. La date est celle du **dernier ajout** et non de la
+  /// première acquisition — une carte qu'on possédait déjà et dont on ajoute un
+  /// exemplaire vient d'être ajoutée, et resterait sinon introuvable au milieu
+  /// du classeur.
+  recent('recent', 'Ajout'),
   name('name', 'Nom');
 
   const BinderSort(this.id, this.label);
@@ -64,6 +73,7 @@ enum BinderSort {
     BinderSort.number => "Dernière page d'abord",
     BinderSort.price => "Les moins chères d'abord",
     BinderSort.copies => "Les moins nombreuses d'abord",
+    BinderSort.recent => "Les plus anciennes d'abord",
     BinderSort.name => 'De Z à A',
   };
 }

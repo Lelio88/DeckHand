@@ -612,6 +612,20 @@ void main() {
       );
     });
 
+    testWidgets('trier par date d\'ajout atteint le serveur', (tester) async {
+      // Le geste qui vérifie une saisie : « qu'est-ce que je viens de rentrer ».
+      final repository = await openBinder(tester);
+
+      await choose(tester, sortMenu, 'Ajout');
+
+      expect(repository.requested.last.sort, BinderSort.recent);
+      expect(
+        repository.requested.last.descending,
+        isFalse,
+        reason: 'le sens naturel est « les dernières entrées d\'abord »',
+      );
+    });
+
     testWidgets('trier par exemplaires ne saute nulle part', (tester) async {
       // Comme la valeur et le nom, ce tri inventorie : les cases vides ayant
       // disparu, la première page est pleine par construction.
@@ -744,6 +758,72 @@ void main() {
 
       expect(find.text('World War Hulk'), findsOneWidget);
       expect(find.textContaining('page 22'), findsOneWidget);
+    });
+
+    testWidgets('revenir d\'un classeur retrouve le champ tel qu\'on l\'a laissé', (
+      tester,
+    ) async {
+      // Le défaut : ouvrir un classeur démonte l'étagère et emporte le
+      // contrôleur du champ ; en revenant, un nouveau naissait vide alors que
+      // la requête survivait dans son provider. L'écran montrait donc les
+      // résultats d'une recherche dont le champ paraissait effacé, et il
+      // fallait retaper puis vider pour retrouver ses classeurs.
+      final repository = await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '197', owned: 1, art: _art)],
+      );
+      repository.found = const [
+        BinderFind(
+          oracleId: 'o1',
+          name: 'World War Hulk',
+          setCode: 'msh',
+          collectorNumber: '197',
+          page: 22,
+          owned: 1,
+        ),
+      ];
+
+      await tester.enterText(find.byType(TextField), 'hulk');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('World War Hulk'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Retour à l\'étagère'));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller?.text,
+        'hulk',
+        reason: 'le champ et les résultats affichés doivent dire la même chose',
+      );
+      expect(find.text('World War Hulk'), findsOneWidget);
+    });
+
+    testWidgets('effacer le champ ramène les classeurs', (tester) async {
+      final repository = await pumpBinder(tester, entries: [shelfEntry()]);
+      repository.found = const [
+        BinderFind(
+          oracleId: 'o1',
+          name: 'World War Hulk',
+          setCode: 'msh',
+          collectorNumber: '197',
+          page: 22,
+          owned: 1,
+        ),
+      ];
+
+      await tester.enterText(find.byType(TextField), 'hulk');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      // La croix n'apparaissait qu'au prochain rebuild venu d'ailleurs : sans
+      // écoute du contrôleur, elle restait absente pendant la frappe.
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Marvel Super Heroes'), findsOneWidget);
     });
 
     testWidgets('toucher un résultat ouvre le classeur à sa page', (

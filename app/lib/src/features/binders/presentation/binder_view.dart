@@ -83,12 +83,32 @@ class _ShelfSearch extends ConsumerStatefulWidget {
 }
 
 class _ShelfSearchState extends ConsumerState<_ShelfSearch> {
-  final _controller = TextEditingController();
+  late final TextEditingController _controller;
   Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    // **Le champ repart de la recherche en cours, pas de rien.** Ouvrir un
+    // classeur démonte l'étagère et emporte ce contrôleur ; en revenant, un
+    // nouveau naissait vide alors que la requête, elle, survivait dans son
+    // provider. L'écran montrait donc les résultats d'une recherche dont le
+    // champ paraissait effacé, et il fallait retaper puis vider pour retrouver
+    // ses classeurs.
+    _controller = TextEditingController(text: ref.read(binderQueryProvider));
+    // La croix d'effacement dépend du contenu : sans cette écoute, elle
+    // n'apparaissait qu'au prochain rebuild venu d'ailleurs.
+    _controller.addListener(_syncClearButton);
+  }
+
+  void _syncClearButton() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _controller.removeListener(_syncClearButton);
     _controller.dispose();
     super.dispose();
   }
@@ -117,9 +137,10 @@ class _ShelfSearchState extends ConsumerState<_ShelfSearch> {
               : IconButton(
                   icon: const Icon(Icons.close, size: 18),
                   onPressed: () {
+                    // Le débours en cours viserait la requête qu'on efface.
+                    _debounce?.cancel();
                     _controller.clear();
                     ref.read(binderQueryProvider.notifier).set('');
-                    setState(() {});
                   },
                 ),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

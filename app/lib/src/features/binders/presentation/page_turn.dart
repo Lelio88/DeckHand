@@ -81,31 +81,6 @@ const double _curlProfile = 2;
 /// publicitaire ; en deçà, la rotation paraît plate.
 const double _perspective = 0.0016;
 
-/// Inclinaison maximale de la feuille selon l'endroit où on la saisit, en
-/// radians — **quatrième réglage**.
-///
-/// Une page prise par un coin ne se lève pas comme une page prise au milieu :
-/// le coin saisi part le premier, et la feuille penche. Six degrés suffisent à
-/// le faire sentir ; au-delà, la page paraît décrochée de sa reliure.
-const double _maxTilt = 0.11;
-
-/// De combien la feuille penche, selon la hauteur à laquelle on l'a saisie.
-///
-/// [grabY] vaut 0 en haut de la feuille et 1 en bas ; la saisir en son milieu
-/// ne penche rien. L'inclinaison **naît et meurt avec le mouvement**, comme la
-/// courbure : une feuille qui se pose est droite, sinon elle arriverait de
-/// travers sur la pile et resterait ainsi.
-double leafTilt({
-  required double t,
-  required double grabY,
-  double maxTilt = _maxTilt,
-}) {
-  // Prise en bas, la feuille avance par le bas : son sommet retarde, et le
-  // rectangle bascule dans le sens inverse des aiguilles — d'où le signe.
-  final fromCentre = (grabY.clamp(0.0, 1.0) - 0.5) * 2;
-  return -fromCentre * maxTilt * math.sin(t * math.pi);
-}
-
 typedef PageBuilder = Widget Function(BuildContext context, int page);
 
 /// Où poser une lamelle, et de quel angle la pivoter.
@@ -205,13 +180,6 @@ class _PageTurnerState extends State<PageTurner>
   /// Sens du mouvement : `1` pour avancer, `-1` pour reculer, `0` au repos.
   int _direction = 0;
 
-  /// Hauteur à laquelle la feuille a été saisie : 0 en haut, 1 en bas.
-  ///
-  /// Le milieu par défaut, qui ne penche rien — c'est aussi ce que vaut un
-  /// changement de page déclenché par les flèches ou le menu, où il n'y a
-  /// aucun doigt.
-  double _grabY = 0.5;
-
   @override
   void dispose() {
     _controller.dispose();
@@ -220,17 +188,6 @@ class _PageTurnerState extends State<PageTurner>
 
   bool get _canAdvance => widget.page < widget.pageCount;
   bool get _canGoBack => widget.page > 1;
-
-  /// Retient où la feuille a été prise, avant tout mouvement.
-  ///
-  /// Le point de départ et non le point courant : une page tenue par le bas
-  /// reste tenue par le bas, même si la main dérive en chemin. Suivre le doigt
-  /// ferait onduler la feuille au moindre tremblement.
-  void _onDragStart(DragStartDetails details, double height) {
-    _grabY = height <= 0
-        ? 0.5
-        : (details.localPosition.dy / height).clamp(0.0, 1.0);
-  }
 
   void _onDragUpdate(DragUpdateDetails details, double width) {
     if (width <= 0) return;
@@ -281,7 +238,6 @@ class _PageTurnerState extends State<PageTurner>
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onHorizontalDragStart: (d) => _onDragStart(d, height),
           onHorizontalDragUpdate: (d) => _onDragUpdate(d, width),
           onHorizontalDragEnd: (d) => _onDragEnd(d, width),
           child: AnimatedBuilder(
@@ -313,25 +269,15 @@ class _PageTurnerState extends State<PageTurner>
                       child: widget.builder(context, under),
                     ),
                     _CastShadow(t: t),
-                    // **La feuille penche du côté par lequel on l'a prise.**
-                    // Le pivot est posé sur la reliure, à la hauteur de la
-                    // saisie : c'est le point qui ne bouge pas quand on tire
-                    // une page par un coin. Cette inclinaison est appliquée
-                    // par-dessus la géométrie des lamelles, qu'elle ne touche
-                    // pas — le pliage reste le même, seule son assise change.
-                    Transform.rotate(
-                      angle: leafTilt(t: t, grabY: _grabY),
-                      alignment: Alignment(-1, _grabY * 2 - 1),
-                      child: _CurlingLeaf(
-                        t: t,
-                        width: width,
-                        height: height,
-                        front: _Mirrored(
-                          mirrored: !forward,
-                          child: widget.builder(context, widget.page),
-                        ),
-                        back: const _SheetBack(),
+                    _CurlingLeaf(
+                      t: t,
+                      width: width,
+                      height: height,
+                      front: _Mirrored(
+                        mirrored: !forward,
+                        child: widget.builder(context, widget.page),
                       ),
+                      back: const _SheetBack(),
                     ),
                   ],
                 ),
