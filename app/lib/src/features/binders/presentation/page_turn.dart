@@ -41,6 +41,19 @@
 ///
 /// Le geste pilote l'animation, il ne la déclenche pas : la feuille suit le
 /// doigt, et l'on peut revenir en arrière en cours de route.
+///
+/// **En paysage, le classeur s'ouvre à plat.** [facingBuilder] ajoute une face
+/// immobile à côté de celle qui tourne : c'est la double page d'un classeur
+/// posé sur une table. La géométrie ne change pas d'un iota — la feuille pivote
+/// toujours autour de son bord gauche —, mais ce bord tombe désormais au milieu
+/// de l'écran, là où sont les anneaux. La feuille déborde sur la moitié voisine
+/// en se rabattant, et c'est voulu : c'est ce qui fait qu'on la voit passer
+/// par-dessus l'autre page plutôt que disparaître dans une trappe.
+///
+/// **Quelle face tourne dépend du sens.** En avant on rabat la page de droite
+/// vers la gauche ; en arrière on relève celle de gauche vers la droite. Le
+/// miroir qui sert déjà au retour échange les deux moitiés sans autre calcul :
+/// il suffit d'échanger les deux constructeurs.
 library;
 
 import 'dart:math' as math;
@@ -156,11 +169,21 @@ class PageTurner extends StatefulWidget {
     required this.pageCount,
     required this.builder,
     required this.onTurned,
+    this.facingBuilder,
   });
 
   final int page;
   final int pageCount;
+
+  /// La face qui se rabat quand on avance — la page de droite.
   final PageBuilder builder;
+
+  /// La face immobile posée à côté, ou `null` pour une page simple.
+  ///
+  /// Non nulle, le composant affiche une **double page** : deux faces côte à
+  /// côte, reliure au milieu. C'est la seule chose qui distingue le mode
+  /// paysage du mode portrait ici — tout le reste est commun.
+  final PageBuilder? facingBuilder;
 
   /// Appelé quand une feuille a fini de se tourner, jamais pendant le geste :
   /// changer de page à mi-course rechargerait la feuille sous le doigt.
@@ -232,11 +255,18 @@ class _PageTurnerState extends State<PageTurner>
     }
   }
 
+  /// Vrai lorsque deux faces sont montrées côte à côte.
+  bool get _isSpread => widget.facingBuilder != null;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth;
+        // **La largeur de la feuille, pas celle de l'écran.** En double page une
+        // feuille n'occupe qu'une moitié : c'est cette largeur qui sert de
+        // référence au geste comme à la géométrie, faute de quoi il faudrait
+        // parcourir deux largeurs de feuille pour la tourner.
+        final width = _isSpread ? constraints.maxWidth / 2 : constraints.maxWidth;
         final height = constraints.maxHeight;
 
         return GestureDetector(
@@ -250,11 +280,29 @@ class _PageTurnerState extends State<PageTurner>
               // Au repos, la feuille seule : ni lamelles, ni couche superflue,
               // et une grille aussi ordinaire qu'une autre.
               if (_direction == 0 || t == 0) {
-                return widget.builder(context, widget.page);
+                return _atRest(context);
               }
 
               final forward = _direction > 0;
-              final under = widget.page + _direction;
+
+              // En avant, c'est la page de droite qui se rabat ; en arrière,
+              // celle de gauche qui se relève. Le miroir replace les deux
+              // moitiés, il n'y a donc qu'à échanger les rôles.
+              final turning = forward
+                  ? widget.builder
+                  : (widget.facingBuilder ?? widget.builder);
+              // En page simple il n'y a pas de voisine — et la garde compte :
+              // sans elle, le retour en portrait poserait la page courante à
+              // côté d'elle-même.
+              final still = !_isSpread
+                  ? null
+                  : (forward ? widget.facingBuilder : widget.builder);
+              final beneath = forward
+                  ? widget.builder(context, widget.page + 1)
+                  : (widget.facingBuilder ?? widget.builder)(
+                      context,
+                      widget.page - 1,
+                    );
 
               // Tout est calculé pour un retournement vers la gauche ; le retour
               // est le même mouvement vu dans un miroir. Une seule géométrie à
@@ -264,31 +312,62 @@ class _PageTurnerState extends State<PageTurner>
                 transform: forward
                     ? Matrix4.identity()
                     : (Matrix4.identity()..rotateY(math.pi)),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _Mirrored(
-                      mirrored: !forward,
-                      child: widget.builder(context, under),
-                    ),
-                    _CastShadow(t: t),
-                    _CurlingLeaf(
-                      t: t,
-                      width: width,
-                      height: height,
-                      front: _Mirrored(
-                        mirrored: !forward,
-                        child: widget.builder(context, widget.page),
+                child: _beside(
+                  still: still == null
+                      ? null
+                      : _Mirrored(
+                          mirrored: !forward,
+                          child: still(context, widget.page),
+                        ),
+                  sheet: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _Mirrored(mirrored: !forward, child: beneath),
+                      _CastShadow(t: t),
+                      _CurlingLeaf(
+                        t: t,
+                        width: width,
+                        height: height,
+                        front: _Mirrored(
+                          mirrored: !forward,
+                          child: turning(context, widget.page),
+                        ),
+                        back: const _SheetBack(),
                       ),
-                      back: const _SheetBack(),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },
           ),
         );
       },
+    );
+  }
+
+  /// Ce qu'on voit tant qu'aucune feuille ne bouge.
+  Widget _atRest(BuildContext context) {
+    final facing = widget.facingBuilder;
+    if (facing == null) return widget.builder(context, widget.page);
+    return _beside(
+      still: facing(context, widget.page),
+      sheet: widget.builder(context, widget.page),
+    );
+  }
+
+  /// Pose la feuille à droite, sa voisine à gauche.
+  ///
+  /// **Aucun rognage.** La feuille en mouvement sort de sa moitié et passe
+  /// par-dessus l'autre page ; c'est précisément ce qu'on veut voir, et un
+  /// `Row` ne rogne rien par défaut. La voisine est dessinée en premier, donc
+  /// la feuille lui passe devant.
+  Widget _beside({required Widget? still, required Widget sheet}) {
+    if (still == null) return sheet;
+    return Row(
+      children: [
+        Expanded(child: still),
+        Expanded(child: sheet),
+      ],
     );
   }
 }

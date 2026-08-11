@@ -16,8 +16,10 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../common/card_image.dart';
@@ -624,7 +626,80 @@ class _UnsortedCardTile extends ConsumerWidget {
   }
 }
 
+/// Marge d'une feuille, écart entre deux cases, proportion d'une carte.
+const _facePadding = 12.0;
+const _cellSpacing = 8.0;
+const _cardRatio = 0.716;
+
+/// Largeur qu'une face de neuf cases occupe naturellement à cette hauteur.
+///
+/// **Trois rangées de cartes ne s'étirent pas.** Une page de classeur a la
+/// forme que lui donnent ses cartes ; c'est la hauteur qui décide, et la
+/// largeur suit. Sans cela, la double page s'écartait aux deux bords d'un écran
+/// couché en laissant deux cent soixante points de vide au milieu — deux
+/// colonnes isolées, et plus rien qui ressemble à un classeur ouvert.
+double binderFaceWidth(double height) {
+  final cellHeight = (height - _facePadding * 2 - _cellSpacing * 2) / 3;
+  if (cellHeight <= 0) return 0;
+  return cellHeight * _cardRatio * 3 + _cellSpacing * 2 + _facePadding * 2;
+}
+
+/// Numéro de la page de gauche de la double page qui contient [page].
+///
+/// **Les faces s'apparient (1,2), (3,4)…** Un vrai classeur relié montrerait la
+/// première page seule à droite, comme un livre ; celui-ci n'a pas de
+/// couverture, et commencer par une demi-page gâcherait une moitié d'écran pour
+/// une fidélité que personne ne réclame.
+int spreadStart(int page) => page.isOdd ? page : page - 1;
+
+/// Autorise le paysage tant qu'on regarde une page, puis le retire.
+///
+/// **L'application est verrouillée en portrait**, et c'est un bon réglage
+/// partout ailleurs : la saisie, la recherche et les decks sont des colonnes de
+/// texte, et les coucher ne donne rien de plus. Une page de classeur, elle, est
+/// un objet physique dont la forme naturelle est la double page — c'est le seul
+/// écran qui gagne à tourner, donc le seul qui l'autorise.
+///
+/// Le verrou revient en quittant l'écran : si l'appareil est resté couché, le
+/// système le redresse, et l'on ne se retrouve pas avec une étagère en travers
+/// sans avoir rien demandé.
+class _AllowLandscape extends StatefulWidget {
+  const _AllowLandscape({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_AllowLandscape> createState() => _AllowLandscapeState();
+}
+
+class _AllowLandscapeState extends State<_AllowLandscape> {
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 /// Une page de classeur : trois cases sur trois, dans l'ordre des numéros.
+///
+/// **Couché, le classeur s'ouvre à plat.** Deux faces côte à côte, reliure au
+/// milieu, exactement comme un classeur posé sur une table — c'est la forme que
+/// l'objet a dans la vraie vie, et l'écran couché en a la place. Le numéro de
+/// page suit : on se déplace de deux en deux, et « page 3 sur 51 » devient
+/// « pages 3-4 sur 51 ».
 class _Binder extends ConsumerWidget {
   const _Binder({required this.setCode});
 
@@ -634,6 +709,10 @@ class _Binder extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final page = ref.watch(binderPageNumberProvider);
     final reading = ref.watch(binderReadingProvider);
+    // L'orientation, et non la largeur : c'est le geste de tourner l'appareil
+    // qui ouvre le classeur, pas un seuil de pixels qu'on franchirait sans le
+    // vouloir sur une tablette étroite.
+    final spread = MediaQuery.orientationOf(context) == Orientation.landscape;
     final cells = ref.watch(
       binderPageProvider((
         setCode: setCode,
@@ -651,12 +730,18 @@ class _Binder extends ConsumerWidget {
         .firstOrNull;
 
     final pages = entry?.pages ?? 1;
+    // Couché, on regarde deux faces et on en découvre deux : le voisinage à
+    // précharger double.
+    final left = spread ? spreadStart(page) : page;
+    final neighbours = spread
+        ? [left - 2, left - 1, left + 2, left + 3]
+        : [page - 1, page + 1];
 
     // **Seules les feuilles voisines sont préchargées.** Une feuille pèse neuf
     // cartes entières ; en précharger davantage rapatrierait un classeur entier
     // pour en montrer un neuvième. Le `watch` suffit à déclencher la requête et
     // à la garder en cache le temps qu'on reste sur ce classeur.
-    for (final neighbour in [page - 1, page + 1]) {
+    for (final neighbour in neighbours) {
       if (neighbour >= 1 && neighbour <= pages) {
         ref.watch(
           binderPageProvider((
@@ -670,37 +755,82 @@ class _Binder extends ConsumerWidget {
       }
     }
 
-    return Column(
-      children: [
-        _BinderHeader(entry: entry, setCode: setCode, page: page),
-        _ReadingSelector(setCode: setCode),
-        Expanded(
-          child: cells.when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            error: (error, _) => StateMessage(
-              icon: Icons.cloud_off,
-              title: 'Page illisible',
-              detail: '$error',
-              onRetry: () => ref.invalidate(binderPageProvider),
+    return _AllowLandscape(
+      child: Column(
+        children: [
+          _BinderHeader(entry: entry, setCode: setCode, page: page),
+          _ReadingSelector(setCode: setCode),
+          Expanded(
+            child: cells.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              error: (error, _) => StateMessage(
+                icon: Icons.cloud_off,
+                title: 'Page illisible',
+                detail: '$error',
+                onRetry: () => ref.invalidate(binderPageProvider),
+              ),
+              data: (list) => list.isEmpty
+                  ? const StateMessage(
+                      icon: Icons.menu_book_outlined,
+                      title: 'Page vide',
+                      detail: 'Ce classeur n\'a pas de page à cet endroit.',
+                    )
+                  : _Sized(
+                      spread: spread,
+                      child: PageTurner(
+                        // Couché, l'unité qui se tourne est la double page : le
+                        // composant compte en feuilles, la collection en faces.
+                        page: spread ? (left + 1) ~/ 2 : page,
+                        pageCount: spread ? (pages + 1) ~/ 2 : pages,
+                        onTurned: (p) => ref
+                            .read(binderPageNumberProvider.notifier)
+                            .set(spread ? (p * 2 - 1).clamp(1, pages) : p),
+                        builder: (context, sheet) => _PageFace(
+                          setCode: setCode,
+                          page: spread ? sheet * 2 : sheet,
+                          reading: reading,
+                        ),
+                        facingBuilder: !spread
+                            ? null
+                            : (context, sheet) => _PageFace(
+                                setCode: setCode,
+                                page: sheet * 2 - 1,
+                                reading: reading,
+                              ),
+                      ),
+                    ),
             ),
-            data: (list) => list.isEmpty
-                ? const StateMessage(
-                    icon: Icons.menu_book_outlined,
-                    title: 'Page vide',
-                    detail: 'Ce classeur n\'a pas de page à cet endroit.',
-                  )
-                : PageTurner(
-                    page: page,
-                    pageCount: pages,
-                    onTurned: (p) =>
-                        ref.read(binderPageNumberProvider.notifier).set(p),
-                    builder: (context, p) =>
-                        _PageFace(setCode: setCode, page: p, reading: reading),
-                  ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Resserre la double page sur la largeur que ses cartes réclament.
+///
+/// En page simple il n'y a rien à faire : la feuille occupe ce qu'on lui donne.
+class _Sized extends StatelessWidget {
+  const _Sized({required this.spread, required this.child});
+
+  final bool spread;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!spread) return child;
+    return LayoutBuilder(
+      builder: (context, constraints) => Center(
+        child: SizedBox(
+          width: math.min(
+            constraints.maxWidth,
+            binderFaceWidth(constraints.maxHeight) * 2,
+          ),
+          child: child,
         ),
-      ],
+      ),
     );
   }
 }
@@ -739,7 +869,7 @@ class _PageFace extends ConsumerWidget {
       // transparence la page du dessous pendant le retournement.
       decoration: BoxDecoration(color: theme.colorScheme.surface),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(_facePadding),
         child: cells.when(
           loading: () => const SizedBox.shrink(),
           error: (_, _) => const SizedBox.shrink(),
@@ -750,22 +880,40 @@ class _PageFace extends ConsumerWidget {
           // quitte à laisser un peu d'air sur les côtés.
           data: (list) => LayoutBuilder(
             builder: (context, constraints) {
-              const spacing = 8.0;
-              final cellWidth = (constraints.maxWidth - spacing * 2) / 3;
-              final cellHeight = (constraints.maxHeight - spacing * 2) / 3;
-              // Jamais plus large qu'une carte : au-delà, l'image serait
-              // rognée sur les côtés au lieu de l'être en bas.
-              final ratio = (cellWidth / cellHeight).clamp(0.0, 0.716);
+              // Une case ne dépasse jamais la proportion d'une carte : au-delà,
+              // l'image serait rognée sur les côtés au lieu de l'être en bas.
+              const spacing = _cellSpacing;
+              const cardRatio = _cardRatio;
 
-              return GridView.count(
-                crossAxisCount: 3,
-                childAspectRatio: ratio,
-                mainAxisSpacing: spacing,
-                crossAxisSpacing: spacing,
-                // Un défilement vertical intercepterait le geste horizontal du
-                // retournement.
-                physics: const NeverScrollableScrollPhysics(),
-                children: [for (final cell in list) _Cell(cell: cell)],
+              // **La feuille se règle sur la plus contraignante des deux
+              // dimensions.** En portrait c'est la largeur, et la grille
+              // occupait tout ; en paysage, une demi-largeur est large et
+              // basse, et une grille réglée sur la largeur débordait de
+              // beaucoup — trois rangées de cartes hautes dans une moitié
+              // d'écran couché. On part donc de la hauteur disponible, on en
+              // déduit la largeur qu'une carte y autorise, et on garde la plus
+              // petite des deux. Une feuille de classeur ne défile pas.
+              final cellHeight = (constraints.maxHeight - spacing * 2) / 3;
+              final gridWidth = math.min(
+                constraints.maxWidth,
+                cellHeight * cardRatio * 3 + spacing * 2,
+              );
+              final cellWidth = (gridWidth - spacing * 2) / 3;
+
+              return Center(
+                child: SizedBox(
+                  width: gridWidth,
+                  child: GridView.count(
+                    crossAxisCount: 3,
+                    childAspectRatio: cellWidth / cellHeight,
+                    mainAxisSpacing: spacing,
+                    crossAxisSpacing: spacing,
+                    // Un défilement vertical intercepterait le geste horizontal
+                    // du retournement.
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [for (final cell in list) _Cell(cell: cell)],
+                  ),
+                ),
               );
             },
           ),
@@ -983,6 +1131,15 @@ class _BinderHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final pages = entry?.pages ?? 1;
+    final spread = MediaQuery.orientationOf(context) == Orientation.landscape;
+    final first = spread ? spreadStart(page) : page;
+    final step = spread ? 2 : 1;
+    // « Pages 3-4 sur 51 » couché, sauf sur la dernière feuille d'un classeur
+    // au nombre impair de faces : la moitié droite y est vide, l'annoncer
+    // serait promettre une page qui n'existe pas.
+    final label = spread && first < pages
+        ? 'Pages $first-${first + 1} sur $pages'
+        : 'Page $first sur $pages';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
@@ -1011,9 +1168,7 @@ class _BinderHeader extends ConsumerWidget {
                       ? null
                       : () => _askPage(context, ref, page: page, pages: pages),
                   child: Text(
-                    pages > 1
-                        ? 'Page $page sur $pages  ›'
-                        : 'Page $page sur $pages',
+                    pages > 1 ? '$label  ›' : label,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: pages > 1
                           ? theme.colorScheme.primary
@@ -1024,21 +1179,26 @@ class _BinderHeader extends ConsumerWidget {
               ],
             ),
           ),
+          // **Le pas suit ce qu'on voit.** Couché, une flèche fait tourner une
+          // feuille entière — deux faces —, sinon le bouton et le geste ne
+          // feraient pas la même chose sur le même écran.
           IconButton(
-            tooltip: 'Page précédente',
+            tooltip: spread ? 'Double page précédente' : 'Page précédente',
             icon: const Icon(Icons.chevron_left),
-            onPressed: page <= 1
+            onPressed: first <= 1
                 ? null
-                : () =>
-                      ref.read(binderPageNumberProvider.notifier).set(page - 1),
+                : () => ref
+                      .read(binderPageNumberProvider.notifier)
+                      .set(first - step),
           ),
           IconButton(
-            tooltip: 'Page suivante',
+            tooltip: spread ? 'Double page suivante' : 'Page suivante',
             icon: const Icon(Icons.chevron_right),
-            onPressed: page >= pages
+            onPressed: first + step > pages
                 ? null
-                : () =>
-                      ref.read(binderPageNumberProvider.notifier).set(page + 1),
+                : () => ref
+                      .read(binderPageNumberProvider.notifier)
+                      .set(first + step),
           ),
         ],
       ),

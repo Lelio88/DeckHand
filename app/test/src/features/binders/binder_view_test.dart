@@ -32,6 +32,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../helpers/fakes.dart';
 
+/// Un téléphone debout, et le même couché. Les deux ne montrent pas la même
+/// chose : la seconde ouvre le classeur à plat.
+///
+/// La largeur reste celle du banc d'essai par défaut : ces tests portent sur le
+/// contenu du classeur, pas sur son adaptation aux petites largeurs, et la
+/// réduire ferait échouer des vérifications sans rapport avec ce qu'elles
+/// cherchent.
+const portrait = Size(800, 1000);
+const landscape = Size(800, 400);
+
 BinderShelfEntry shelfEntry({
   String setCode = 'msh',
   String setName = 'Marvel Super Heroes',
@@ -90,6 +100,10 @@ class FakeBinderRepository implements BinderRepository {
   List<BinderCell> cells;
   List<UnsortedCard> pile;
 
+  /// Cases propres à une page, quand le test doit distinguer les faces.
+  /// Vide, [cells] répond pour toutes.
+  Map<int, List<BinderCell>> cellsByPage = const {};
+
   /// Ce que le serveur répond quand on lui demande où commencer.
   int firstFilledPage;
 
@@ -143,7 +157,7 @@ class FakeBinderRepository implements BinderRepository {
       finish: finish,
       descending: descending,
     ));
-    return cells;
+    return cellsByPage[page] ?? cells;
   }
 
   @override
@@ -190,13 +204,28 @@ Future<FakeBinderRepository> pumpBinder(
   Object? shelfError,
   FakeCollectionRepository? collection,
   FakePrintingRepository? printings,
+  Map<int, List<BinderCell>> cellsByPage = const {},
+  Size surface = portrait,
 }) async {
+  // **L'orientation est explicite, et il le faut.** Le banc d'essai de Flutter
+  // mesure 800 × 600, donc un écran *couché* : sans ce réglage, tout test du
+  // classeur ouvrirait une double page, et l'on croirait vérifier une feuille
+  // simple en en regardant deux.
+  //
+  // `setSurfaceSize` ne suffit pas — la fenêtre continuait d'annoncer 800 × 600
+  // et la sonde le montrait. C'est `tester.view` qui fait foi ; le rapport de
+  // pixels est ramené à 1 pour que la taille demandée soit celle qu'on lit.
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = surface;
+  addTearDown(tester.view.reset);
   final repository = FakeBinderRepository(
     entries: entries,
     cells: cells,
     pile: pile,
     firstFilledPage: firstFilledPage,
-  )..shelfError = shelfError;
+  )
+    ..shelfError = shelfError
+    ..cellsByPage = cellsByPage;
   collection ??= FakeCollectionRepository();
   collection.totals = CollectionSummary(
     totalCards: 1,
@@ -453,7 +482,8 @@ void main() {
       await tester.tap(find.text('Marvel Super Heroes'));
       await tester.pumpAndSettle();
 
-      final sheen = tester.widget<FoilSheen>(find.byType(FoilSheen));
+      // ignore: avoid_print
+            final sheen = tester.widget<FoilSheen>(find.byType(FoilSheen));
       expect(sheen.foil, isTrue);
       expect(
         find.byIcon(Icons.auto_awesome),
@@ -1059,6 +1089,74 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Ajouter un exemplaire'), findsNothing);
+    });
+  });
+
+  group('couché, le classeur est ouvert à plat', () {
+    /// Un classeur de six faces, chacune reconnaissable à ses numéros.
+    const cellsByPage = {
+      1: [BinderCell(collectorNumber: '11', owned: 0)],
+      2: [BinderCell(collectorNumber: '22', owned: 0)],
+      3: [BinderCell(collectorNumber: '33', owned: 0)],
+      4: [BinderCell(collectorNumber: '44', owned: 0)],
+    };
+
+    Future<FakeBinderRepository> openBinder(
+      WidgetTester tester, {
+      required Size surface,
+    }) async {
+      final repository = await pumpBinder(
+        tester,
+        surface: surface,
+        entries: [shelfEntry(total: 36)],
+        cellsByPage: cellsByPage,
+      );
+      await tester.tap(find.text('Marvel Super Heroes'));
+      await tester.pumpAndSettle();
+      return repository;
+    }
+
+    testWidgets('deux faces côte à côte en paysage', (tester) async {
+      await openBinder(tester, surface: landscape);
+
+      // C'est tout l'objet : un classeur posé à plat montre la page qu'on
+      // quitte et celle qu'on aborde, pas l'une puis l'autre.
+      expect(find.textContaining('#11'), findsWidgets);
+      expect(find.textContaining('#22'), findsWidgets);
+      expect(find.textContaining('Pages 1-2 sur 4'), findsOneWidget);
+    });
+
+    testWidgets('une seule face en portrait', (tester) async {
+      await openBinder(tester, surface: portrait);
+
+      expect(find.textContaining('#11'), findsWidgets);
+      expect(
+        find.textContaining('#22'),
+        findsNothing,
+        reason: 'debout, une feuille en cache une autre',
+      );
+      expect(find.textContaining('Page 1 sur 4'), findsOneWidget);
+    });
+
+    testWidgets('la flèche tourne une feuille entière', (tester) async {
+      await openBinder(tester, surface: landscape);
+
+      await tester.tap(find.byTooltip('Double page suivante'));
+      await tester.pumpAndSettle();
+
+      // Deux faces d'un coup : avancer d'une seule laisserait la page de
+      // droite passer à gauche sans que rien de neuf n'apparaisse.
+      expect(find.textContaining('Pages 3-4 sur 4'), findsOneWidget);
+      expect(find.textContaining('#33'), findsWidgets);
+      expect(find.textContaining('#44'), findsWidgets);
+    });
+
+    testWidgets('la double page tient dans un écran couché', (tester) async {
+      // Une demi-largeur est large et basse : une grille réglée sur la largeur
+      // y empilait trois rangées de cartes hautes et débordait sans un mot.
+      await openBinder(tester, surface: landscape);
+
+      expect(tester.takeException(), isNull);
     });
   });
 
