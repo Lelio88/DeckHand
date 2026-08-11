@@ -49,9 +49,11 @@ const landscape = Size(800, 400);
 /// deux, et c'est la seconde qui dit ce que la case montre vraiment.
 Image sharpImage(WidgetTester tester, [Finder? within]) {
   final images = tester
-      .widgetList<Image>(within == null
-          ? find.byType(Image)
-          : find.descendant(of: within, matching: find.byType(Image)))
+      .widgetList<Image>(
+        within == null
+            ? find.byType(Image)
+            : find.descendant(of: within, matching: find.byType(Image)),
+      )
       .where((i) => !(i.image as CardImageProvider).url.contains('/small/'));
   return images.first;
 }
@@ -147,9 +149,19 @@ class FakeBinderRepository implements BinderRepository {
   /// Nombre de fois que l'étagère a été demandée.
   int shelfCalls = 0;
 
+  /// Collection demandée en dernier — `null` pour celle du compte.
+  ///
+  /// Retenue parce qu'une page publique qui interrogerait la collection du
+  /// visiteur montrerait la sienne sous le nom d'un autre, ou rien du tout.
+  String? lastCollection;
+
   @override
-  Future<List<BinderShelfEntry>> shelf({Game game = Game.magic}) async {
+  Future<List<BinderShelfEntry>> shelf({
+    Game game = Game.magic,
+    String? collection,
+  }) async {
     shelfCalls++;
+    lastCollection = collection;
     final error = shelfError;
     if (error != null) throw error;
     return entries;
@@ -163,7 +175,9 @@ class FakeBinderRepository implements BinderRepository {
     BinderSort sort = BinderSort.number,
     FinishFilter finish = FinishFilter.all,
     bool descending = false,
+    String? collection,
   }) async {
+    lastCollection = collection;
     requested.add((
       setCode: setCode,
       page: page,
@@ -232,14 +246,15 @@ Future<FakeBinderRepository> pumpBinder(
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = surface;
   addTearDown(tester.view.reset);
-  final repository = FakeBinderRepository(
-    entries: entries,
-    cells: cells,
-    pile: pile,
-    firstFilledPage: firstFilledPage,
-  )
-    ..shelfError = shelfError
-    ..cellsByPage = cellsByPage;
+  final repository =
+      FakeBinderRepository(
+          entries: entries,
+          cells: cells,
+          pile: pile,
+          firstFilledPage: firstFilledPage,
+        )
+        ..shelfError = shelfError
+        ..cellsByPage = cellsByPage;
   collection ??= FakeCollectionRepository();
   collection.totals = CollectionSummary(
     totalCards: 1,
@@ -503,7 +518,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // ignore: avoid_print
-            final sheen = tester.widget<FoilSheen>(find.byType(FoilSheen));
+      final sheen = tester.widget<FoilSheen>(find.byType(FoilSheen));
       expect(sheen.foil, isTrue);
       expect(
         find.byIcon(Icons.auto_awesome),

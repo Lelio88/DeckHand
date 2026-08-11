@@ -291,14 +291,23 @@ class _Shelf extends ConsumerWidget {
           final waiting =
               ref.watch(collectionProvider).asData?.value.unspecifiedPrints ??
               0;
+          // **Chez un autre, le vide ne s'explique pas.** Une collection non
+          // partagée rend la même étagère vide qu'une collection sans carte, et
+          // c'est voulu : dire « celle-ci existe mais elle est privée »
+          // confirmerait son existence à qui essaie des adresses au hasard. Les
+          // consignes de saisie, elles, s'adressent à quelqu'un qui n'est pas
+          // là — un visiteur n'a pas d'onglet Ajouter.
+          final readOnly = ref.watch(readOnlyProvider);
           return Column(
             children: [
               const _UnsortedTile(),
               Expanded(
                 child: StateMessage(
                   icon: Icons.inbox_outlined,
-                  title: 'Aucun classeur',
-                  detail: waiting > 0
+                  title: readOnly ? 'Rien à voir ici' : 'Aucun classeur',
+                  detail: readOnly
+                      ? 'Ce classeur ne contient rien, ou n\'est pas partagé.'
+                      : waiting > 0
                       ? 'Un classeur est une édition, et vos cartes n\'en ont '
                             'pas encore. Ouvrez « À trier » ci-dessus pour leur '
                             'en donner une : elles trouveront alors leur case.'
@@ -312,7 +321,10 @@ class _Shelf extends ConsumerWidget {
         }
         return Column(
           children: [
-            const _ShelfSearch(),
+            // La recherche passe par une fonction qui ne connaît que la
+            // collection du visiteur : chez un autre, elle ne trouverait rien
+            // et le laisserait croire à une collection vide.
+            if (!ref.watch(readOnlyProvider)) const _ShelfSearch(),
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(vertical: 4),
@@ -353,7 +365,11 @@ class _UnsortedTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final waiting =
         ref.watch(collectionProvider).asData?.value.unspecifiedPrints ?? 0;
-    if (waiting == 0) return const SizedBox.shrink();
+    // La pile à trier est un travail à faire, pas une chose à montrer : elle
+    // compte les cartes du *visiteur*, et n'aurait aucun sens chez un autre.
+    if (waiting == 0 || ref.watch(readOnlyProvider)) {
+      return const SizedBox.shrink();
+    }
 
     return ListTile(
       onTap: () {
@@ -1479,8 +1495,20 @@ class _Cell extends ConsumerWidget {
       );
     }
 
+    // **Chez quelqu'un d'autre, toucher agrandit au lieu d'agir.** La règle de
+    // l'application est « toucher agit, maintenir montre » ; quand il n'y a
+    // rien à faire, le toucher hérite de ce que fait le maintien plutôt que de
+    // ne rien faire — un geste sans effet se lit comme une panne.
+    final readOnly = ref.watch(readOnlyProvider);
+    void enlarge() => showCardImage(
+      context,
+      imageUrl: image,
+      title: cell.shownName,
+      foil: cell.hasFoil,
+    );
+
     return InkWell(
-      onTap: () => showCellActions(context, cell),
+      onTap: readOnly ? enlarge : () => showCellActions(context, cell),
       // **L'appui long montre la carte en grand.** À trois par ligne, le texte
       // imprimé est illisible — c'est assumé, on reconnaît l'image — mais lire
       // une carte reste parfois nécessaire, et rien ne le permettait.

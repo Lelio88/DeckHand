@@ -28,9 +28,18 @@ class BinderRepository {
   ///
   /// Les 690 autres du catalogue seraient des classeurs vides : l'étagère ne
   /// montre que ce qui a quelque chose dedans.
-  Future<List<BinderShelfEntry>> shelf({Game game = Game.magic}) async {
+  Future<List<BinderShelfEntry>> shelf({
+    Game game = Game.magic,
+    String? collection,
+  }) async {
     final rows = await _client
-        .rpc<List<dynamic>>('my_binder_shelf', params: {'p_game': game.id})
+        .rpc<List<dynamic>>(
+          'my_binder_shelf',
+          // **Nul, c'est la mienne.** Le serveur résout ainsi depuis toujours ;
+          // désigner une collection ne sert qu'à en lire une autre, et il
+          // refusera si elle n'est pas publiée.
+          params: {'p_game': game.id, 'p_collection': collection},
+        )
         .timedOut();
     return rows
         .cast<Map<String, dynamic>>()
@@ -102,6 +111,7 @@ class BinderRepository {
     BinderSort sort = BinderSort.number,
     FinishFilter finish = FinishFilter.all,
     bool descending = false,
+    String? collection,
   }) async {
     final rows = await _client
         .rpc<List<dynamic>>(
@@ -113,6 +123,7 @@ class BinderRepository {
             'p_sort': sort.id,
             'p_finish': finish.id,
             'p_descending': descending,
+            'p_collection': collection,
           },
         )
         .timedOut();
@@ -150,10 +161,37 @@ final binderRepositoryProvider = Provider<BinderRepository>(
 );
 
 /// L'étagère de l'utilisateur, pour le jeu sélectionné.
+/// Collection regardée : `null` pour la sienne, un identifiant pour celle d'un
+/// autre.
+///
+/// **Un seul interrupteur commande tout le classeur.** La vue, ses feuilles,
+/// son étagère et ses gestes se lisent tous à travers lui : une page publique
+/// n'est pas une seconde vue du classeur, c'est la même avec ce provider
+/// renseigné. Le serveur refusera de toute façon une collection non publiée —
+/// ce provider dit ce qu'on demande, il n'accorde rien.
+class ReadCollection extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void look(String? collectionId) => state = collectionId;
+}
+
+final readCollectionProvider = NotifierProvider<ReadCollection, String?>(
+  ReadCollection.new,
+);
+
+/// Vrai quand on regarde la collection d'un autre : rien ne s'y modifie.
+final readOnlyProvider = Provider<bool>(
+  (ref) => ref.watch(readCollectionProvider) != null,
+);
+
 final binderShelfProvider = FutureProvider<List<BinderShelfEntry>>(
   (ref) => ref
       .watch(binderRepositoryProvider)
-      .shelf(game: ref.watch(selectedGameProvider)),
+      .shelf(
+        game: ref.watch(selectedGameProvider),
+        collection: ref.watch(readCollectionProvider),
+      ),
 );
 
 /// Comment le classeur ouvert est lu : l'ordre, et la finition retenue.
@@ -248,6 +286,7 @@ final binderPageProvider =
             sort: args.sort,
             finish: args.finish,
             descending: args.descending,
+            collection: ref.watch(readCollectionProvider),
           );
     });
 

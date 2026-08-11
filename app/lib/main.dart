@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'src/app/home_shell.dart';
 import 'src/config/supabase_config.dart';
 import 'src/features/auth/data/auth_repository.dart';
+import 'src/features/binders/presentation/public_binder_screen.dart';
 import 'src/features/auth/presentation/sign_in_screen.dart';
 
 Future<void> main() async {
@@ -53,11 +54,21 @@ class DeckHandApp extends StatelessWidget {
 ///
 /// La session est restaurée de façon synchrone au démarrage, donc l'écran de
 /// chargement n'apparaît qu'en cas de latence réelle — pas à chaque lancement.
+///
+/// **Une adresse de partage court-circuite tout cela.** Un lien `?c=<id>` ouvre
+/// le classeur désigné sans demander de compte : c'est l'objet même de la
+/// lecture publique, et exiger une connexion pour regarder une collection
+/// donnée à lire la rendrait inutile. Le contrôle n'est pas ici mais en base —
+/// une collection non publiée est refusée par la politique, quel que soit le
+/// chemin.
 class _AuthGate extends ConsumerWidget {
   const _AuthGate();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final shared = collectionFromUrl(Uri.base);
+    if (shared != null) return PublicBinderScreen(collectionId: shared);
+
     final session = ref.watch(sessionProvider);
 
     return session.when(
