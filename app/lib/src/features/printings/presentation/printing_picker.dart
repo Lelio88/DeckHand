@@ -109,6 +109,30 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
   String _query = '';
   late bool _foil = widget.currentIsFoil;
 
+  /// Vrai dès que le code lu a désigné l'édition à notre place.
+  ///
+  /// Le choix se referme sur la feuille, donc au cours d'une construction :
+  /// sans ce drapeau, une reconstruction survenue entre-temps le rejouerait.
+  bool _autoChose = false;
+
+  /// Referme la feuille sur l'édition que le code lu désigne seul.
+  ///
+  /// **Un seul candidat n'est pas un choix**, et le demander revenait à faire
+  /// ouvrir une liste d'un seul élément — le même raisonnement qui précise
+  /// d'office les cartes à édition unique lors d'un étalement. La différence
+  /// tient à ce qui restreint : là le catalogue, ici le code d'extension lu sur
+  /// la carte. Éprouvé sur onze cartes réelles, dix codes lus, aucun faux.
+  ///
+  /// Le geste reste réversible : l'édition d'une case se corrige depuis le
+  /// classeur, et c'est là qu'on verra si la lecture s'est trompée.
+  void _acceptSoleReading(CardPrinting only) {
+    _autoChose = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pop(PrintingChoice(only, isFoil: _foil));
+    });
+  }
+
   @override
   void dispose() {
     _debounce?.cancel();
@@ -235,6 +259,19 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                 final readCount = read == null
                     ? 0
                     : matching.where((p) => p.setCode == read).length;
+
+                // **Le code lu tranche quand il ne laisse qu'une case.** Sur
+                // une carte rééditée treize fois, c'est la différence entre une
+                // édition précisée et une carte qui atterrit « à trier ». On ne
+                // le fait qu'à l'ajout : rouvrir le sélecteur pour corriger une
+                // édition doit laisser choisir, sinon la correction serait
+                // impossible.
+                if (!_autoChose &&
+                    readCount == 1 &&
+                    widget.currentPrintId == null &&
+                    _query.isEmpty) {
+                  _acceptSoleReading(shown.first);
+                }
 
                 return ListView.builder(
                   controller: scrollController,

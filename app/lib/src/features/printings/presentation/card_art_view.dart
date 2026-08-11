@@ -1,4 +1,4 @@
-/// Aperçu d'une carte, au maintien du doigt.
+/// La carte en grand, au maintien du doigt — un seul aperçu pour l'application.
 ///
 /// **Reconnaître sa carte, c'est la voir.** Une reconnaissance — photo ou
 /// dictée — ne rend qu'un nom, et un nom ne suffit pas toujours à décider : deux
@@ -12,14 +12,23 @@
 /// de règles —, en particulier devant une liste de cartes manquantes où la
 /// question est « qu'est-ce que ça m'apporterait ? ». Scryfall sert la carte
 /// complète au même chemin que l'illustration : il suffit de substituer la
-/// taille dans l'URL, sans rien changer au catalogue.
+/// taille dans l'URL, sans rien changer au catalogue (voir [fullCardImage]).
 ///
-/// **Plein écran, puisque le geste est fugace.** L'aperçu se ferme dès qu'on
-/// relâche : il n'a pas à ménager la place de ce qu'il recouvre, et une carte
-/// lisible vaut mieux qu'une vignette polie.
+/// C'est vrai jusque dans le sélecteur d'édition, qui montrait l'illustration
+/// recadrée. La question qu'on y pose est « laquelle de ces trente Foudre
+/// est-ce que je tiens ? » — et deux impressions partagent souvent la même
+/// illustration sans partager leur cadre, leur symbole d'extension ni leur
+/// numéro. Le recadrage effaçait précisément ce qui les départage.
 ///
-/// Le geste est celui qu'emploie déjà le sélecteur d'édition — maintenir la
-/// ligne — pour qu'il n'y en ait qu'un seul à apprendre dans l'application.
+/// **Un seul geste, un seul objet, une seule sortie.** L'appui long ouvre
+/// l'aperçu partout ; taper la carte le referme partout. La croix a été
+/// écartée : elle prendrait de la place sur ce qu'on est venu regarder, et la
+/// marge seule ne suffisait pas — à douze pixels d'écart, la zone de sortie
+/// était de quelques pixels sur une carte qui remplit le cadre.
+///
+/// **Le cadre épouse la carte, pas l'écran.** Une carte fait 63 × 88 mm : sans
+/// ce rapport, le reflet d'une brillante couvrait toute la boîte de dialogue et
+/// la carte flottait au milieu d'un rectangle irisé.
 ///
 /// **L'illustration se charge à la demande, jamais d'avance.** Une liste de
 /// vingt cartes dictées déclencherait vingt requêtes vers Scryfall pour des
@@ -30,8 +39,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/printing_repository.dart';
+import '../domain/scryfall_image.dart';
+import 'foil_decoration.dart';
+
+/// Rapport d'une vraie carte : 63 × 88 mm.
+const double _cardAspectRatio = 63 / 88;
+
+const BorderRadius _cardRadius = BorderRadius.all(Radius.circular(14));
 
 /// Ouvre l'aperçu de la carte désignée par [oracleId].
+///
+/// À employer quand on ne connaît pas l'URL de l'image — c'est le cas de tout
+/// écran qui manipule une carte sans manipuler une impression précise : une
+/// liste de courses, un candidat de reconnaissance, une ligne de deck.
 ///
 /// [lang] restreint aux impressions de cette langue lorsqu'elle est connue —
 /// l'illustration est la même, mais le choix évite de rapatrier deux fois la
@@ -47,6 +67,7 @@ Future<void> showCardArt(
   required String title,
   String? lang,
   String? printId,
+  bool foil = false,
 }) {
   return showDialog<void>(
     context: context,
@@ -55,31 +76,51 @@ Future<void> showCardArt(
       title: title,
       lang: lang,
       printId: printId,
+      foil: foil,
     ),
   );
 }
 
-/// URL de la carte entière, dérivée de celle de son illustration.
+/// Ouvre l'aperçu d'une carte dont on tient déjà l'image.
 ///
-/// Scryfall sert la même image sous plusieurs tailles au même chemin. La
-/// substitution évite un appel à l'API pour retrouver une URL qu'on peut
-/// déduire — et le catalogue n'a pas à stocker deux liens par impression.
+/// À employer partout où l'URL est connue — une case de classeur, une ligne du
+/// sélecteur d'édition. Aucun aller-retour au serveur : l'aperçu s'ouvre sur
+/// l'instant, là où [showCardArt] doit d'abord retrouver les impressions.
 ///
-/// Rend l'URL inchangée si le motif attendu est absent : mieux vaut afficher
-/// l'illustration seule qu'un cadre vide.
-String fullCardUrl(String artCropUrl) =>
-    artCropUrl.replaceFirst('/art_crop/', '/normal/');
+/// [imageUrl] est l'URL de l'illustration telle que la sert le catalogue ; la
+/// carte entière en est déduite. Passer directement une URL de carte entière
+/// est sans effet — [fullCardImage] rend inchangée une URL qui ne suit pas la
+/// convention du recadrage —, ce qui évite à l'appelant de savoir laquelle des
+/// deux tailles il tient. Un `null` ouvre quand même l'aperçu, qui annonce
+/// l'absence d'image plutôt que de laisser un geste sans effet.
+Future<void> showCardImage(
+  BuildContext context, {
+  required String? imageUrl,
+  required String title,
+  bool foil = false,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (_) => _Preview(
+      url: fullCardImage(imageUrl),
+      title: title,
+      foil: foil,
+    ),
+  );
+}
 
 class _CardArtDialog extends ConsumerWidget {
   const _CardArtDialog({
     required this.oracleId,
     required this.title,
+    required this.foil,
     this.lang,
     this.printId,
   });
 
   final String oracleId;
   final String title;
+  final bool foil;
   final String? lang;
   final String? printId;
 
@@ -89,82 +130,119 @@ class _CardArtDialog extends ConsumerWidget {
       printingsProvider((oracleId: oracleId, query: '', lang: lang)),
     );
 
-    return Dialog(
-      insetPadding: const EdgeInsets.all(12),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: printings.when(
-        data: (list) {
-          // L'édition possédée d'abord, la première illustrée ensuite : les
-          // plus anciennes impressions n'ont pas toujours d'image, et une
-          // liste sans illustration ne doit pas se solder par un cadre vide
-          // sans explication.
-          final url =
-              list
-                  .where((p) => p.printId == printId)
-                  .map((p) => p.artCropUrl)
-                  .where((u) => u != null)
-                  .firstOrNull ??
-              list
-                  .map((p) => p.artCropUrl)
-                  .where((u) => u != null)
-                  .firstOrNull;
+    return printings.when(
+      data: (list) {
+        // L'édition possédée d'abord, la première illustrée ensuite : les
+        // plus anciennes impressions n'ont pas toujours d'image, et une
+        // liste sans illustration ne doit pas se solder par un cadre vide
+        // sans explication.
+        final url =
+            list
+                .where((p) => p.printId == printId)
+                .map((p) => p.artCropUrl)
+                .where((u) => u != null)
+                .firstOrNull ??
+            list
+                .map((p) => p.artCropUrl)
+                .where((u) => u != null)
+                .firstOrNull;
 
-          if (url == null) return const _Absent("Pas d'illustration connue.");
-          return _FullCard(url: fullCardUrl(url), title: title);
-        },
-        loading: () => const Center(
+        return _Preview(url: fullCardImage(url), title: title, foil: foil);
+      },
+      loading: () => const _Shell(
+        child: Center(
           child: Padding(
             padding: EdgeInsets.all(40),
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
-        error: (_, _) => const _Absent('Illustration indisponible.'),
       ),
+      error: (_, _) => const _Shell(child: _Absent('Carte indisponible.')),
     );
   }
 }
 
 /// La carte, aussi grande que l'écran le permet.
-class _FullCard extends StatelessWidget {
-  const _FullCard({required this.url, required this.title});
+class _Preview extends StatelessWidget {
+  const _Preview({required this.url, required this.title, required this.foil});
 
-  final String url;
+  final String? url;
   final String title;
+  final bool foil;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Flexible(
-          child: ClipRRect(
-            // Le rayon d'une vraie carte, à l'échelle : un coin carré sur une
-            // image de carte se remarque immédiatement.
-            borderRadius: BorderRadius.circular(14),
-            child: Image.network(
-              url,
-              fit: BoxFit.contain,
-              loadingBuilder: (context, child, progress) => progress == null
-                  ? child
-                  : const Padding(
-                      padding: EdgeInsets.all(60),
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-              errorBuilder: (_, _, _) =>
-                  const _Absent('Illustration indisponible.'),
+
+    if (url == null) {
+      return const _Shell(child: _Absent("Pas d'illustration connue."));
+    }
+
+    return _Shell(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: AspectRatio(
+              aspectRatio: _cardAspectRatio,
+              child: ClipRRect(
+                borderRadius: _cardRadius,
+                // **Le reflet suit la carte.** Une brillante vue en grand doit
+                // l'être aussi : c'est le moment où l'on regarde vraiment
+                // l'exemplaire qu'on possède.
+                child: FoilSheen(
+                  foil: foil,
+                  borderRadius: _cardRadius,
+                  child: Image.network(
+                    url!,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, progress) =>
+                        progress == null
+                        ? child
+                        : const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                    errorBuilder: (_, _, _) =>
+                        const _Absent('Carte indisponible.'),
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white),
-        ),
-      ],
+          const SizedBox(height: 10),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Le cadre commun : transparent, et refermé par un appui n'importe où.
+///
+/// L'appui est capté ici plutôt que sur la seule carte pour que le chargement
+/// et les messages d'absence se referment du même geste — trois états qui,
+/// sinon, n'offriraient d'autre sortie que la marge.
+class _Shell extends StatelessWidget {
+  const _Shell({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.all(12),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.of(context).pop(),
+        child: child,
+      ),
     );
   }
 }
@@ -177,22 +255,24 @@ class _Absent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.image_not_supported_outlined,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(height: 10),
-          Text(message, style: theme.textTheme.bodySmall),
-        ],
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.image_not_supported_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 10),
+            Text(message, style: theme.textTheme.bodySmall),
+          ],
+        ),
       ),
     );
   }

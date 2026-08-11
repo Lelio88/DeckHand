@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../collection/data/collection_repository.dart';
 import '../../collection/domain/collection_entry.dart' show FinishFilter;
+import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/foil_decoration.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/binder_repository.dart';
@@ -988,8 +989,11 @@ class _Cell extends ConsumerWidget {
                 // il n'y a rien à ajouter ni à retirer d'une carte qu'on ne
                 // possède pas.
                 GestureDetector(
-                  onLongPress: () =>
-                      showCardInFull(context, image, cell.shownName, false),
+                  onLongPress: () => showCardImage(
+                    context,
+                    imageUrl: image,
+                    title: cell.shownName,
+                  ),
                   child: Opacity(
                     opacity: _ghostOpacity,
                     child: Image.network(
@@ -1028,7 +1032,12 @@ class _Cell extends ConsumerWidget {
       // **L'appui long montre la carte en grand.** À trois par ligne, le texte
       // imprimé est illisible — c'est assumé, on reconnaît l'image — mais lire
       // une carte reste parfois nécessaire, et rien ne le permettait.
-      onLongPress: () => showCardInFull(context, image, cell.shownName, cell.hasFoil),
+      onLongPress: () => showCardImage(
+        context,
+        imageUrl: image,
+        title: cell.shownName,
+        foil: cell.hasFoil,
+      ),
       borderRadius: radius,
       child: ClipRRect(
         borderRadius: radius,
@@ -1089,60 +1098,6 @@ class _Cell extends ConsumerWidget {
       ),
     );
   }
-}
-
-/// La carte en grand, telle qu'on la sortirait de sa pochette.
-///
-/// **Le reflet suit la carte.** Une brillante vue en grand doit l'être aussi :
-/// c'est le moment où l'on regarde vraiment l'exemplaire qu'on possède.
-Future<void> showCardInFull(
-  BuildContext context,
-  String imageUrl,
-  String name,
-  bool foil,
-) {
-  return showDialog<void>(
-    context: context,
-    builder: (context) => Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      backgroundColor: Colors.transparent,
-      child: GestureDetector(
-        // N'importe où hors de la carte referme : une croix prendrait de la
-        // place sur ce qu'on est venu regarder.
-        onTap: () => Navigator.of(context).pop(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // **Le cadre épouse la carte, pas l'écran.** Sans rapport imposé,
-            // le reflet des brillantes couvrait toute la boîte de dialogue —
-            // la carte était au milieu d'un rectangle irisé. Une carte fait
-            // 63 × 88 mm : c'est cette proportion qui borne le reflet.
-            Flexible(
-              child: AspectRatio(
-                aspectRatio: 63 / 88,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: FoilSheen(
-                    foil: foil,
-                    borderRadius: BorderRadius.circular(14),
-                    child: Image.network(imageUrl, fit: BoxFit.cover),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              name,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }
 
 /// Ce qu'on peut faire d'une carte rangée.
