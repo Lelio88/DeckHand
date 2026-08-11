@@ -22,6 +22,8 @@ library;
 
 import 'dart:async';
 
+import 'package:http/http.dart' show ClientException;
+
 /// Délai accordé à un appel réseau avant de le déclarer perdu.
 const Duration requestTimeout = Duration(seconds: 20);
 
@@ -39,8 +41,41 @@ class RequestTimedOut implements Exception {
       'Le serveur n\'a pas répondu. Vérifiez votre connexion, puis réessayez.';
 }
 
+/// Ce qu'on lève quand le serveur n'a pas même pu être joint.
+///
+/// **Ne pas répondre et ne pas être joignable sont deux pannes distinctes**, et
+/// une seule des deux se guérit en attendant. Un délai dépassé laisse espérer
+/// qu'un second essai aboutisse ; un nom de serveur qu'on ne sait pas résoudre
+/// dit que la requête n'est jamais partie — inutile d'insister avant d'avoir
+/// rétabli quelque chose.
+///
+/// Le message nomme le VPN parce que c'est la cause la plus fréquente ici : un
+/// tunnel actif impose son propre résolveur, et celui-ci peut échouer alors même
+/// que le reste du réseau fonctionne. Sans cette mention, l'utilisateur voyait
+/// « ClientException with SocketException: Failed host lookup », qui ne dit rien
+/// à qui tient un téléphone.
+class NetworkUnreachable implements Exception {
+  const NetworkUnreachable();
+
+  @override
+  String toString() =>
+      'Serveur injoignable. Vérifiez votre connexion — un VPN actif peut aussi '
+      'en être la cause.';
+}
+
 extension TimedOutFuture<T> on Future<T> {
-  /// Abandonne au bout de [requestTimeout] plutôt que d'attendre sans fin.
-  Future<T> timedOut([Duration limit = requestTimeout]) =>
-      timeout(limit, onTimeout: () => throw const RequestTimedOut());
+  /// Abandonne au bout de [requestTimeout] plutôt que d'attendre sans fin, et
+  /// traduit l'injoignable en message lisible.
+  ///
+  /// `ClientException` plutôt que `SocketException` : la seconde vient de
+  /// `dart:io`, absent du web, et l'importer casserait cette cible. Le client
+  /// HTTP de Supabase enveloppe de toute façon la première autour de la
+  /// seconde — c'est littéralement ce que l'écran affichait.
+  Future<T> timedOut([Duration limit = requestTimeout]) async {
+    try {
+      return await timeout(limit, onTimeout: () => throw const RequestTimedOut());
+    } on ClientException {
+      throw const NetworkUnreachable();
+    }
+  }
 }

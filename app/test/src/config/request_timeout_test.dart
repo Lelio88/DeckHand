@@ -10,6 +10,7 @@ import 'dart:async';
 
 import 'package:deckhand/src/config/request_timeout.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' show ClientException;
 
 void main() {
   group('une requête qui ne revient jamais', () {
@@ -30,6 +31,36 @@ void main() {
         const RequestTimedOut().toString(),
         contains('Vérifiez votre connexion'),
       );
+    });
+  });
+
+  group('un serveur qu\'on ne sait pas joindre', () {
+    // Vécu sur le téléphone : « ClientException with SocketException: Failed
+    // host lookup: 'udqoptxqipmxqwfhgted.supabase.co' » s'affichait tel quel
+    // dans l'écran Collection. Le nom du serveur n'avait pas pu être résolu —
+    // un VPN actif impose son propre résolveur, qui peut échouer alors que le
+    // reste du réseau fonctionne.
+    test('se dit dans une langue lisible', () async {
+      await expectLater(
+        Future<int>.error(
+          ClientException('Failed host lookup: \'exemple.supabase.co\''),
+        ).timedOut(),
+        throwsA(isA<NetworkUnreachable>()),
+      );
+    });
+
+    test('nomme la cause plutôt que le type Dart', () {
+      final message = const NetworkUnreachable().toString();
+      expect(message, contains('Vérifiez votre connexion'));
+      expect(message, contains('VPN'));
+      expect(message, isNot(contains('Exception')));
+    });
+
+    test('ne se confond pas avec un délai dépassé', () {
+      // Deux pannes distinctes, dont une seule se guérit en attendant : le
+      // délai laisse espérer qu'un second essai aboutisse, l'injoignable dit
+      // que la requête n'est jamais partie.
+      expect(const NetworkUnreachable(), isNot(isA<RequestTimedOut>()));
     });
   });
 
