@@ -819,29 +819,26 @@ class _Binder extends ConsumerWidget {
                     title: 'Page vide',
                     detail: 'Ce classeur n\'a pas de page à cet endroit.',
                   )
-                : _Sized(
-                    spread: spread,
-                    child: PageTurner(
-                      // Couché, l'unité qui se tourne est la double page : le
-                      // composant compte en feuilles, la collection en faces.
-                      page: spread ? (left + 1) ~/ 2 : page,
-                      pageCount: spread ? (pages + 1) ~/ 2 : pages,
-                      onTurned: (p) => ref
-                          .read(binderPageNumberProvider.notifier)
-                          .set(spread ? (p * 2 - 1).clamp(1, pages) : p),
-                      builder: (context, sheet) => _PageFace(
-                        setCode: setCode,
-                        page: spread ? sheet * 2 : sheet,
-                        reading: reading,
-                      ),
-                      facingBuilder: !spread
-                          ? null
-                          : (context, sheet) => _PageFace(
-                              setCode: setCode,
-                              page: sheet * 2 - 1,
-                              reading: reading,
-                            ),
+                : PageTurner(
+                    // Couché, l'unité qui se tourne est la double page : le
+                    // composant compte en feuilles, la collection en faces.
+                    page: spread ? (left + 1) ~/ 2 : page,
+                    pageCount: spread ? (pages + 1) ~/ 2 : pages,
+                    onTurned: (p) => ref
+                        .read(binderPageNumberProvider.notifier)
+                        .set(spread ? (p * 2 - 1).clamp(1, pages) : p),
+                    builder: (context, sheet) => _PageFace(
+                      setCode: setCode,
+                      page: spread ? sheet * 2 : sheet,
+                      reading: reading,
                     ),
+                    facingBuilder: !spread
+                        ? null
+                        : (context, sheet) => _PageFace(
+                            setCode: setCode,
+                            page: sheet * 2 - 1,
+                            reading: reading,
+                          ),
                   ),
           ),
         ),
@@ -850,23 +847,34 @@ class _Binder extends ConsumerWidget {
 
     if (!spread) return _AllowLandscape(child: sheet);
 
-    // **Couché, l'entête se pose dans la marge plutôt qu'au-dessus.** Une
-    // double page ne remplit jamais la largeur d'un écran couché — trois
-    // rangées de cartes réclament de la hauteur, et deux pages n'occupent que
-    // 1,43 fois cette hauteur, quand l'écran en fait 2,2. Le vide est donc
-    // acquis sur les côtés ; l'entête y tient sans coûter une seule rangée de
-    // cartes, là où il en mangeait un sixième en haut.
+    // **Couché, le classeur se colle à droite et les commandes tiennent à
+    // gauche.** Une double page ne remplit jamais la largeur d'un écran couché
+    // — trois rangées de cartes réclament de la hauteur, et deux pages
+    // n'occupent que 1,43 fois cette hauteur quand l'écran en fait 2,2. Le vide
+    // latéral est donc acquis, et le centrer revenait à le partager en deux
+    // bandes également inutiles. Rassemblé d'un seul côté, il devient une
+    // colonne où logent l'entête *et* les réglages de lecture, sans coûter une
+    // seule rangée de cartes.
+    //
+    // Le classeur garde la largeur que ses cartes réclament ; la colonne prend
+    // le reste, quel qu'il soit. Si l'écran devenait trop étroit, c'est elle
+    // qui se réduit — jamais les cartes.
     return _AllowLandscape(
-      child: Stack(
-        children: [
-          Positioned.fill(child: sheet),
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: _BinderRail(entry: entry, setCode: setCode, page: page),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(
+          children: [
+            Expanded(
+              child: _BinderRail(entry: entry, setCode: setCode, page: page),
+            ),
+            SizedBox(
+              width: math.min(
+                constraints.maxWidth,
+                binderFaceWidth(constraints.maxHeight) * 2,
+              ),
+              child: sheet,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -895,19 +903,26 @@ class _BinderRail extends ConsumerWidget {
     final first = spreadStart(page);
     final label = first < pages ? 'Pages $first-${first + 1}' : 'Page $first';
 
-    return SizedBox(
-      width: 132,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
+      // La colonne peut manquer de hauteur sur un écran très bas ou avec de
+      // grands caractères : elle défile plutôt que de déborder.
+      child: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          // Étirée, et non alignée à gauche : les menus de lecture prennent
+          // ainsi toute la colonne, et ce qui ne doit pas s'étirer s'aligne
+          // lui-même.
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            IconButton(
-              tooltip: 'Retour à l\'étagère',
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => ref.read(openBinderProvider.notifier).close(),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                tooltip: 'Retour à l\'étagère',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => ref.read(openBinderProvider.notifier).close(),
+              ),
             ),
-            const Spacer(),
+            const SizedBox(height: 8),
             Text(
               entry?.setName ?? setCode.toUpperCase(),
               style: theme.textTheme.titleSmall,
@@ -952,34 +967,12 @@ class _BinderRail extends ConsumerWidget {
                 ),
               ],
             ),
-            const Spacer(),
+            const SizedBox(height: 12),
+            // **Les réglages de lecture reviennent, à la verticale.** Ils
+            // avaient disparu du paysage faute de hauteur ; ils en trouvent ici,
+            // dans une largeur qu'aucune carte ne peut occuper.
+            _ReadingSelector(setCode: setCode, vertical: true),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Resserre la double page sur la largeur que ses cartes réclament.
-///
-/// En page simple il n'y a rien à faire : la feuille occupe ce qu'on lui donne.
-class _Sized extends StatelessWidget {
-  const _Sized({required this.spread, required this.child});
-
-  final bool spread;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!spread) return child;
-    return LayoutBuilder(
-      builder: (context, constraints) => Center(
-        child: SizedBox(
-          width: math.min(
-            constraints.maxWidth,
-            binderFaceWidth(constraints.maxHeight) * 2,
-          ),
-          child: child,
         ),
       ),
     );
@@ -1132,9 +1125,13 @@ Future<void> _askPage(
 /// où commencer ; hors du rangement, les cases vides ayant disparu, la première
 /// page est toujours pleine et la question ne se pose pas.
 class _ReadingSelector extends ConsumerWidget {
-  const _ReadingSelector({required this.setCode});
+  const _ReadingSelector({required this.setCode, this.vertical = false});
 
   final String setCode;
+
+  /// Empilé plutôt qu'en ligne. C'est la forme qu'il prend dans la colonne d'un
+  /// classeur couché, où la largeur abonde et la hauteur manque.
+  final bool vertical;
 
   Future<void> _jumpToFirstFilled(WidgetRef ref, FinishFilter finish) async {
     final page = await ref
@@ -1151,82 +1148,103 @@ class _ReadingSelector extends ConsumerWidget {
     // entière et débordaient de l'écran — il fallait faire défiler pour
     // atteindre « Brillantes ». La hauteur ainsi rendue va aux cartes, qui
     // étaient coupées en bas de page.
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: DropdownButtonFormField<BinderSort>(
-              initialValue: reading.sort,
-              isDense: true,
-              decoration: _dense(
-                context,
-                reading.descending ? Icons.arrow_upward : Icons.arrow_downward,
+    final controls = <Widget>[
+      _Fit(
+        vertical: vertical,
+        child: DropdownButtonFormField<BinderSort>(
+          initialValue: reading.sort,
+          isDense: true,
+          // **Le menu se règle sur la place disponible, pas sur son plus long
+          // libellé.** Sans cela il prend la largeur de « Numéro — Dernière
+          // page d'abord » et déborde de la colonne latérale.
+          isExpanded: true,
+          decoration: _dense(
+            context,
+            reading.descending ? Icons.arrow_upward : Icons.arrow_downward,
+          ),
+          // **Re-choisir un critère renverse le classeur.** C'est le geste
+          // de l'ancienne liste, perdu en passant aux menus : le libellé de
+          // l'entrée déjà choisie annonce donc ce qu'un second appui fera —
+          // « Dernière page d'abord », « Les moins chères d'abord »,
+          // « De Z à A » — plutôt que de laisser croire à un choix inerte.
+          items: [
+            for (final sort in BinderSort.values)
+              DropdownMenuItem(
+                value: sort,
+                child: Text(
+                  sort == reading.sort && !reading.descending
+                      ? '${sort.label} — ${sort.reversedLabel}'
+                      : sort.label,
+                ),
               ),
-              // **Re-choisir un critère renverse le classeur.** C'est le geste
-              // de l'ancienne liste, perdu en passant aux menus : le libellé de
-              // l'entrée déjà choisie annonce donc ce qu'un second appui fera —
-              // « Dernière page d'abord », « Les moins chères d'abord »,
-              // « De Z à A » — plutôt que de laisser croire à un choix inerte.
-              items: [
-                for (final sort in BinderSort.values)
-                  DropdownMenuItem(
-                    value: sort,
-                    child: Text(
-                      sort == reading.sort && !reading.descending
-                          ? '${sort.label} — ${sort.reversedLabel}'
-                          : sort.label,
-                    ),
-                  ),
-              ],
-              // Le champ fermé ne montre que le critère : la phrase du menu y
-              // déborderait, et n'a de sens qu'au moment de choisir.
-              selectedItemBuilder: (context) => [
-                for (final sort in BinderSort.values)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(sort.label),
-                  ),
-              ],
-              onChanged: (sort) {
-                if (sort == null) return;
-                ref.read(binderReadingProvider.notifier).sortBy(sort);
-                // Le numéro de page d'un ordre n'a aucun sens dans un autre :
-                // la page 42 par numéro n'est pas la page 42 par valeur.
-                ref.read(binderPageNumberProvider.notifier).set(1);
-                if (sort.keepsEmptyCells) {
-                  unawaited(_jumpToFirstFilled(ref, reading.finish));
-                }
-              },
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: DropdownButtonFormField<FinishFilter>(
-              initialValue: reading.finish,
-              isDense: true,
-              decoration: _dense(context, Icons.auto_awesome_outlined),
-              items: [
-                for (final finish in FinishFilter.values)
-                  DropdownMenuItem(value: finish, child: Text(finish.label)),
-              ],
-              onChanged: (finish) {
-                if (finish == null) return;
-                ref.read(binderReadingProvider.notifier).filter(finish);
-                ref.read(binderPageNumberProvider.notifier).set(1);
-                if (reading.sort.keepsEmptyCells) {
-                  unawaited(_jumpToFirstFilled(ref, finish));
-                }
-              },
-            ),
-          ),
-          // **Le fantôme ne s'offre que dans le régime de rangement.** Hors de
-          // lui, les cases vides ne sont pas rendues par le serveur : un
-          // interrupteur qui ne changerait rien à l'écran laisserait croire à
-          // une panne.
-          if (reading.sort.keepsEmptyCells) const _MissingArtToggle(),
-        ],
+          ],
+          // Le champ fermé ne montre que le critère : la phrase du menu y
+          // déborderait, et n'a de sens qu'au moment de choisir.
+          selectedItemBuilder: (context) => [
+            for (final sort in BinderSort.values)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  sort.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: (sort) {
+            if (sort == null) return;
+            ref.read(binderReadingProvider.notifier).sortBy(sort);
+            // Le numéro de page d'un ordre n'a aucun sens dans un autre :
+            // la page 42 par numéro n'est pas la page 42 par valeur.
+            ref.read(binderPageNumberProvider.notifier).set(1);
+            if (sort.keepsEmptyCells) {
+              unawaited(_jumpToFirstFilled(ref, reading.finish));
+            }
+          },
+        ),
       ),
+      SizedBox(width: vertical ? 0 : 10, height: vertical ? 8 : 0),
+      _Fit(
+        vertical: vertical,
+        child: DropdownButtonFormField<FinishFilter>(
+          initialValue: reading.finish,
+          isDense: true,
+          isExpanded: true,
+          decoration: _dense(context, Icons.auto_awesome_outlined),
+          items: [
+            for (final finish in FinishFilter.values)
+              DropdownMenuItem(value: finish, child: Text(finish.label)),
+          ],
+          onChanged: (finish) {
+            if (finish == null) return;
+            ref.read(binderReadingProvider.notifier).filter(finish);
+            ref.read(binderPageNumberProvider.notifier).set(1);
+            if (reading.sort.keepsEmptyCells) {
+              unawaited(_jumpToFirstFilled(ref, finish));
+            }
+          },
+        ),
+      ),
+      // **Le fantôme ne s'offre que dans le régime de rangement.** Hors de
+      // lui, les cases vides ne sont pas rendues par le serveur : un
+      // interrupteur qui ne changerait rien à l'écran laisserait croire à
+      // une panne.
+      if (reading.sort.keepsEmptyCells) const _MissingArtToggle(),
+    ];
+
+    // **Deux menus plutôt que six puces**, et deux dispositions pour un seul
+    // contenu : en ligne debout, empilés couché. Les dupliquer ferait deux
+    // endroits où corriger un libellé.
+    return Padding(
+      padding: vertical
+          ? EdgeInsets.zero
+          : const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      child: vertical
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: controls,
+            )
+          : Row(children: controls),
     );
   }
 
@@ -1238,6 +1256,22 @@ class _ReadingSelector extends ConsumerWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       );
+}
+
+/// Occupe la place disponible, selon la direction de la rangée.
+///
+/// `Expanded` n'a de sens que dans une `Row` : dans une `Column`, il étirerait
+/// un menu sur toute la hauteur.
+class _Fit extends StatelessWidget {
+  const _Fit({required this.vertical, required this.child});
+
+  final bool vertical;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => vertical
+      ? SizedBox(width: double.infinity, child: child)
+      : Expanded(child: child);
 }
 
 /// Montrer ou non, en transparence, la carte que chaque case vide attend.
