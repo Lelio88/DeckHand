@@ -200,39 +200,67 @@ aussi avec réserve.
 reste utile pour les mises en page hors gabarit (`saga`, `transform`, pleine
 page), que l'empreinte ne sait pas cadrer.
 
-### Le coût d'une image, mesuré avant d'écrire un mode temps réel
+### Le coût d'une image, mesuré sur l'appareil
 
-`app/tool/frame_bench.dart` chronomètre le trajet capteur → identifiant sur un
-poste de travail. Les durées absolues ne transfèrent pas à un téléphone — cœur
-plus lent, AOT contre JIT — mais **le rapport entre les chemins, si**, et c'est
-lui qui décide de la conception. Le banc embarqué
-(`--dart-define=DECKHAND_BENCH=true`) donne les durées réelles.
+Mesuré sur le téléphone de test, 1280 × 720, index de 32 000 entrées, 60 images
+après rodage (`--dart-define=DECKHAND_BENCH=true`, résultat dans
+`adb logcat | grep DHDIAG`). Un banc jumeau tourne au poste de travail
+(`app/tool/frame_bench.dart`) : il ne donne pas les mêmes durées — cœur plus
+rapide, JIT contre AOT — mais les mêmes rapports.
 
-| Résolution | luma | rgb | rgb plein | empreinte | recherche | **total luma** |
-|---|---|---|---|---|---|---|
-| 720 × 480 | 0,4 ms | 2,0 ms | 5,6 ms | 2,5 ms | 0,7 ms | **3,7 ms** |
-| 1280 × 720 | 1,4 ms | 6,2 ms | 15,2 ms | 6,1 ms | 0,8 ms | **8,3 ms** |
-| 1920 × 1080 | 2,9 ms | 13,2 ms | 33,3 ms | 13,6 ms | 0,8 ms | **17,4 ms** |
+| Étape | p50 | p90 |
+|---|---|---|
+| **Lecture + empreinte, chemin direct** | **0,70 ms** | 0,78 ms |
+| Lecture seule via `img.Image` | 2,75 ms | 3,67 ms |
+| Empreinte depuis un `img.Image` | 12,45 ms | 14,89 ms |
+| Conversion RGB de la fenêtre | 6,85 ms | 6,97 ms |
+| Conversion RGB de l'image entière | 18,84 ms | 19,15 ms |
+| Recherche dans l'index | 1,03 ms | 1,08 ms |
+| **Total capteur → identifiant** | **1,73 ms** | — |
 
-**La conversion YUV→RGB est évitable en entier.** Le plan `Y` d'une image de
-caméra *est* la luminance, et `computeArtHash` commence par y ramener chaque
-pixel. Sur une image dont les trois canaux valent `Y`, son calcul rend
-exactement `Y` : `(Y·299 + Y·587 + Y·114) ÷ 1000 = Y`. Les deux chemins rendent
-donc la **même empreinte, à zéro bit près** aux trois résolutions — vérifié, et
-c'est la seule chose qui autorise le raccourci, l'index étant calculé par le
-jumeau Python sur du RGB.
+**Une image coûte 1,7 ms. Le temps réel n'a donc pas de problème de budget** —
+c'était la question qui pouvait condamner l'approche, et elle est tranchée.
+
+Trois décisions y mènent, chacune mesurée :
+
+**La conversion YUV→RGB n'a pas lieu d'être.** Le plan `Y` d'une image de caméra
+*est* la luminance, et `computeArtHash` commence par y ramener chaque pixel. Sur
+une image dont les trois canaux valent `Y`, son calcul rend exactement `Y` :
+`(Y·299 + Y·587 + Y·114) ÷ 1000 = Y`.
 
 **Découper avant de convertir change l'ordre de grandeur.** L'empreinte ne porte
 que sur l'illustration ; lire ses seuls octets rend le coût proportionnel à
-elle. Convertir toute l'image d'abord coûte de 8 à 11 fois plus cher pour jeter
-ensuite les deux tiers des pixels.
+elle. Convertir toute l'image d'abord coûte 11 fois plus cher pour jeter ensuite
+les deux tiers des pixels.
 
-**Le goulot n'était pas celui qu'on annonçait.** La recherche linéaire coûtait
-5,4 ms sur 31 600 entrées — autant que la lecture et l'empreinte réunies. Non
-pas à cause du parcours, mais parce qu'elle construisait trente-et-un mille
-enregistrements pour les trier et en garder cinq. Une sélection partielle à
-tampon fixe la ramène à **0,8 ms**, sans allocation dans la boucle. Le mode
-photo en profite autant que le temps réel.
+**Deux goulots trouvés là où on ne les attendait pas.** La recherche linéaire
+coûtait 8,4 ms sur l'appareil — non à cause du parcours, mais parce qu'elle
+construisait trente-deux mille enregistrements pour les trier et en garder cinq.
+Une sélection partielle à tampon fixe la ramène à **1,0 ms**. Puis l'empreinte
+est devenue dominante à 12,4 ms — non à cause de son arithmétique, mais du
+trajet : construire un `img.Image`, y écrire trois canaux par pixel, les relire
+un par un. `artHashFromLuma` lit les octets là où ils sont et refait le **même
+calcul**, ce qu'un test vérifie bit à bit contre `computeArtHash` ; 12,4 ms
+deviennent 0,7 ms, lecture comprise. Le mode photo profite du premier gain
+autant que le temps réel.
+
+**Ce que la conversion RGB perd, et que le raccourci ne perd pas.** Sur des
+triplets `(Y, U, V)` tirés au hasard, le passage en RGB puis le retour à la
+luminance rend `Y` à une unité près — mais **écrête 77 % des pixels**, et
+l'écart moyen monte alors à 14 valeurs, jusqu'à 78. Sur l'appareil, les deux
+chemins s'écartent en conséquence de 3 bits en médiane et jusqu'à 14. Ce n'est
+pas une erreur du raccourci : c'est celle du détour, dont la reconstruction
+sature dès que la scène est colorée. Lire `Y` est exact ; le convertir ne l'est
+pas.
+
+**Ce qui reste à prouver, et que seule une carte de papier prouvera.** Ces
+chiffres disent que l'empreinte du flux est celle qu'on croit *par rapport au
+code du mode photo*. Ils ne disent pas qu'elle rencontre la bonne entrée de
+l'index — le `Y` d'un capteur est en plage vidéo (16–235) là où l'index est
+calculé sur du RGB pleine plage. Le passage est affine et croissant, donc il
+préserve les comparaisons de voisins dont l'empreinte est faite ; vérifié en
+test de synthèse, il reste à l'éprouver devant un booster réel, comme le
+demande l'issue #8.
 
 ### Pourquoi hacher l'illustration et non la carte entière
 

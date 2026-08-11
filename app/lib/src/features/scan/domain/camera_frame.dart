@@ -13,13 +13,20 @@
 /// elle est identique** — ce qui compte, l'index embarqué étant calculé par le
 /// jumeau Python sur des illustrations RGB.
 ///
-/// La nuance qui reste, et qu'il faut mesurer plutôt que supposer : le `Y` d'un
-/// capteur est souvent en plage vidéo (16–235) là où la luminance d'un RGB
-/// pleine plage court de 0 à 255. Le passage de l'une à l'autre est affine et
-/// croissant, donc il préserve les comparaisons de voisins dont l'empreinte est
-/// faite — aux arrondis près, qui peuvent faire basculer un bit là où deux
-/// cases sont à égalité. C'est mesurable, et c'est mesuré : voir
-/// `api/app/measure/` et le banc embarqué.
+/// **Le détour par RGB, lui, perd de l'information.** Algébriquement il rend
+/// `Y` : les coefficients de la conversion et ceux de la luminance s'annulent.
+/// Mais il écrête — mesuré sur des triplets tirés au hasard, **77 % des pixels**
+/// sortent de l'intervalle 0–255 avant d'y être ramenés, et l'écart moyen monte
+/// alors à 14 valeurs. Sur l'appareil, les deux chemins divergent en
+/// conséquence de 3 bits en médiane et jusqu'à 14. C'est l'erreur du détour, pas
+/// celle du raccourci.
+///
+/// La nuance qui reste, et que seule une carte de papier tranchera : le `Y` d'un
+/// capteur est souvent en plage vidéo (16–235) là où l'index est calculé sur du
+/// RGB pleine plage. Le passage de l'une à l'autre est affine et croissant, donc
+/// il préserve les comparaisons de voisins dont l'empreinte est faite — aux
+/// arrondis près, qui peuvent faire basculer un bit là où deux cases sont à
+/// égalité. Vérifié en test de synthèse ; à éprouver devant un booster réel.
 ///
 /// **Le découpage précède la conversion, et c'est tout l'intérêt.** L'empreinte
 /// ne porte que sur l'illustration — 84 % de la largeur, 43 % de la hauteur
@@ -35,6 +42,8 @@ library;
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
+
+import 'art_hash.dart';
 
 /// Fenêtre en pixels dans une image de caméra.
 typedef PixelBox = ({int left, int top, int width, int height});
@@ -85,6 +94,81 @@ img.Image lumaImage(
   return out;
 }
 
+/// Empreinte calculée depuis le plan de luminance, sans image intermédiaire.
+///
+/// **Mesuré sur l'appareil : l'empreinte devenait le poste dominant.** Une fois
+/// la conversion RGB écartée et la recherche ramenée à une milliseconde, il
+/// restait 12,2 ms pour hacher une fenêtre de 333 000 pixels — les trois quarts
+/// du budget d'une image. Le coût ne venait pas de l'arithmétique, qui tient en
+/// quelques additions par pixel, mais du trajet : construire un `img.Image` de
+/// la fenêtre, y écrire trois canaux par pixel, puis les relire un par un
+/// à travers `getPixel`.
+///
+/// Cette fonction lit les octets là où ils sont. **Elle ne change pas le
+/// calcul** : mêmes bornes de cellule entières, mêmes moyennes en division
+/// entière, même comparaison de voisins que [computeArtHash] — dont elle reste
+/// le miroir, et à qui la parité avec le jumeau Python appartient. Un test
+/// vérifie l'égalité **bit à bit** des deux chemins sur des images tirées au
+/// hasard ; s'il tombe, c'est celle-ci qui a tort.
+///
+/// Les trois canaux valant `Y`, `computeArtHash` en tire exactement `Y` :
+/// `(Y·299 + Y·587 + Y·114) ÷ 1000 = Y`. C'est ce qui autorise à sauter
+/// l'étape, et non une approximation jugée acceptable.
+ArtHash artHashFromLuma(
+  Uint8List luma, {
+  required int width,
+  required int height,
+  required int rowStride,
+  int pixelStride = 1,
+  PixelBox? crop,
+  int size = hashSize,
+}) {
+  final box = clampBox(crop ?? wholeFrame(width, height), width, height);
+  final outW = size + 1;
+  final outH = size;
+  final cells = Int32List(outW * outH);
+
+  for (var dy = 0; dy < outH; dy++) {
+    final yb = _cellBounds(dy, outH, box.height);
+    for (var dx = 0; dx < outW; dx++) {
+      final xb = _cellBounds(dx, outW, box.width);
+      var sum = 0;
+      var count = 0;
+      for (var y = yb.start; y < yb.end; y++) {
+        final row = (box.top + y) * rowStride + box.left * pixelStride;
+        for (var x = xb.start; x < xb.end; x++) {
+          final offset = row + x * pixelStride;
+          sum += offset < luma.length ? luma[offset] : 0;
+          count++;
+        }
+      }
+      cells[dy * outW + dx] = sum ~/ count;
+    }
+  }
+
+  final bytes = Uint8List(size * size ~/ 8);
+  var bitIndex = 0;
+  for (var y = 0; y < size; y++) {
+    for (var x = 0; x < size; x++) {
+      if (cells[y * outW + x] > cells[y * outW + x + 1]) {
+        bytes[bitIndex ~/ 8] |= 1 << (7 - (bitIndex % 8));
+      }
+      bitIndex++;
+    }
+  }
+  return ArtHash(bytes);
+}
+
+/// Bornes de la cellule [index] sur [count] — copie conforme de celles de
+/// `art_hash.dart`, dont elles sont l'invariant partagé avec le jumeau Python.
+({int start, int end}) _cellBounds(int index, int count, int length) {
+  final start = index * length ~/ count;
+  var end = (index + 1) * length ~/ count;
+  if (end < start + 1) end = start + 1;
+  if (end > length) end = length;
+  return (start: start, end: end);
+}
+
 /// Image couleur reconstruite depuis les trois plans — le chemin coûteux.
 ///
 /// Conversion BT.601 pleine plage, en arithmétique entière. Elle n'est utile
@@ -112,8 +196,10 @@ img.Image rgbImage(
       final sourceX = box.left + x;
       final yy = luma[lumaRow + sourceX];
       final chromaOffset = chromaRow + (sourceX >> 1) * chromaPixelStride;
-      final u = (chromaOffset < chromaU.length ? chromaU[chromaOffset] : 128) - 128;
-      final v = (chromaOffset < chromaV.length ? chromaV[chromaOffset] : 128) - 128;
+      final u =
+          (chromaOffset < chromaU.length ? chromaU[chromaOffset] : 128) - 128;
+      final v =
+          (chromaOffset < chromaV.length ? chromaV[chromaOffset] : 128) - 128;
 
       out.setPixelRgb(
         x,

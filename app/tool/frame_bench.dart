@@ -9,9 +9,13 @@
 /// lent, et Dart y tourne en AOT là où il tourne ici en JIT.
 ///
 /// **Le rapport entre les chemins, lui, transfère**, et c'est la décision à
-/// prendre : lire le plan de luminance découpé, ou convertir en RGB. Le second
-/// chiffre — combien d'images sur cent rendent la même empreinte par les deux
-/// chemins — est exact et ne dépend d'aucune machine.
+/// prendre : lire le plan de luminance découpé, ou convertir en RGB.
+///
+/// La distance entre les deux empreintes est nulle **ici seulement**, parce que
+/// la chrominance de synthèse est neutre : la conversion RGB n'écrête donc
+/// jamais. Sur un vrai capteur elle écrête, et l'écart monte — c'est la perte du
+/// détour, mesurée par le banc embarqué, et une raison de plus de ne pas le
+/// prendre.
 ///
 /// Le banc embarqué (`--dart-define=DECKHAND_BENCH=true`) donne les durées
 /// réelles. Celui-ci répond avant lui à la question de conception, et sert de

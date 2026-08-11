@@ -69,6 +69,10 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
   final _rgbFull = <int>[];
   final _hash = <int>[];
   final _search = <int>[];
+  final _direct = <int>[];
+
+  /// Écart entre l'empreinte lue sur la luminance et celle du chemin RGB.
+  final _drift = <int>[];
   var _frames = 0;
   var _sameHash = 0;
   var _busy = false;
@@ -93,7 +97,9 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
       for (var i = 0; i < widget.indexSize; i++)
         (
           oracleId: 'card-$i',
-          hash: ArtHash.fromHex((i * 2654435761 % 0xFFFFFFFF).toRadixString(16).padLeft(16, '0')),
+          hash: ArtHash.fromHex(
+            (i * 2654435761 % 0xFFFFFFFF).toRadixString(16).padLeft(16, '0'),
+          ),
         ),
     ]);
 
@@ -121,7 +127,8 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
     setState(() => _status = 'mesure en cours…');
 
     diagnose('bench_start', {
-      'resolution': '${controller.value.previewSize?.width.toInt()}'
+      'resolution':
+          '${controller.value.previewSize?.width.toInt()}'
           '×${controller.value.previewSize?.height.toInt()}',
       'index': widget.indexSize,
       'frames': benchFrames,
@@ -164,6 +171,21 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
 
     final watch = Stopwatch()..start();
 
+    // Le chemin retenu : les octets sont lus là où ils sont, sans image
+    // intermédiaire. Le test de parité garantit qu'il rend le même bit.
+    final fingerprint = artHashFromLuma(
+      planes[0].bytes,
+      width: width,
+      height: height,
+      rowStride: planes[0].bytesPerRow,
+      pixelStride: planes[0].bytesPerPixel ?? 1,
+      crop: crop,
+    );
+    final tDirect = watch.elapsedMicroseconds;
+
+    // Le chemin par `img.Image`, gardé pour la comparaison : c'est celui du
+    // mode photo, et il faut savoir ce que le raccourci fait gagner.
+    watch.reset();
     final grey = lumaImage(
       planes[0].bytes,
       width: width,
@@ -175,7 +197,7 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
     final tLuma = watch.elapsedMicroseconds;
 
     watch.reset();
-    final fingerprint = computeArtHash(grey);
+    computeArtHash(grey);
     final tHash = watch.elapsedMicroseconds;
 
     watch.reset();
@@ -199,7 +221,16 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
         crop: crop,
       );
       tRgb = watch.elapsedMicroseconds;
-      same = computeArtHash(colour) == fingerprint;
+      // **La distance, pas l'égalité.** Une première version ne comptait que
+      // les empreintes identiques : sur une image de synthèse à chrominance
+      // neutre elles le sont toutes, sur un vrai capteur non — la conversion
+      // RGB arrondit et écrête. Or ce qui décide n'est pas « identique ou
+      // non », c'est l'écart comparé au seuil de confiance de l'index (12
+      // bits). Un chemin qui s'écarterait d'un bit reste utilisable ; un qui
+      // s'écarterait de dix ne l'est pas.
+      final fromRgb = computeArtHash(colour);
+      _drift.add(fingerprint.distanceTo(fromRgb));
+      same = fromRgb == fingerprint;
 
       watch.reset();
       rgbImage(
@@ -219,6 +250,7 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
     if (_frames <= benchWarmup) return;
 
     _luma.add(tLuma);
+    _direct.add(tDirect);
     _hash.add(tHash);
     _search.add(tSearch);
     _rgb.add(tRgb);
@@ -230,20 +262,25 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
       unawaited(_controller?.stopImageStream());
       _report(
         'terminé — $width×$height, '
-        'luma ${_median(_luma) ~/ 1000} ms, rgb ${_median(_rgb) ~/ 1000} ms',
+        'direct ${_median(_direct) ~/ 1000} ms, rgb ${_median(_rgb) ~/ 1000} ms',
       );
       diagnose('bench_result', {
         'frame': '$width×$height',
         'index': widget.indexSize,
         'n': _luma.length,
+        'direct_us': _stats(_direct),
         'luma_us': _stats(_luma),
         'rgb_us': _stats(_rgb),
         'rgb_full_us': _stats(_rgbFull),
         'hash_us': _stats(_hash),
         'search_us': _stats(_search),
+        'total_direct_us': _median(_direct) + _median(_search),
         'total_luma_us': _median(_luma) + _median(_hash) + _median(_search),
         'total_rgb_us': _median(_rgb) + _median(_hash) + _median(_search),
         'same_hash': _sameHash,
+        'drift_bits': _stats(_drift),
+        'drift_max': _drift.isEmpty ? 0 : (List.of(_drift)..sort()).last,
+        'trusted': maxTrustedDistance,
       });
     }
   }

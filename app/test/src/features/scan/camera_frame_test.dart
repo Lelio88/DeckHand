@@ -162,4 +162,74 @@ void main() {
       expect(computeArtHash(rgb), computeArtHash(grey));
     });
   });
+
+  group('artHashFromLuma', () {
+    test('rend bit à bit ce que rend le chemin par img.Image', () {
+      // C'est l'assertion qui autorise le raccourci. Si elle tombe, c'est le
+      // chemin direct qui a tort : la parité avec le jumeau Python appartient
+      // à `computeArtHash`.
+      var seed = 42;
+      int next() => seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+
+      for (final geometry in [
+        (w: 64, h: 64, stride: 64),
+        (w: 100, h: 37, stride: 128),
+        (w: 320, h: 240, stride: 384),
+        (w: 9, h: 5, stride: 16),
+        (w: 3, h: 3, stride: 4),
+      ]) {
+        final plane = planeWithPadding(
+          geometry.w,
+          geometry.h,
+          geometry.stride,
+          (_, _) => next() % 256,
+        );
+        final viaImage = computeArtHash(
+          lumaImage(
+            plane,
+            width: geometry.w,
+            height: geometry.h,
+            rowStride: geometry.stride,
+          ),
+        );
+        final direct = artHashFromLuma(
+          plane,
+          width: geometry.w,
+          height: geometry.h,
+          rowStride: geometry.stride,
+        );
+        expect(
+          direct,
+          viaImage,
+          reason: 'divergence sur ${geometry.w}×${geometry.h}',
+        );
+      }
+    });
+
+    test('la fenêtre donne le même résultat que découper puis hacher', () {
+      var seed = 99;
+      int next() => seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      final plane = planeWithPadding(200, 150, 256, (_, _) => next() % 256);
+      const window = (left: 17, top: 23, width: 111, height: 64);
+
+      expect(
+        artHashFromLuma(
+          plane,
+          width: 200,
+          height: 150,
+          rowStride: 256,
+          crop: window,
+        ),
+        computeArtHash(
+          lumaImage(
+            plane,
+            width: 200,
+            height: 150,
+            rowStride: 256,
+            crop: window,
+          ),
+        ),
+      );
+    });
+  });
 }
