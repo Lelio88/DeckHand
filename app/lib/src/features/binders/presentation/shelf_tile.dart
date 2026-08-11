@@ -29,6 +29,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../common/remote_svg.dart';
+import '../../../common/card_image.dart';
 import '../domain/binder.dart';
 
 /// Hauteur de la bannière.
@@ -39,9 +40,7 @@ import '../domain/binder.dart';
 const double _bannerHeight = 118;
 
 /// Ce qui détache le texte clair d'une illustration quelconque.
-const List<Shadow> _legibility = [
-  Shadow(blurRadius: 6, color: Colors.black87),
-];
+const List<Shadow> _legibility = [Shadow(blurRadius: 6, color: Colors.black87)];
 
 class ShelfTile extends StatelessWidget {
   const ShelfTile({super.key, required this.entry, required this.onOpen});
@@ -77,22 +76,10 @@ class ShelfTile extends StatelessWidget {
                 // illustration connue et l'URL qui ne répond pas, sans qu'aucun
                 // de ces cas ait à être distingué.
                 const _Backdrop(),
-                if (cover != null)
-                  Image.network(
-                    cover,
-                    fit: BoxFit.cover,
-                    // Une image qui surgit d'un coup fait sursauter la liste ;
-                    // le fond étant déjà là, un fondu suffit.
-                    frameBuilder: (context, child, frame, wasSynchronous) =>
-                        wasSynchronous
-                        ? child
-                        : AnimatedOpacity(
-                            opacity: frame == null ? 0 : 1,
-                            duration: const Duration(milliseconds: 240),
-                            child: child,
-                          ),
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                  ),
+                // Le fondu à l'arrivée est celui de `CardImage`, partagé par
+                // toutes les images de cartes : une image qui surgit d'un coup
+                // fait sursauter la liste, et le fond est déjà là.
+                if (cover != null) CardImage(url: cover),
                 const _Veil(),
                 if (entry.iconSvgUri != null)
                   Positioned(

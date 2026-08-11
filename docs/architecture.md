@@ -1078,3 +1078,77 @@ Une phrase sous le pentagone dit ce que le filtre demande — « Decks contenant
 « Constructibles » et le plafond de budget répondaient à la même question mais se cochaient séparément : on pouvait demander un deck **sans rien à acheter** *et* un budget de cinquante euros — une combinaison dont la seconde moitié ne voulait rien dire. Les deux ont fondu dans un menu unique.
 
 **« Constructible » n'est pourtant pas « zéro euro », et c'est pourquoi il ouvre le menu au lieu d'y figurer comme un montant.** Une carte manquante sans cote coûte zéro et manque quand même ; le cas exige qu'il ne manque *rien* (`p_max_missing = 0`), les autres plafonnent une dépense (`p_max_cost`). Le rapprochement est légitime — on choisit un effort — mais l'assimilation aurait été fausse, et 82 549 impressions sur 166 998 n'ayant pas de cote en euros, elle se serait vue.
+
+## 9. Ce qui se comporte pareil d'un écran à l'autre
+
+Chaque écran a été écrit à son tour, et chacun a inventé sa réponse à des questions que les précédents avaient déjà tranchées. Les divergences relevées ici n'étaient pas des choix : elles tenaient à l'ordre d'écriture. Un test par écran ne les aurait jamais vues — elles ne sont visibles qu'en comparant les écrans entre eux, ce que fait `test/src/features/ui_coherence_test.dart`.
+
+### Toucher agit, maintenir montre
+
+**La règle, sans exception.** Un appui simple exécute l'action propre à la surface — ajouter, choisir une édition, ouvrir une feuille. L'appui long ouvre toujours la même chose : la carte en grand.
+
+Neuf surfaces agrandissent une carte. Huit le faisaient déjà au maintien ; une seule le faisait au **toucher** — la ligne du général sur une tuile de deck. C'était aussi la seule à porter un pictogramme d'aperçu, si bien que **la surface aberrante était celle qui enseignait la règle** : l'utilisateur en déduisait « je tape sur le nom », geste sans effet dans le classeur, les scans et les listes de courses. Le pictogramme a disparu avec l'exception, et la tuile entière porte désormais le couple canonique.
+
+Trois écrans n'offraient aucun chemin vers la carte en grand, et ce sont ceux où il manquait le plus :
+
+| Écran | Pourquoi il en avait besoin |
+|---|---|
+| Onglet **Ajouter** | C'est le point où l'on décide d'écrire une carte en collection, et la vignette de 56 × 42 ne lève pas un doute entre deux noms voisins |
+| **Visée** (une carte photographiée) | La seule voie de saisie qui ajoute d'un appui et referme aussitôt : aucune liste à cocher ne rattrape une reconnaissance de travers |
+| **Général du deck bâti** | Il était agrandissable à l'écran précédent, et les 99 autres cartes du même écran le sont ; le revoir obligeait à toucher « Changer », ce qui détruit le deck |
+
+La **pile à trier** fait exception, et c'est motivé : son image est un substitut assumé — la vue élit une impression représentative par `oracle_id`, le français d'abord puis la plus récente. Agrandir une image arbitraire dans l'écran dont le seul objet est de décider *quelle* impression on tient donnerait du poids à ce qui n'en a pas. L'agrandissement y vit un cran plus loin, dans le sélecteur d'édition, sur le bon objet.
+
+### Un seul aperçu, un seul objet, une seule sortie
+
+Trois dialogues d'aperçu coexistaient, avec **deux contenus** et **trois façons de fermer**. `card_art_view.dart` les remplace tous.
+
+**La carte entière, y compris dans le sélecteur d'édition**, qui montrait l'illustration recadrée. La question qu'on y pose est « laquelle de ces trente Foudre est-ce que je tiens ? » — et deux impressions partagent souvent la même illustration sans partager leur cadre, leur symbole d'extension ni leur numéro. Le recadrage effaçait précisément ce qui les départage. L'illustration y perd environ la moitié de sa taille apparente, l'art n'occupant que ~45 % de la hauteur d'une carte : c'est le prix assumé.
+
+**Taper la carte referme, partout.** Le classeur enseignait ce réflexe ; ailleurs il ne produisait rien, et la zone de sortie se réduisait aux douze pixels de marge autour d'une image qui remplit l'écran. Le geste est capté sur le cadre entier, si bien que le chargement et les messages d'absence se referment de la même façon.
+
+**Le cadre épouse la carte** (63 × 88) et le reflet de diffraction suit la finition choisie : sans ce rapport, le reflet d'une brillante couvrait toute la boîte de dialogue.
+
+### Les images de cartes tiennent sur l'appareil
+
+L'`ImageCache` de Flutter est en **mémoire seule** et se vide à la fermeture : une feuille de classeur — neuf cases, plus les deux feuilles voisines préchargées — retéléchargeait vingt-sept images à chaque démarrage à froid, pour des pages qu'on rouvre tous les jours.
+
+**Les commiter en assets est exclu** : ce sont des illustrations Wizards of the Coast servies par Scryfall, et le garde-fou 10 interdit de commiter toute donnée venue d'une source dans un dépôt public. Le cache sur l'appareil est la seule voie ouverte — c'est déjà ce que fait `art_index_cache.dart` pour l'index d'empreintes.
+
+**Sans aucune dépendance ajoutée**, et c'est une contrainte assumée : `cached_network_image` tire `flutter_cache_manager`, `sqflite` et `path_provider`, soit deux greffons natifs de plus — il augmenterait la volatilité de build qu'on cherche à réduire. `image_store_io.dart` se contente donc de `dart:io` et de `Directory.systemTemp`, que l'embarqueur fait pointer sur le répertoire de cache privé de l'application ; le système peut le vider sous pression de stockage, ce qui est la sémantique voulue. Le web garde une coquille vide : son navigateur a déjà un cache HTTP, et `dart:io` n'y existe pas.
+
+**Le nom de fichier est un condensé FNV-1a 64 bits**, seize caractères là où l'URL en fait cent trente et frôlerait la limite de chemin de Windows. Un condensé peut entrer en collision : **l'URL est donc réécrite en tête du fichier et vérifiée à la lecture**, de sorte qu'une collision produise un défaut de cache et jamais la mauvaise carte — la seule erreur qu'un cache d'images n'a pas le droit de commettre. Le répertoire est plafonné à 60 Mo, les fichiers les moins récemment touchés partant en premier.
+
+Au passage, les huit `Image.network` répartis dans cinq fichiers sont devenus un seul `CardImage`. L'un d'eux — l'aperçu plein écran du classeur — n'avait aucun `errorBuilder` : une image morte y laissait la zone d'exception de Flutter.
+
+### Le vocabulaire
+
+| Notion | Ce qui s'écrit | Ce qui a disparu |
+|---|---|---|
+| Finition brillante | « Brillante », « Brillant », « brillante » | « Foil », « · foil » — deux mots pour la facette qui double le prix ne disaient pas qu'il s'agissait de la même |
+| Choisir l'édition | `Icons.layers` / `layers_outlined` | `Icons.style`, qui est **d'abord** l'icône de l'onglet Collection, visible en permanence sous tous les écrans |
+| Prix inconnu | « — » | « 0.00 € », qui se lit « gratuite » dans le seul écran où l'on décide d'un achat |
+
+**Trois formes pour compter des exemplaires**, et chacune dit *quand* on regarde le nombre :
+
+| Forme | Sens | Où |
+|---|---|---|
+| « Déjà N » | stock **avant** l'ajout, donc un avertissement anti-doublon | recherche, sélecteur d'édition |
+| « ×N » | compte compact **posé sur une image**, faute de place pour un mot | case de classeur, résultat de recherche d'étagère |
+| « N exemplaires » | la même chose en toutes lettres, quand la ligne a la place | feuille d'action d'une case |
+
+### Trois impasses fermées
+
+**Le retour du système ne refermait pas un classeur.** L'ouverture d'un classeur est un état Riverpod, pas une route : le geste de sortie le plus universel d'Android quittait donc l'application depuis la vue où l'on séjourne le plus. Un `PopScope` sur `BinderView` fait au retour ce que fait déjà la flèche de l'en-tête ; depuis l'étagère, il n'y a plus rien à refermer et le retour reprend son sens ordinaire.
+
+**L'étagère vide renvoyait vers un écran supprimé** — « la vue Liste les montre toutes » — tout en masquant la seule sortie réelle, la tuile « À trier », qui n'était rendue que dans la branche non vide. C'est pourtant l'état du premier jour, ou celui d'une collection dictée : aucune carte n'a d'édition, donc aucune n'a de case. La tuile est désormais rendue dans les deux branches, et le message distingue « des cartes attendent leur édition » de « il n'y a pas encore de cartes » — nommer une sortie qui n'existe pas serait répéter la faute.
+
+**Une panne d'enregistrement effaçait le lot d'un étalement.** `_error` portait deux sens — « la photo n'a rien donné » et « l'écriture a échoué » — et le second déclenchait le plein écran du premier : dix-sept lignes mesurées sur une photo réelle, leurs cases cochées, leurs quantités et les éditions choisies une par une disparaissaient d'un coup. La dictée gardait déjà les siennes pour la même erreur ; c'est son bandeau qu'on imite.
+
+Enfin, l'onglet **Collection** n'avait aucun bouton **Réessayer** alors que le classeur en portait quatre — c'était sa porte d'entrée qui était un cul-de-sac. `StateMessage` (`lib/src/common/`) porte désormais le dispositif pour tout le monde. Et le classeur, seul écran muet quand les quatre voies de saisie accusent réception, dit maintenant ce qui vient d'arriver : corriger une édition envoie la carte dans le classeur d'une autre extension et vide la case sous le doigt — rien ne distinguait « c'est fait » de « la feuille s'est refermée toute seule ».
+
+### Ce qui a été vérifié et laissé tel quel
+
+`cupertino_icons` ne figure dans aucune ligne de `lib/` ni de `test/`, et son retrait a pourtant été **annulé** : `flutter build web` avertit alors « Expected to find fonts for (MaterialIcons, packages/cupertino_icons/CupertinoIcons) ». La référence vient du framework, par les widgets Cupertino que Flutter monte pour la sélection de texte — chercher les occurrences dans le code du projet ne pouvait pas la voir. Le coût est nul de toute façon : la police est réduite de 257 628 à 1 472 octets par l'élagage d'icônes.
+
+Côté Python, chaque dépendance porte désormais un **plafond de version majeure**. Le plancher seul en laissait franchir en silence — `Pillow>=11.0` était résolu en 12.3.0, `pytest>=8.3` en 9.1.1. Sans conséquence jusqu'ici, mais il existe un chemin, un seul, par lequel une bibliothèque Python atteint l'application sans passer par un plantage : `numpy` et `Pillow` calculent les empreintes que l'app recompare avec son jumeau Dart. Un arrondi qui change n'échoue pas — il écrit des empreintes valides mais **incomparables**, et la reconnaissance se dégrade en silence. C'est la seule panne de ce dépôt qu'un opérateur ne verrait pas devant sa commande. Le plafond ne remplace pas les vecteurs de parité, qui restent le vrai filet ; il évite que la montée se produise sans qu'on l'ait décidée.

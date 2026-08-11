@@ -20,6 +20,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../common/card_image.dart';
+import '../../../common/state_message.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../collection/domain/collection_entry.dart' show FinishFilter;
 import '../../printings/presentation/card_art_view.dart';
@@ -45,7 +47,9 @@ class OpenBinder extends Notifier<String?> {
   void close() => state = null;
 }
 
-final openBinderProvider = NotifierProvider<OpenBinder, String?>(OpenBinder.new);
+final openBinderProvider = NotifierProvider<OpenBinder, String?>(
+  OpenBinder.new,
+);
 
 /// Page courante du classeur ouvert, à partir de 1.
 class BinderPageNumber extends Notifier<int> {
@@ -55,8 +59,9 @@ class BinderPageNumber extends Notifier<int> {
   void set(int page) => state = page < 1 ? 1 : page;
 }
 
-final binderPageNumberProvider =
-    NotifierProvider<BinderPageNumber, int>(BinderPageNumber.new);
+final binderPageNumberProvider = NotifierProvider<BinderPageNumber, int>(
+  BinderPageNumber.new,
+);
 
 class BinderView extends ConsumerWidget {
   const BinderView({super.key});
@@ -64,9 +69,25 @@ class BinderView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final open = ref.watch(openBinderProvider);
-    if (open == null) return const _Shelf();
-    if (open == unsortedBinder) return const _UnsortedPile();
-    return _Binder(setCode: open);
+
+    // **Le retour du système referme le classeur**, comme la flèche de
+    // l'en-tête. Sans lui, le geste de sortie le plus universel d'Android
+    // quittait l'application depuis la vue où l'on séjourne le plus : il
+    // n'y a qu'une route, l'ouverture d'un classeur n'étant qu'un état.
+    // Depuis l'étagère, en revanche, il n'y a plus rien à refermer et le
+    // retour reprend son sens ordinaire.
+    return PopScope(
+      canPop: open == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        ref.read(openBinderProvider.notifier).close();
+      },
+      child: switch (open) {
+        null => const _Shelf(),
+        unsortedBinder => const _UnsortedPile(),
+        final String setCode => _Binder(setCode: setCode),
+      },
+    );
   }
 }
 
@@ -163,7 +184,7 @@ class _FindResults extends ConsumerWidget {
     return found.when(
       loading: () =>
           const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      error: (error, _) => _Message(
+      error: (error, _) => StateMessage(
         icon: Icons.cloud_off,
         title: 'Recherche impossible',
         detail: '$error',
@@ -171,7 +192,7 @@ class _FindResults extends ConsumerWidget {
       ),
       data: (results) {
         if (results.isEmpty) {
-          return const _Message(
+          return const StateMessage(
             icon: Icons.search_off,
             title: 'Aucune carte rangée sous ce nom',
             // Chercher dans un classeur, c'est chercher parmi ses cartes : ne
@@ -231,7 +252,7 @@ class _Shelf extends ConsumerWidget {
     return shelf.when(
       loading: () =>
           const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      error: (error, _) => _Message(
+      error: (error, _) => StateMessage(
         icon: Icons.cloud_off,
         title: 'Étagère illisible',
         detail: '$error',
@@ -239,17 +260,36 @@ class _Shelf extends ConsumerWidget {
       ),
       data: (entries) {
         if (entries.isEmpty) {
-          return const _Message(
-            icon: Icons.inbox_outlined,
-            title: 'Aucun classeur',
-            // Une carte sans édition précisée n'a pas de case : elle n'est
-            // rangeable nulle part. Le classeur étant la vue par défaut, il
-            // doit dire où sont passées les cartes plutôt que de laisser
-            // croire à une collection vide — et indiquer la sortie.
-            detail:
-                'Un classeur est une édition, et vos cartes n\'en ont pas encore. '
-                'La vue Liste les montre toutes, et permet de préciser leur '
-                'édition pour qu\'elles trouvent leur case.',
+          // **La pile à trier reste, même sans un seul classeur.** C'est
+          // l'état du premier jour, ou d'une collection dictée : aucune carte
+          // n'a d'édition, donc aucune n'a de case. Rendre le message seul
+          // masquait la seule sortie réelle — la tuile « À trier », par où
+          // l'on précise les éditions — et renvoyait vers une vue Liste qui
+          // n'existe plus.
+          //
+          // Deux causes à une étagère vide, et deux messages : des cartes qui
+          // attendent leur édition, ou pas de cartes du tout. Envoyer vers une
+          // pile inexistante serait aussi trompeur que l'ancien renvoi.
+          final waiting =
+              ref.watch(collectionProvider).asData?.value.unspecifiedPrints ??
+              0;
+          return Column(
+            children: [
+              const _UnsortedTile(),
+              Expanded(
+                child: StateMessage(
+                  icon: Icons.inbox_outlined,
+                  title: 'Aucun classeur',
+                  detail: waiting > 0
+                      ? 'Un classeur est une édition, et vos cartes n\'en ont '
+                            'pas encore. Ouvrez « À trier » ci-dessus pour leur '
+                            'en donner une : elles trouveront alors leur case.'
+                      : 'Un classeur est une édition. Ajoutez des cartes '
+                            'depuis l\'onglet Ajouter : chacune rejoindra la '
+                            'case de son extension.',
+                ),
+              ),
+            ],
           );
         }
         return Column(
@@ -293,7 +333,8 @@ class _UnsortedTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final waiting = ref.watch(collectionProvider).asData?.value.unspecifiedPrints ?? 0;
+    final waiting =
+        ref.watch(collectionProvider).asData?.value.unspecifiedPrints ?? 0;
     if (waiting == 0) return const SizedBox.shrink();
 
     return ListTile(
@@ -356,16 +397,18 @@ class _UnsortedPile extends ConsumerWidget {
                 icon: const Icon(Icons.chevron_left),
                 onPressed: page <= 1
                     ? null
-                    : () =>
-                          ref.read(binderPageNumberProvider.notifier).set(page - 1),
+                    : () => ref
+                          .read(binderPageNumberProvider.notifier)
+                          .set(page - 1),
               ),
               IconButton(
                 tooltip: 'Page suivante',
                 icon: const Icon(Icons.chevron_right),
                 onPressed: (cards.asData?.value.length ?? 0) < binderPageSize
                     ? null
-                    : () =>
-                          ref.read(binderPageNumberProvider.notifier).set(page + 1),
+                    : () => ref
+                          .read(binderPageNumberProvider.notifier)
+                          .set(page + 1),
               ),
             ],
           ),
@@ -374,14 +417,14 @@ class _UnsortedPile extends ConsumerWidget {
           child: cards.when(
             loading: () =>
                 const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            error: (error, _) => _Message(
+            error: (error, _) => StateMessage(
               icon: Icons.cloud_off,
               title: 'Pile illisible',
               detail: '$error',
               onRetry: () => ref.invalidate(unsortedPileProvider),
             ),
             data: (list) => list.isEmpty
-                ? const _Message(
+                ? const StateMessage(
                     icon: Icons.check_circle_outline,
                     title: 'Rien à trier',
                     detail: 'Toutes vos cartes ont trouvé leur case.',
@@ -416,22 +459,41 @@ class _UnsortedCardTile extends ConsumerWidget {
       oracleId: card.oracleId,
       cardName: card.shownName,
     );
-    if (chosen == null || chosen.isUnspecified) return;
+    if (chosen == null || chosen.isUnspecified || !context.mounted) return;
 
-    // Le même geste que dans la liste : « ces exemplaires-là sont de cette
-    // édition ». Rien n'est ajouté, tout est déplacé.
-    await ref
-        .read(collectionRepositoryProvider)
-        .setPrinting(
-          card.oracleId,
-          toPrintId: chosen.printing.printId,
-          toFoil: chosen.isFoil,
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      // Le même geste que dans la liste : « ces exemplaires-là sont de cette
+      // édition ». Rien n'est ajouté, tout est déplacé.
+      await ref
+          .read(collectionRepositoryProvider)
+          .setPrinting(
+            card.oracleId,
+            toPrintId: chosen.printing.printId,
+            toFoil: chosen.isFoil,
+          );
+
+      // La carte quitte la pile et rejoint une case : les trois vues changent.
+      ref.invalidate(unsortedPileProvider);
+      ref.invalidate(binderShelfProvider);
+      ref.invalidate(collectionProvider);
+
+      // **La vignette s'évanouit : il faut dire où elle est allée.** C'est le
+      // geste dont la disparition est la moins lisible — la carte quitte
+      // l'écran regardé pour un classeur qu'on n'a pas ouvert.
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Rangée dans ${chosen.printing.label}'),
+            duration: const Duration(seconds: 2),
+          ),
         );
-
-    // La carte quitte la pile et rejoint une case : les trois vues changent.
-    ref.invalidate(unsortedPileProvider);
-    ref.invalidate(binderShelfProvider);
-    ref.invalidate(collectionProvider);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Rangement impossible : $e')),
+      );
+    }
   }
 
   @override
@@ -466,10 +528,12 @@ class _UnsortedCardTile extends ConsumerWidget {
                   ),
                 )
               else
-                Image.network(
-                  image,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => ColoredBox(
+                CardImage(
+                  url: image,
+                  placeholder: ColoredBox(
+                    color: theme.colorScheme.surfaceContainerLow,
+                  ),
+                  errorBuilder: (_) => ColoredBox(
                     color: theme.colorScheme.surfaceContainerLow,
                     child: Center(
                       child: Text(
@@ -566,14 +630,14 @@ class _Binder extends ConsumerWidget {
           child: cells.when(
             loading: () =>
                 const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            error: (error, _) => _Message(
+            error: (error, _) => StateMessage(
               icon: Icons.cloud_off,
               title: 'Page illisible',
               detail: '$error',
               onRetry: () => ref.invalidate(binderPageProvider),
             ),
             data: (list) => list.isEmpty
-                ? const _Message(
+                ? const StateMessage(
                     icon: Icons.menu_book_outlined,
                     title: 'Page vide',
                     detail: 'Ce classeur n\'a pas de page à cet endroit.',
@@ -583,11 +647,8 @@ class _Binder extends ConsumerWidget {
                     pageCount: pages,
                     onTurned: (p) =>
                         ref.read(binderPageNumberProvider.notifier).set(p),
-                    builder: (context, p) => _PageFace(
-                      setCode: setCode,
-                      page: p,
-                      reading: reading,
-                    ),
+                    builder: (context, p) =>
+                        _PageFace(setCode: setCode, page: p, reading: reading),
                   ),
           ),
         ),
@@ -920,14 +981,16 @@ class _BinderHeader extends ConsumerWidget {
             icon: const Icon(Icons.chevron_left),
             onPressed: page <= 1
                 ? null
-                : () => ref.read(binderPageNumberProvider.notifier).set(page - 1),
+                : () =>
+                      ref.read(binderPageNumberProvider.notifier).set(page - 1),
           ),
           IconButton(
             tooltip: 'Page suivante',
             icon: const Icon(Icons.chevron_right),
             onPressed: page >= pages
                 ? null
-                : () => ref.read(binderPageNumberProvider.notifier).set(page + 1),
+                : () =>
+                      ref.read(binderPageNumberProvider.notifier).set(page + 1),
           ),
         ],
       ),
@@ -996,11 +1059,7 @@ class _Cell extends ConsumerWidget {
                   ),
                   child: Opacity(
                     opacity: _ghostOpacity,
-                    child: Image.network(
-                      image,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                    ),
+                    child: CardImage(url: image),
                   ),
                 ),
               Center(
@@ -1047,15 +1106,14 @@ class _Cell extends ConsumerWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.network(
-                image,
-                fit: BoxFit.cover,
+              CardImage(
+                url: image,
                 // Le cadre reste visible pendant le chargement : sans lui, la
                 // grille se recompose sous les yeux à chaque page tournée.
-                loadingBuilder: (context, child, progress) => progress == null
-                    ? child
-                    : ColoredBox(color: theme.colorScheme.surfaceContainerLow),
-                errorBuilder: (_, _, _) => ColoredBox(
+                placeholder: ColoredBox(
+                  color: theme.colorScheme.surfaceContainerLow,
+                ),
+                errorBuilder: (_) => ColoredBox(
                   color: theme.colorScheme.surfaceContainerLow,
                   child: Center(
                     child: Text(
@@ -1135,6 +1193,41 @@ class _CellActionsState extends ConsumerState<_CellActions> {
 
   BinderCell get cell => widget.cell;
 
+  /// Écrit en collection, referme la feuille, et **dit ce qui vient d'arriver**.
+  ///
+  /// **Le classeur était le seul écran muet.** Les quatre voies de saisie
+  /// accusent réception par une SnackBar ; ici, corriger une édition envoyait
+  /// la carte dans le classeur d'une autre extension et vidait la case sous le
+  /// doigt, sans un mot. Rien ne distinguait alors « c'est fait » de « la
+  /// feuille s'est refermée toute seule », et la seule façon de vérifier était
+  /// d'aller chercher la carte ailleurs.
+  ///
+  /// L'échec parle aussi : il était jusqu'ici avalé, la feuille se refermant
+  /// de la même façon qu'en cas de succès.
+  Future<void> _write(
+    BuildContext context,
+    WidgetRef ref, {
+    required Future<void> Function() action,
+    required String done,
+    required String failed,
+  }) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action();
+      _refresh(ref);
+      navigator.pop();
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(done), duration: const Duration(seconds: 2)),
+        );
+    } catch (e) {
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(content: Text('$failed : $e')));
+    }
+  }
+
   void _refresh(WidgetRef ref) {
     ref.invalidate(binderPageProvider);
     ref.invalidate(binderShelfProvider);
@@ -1181,13 +1274,10 @@ class _CellActionsState extends ConsumerState<_CellActions> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      switch (cell.priceFor(foil: _foil)) {
-                        final price? => '${price.toStringAsFixed(2)} €',
-                        _ => '—',
-                      },
-                      style: theme.textTheme.titleMedium,
-                    ),
+                    Text(switch (cell.priceFor(foil: _foil)) {
+                      final price? => '${price.toStringAsFixed(2)} €',
+                      _ => '—',
+                    }, style: theme.textTheme.titleMedium),
                     Text(
                       _foil ? 'brillante' : 'normale',
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -1226,14 +1316,17 @@ class _CellActionsState extends ConsumerState<_CellActions> {
                     ? 'Ajouter un exemplaire brillant'
                     : 'Ajouter un exemplaire normal',
               ),
-              onTap: () async {
-                final navigator = Navigator.of(context);
-                await ref
+              onTap: () => _write(
+                context,
+                ref,
+                action: () => ref
                     .read(collectionRepositoryProvider)
-                    .add(oracleId, printId: cell.printId, isFoil: _foil);
-                _refresh(ref);
-                navigator.pop();
-              },
+                    .add(oracleId, printId: cell.printId, isFoil: _foil),
+                done: _foil
+                    ? 'Un exemplaire brillant ajouté'
+                    : 'Un exemplaire ajouté',
+                failed: 'Ajout impossible',
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.remove),
@@ -1242,17 +1335,20 @@ class _CellActionsState extends ConsumerState<_CellActions> {
                     ? 'Retirer un exemplaire brillant'
                     : 'Retirer un exemplaire normal',
               ),
-              onTap: () async {
-                final navigator = Navigator.of(context);
-                await ref
+              onTap: () => _write(
+                context,
+                ref,
+                action: () => ref
                     .read(collectionRepositoryProvider)
-                    .remove(oracleId, printId: cell.printId, isFoil: _foil);
-                _refresh(ref);
-                navigator.pop();
-              },
+                    .remove(oracleId, printId: cell.printId, isFoil: _foil),
+                done: _foil
+                    ? 'Un exemplaire brillant retiré'
+                    : 'Un exemplaire retiré',
+                failed: 'Retrait impossible',
+              ),
             ),
             ListTile(
-              leading: const Icon(Icons.style_outlined),
+              leading: const Icon(Icons.layers_outlined),
               title: const Text('Corriger l\'édition'),
               subtitle: const Text('Si ce n\'est pas celle que vous tenez'),
               onTap: () async {
@@ -1268,75 +1364,26 @@ class _CellActionsState extends ConsumerState<_CellActions> {
                   navigator.pop();
                   return;
                 }
-                await ref
-                    .read(collectionRepositoryProvider)
-                    .setPrinting(
-                      oracleId,
-                      fromPrintId: cell.printId,
-                      toPrintId: chosen.printing.printId,
-                      fromFoil: _foil,
-                      toFoil: chosen.isFoil,
-                    );
-                _refresh(ref);
-                navigator.pop();
+                if (!context.mounted) return;
+                await _write(
+                  context,
+                  ref,
+                  action: () => ref
+                      .read(collectionRepositoryProvider)
+                      .setPrinting(
+                        oracleId,
+                        fromPrintId: cell.printId,
+                        toPrintId: chosen.printing.printId,
+                        fromFoil: _foil,
+                        toFoil: chosen.isFoil,
+                      ),
+                  done: 'Édition enregistrée : ${chosen.printing.label}',
+                  failed: 'Édition non enregistrée',
+                );
               },
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _Message extends StatelessWidget {
-  const _Message({
-    required this.icon,
-    required this.title,
-    this.detail,
-    this.onRetry,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? detail;
-
-  /// Ce qu'il faut refaire pour s'en sortir, quand il y a quelque chose à
-  /// refaire. **Une panne de réseau n'est pas un état définitif** : sans ce
-  /// bouton, il ne resterait qu'à quitter l'application pour retenter.
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(height: 12),
-            Text(title, style: theme.textTheme.titleSmall),
-            if (detail != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                detail!,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-            if (onRetry != null) ...[
-              const SizedBox(height: 16),
-              FilledButton.tonalIcon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Réessayer'),
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }

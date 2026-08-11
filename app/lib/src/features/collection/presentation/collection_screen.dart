@@ -23,6 +23,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../common/state_message.dart';
 import '../../binders/presentation/binder_view.dart';
 import '../data/collection_repository.dart';
 
@@ -36,11 +37,17 @@ class CollectionScreen extends ConsumerWidget {
     return summary.when(
       loading: () =>
           const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      error: (error, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text('Collection illisible : $error'),
-        ),
+      // **La porte de l'onglet doit se rouvrir.** Ce chargement commande tout
+      // le reste : s'il échoue, l'onglet entier se réduit à cette ligne, et
+      // changer d'onglet ne rejoue rien — la coque les empile plutôt que de
+      // les reconstruire. Le classeur, lui, portait déjà un bouton
+      // « Réessayer » sur quatre écrans : c'était sa porte d'entrée qui était
+      // un cul-de-sac.
+      error: (error, _) => StateMessage(
+        icon: Icons.cloud_off,
+        title: 'Collection illisible',
+        detail: '$error',
+        onRetry: () => ref.invalidate(collectionProvider),
       ),
       data: (totals) {
         if (totals.isEmpty) return const _EmptyCollection();

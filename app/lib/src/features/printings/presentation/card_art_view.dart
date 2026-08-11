@@ -37,6 +37,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../common/card_image.dart';
 
 import '../data/printing_repository.dart';
 import '../domain/scryfall_image.dart';
@@ -101,11 +102,8 @@ Future<void> showCardImage(
 }) {
   return showDialog<void>(
     context: context,
-    builder: (_) => _Preview(
-      url: fullCardImage(imageUrl),
-      title: title,
-      foil: foil,
-    ),
+    builder: (_) =>
+        _Preview(url: fullCardImage(imageUrl), title: title, foil: foil),
   );
 }
 
@@ -142,10 +140,7 @@ class _CardArtDialog extends ConsumerWidget {
                 .map((p) => p.artCropUrl)
                 .where((u) => u != null)
                 .firstOrNull ??
-            list
-                .map((p) => p.artCropUrl)
-                .where((u) => u != null)
-                .firstOrNull;
+            list.map((p) => p.artCropUrl).where((u) => u != null).firstOrNull;
 
         return _Preview(url: fullCardImage(url), title: title, foil: foil);
       },
@@ -194,17 +189,12 @@ class _Preview extends StatelessWidget {
                 child: FoilSheen(
                   foil: foil,
                   borderRadius: _cardRadius,
-                  child: Image.network(
-                    url!,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, progress) =>
-                        progress == null
-                        ? child
-                        : const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                    errorBuilder: (_, _, _) =>
-                        const _Absent('Carte indisponible.'),
+                  child: CardImage(
+                    url: url,
+                    placeholder: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    errorBuilder: (_) => const _Absent('Carte indisponible.'),
                   ),
                 ),
               ),
@@ -315,14 +305,11 @@ class CardArtThumbnail extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
-      child: Image.network(
-        url!,
+      child: CardImage(
+        url: url,
         width: width,
         height: height,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => placeholder,
-        loadingBuilder: (context, child, progress) =>
-            progress == null ? child : placeholder,
+        placeholder: placeholder,
       ),
     );
   }

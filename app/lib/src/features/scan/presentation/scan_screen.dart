@@ -17,6 +17,7 @@ import '../../../diagnostics/diagnostics.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../application/scan_service.dart';
 import '../data/art_index_repository.dart';
@@ -81,7 +82,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
       final details = outcome.oracleIds.isEmpty
           ? <CardHit>[]
-          : await ref.read(cardRepositoryProvider).byOracleIds(outcome.oracleIds);
+          : await ref
+                .read(cardRepositoryProvider)
+                .byOracleIds(outcome.oracleIds);
 
       if (!mounted) return;
       setState(() {
@@ -162,7 +165,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     }
   }
 
-  Future<void> _add(CardHit card, {String? printId, bool isFoil = false}) async {
+  Future<void> _add(
+    CardHit card, {
+    String? printId,
+    bool isFoil = false,
+  }) async {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     try {
@@ -427,55 +434,71 @@ class _Candidate extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-      decoration: BoxDecoration(
-        color: highlighted
-            ? theme.colorScheme.primaryContainer
-            : theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(14),
+    // **Maintenir montre la carte**, comme sur les trois autres voies de
+    // saisie. C'est ici qu'on en a le plus besoin : la visée ajoute d'un seul
+    // appui et referme aussitôt, sans liste à cocher pour rattraper une
+    // reconnaissance de travers.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () => showCardArt(
+        context,
+        oracleId: card.oracleId,
+        title: card.matchedName,
+        lang: card.matchedLang,
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(card.matchedName, style: theme.textTheme.titleMedium),
-                if (card.isLocalized) Text(card.name, style: muted),
-                const SizedBox(height: 4),
-                Text(
-                  [
-                    card.typeLine ?? '',
-                    if (origin != null) _originLabel(origin!),
-                  ].where((s) => s.isNotEmpty).join(' · '),
-                  style: muted,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        decoration: BoxDecoration(
+          color: highlighted
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(card.matchedName, style: theme.textTheme.titleMedium),
+                  if (card.isLocalized) Text(card.name, style: muted),
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      card.typeLine ?? '',
+                      if (origin != null) _originLabel(origin!),
+                    ].where((s) => s.isNotEmpty).join(' · '),
+                    style: muted,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-          Text(
-            card.priceEur == null
-                ? '—'
-                : '${card.priceEur!.toStringAsFixed(2)} €',
-            style: theme.textTheme.titleSmall,
-          ),
-          // Deux gestes : ajouter vite, ou préciser d'abord. Imposer le
-          // sélecteur à chaque carte ralentirait la saisie ; ne jamais le
-          // proposer obligerait à repasser par la collection.
-          IconButton(
-            onPressed: onChoosePrinting,
-            tooltip: "Choisir l'édition",
-            icon: const Icon(Icons.style_outlined),
-          ),
-          IconButton.filledTonal(
-            onPressed: onAdd,
-            tooltip: 'Ajouter à ma collection',
-            icon: const Icon(Icons.add),
-          ),
-        ],
+            Text(
+              card.priceEur == null
+                  ? '—'
+                  : '${card.priceEur!.toStringAsFixed(2)} €',
+              style: theme.textTheme.titleSmall,
+            ),
+            // Deux gestes : ajouter vite, ou préciser d'abord. Imposer le
+            // sélecteur à chaque carte ralentirait la saisie ; ne jamais le
+            // proposer obligerait à repasser par la collection.
+            IconButton(
+              onPressed: onChoosePrinting,
+              tooltip: "Choisir l'édition",
+              // Le seul bouton sans libellé de la famille « édition » : c'est
+              // ici que l'emprunt au glyphe de l'onglet Collection coûtait le
+              // plus cher. Voir card_search_screen.dart.
+              icon: const Icon(Icons.layers_outlined),
+            ),
+            IconButton.filledTonal(
+              onPressed: onAdd,
+              tooltip: 'Ajouter à ma collection',
+              icon: const Icon(Icons.add),
+            ),
+          ],
+        ),
       ),
     );
   }

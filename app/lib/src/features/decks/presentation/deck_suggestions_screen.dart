@@ -323,52 +323,44 @@ class _CommanderLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: () => showCardArt(
-        context,
-        oracleId: deck.commanderOracleId!,
-        title: deck.commanderName!,
-      ),
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
-        child: Row(
-          children: [
-            // **La coche dit ce qui décide de tout.** Sans le général, les
-            // quatre-vingt-dix-neuf autres cartes ne forment pas un deck — et
-            // c'est souvent la carte la plus chère de la liste. La distinction
-            // se lit donc avant le nom, pas après.
-            Icon(
-              deck.commanderOwned
-                  ? Icons.check_circle
-                  : Icons.workspace_premium_outlined,
-              size: 15,
-              color: deck.commanderOwned
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                deck.commanderName!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: deck.commanderOwned
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
+    // **La ligne n'intercepte plus le geste.** Elle agrandissait le général à
+    // l'appui simple — le seul de l'application, quand huit autres surfaces
+    // demandent de maintenir. C'était donc la surface qui enseignait la règle,
+    // et elle enseignait la mauvaise. Voir la carte relève maintenant de la
+    // tuile entière, qui porte le couple canonique : toucher agit, maintenir
+    // montre.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+      child: Row(
+        children: [
+          // **La coche dit ce qui décide de tout.** Sans le général, les
+          // quatre-vingt-dix-neuf autres cartes ne forment pas un deck — et
+          // c'est souvent la carte la plus chère de la liste. La distinction
+          // se lit donc avant le nom, pas après.
+          Icon(
+            deck.commanderOwned
+                ? Icons.check_circle
+                : Icons.workspace_premium_outlined,
+            size: 15,
+            color: deck.commanderOwned
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              deck.commanderName!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: deck.commanderOwned
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.image_outlined,
-              size: 14,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -431,6 +423,16 @@ class _DeckTile extends StatelessWidget {
           isScrollControlled: true,
           builder: (_) => _MissingSheet(deck: deck),
         ),
+        // **Maintenir montre le général**, comme partout ailleurs. Le deck se
+        // choisit sur lui : c'est la carte qui décide de tout, et souvent la
+        // plus chère de la liste.
+        onLongPress: deck.hasCommander
+            ? () => showCardArt(
+                context,
+                oracleId: deck.commanderOracleId!,
+                title: deck.commanderName!,
+              )
+            : null,
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           decoration: BoxDecoration(
@@ -614,9 +616,20 @@ class _MissingSheet extends ConsumerWidget {
                             // Une carte acquise n'a pas de coût à afficher : le
                             // tiret dirait « prix inconnu », le zéro « sans
                             // valeur ». Ni l'un ni l'autre n'est vrai.
+                            //
+                            // **Une carte manquante sans cote s'écrit « — »**,
+                            // comme sur les quatre autres écrans. Elle
+                            // s'affichait « 0.00 € », c'est-à-dire « gratuite »
+                            // dans le seul écran où l'on décide d'un achat. Le
+                            // test porte sur le prix unitaire et non sur
+                            // `lineCostEur`, coalescé côté SQL : ce dernier
+                            // n'arrive jamais nul, et le tester ne changerait
+                            // rien tout en ayant l'air juste.
                             if (card.missing > 0)
                               Text(
-                                '${(card.lineCostEur ?? 0).toStringAsFixed(2)} €',
+                                card.unitPriceEur == null
+                                    ? '—'
+                                    : '${(card.lineCostEur ?? 0).toStringAsFixed(2)} €',
                                 style: theme.textTheme.bodyMedium,
                               )
                             else

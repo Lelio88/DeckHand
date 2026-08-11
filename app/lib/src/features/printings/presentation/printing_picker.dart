@@ -25,9 +25,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../common/card_image.dart';
 
 import '../data/printing_repository.dart';
 import '../domain/card_printing.dart';
+import 'card_art_view.dart';
 
 /// Ce que le sélecteur rend : une édition et sa finition.
 class PrintingChoice {
@@ -203,7 +205,7 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Appui long sur une ligne pour voir l\'illustration en grand',
+                  'Appui long sur une ligne pour voir la carte en grand',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -223,8 +225,9 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
           const Divider(height: 1),
           Expanded(
             child: printings.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              loading: () => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
               error: (error, _) => Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -336,8 +339,11 @@ class _FoilToggle extends StatelessWidget {
               color: color,
             ),
             const SizedBox(width: 6),
+            // Le français, comme le classeur et comme l'étalement : « Foil »
+            // ici et « Brillantes » là ne disaient pas qu'il s'agissait de la
+            // même finition — celle qui double le prix.
             Text(
-              'Foil',
+              'Brillante',
               style: theme.textTheme.labelLarge?.copyWith(color: color),
             ),
           ],
@@ -491,7 +497,9 @@ class _PrintingTile extends StatelessWidget {
           ),
           if (printing.owned > 0)
             Text(
-              'déjà ${printing.owned}',
+              // « Déjà N », comme la pastille de la recherche : c'est le même
+              // avertissement — vous en possédez déjà, êtes-vous sûr d'ajouter ?
+              'Déjà ${printing.owned}',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.primary,
               ),
@@ -501,29 +509,21 @@ class _PrintingTile extends StatelessWidget {
     );
   }
 
+  /// **La carte entière, et non son illustration recadrée.** La question posée
+  /// ici est « laquelle de ces trente Foudre est-ce que je tiens ? », et deux
+  /// impressions partagent souvent la même illustration sans partager leur
+  /// cadre, leur symbole d'extension ni leur numéro imprimé. Le recadrage
+  /// effaçait exactement ce qui les départage — et rendait un objet différent
+  /// des autres écrans pour un geste identique.
+  ///
+  /// La finition choisie voyage avec l'aperçu : c'est le seul moment où l'on
+  /// voit l'exemplaire qu'on est en train de désigner.
   void _showArt(BuildContext context, CardPrinting printing) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => Dialog(
-        insetPadding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-              child: Image.network(printing.artCropUrl!, fit: BoxFit.contain),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                printing.label,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-          ],
-        ),
-      ),
+    showCardImage(
+      context,
+      imageUrl: printing.artCropUrl,
+      title: printing.label,
+      foil: foil,
     );
   }
 }
@@ -554,14 +554,11 @@ class _Thumbnail extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
-      child: Image.network(
-        url!,
+      child: CardImage(
+        url: url,
         width: _thumbWidth,
         height: _thumbHeight,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => placeholder,
-        loadingBuilder: (context, child, progress) =>
-            progress == null ? child : placeholder,
+        placeholder: placeholder,
       ),
     );
   }

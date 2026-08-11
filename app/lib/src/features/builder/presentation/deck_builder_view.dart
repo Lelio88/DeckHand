@@ -219,20 +219,31 @@ class _DeckView extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      commander.displayName,
-                      style: theme.textTheme.titleLarge,
-                    ),
-                    Text(
-                      commander.typeLine,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                // **Maintenir montre le général**, comme les 99 autres cartes
+                // de la liste et comme l'écran de choix d'où l'on vient.
+                // Sans ce geste, revoir la carte qui structure le deck
+                // obligeait à toucher « Changer », ce qui le détruit.
+                child: InkWell(
+                  onLongPress: () => showCardArt(
+                    context,
+                    oracleId: commander.oracleId,
+                    title: commander.displayName,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        commander.displayName,
+                        style: theme.textTheme.titleLarge,
                       ),
-                    ),
-                  ],
+                      Text(
+                        commander.typeLine,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               TextButton(

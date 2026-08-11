@@ -210,9 +210,7 @@ class TypeFilter extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: theme.colorScheme.outlineVariant),
-          color: selected.isEmpty
-              ? null
-              : theme.colorScheme.secondaryContainer,
+          color: selected.isEmpty ? null : theme.colorScheme.secondaryContainer,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -430,82 +428,102 @@ class _CardTileState extends ConsumerState<_CardTile> {
     final price =
         printing?.printing.priceFor(foil: printing.isFoil) ?? hit.priceEur;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(14),
+    // **Maintenir montre la carte**, comme partout ailleurs. C'est l'écran où
+    // l'on décide d'écrire une carte en collection, et la vignette de 56 × 42
+    // ne permet pas de lever un doute entre deux noms voisins. L'édition
+    // choisie voyage avec l'aperçu : une carte rééditée change parfois
+    // d'illustration, et en montrer une autre ferait douter de sa saisie.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () => showCardArt(
+        context,
+        oracleId: hit.oracleId,
+        title: hit.matchedName,
+        lang: hit.matchedLang,
+        printId: printing?.printing.printId,
+        foil: printing?.isFoil ?? false,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // L'illustration précède le nom : c'est elle qu'on reconnaît en
-          // premier, et le seul repère qui sépare deux cartes homonymes.
-          Padding(
-            padding: const EdgeInsets.only(right: 12, top: 2),
-            child: CardArtThumbnail(url: art),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // L'illustration précède le nom : c'est elle qu'on reconnaît en
+            // premier, et le seul repère qui sépare deux cartes homonymes.
+            Padding(
+              padding: const EdgeInsets.only(right: 12, top: 2),
+              child: CardArtThumbnail(url: art),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hit.matchedName,
+                    style: theme.textTheme.titleMedium,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  // Le nom oracle n'est rappelé que s'il diffère : inutile de
+                  // répéter la même chaîne sous une carte trouvée en anglais.
+                  if (hit.isLocalized)
+                    Text(
+                      hit.name,
+                      style: muted,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    hit.typeLine ?? '',
+                    style: muted,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (_quantity > 0) _OwnedBadge(quantity: _quantity),
+                      if (hit.legalPauper) const _FormatChip('Pauper'),
+                      if (hit.legalModern) const _FormatChip('Modern'),
+                      if (hit.legalCommander) const _FormatChip('Commander'),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _PrintingSelector(choice: _printing, onTap: _choosePrinting),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  hit.matchedName,
-                  style: theme.textTheme.titleMedium,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  price == null ? '—' : '${price.toStringAsFixed(2)} €',
+                  style: theme.textTheme.titleSmall,
                 ),
-                // Le nom oracle n'est rappelé que s'il diffère : inutile de
-                // répéter la même chaîne sous une carte trouvée en anglais.
-                if (hit.isLocalized)
-                  Text(hit.name, style: muted, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 6),
-                Text(
-                  hit.typeLine ?? '',
-                  style: muted,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 4),
+                IconButton.filledTonal(
+                  onPressed: _busy ? null : _add,
+                  tooltip: 'Ajouter à ma collection',
+                  icon: _busy
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add),
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (_quantity > 0) _OwnedBadge(quantity: _quantity),
-                    if (hit.legalPauper) const _FormatChip('Pauper'),
-                    if (hit.legalModern) const _FormatChip('Modern'),
-                    if (hit.legalCommander) const _FormatChip('Commander'),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _PrintingSelector(choice: _printing, onTap: _choosePrinting),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                price == null ? '—' : '${price.toStringAsFixed(2)} €',
-                style: theme.textTheme.titleSmall,
-              ),
-              const SizedBox(height: 4),
-              IconButton.filledTonal(
-                onPressed: _busy ? null : _add,
-                tooltip: 'Ajouter à ma collection',
-                icon: _busy
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.add),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -538,12 +556,24 @@ class _PrintingSelector extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(chosen ? Icons.style : Icons.style_outlined, size: 15, color: color),
+            // **Un glyphe, un sens.** `Icons.style` est d'abord celui de
+            // l'onglet Collection — « des cartes » —, visible en permanence
+            // sous tous les écrans, et il servait aussi à dire « choisir
+            // l'édition ». Les feuillets empilés disent ce dont il s'agit :
+            // plusieurs impressions d'une même carte, dont on désigne une.
+            // Le contraste vide/plein, lui, est conservé : c'est ce qui
+            // distingue « à préciser » de « précisée ».
+            Icon(
+              chosen ? Icons.layers : Icons.layers_outlined,
+              size: 15,
+              color: color,
+            ),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
                 chosen
-                    ? '${choice!.printing.label}${choice!.isFoil ? ' · foil' : ''}'
+                    ? '${choice!.printing.label}'
+                          '${choice!.isFoil ? ' · brillante' : ''}'
                     : 'Toutes éditions',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -565,6 +595,20 @@ class _PrintingSelector extends StatelessWidget {
 ///
 /// C'est l'information qui évite de saisir deux fois la même carte quand on
 /// remplit sa collection en plusieurs séances.
+/// Combien d'exemplaires on possède déjà, avant d'en ajouter un.
+///
+/// **Trois formes, trois sens** — c'est le lexique du comptage dans toute
+/// l'application, et il vaut mieux qu'un mot unique employé au hasard :
+///
+/// | Forme | Sens | Où |
+/// |---|---|---|
+/// | « Déjà N » | stock **avant** l'ajout, donc un avertissement anti-doublon | recherche, sélecteur d'édition |
+/// | « ×N » | compte compact **posé sur une image**, faute de place pour un mot | case de classeur, résultat de recherche d'étagère |
+/// | « N exemplaires » | la même chose en toutes lettres, quand la ligne a la place | feuille d'action d'une case |
+///
+/// « Déjà » n'est donc pas une graphie interchangeable des deux autres : il
+/// dit *quand* on regarde le nombre, pas seulement lequel. Le lire ailleurs
+/// qu'avant un ajout serait une faute.
 class _OwnedBadge extends StatelessWidget {
   const _OwnedBadge({required this.quantity});
 

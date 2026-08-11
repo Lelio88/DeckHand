@@ -303,7 +303,7 @@ void main() {
         sole: const {'id-1': soleMar},
       );
 
-      await tester.tap(find.text('Foil'));
+      await tester.tap(find.text('Brillant'));
       await tester.pumpAndSettle();
       await tester.tap(find.textContaining('Ajouter'));
       await tester.pumpAndSettle();

@@ -27,9 +27,7 @@ import '../data/photo_source.dart';
 
 /// Une carte repérée sur la photo, telle que l'utilisateur peut l'amender.
 class _Spotted {
-  _Spotted(SpreadFind find)
-    : card = find.card,
-      quantity = find.copies;
+  _Spotted(SpreadFind find) : card = find.card, quantity = find.copies;
 
   final CardHit card;
   bool keep = true;
@@ -68,7 +66,20 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
   bool _busy = false;
   bool _saving = false;
   bool _scanned = false;
+
+  /// La photo n'a rien donné — le seul cas où il n'y a rien d'autre à montrer.
   String? _error;
+
+  /// L'enregistrement a échoué, alors que la liste, elle, est intacte.
+  ///
+  /// **Deux pannes, deux champs.** Elles partageaient `_error`, si bien qu'une
+  /// coupure réseau au moment d'« Ajouter » remplaçait la liste par un message
+  /// plein écran : dix-sept lignes mesurées sur une photo réelle, leurs cases
+  /// cochées, leurs quantités et les éditions choisies une par une
+  /// disparaissaient d'un coup, et rien ne les ramenait. La dictée, elle,
+  /// gardait déjà les siennes pour la même erreur — c'est son bandeau qu'on
+  /// imite ici.
+  String? _saveError;
 
   Future<void> _capture(ImageSource source) async {
     setState(() {
@@ -165,7 +176,10 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
     final kept = _spotted.where((s) => s.keep).toList();
     if (kept.isEmpty) return;
 
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
     final repository = ref.read(collectionRepositoryProvider);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
@@ -193,7 +207,13 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       );
       navigator.pop();
     } catch (e) {
-      if (mounted) setState(() => _error = 'Enregistrement impossible : $e');
+      // La liste reste : `added` dit combien de cartes sont déjà passées, et
+      // ré-appuyer sur « Ajouter » les compterait deux fois. Décocher ce qui
+      // est enregistré est le seul geste que l'utilisateur puisse faire à
+      // notre place — encore faut-il qu'il voie encore ses lignes.
+      if (mounted) {
+        setState(() => _saveError = 'Enregistrement impossible : $e');
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -220,6 +240,7 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
                   scanned: _scanned,
                 ),
                 if (_busy) const LinearProgressIndicator(minHeight: 2),
+                if (_saveError != null) _SaveError(message: _saveError!),
                 Expanded(child: _results(theme)),
                 _Actions(
                   busy: _busy,
@@ -525,6 +546,49 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// L'échec d'enregistrement, annoncé sans emporter la liste.
+///
+/// Un bandeau et non une page : ce qui a échoué est l'écriture, pas la
+/// reconnaissance. Les lignes repérées, leurs quantités et les éditions déjà
+/// choisies restent dessous, prêtes pour un second essai.
+class _SaveError extends StatelessWidget {
+  const _SaveError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 18,
+            color: theme.colorScheme.onErrorContainer,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Note extends StatelessWidget {
   const _Note({required this.icon, required this.text});
 
@@ -619,7 +683,7 @@ class _EditionLine extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    printing == null ? Icons.style_outlined : Icons.style,
+                    printing == null ? Icons.layers_outlined : Icons.layers,
                     size: 14,
                     color: printing == null
                         ? theme.colorScheme.onSurfaceVariant
@@ -711,8 +775,14 @@ class _FoilChip extends StatelessWidget {
                 color: color,
               ),
               const SizedBox(width: 4),
+              // **« Brillant » et non « Foil ».** Le classeur nomme la même
+              // finition en français partout — filtre « Brillantes », bascule
+              // « Normale / Brillante », actions « un exemplaire brillant ».
+              // Deux mots pour la facette qui double le prix ne disaient pas
+              // qu'il s'agissait de la même. Le mot est au masculin ici :
+              // il qualifie l'exemplaire, comme le dit l'infobulle.
               Text(
-                'Foil',
+                'Brillant',
                 style: theme.textTheme.labelSmall?.copyWith(color: color),
               ),
             ],

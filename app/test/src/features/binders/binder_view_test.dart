@@ -19,6 +19,7 @@ import 'package:deckhand/src/features/binders/data/binder_repository.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
+import 'package:deckhand/src/common/card_image.dart';
 import 'package:deckhand/src/features/binders/domain/binder.dart';
 import 'package:deckhand/src/features/binders/presentation/binder_view.dart';
 import 'package:deckhand/src/features/printings/presentation/foil_decoration.dart';
@@ -92,15 +93,16 @@ class FakeBinderRepository implements BinderRepository {
   int firstFilledPage;
 
   /// Lectures demandées, pour vérifier que tri et filtre atteignent le serveur.
-  final requested = <
-      ({
-        String setCode,
-        int page,
-        BinderSort sort,
-        FinishFilter finish,
-        bool descending,
-      })
-  >[];
+  final requested =
+      <
+        ({
+          String setCode,
+          int page,
+          BinderSort sort,
+          FinishFilter finish,
+          bool descending,
+        })
+      >[];
 
   /// Finitions pour lesquelles la première page non vide a été demandée.
   final jumps = <FinishFilter>[];
@@ -262,7 +264,7 @@ void main() {
       await pumpBinder(tester, entries: [shelfEntry(art: _art)]);
 
       final image = tester.widget<Image>(find.byType(Image));
-      expect((image.image as NetworkImage).url, _art);
+      expect((image.image as CardImageProvider).url, _art);
       expect(
         image.fit,
         BoxFit.cover,
@@ -294,7 +296,9 @@ void main() {
       expect(find.byType(SvgPicture), findsNothing);
     });
 
-    testWidgets('une édition sans illustration reste une tuile', (tester) async {
+    testWidgets('une édition sans illustration reste une tuile', (
+      tester,
+    ) async {
       // Réseau absent, impression sans illustration connue : la tuile doit
       // rester une tuile plutôt que devenir un trou dans l'étagère.
       await pumpBinder(tester, entries: [shelfEntry()]);
@@ -309,15 +313,46 @@ void main() {
     ) async {
       // Une carte sans édition précisée n'a pas de case. Le dire évite de
       // laisser croire à une collection vide.
-      await pumpBinder(tester);
+      await pumpBinder(tester, unspecified: 3);
 
       expect(find.text('Aucun classeur'), findsOneWidget);
       expect(
-        find.textContaining('vue Liste'),
-        findsOneWidget,
-        reason: 'le classeur ouvrant l\'onglet, il doit indiquer la sortie '
+        find.textContaining('À trier'),
+        findsWidgets,
+        reason:
+            'le classeur ouvrant l\'onglet, il doit indiquer la sortie '
             'plutôt que laisser croire à une collection vide',
       );
+    });
+
+    testWidgets('sans classeur, la pile à trier reste atteignable', (
+      tester,
+    ) async {
+      // C'est l'état du premier jour, ou d'une collection dictée : aucune
+      // carte n'a d'édition, donc aucune n'a de case. La tuile « À trier »
+      // est alors la seule sortie — la masquer enfermait l'utilisateur dans
+      // un écran qui lui disait d'aller ailleurs sans lui en donner le moyen.
+      await pumpBinder(tester, unspecified: 3);
+
+      await tester.tap(find.text('À trier'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Aucun classeur'),
+        findsNothing,
+        reason: 'la tuile doit ouvrir la pile, pas rester sur le message',
+      );
+    });
+
+    testWidgets('sans classeur ni carte à trier, le message ne renvoie pas '
+        'vers une pile inexistante', (tester) async {
+      // La tuile « À trier » s'efface quand rien n'attend. Y envoyer
+      // l'utilisateur répéterait la faute de l'ancien renvoi vers la vue
+      // Liste : nommer une sortie qui n'existe pas.
+      await pumpBinder(tester);
+
+      expect(find.text('À trier'), findsNothing);
+      expect(find.textContaining('onglet Ajouter'), findsOneWidget);
     });
   });
 
@@ -366,7 +401,8 @@ void main() {
       expect(
         find.textContaining('#2'),
         findsWidgets,
-        reason: 'le numéro reste : le fantôme le complète, il ne le remplace pas',
+        reason:
+            'le numéro reste : le fantôme le complète, il ne le remplace pas',
       );
       final ghost = tester.widget<Opacity>(
         find.ancestor(of: find.byType(Image), matching: find.byType(Opacity)),
@@ -453,7 +489,7 @@ void main() {
 
       final image = tester.widget<Image>(find.byType(Image));
       expect(
-        (image.image as NetworkImage).url,
+        (image.image as CardImageProvider).url,
         contains('/normal/'),
         reason: 'l\'illustration recadrée est un détail, pas une carte',
       );
@@ -567,7 +603,9 @@ void main() {
       await choose(tester, sortMenu, 'Nom');
 
       expect(
-        repository.requested.any((r) => r.page == 1 && r.sort == BinderSort.name),
+        repository.requested.any(
+          (r) => r.page == 1 && r.sort == BinderSort.name,
+        ),
         isTrue,
       );
     });
@@ -692,11 +730,7 @@ void main() {
         entries: [shelfEntry()],
         unspecified: 2,
         pile: [
-          const UnsortedCard(
-            oracleId: 'o1',
-            name: 'Roxxon Brutes',
-            owned: 2,
-          ),
+          const UnsortedCard(oracleId: 'o1', name: 'Roxxon Brutes', owned: 2),
         ],
       );
 
@@ -760,46 +794,48 @@ void main() {
       expect(find.textContaining('page 22'), findsOneWidget);
     });
 
-    testWidgets('revenir d\'un classeur retrouve le champ tel qu\'on l\'a laissé', (
-      tester,
-    ) async {
-      // Le défaut : ouvrir un classeur démonte l'étagère et emporte le
-      // contrôleur du champ ; en revenant, un nouveau naissait vide alors que
-      // la requête survivait dans son provider. L'écran montrait donc les
-      // résultats d'une recherche dont le champ paraissait effacé, et il
-      // fallait retaper puis vider pour retrouver ses classeurs.
-      final repository = await pumpBinder(
-        tester,
-        entries: [shelfEntry()],
-        cells: [cell(number: '197', owned: 1, art: _art)],
-      );
-      repository.found = const [
-        BinderFind(
-          oracleId: 'o1',
-          name: 'World War Hulk',
-          setCode: 'msh',
-          collectorNumber: '197',
-          page: 22,
-          owned: 1,
-        ),
-      ];
+    testWidgets(
+      'revenir d\'un classeur retrouve le champ tel qu\'on l\'a laissé',
+      (tester) async {
+        // Le défaut : ouvrir un classeur démonte l'étagère et emporte le
+        // contrôleur du champ ; en revenant, un nouveau naissait vide alors que
+        // la requête survivait dans son provider. L'écran montrait donc les
+        // résultats d'une recherche dont le champ paraissait effacé, et il
+        // fallait retaper puis vider pour retrouver ses classeurs.
+        final repository = await pumpBinder(
+          tester,
+          entries: [shelfEntry()],
+          cells: [cell(number: '197', owned: 1, art: _art)],
+        );
+        repository.found = const [
+          BinderFind(
+            oracleId: 'o1',
+            name: 'World War Hulk',
+            setCode: 'msh',
+            collectorNumber: '197',
+            page: 22,
+            owned: 1,
+          ),
+        ];
 
-      await tester.enterText(find.byType(TextField), 'hulk');
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('World War Hulk'));
-      await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), 'hulk');
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('World War Hulk'));
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Retour à l\'étagère'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Retour à l\'étagère'));
+        await tester.pumpAndSettle();
 
-      expect(
-        tester.widget<TextField>(find.byType(TextField)).controller?.text,
-        'hulk',
-        reason: 'le champ et les résultats affichés doivent dire la même chose',
-      );
-      expect(find.text('World War Hulk'), findsOneWidget);
-    });
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller?.text,
+          'hulk',
+          reason:
+              'le champ et les résultats affichés doivent dire la même chose',
+        );
+        expect(find.text('World War Hulk'), findsOneWidget);
+      },
+    );
 
     testWidgets('effacer le champ ramène les classeurs', (tester) async {
       final repository = await pumpBinder(tester, entries: [shelfEntry()]);

@@ -6,17 +6,32 @@ version = "0.1.0"
 # Supabase ; rien ne transite par un serveur intermédiaire.
 description = "Jobs d'ingestion DeckHand — catalogue, corpus de decks, empreintes"
 requires-python = ">=3.11"
+# Chaque contrainte porte un plancher ET un plafond de version majeure.
+#
+# Le plancher seul laissait franchir des majeures en silence : `Pillow>=11.0`
+# était résolu en 12.3.0, `pytest>=8.3` en 9.1.1. Sans conséquence jusqu'ici,
+# mais il existe un chemin — un seul — par lequel une bibliothèque Python
+# atteint l'application mobile sans passer par un plantage : `numpy` et
+# `Pillow` calculent les empreintes d'illustration (`app/vision/dhash.py`) que
+# l'app recompare avec son jumeau Dart. Un arrondi qui change n'échoue pas :
+# il écrit des empreintes valides mais incomparables, et la reconnaissance se
+# dégrade **en silence**. C'est la seule panne de ce dépôt qu'un opérateur ne
+# verrait pas devant sa commande.
+#
+# Le plafond ne remplace pas les vecteurs de parité (`api/tests/test_dhash.py`
+# et leurs jumeaux Dart), qui restent le vrai filet : il évite seulement que la
+# montée se produise sans qu'on l'ait décidée.
 dependencies = [
-    "httpx>=0.28",          # appels aux sources externes
-    "psycopg[binary]>=3.2", # écriture en base
-    "numpy>=2.0",           # réduction d'image pour les empreintes
-    "Pillow>=11.0",         # décodage des illustrations
+    "httpx>=0.28,<1.0",          # appels aux sources externes
+    "psycopg[binary]>=3.2,<4.0", # écriture en base
+    "numpy>=2.0,<3.0",           # réduction d'image pour les empreintes
+    "Pillow>=11.0,<13.0",        # décodage des illustrations
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.3",
-    "ruff>=0.8",
+    "pytest>=8.3,<10.0",
+    "ruff>=0.8,<1.0",
 ]
 
 [tool.pytest.ini_options]

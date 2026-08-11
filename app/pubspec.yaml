@@ -31,8 +31,12 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
+  # Aucune ligne de DeckHand n'écrit `CupertinoIcons` — et pourtant elle reste.
+  # Le retrait a été tenté : `flutter build web` avertit alors « Expected to
+  # find fonts for (MaterialIcons, packages/cupertino_icons/CupertinoIcons) ».
+  # La référence vient du framework lui-même, par les widgets Cupertino que
+  # Flutter monte pour la sélection de texte ; chercher les occurrences dans
+  # `lib/` et `test/` ne pouvait donc pas la voir.
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.17.1
   flutter_riverpod: ^3.3.2
