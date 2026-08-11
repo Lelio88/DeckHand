@@ -1,6 +1,54 @@
 # Architecture — DeckHand
 
-Annexe technique du [`CLAUDE.md`](../CLAUDE.md). Décrit le pipeline de reconnaissance, le modèle de données, les connecteurs de sources et le moteur de suggestion.
+Annexe technique du [`CLAUDE.md`](../CLAUDE.md), et **index des annexes**. Décrit
+le pipeline de reconnaissance, le modèle de données, les connecteurs de sources
+et le moteur de suggestion.
+
+| Annexe | Ce qu'elle couvre |
+|---|---|
+| [`collection-architecture.md`](./collection-architecture.md) | Classeurs, journal des mouvements, lecture publique et hébergement |
+| [`multi-game.md`](./multi-game.md) | Tout ce qui est propre à Riftbound : catalogue, prix, corpus de decks |
+| [`spread-detection.md`](./spread-detection.md) | Détection multi-cartes sur une photo, et les impasses mesurées |
+
+---
+
+## 0. Où vit quoi
+
+```
+┌──────────────────────────────── app/ (Flutter) ────────────────────────────────┐
+│  features/…/presentation   écrans, gestes, mise en forme                        │
+│  features/…/data           dépôts : un point de passage par domaine vers la base│
+│  features/…/domain         types purs, testables sans réseau ni Flutter          │
+│  common/ · config/         images en cache, délais de requête, jeu sélectionné   │
+└────────────────────────────────────────┬───────────────────────────────────────┘
+                                         │  PostgREST (RPC) + Auth
+┌────────────────────────────────────────▼───────────────────────────────────────┐
+│                        Supabase — Postgres · Auth · Storage                     │
+│  fonctions SQL : search_cards · my_collection_* · my_binder_* · deck_suggestions │
+│  RLS : chaque lecture est bornée par une politique, jamais par l'appelant        │
+└────────────────────────────────────────▲───────────────────────────────────────┘
+                                         │  écritures d'ingestion (rôle propriétaire)
+┌────────────────────────────────────────┴───────────────────────────────────────┐
+│  api/ (Python, jobs à la demande — pas un serveur)                              │
+│  ingestion/  un connecteur isolé par source        vision/   empreintes          │
+│  measure/    bancs de mesure : rien ne se règle à vue                            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+        ▲
+        │  Scryfall · TopDeck.gg · MTGJSON · Riftcodex · TCGCSV · BCE
+```
+
+**Le calcul vit dans la base.** Confronter une collection à des centaines de
+decklists est une jointure, pas un travail de client. L'application appelle des
+fonctions ; elle ne rapatrie jamais le corpus pour le comparer localement.
+
+**Ce qui traverse toutes les couches** :
+
+| Élément | Rôle |
+|---|---|
+| `config/selected_game.dart` | Un seul jeu à la fois, retenu d'une session à l'autre, propagé jusqu'aux appels |
+| `config/request_timeout.dart` | Aucune requête n'attend sans fin ; distingue l'injoignable du muet |
+| `common/card_image.dart` | Un seul point de passage pour toute image de carte : cache disque, vignette d'abord |
+| `common/state_message.dart` | Panne, vide, chargement : la même forme partout, avec un bouton Réessayer |
 
 ---
 
@@ -1092,6 +1140,27 @@ Une phrase sous le pentagone dit ce que le filtre demande — « Decks contenant
 **« Constructible » n'est pourtant pas « zéro euro », et c'est pourquoi il ouvre le menu au lieu d'y figurer comme un montant.** Une carte manquante sans cote coûte zéro et manque quand même ; le cas exige qu'il ne manque *rien* (`p_max_missing = 0`), les autres plafonnent une dépense (`p_max_cost`). Le rapprochement est légitime — on choisit un effort — mais l'assimilation aurait été fausse, et 82 549 impressions sur 166 998 n'ayant pas de cote en euros, elle se serait vue.
 
 ## 9. Ce qui se comporte pareil d'un écran à l'autre
+
+### Aucune requête n'attend sans fin, ni ne parle en Dart
+
+`requestTimeout` (20 s) et son extension `.timedOut()` couvrent tous les appels
+au serveur, et les écrans qui peuvent échouer portent un bouton **Réessayer**.
+
+**Le défaut n'était pas une lenteur mais une absence** : une connexion morte ne
+renvoie ni réponse ni erreur, et le `Future` restait en attente pour toujours —
+alors que les quatre appels du démarrage répondent en moins d'une seconde,
+lancés ensemble.
+
+`.timedOut()` traduit aussi l'**injoignable** : « ClientException with
+SocketException: Failed host lookup » s'affichait tel quel. Ne pas répondre et ne
+pas être joignable sont deux pannes distinctes, et une seule se guérit en
+attendant — `NetworkUnreachable` nomme le VPN, cause fréquente ici puisqu'un
+tunnel impose son propre résolveur. On intercepte `ClientException` et non
+`SocketException`, qui vient de `dart:io` et casserait la cible web.
+
+L'index d'empreintes garde son propre délai (15 s, mesuré : l'index complet
+arrive en 6,6 s depuis un poste filaire, soit environ 130 ms par page).
+
 
 Chaque écran a été écrit à son tour, et chacun a inventé sa réponse à des questions que les précédents avaient déjà tranchées. Les divergences relevées ici n'étaient pas des choix : elles tenaient à l'ordre d'écriture. Un test par écran ne les aurait jamais vues — elles ne sont visibles qu'en comparant les écrans entre eux, ce que fait `test/src/features/ui_coherence_test.dart`.
 
