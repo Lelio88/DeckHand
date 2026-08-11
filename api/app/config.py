@@ -84,6 +84,34 @@ class SupabaseConfig:
 
 
 @dataclass(frozen=True)
+class TwitchConfig:
+    """Accès au chat Twitch, pour le bot en lecture.
+
+    `handle` est l'adresse de partage de la collection — le nom choisi dans
+    l'écran de partage, ou l'identifiant. C'est par elle, et par la clé
+    anonyme, que le bot lit : il ne voit donc rien de plus que la page
+    publique, y compris la portée retenue extension par extension.
+
+    `channel` est le canal Twitch, avec ou sans `#`.
+    """
+
+    nick: str
+    token: str
+    channel: str
+    handle: str
+
+    @classmethod
+    def load(cls) -> TwitchConfig:
+        values = load_env_file("twitch.env")
+        return cls(
+            nick=_require(values, "TWITCH_NICK", "twitch.env"),
+            token=_require(values, "TWITCH_TOKEN", "twitch.env"),
+            channel=_require(values, "TWITCH_CHANNEL", "twitch.env"),
+            handle=_require(values, "DECKHAND_HANDLE", "twitch.env"),
+        )
+
+
+@dataclass(frozen=True)
 class TopdeckConfig:
     """Accès à l'API TopDeck.gg.
 

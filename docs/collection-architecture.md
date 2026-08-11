@@ -245,6 +245,40 @@ Les clés viennent des secrets d'actions, jamais du dépôt, et le résultat par
 artefact sans atterrir sur aucune branche. `--base-href` est obligatoire : un
 site de projet est servi sous `/<dépôt>/`.
 
+### Le bot de chat lit par la même porte
+
+`api/app/twitch/` répond à `!card <nom>` dans un chat Twitch, en **lecture
+seule**. Il tourne sur le poste qui diffuse, le temps d'un direct ; rien n'est
+déployé.
+
+**Il ne voit rien de plus que la page publique, et ce n'est pas une prudence de
+son code.** Il s'adresse à Supabase avec la clé anonyme et une adresse de
+partage ; `binder_locate` est `SECURITY INVOKER`, donc les règles de ligne qui
+protègent la page le protègent par la même mécanique. En `SECURITY DEFINER`
+elle deviendrait un chemin d'accès parallèle, et la portée choisie extension par
+extension ne vaudrait plus rien pour qui connaît le nom de la collection.
+
+**La réponse est une localisation, pas un oui/non** — extension, page, pochette.
+Le rang d'une case parmi celles de son extension, divisé par neuf : rien n'est
+stocké. L'ordre reproduit exactement celui de `my_binder_page` rangé par numéro,
+faute de quoi le bot nommerait une page où la carte n'est pas.
+
+**Trois silences, un seul message.** Carte absente, adresse inconnue, extension
+retirée du partage : « pas dans le classeur ». C'est la même anti-énumération
+que la page — et le débit épuisé se tait aussi, plutôt que d'annoncer qu'il
+l'est, ce qui consommerait la ressource protégée.
+
+Le crédit Scryfall est annoncé à la connexion, au plus une fois par demi-heure :
+le garde-fou §IV.2 vaut pour un chat comme pour une page, mais une reconnexion
+qui réannonce transforme le crédit en spam, et un spam se fait couper.
+
+Mesuré : 220 noms possédés, **247 concordances contre `my_binder_page`, aucun
+écart**. La première version en laissait 6 muets — `Merfolk`, `Alien`, `Hero`,
+`Soldier`, `Wall`, `Leviathan` — tous des jetons, tous portés par plusieurs
+cartes distinctes. Élire la meilleure correspondance et s'arrêter là répondait
+« je ne l'ai pas » sur une carte rangée dans le classeur ; toutes les cartes du
+meilleur score sont désormais retenues, et la possession tranche.
+
 ---
 
 ## 5. Impasses mesurées

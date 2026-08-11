@@ -31,7 +31,10 @@ milliers de decklists réelles — tournois et précons officiels — et vous di
 portée, et pour combien.
 
 **Partager.** Une collection peut être donnée à lire : un lien ouvre vos classeurs sans
-compte, et se révoque d'un interrupteur.
+compte, et se révoque d'un interrupteur. Vous choisissez quels classeurs partager, et sous
+quel nom — l'adresse se dicte. Un bot Twitch lit par cette même porte : `!card Ka-Zar`
+répond « Marvel Super Heroes #174, page 20 case 3 », et rien de ce que vous n'avez pas
+partagé.
 
 ## Pourquoi Pauper d'abord
 
@@ -69,6 +72,12 @@ Les jobs d'ingestion sont idempotents et sautent ce qui n'a pas changé :
 
 ```bash
 cd api && .venv/Scripts/python -m app.ingestion.refresh
+```
+
+Le bot Twitch tourne le temps d'un direct, sur le poste qui diffuse — rien à déployer :
+
+```bash
+cd api && .venv/Scripts/python -m app.twitch
 ```
 
 ## Crédits et sources de données

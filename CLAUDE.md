@@ -19,7 +19,7 @@ Usage privé (le propriétaire et quelques amis) sur un dépôt public. Ni produ
 Topologie rapide :
 - `app/lib/src/features/` — par domaine : `card_search`, `collection`, `binders`, `decks`, `builder`, `scan`, `voice`, `printings`, `account`, `about`, `auth`
 - `app/lib/src/common/` et `config/` — images en cache, délais de requête, jeu sélectionné
-- `api/app/ingestion/` — un connecteur isolé par source ; `api/app/vision/` — empreintes ; `api/app/measure/` — bancs de mesure
+- `api/app/ingestion/` — un connecteur isolé par source ; `api/app/vision/` — empreintes ; `api/app/measure/` — bancs de mesure ; `api/app/twitch/` — bot de chat en lecture, lancé le temps d'un direct
 - `supabase/migrations/` — fichiers horodatés, joués par `api/apply_migration.py`
 
 ## III. Pile Technologique
@@ -70,6 +70,9 @@ cd api && .venv/Scripts/python -m app.ingestion.riftcodex_ingest   # catalogue R
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_prices      # prix Riftbound (--force)
 cd api && .venv/Scripts/python -m app.ingestion.topdeck_ingest --riftbound
 
+# Bot Twitch, en lecture seule — tourne le temps d'un direct, rien à déployer
+cd api && .venv/Scripts/python -m app.twitch          # --game riftbound
+
 # Vérifier l'arithmétique de l'écran Decks : <format> <jeu>
 cd api && .venv/Scripts/python -m app.measure.deck_math constructed riftbound
 
@@ -94,4 +97,4 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 ## VIII. Contexte de Session
 
 - **État** : 33 953 cartes Magic et 167 000 impressions cotées ; 1 035 cartes Riftbound, cotées et adossées à 2 500 decks. Les deux jeux bouclent la même promesse. Collection réelle : 343 lignes, 451 exemplaires, aucune sans édition. Compte `buton1@live.fr`, mot de passe dans `../.deckhand-secrets/supabase.env`.
-- **Focus immédiat** : la reconnaissance Riftbound n'a **jamais rencontré une carte de papier** (issues #4 et #5) — seul manque de ce jeu, et il demande du matériel, pas du code. Côté Twitch, la lecture publique est en place ; restent l'overlay OBS (#14), le bot (#15) et le temps réel (#8), dont la première tâche est une mesure : chronométrer une image de bout en bout sur l'appareil.
+- **Focus immédiat** : la reconnaissance Riftbound n'a **jamais rencontré une carte de papier** (issues #4 et #5) — seul manque de ce jeu, et il demande du matériel, pas du code. Côté Twitch, la lecture publique et le bot `!card` sont en place ; restent l'overlay OBS (#14) et le temps réel (#8) dont il dépend, et dont la première tâche est une mesure : chronométrer une image de bout en bout sur l'appareil.
