@@ -194,10 +194,24 @@ void main() {
       expect(find.text('TopDeck.gg'), findsNothing);
     });
 
-    testWidgets('un deck sans commandant garde ses étiquettes', (tester) async {
+    testWidgets('aucune tuile ne porte sa provenance, commandant ou non', (
+      tester,
+    ) async {
+      // Mesuré sur les 1 028 decks du corpus, la provenance est parfaitement
+      // corrélée au format : 190 Commander de MTGJSON, 838 Pauper et Modern de
+      // TopDeck.gg. Les deux mêmes étiquettes se répétaient donc sur les 838
+      // tuiles d'une liste sans rien y distinguer — et le crédit contractuel,
+      // lui, vit dans le bandeau d'attribution.
       await pumpDecksScreen(tester, results: [fakeDeck()]);
 
-      expect(find.text('Tournoi'), findsOneWidget);
+      expect(find.text('Tournoi'), findsNothing);
+      expect(find.text('Tout fait'), findsNothing);
+      expect(
+        find.text('TopDeck.gg'),
+        findsNothing,
+        reason: 'la pastille disparaît ; le bandeau porte le crédit en toutes '
+            'lettres',
+      );
     });
 
     testWidgets('le nom cherché atteint le dépôt', (tester) async {
@@ -351,9 +365,13 @@ void main() {
   testWidgets('l\'attribution de la source reste affichée', (tester) async {
     await pumpDecksScreen(tester, results: [fakeDeck()]);
 
+    // **Le texte entier, et non le seul nom de la source.** Les tuiles ne
+    // portent plus de pastille « TopDeck.gg » : si ce test se contentait de
+    // trouver ce nom quelque part, il aurait continué de passer alors même que
+    // le crédit contractuel avait disparu de l'écran.
     expect(
-      find.textContaining('TopDeck.gg'),
-      findsWidgets,
+      find.text('Données de tournoi fournies par TopDeck.gg'),
+      findsOneWidget,
       reason: 'le crédit est une obligation contractuelle envers la source',
     );
   });

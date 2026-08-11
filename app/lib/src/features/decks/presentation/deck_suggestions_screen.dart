@@ -490,56 +490,24 @@ class _DeckTile extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 8),
-              // **Le commandant à la place de la provenance.** « Précon » et
-              // « MTGJSON » décrivaient d'où venait la liste — ce que le
+              // **La provenance ne figure plus sur aucune tuile.** « Tournoi »
+              // et « TopDeck.gg » décrivaient d'où venait la liste — ce que le
               // bandeau d'attribution dit déjà en fin d'écran, et ce qui ne
-              // renseigne en rien sur ce qu'on va jouer. Le commandant, lui,
-              // est ce par quoi on choisit un deck.
-              if (deck.hasCommander)
-                _CommanderLine(deck: deck)
-              else
-                Wrap(
-                  spacing: 6,
-                  children: [
-                    _Tag(
-                      deck.isCompetitive ? 'Tournoi' : 'Tout fait',
-                      emphasised: !deck.isCompetitive,
-                    ),
-                    _Tag(deck.sourceName),
-                  ],
-                ),
+              // renseigne en rien sur ce qu'on va jouer. Elles ne
+              // distinguaient rien non plus : mesuré sur les 1 028 decks du
+              // corpus, la provenance est parfaitement corrélée au format —
+              // 190 Commander de MTGJSON, 838 Pauper et Modern de TopDeck.gg —
+              // si bien que les deux mêmes étiquettes se répétaient sur les 838
+              // tuiles d'une liste.
+              //
+              // Le commandant, lui, reste : c'est ce par quoi on choisit un
+              // deck, et il ne concerne qu'un format.
+              if (deck.hasCommander) ...[
+                const SizedBox(height: 8),
+                _CommanderLine(deck: deck),
+              ],
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Tag extends StatelessWidget {
-  const _Tag(this.label, {this.emphasised = false});
-
-  final String label;
-  final bool emphasised;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: emphasised
-            ? theme.colorScheme.tertiaryContainer
-            : theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: emphasised
-              ? theme.colorScheme.onTertiaryContainer
-              : theme.colorScheme.onSecondaryContainer,
         ),
       ),
     );
