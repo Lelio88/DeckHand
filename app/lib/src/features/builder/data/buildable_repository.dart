@@ -10,6 +10,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../config/request_timeout.dart';
 import '../../../config/selected_game.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../decks/domain/deck_suggestion.dart';
@@ -27,7 +28,7 @@ class BuildableRepository {
     final rows = await _client.rpc<List<dynamic>>(
       'my_buildable_cards',
       params: {'p_format': format.id, 'p_game': game.id},
-    );
+    ).timedOut();
 
     return rows
         .cast<Map<String, dynamic>>()

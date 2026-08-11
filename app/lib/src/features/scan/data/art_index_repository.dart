@@ -14,6 +14,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../config/request_timeout.dart';
 import '../domain/art_hash.dart';
 import '../domain/art_hash_index.dart';
 import 'art_index_cache.dart';
@@ -28,15 +29,12 @@ import 'art_index_cache.dart';
 /// change pas le nombre de pages, mais cesse de rendre le calcul mensonger.
 const int indexPageSize = 1000;
 
-/// Délai au-delà duquel une page est tenue pour perdue.
+/// Délai au-delà duquel une page d'index est tenue pour perdue.
 ///
-/// **Sans lui, l'écran tourne indéfiniment.** Une requête suspendue — réseau
-/// qui se ferme sans le dire, VPN qui bascule — laissait le `Future` en attente
-/// pour toujours, et l'utilisateur devant un indicateur immobile sans recours.
-/// Mesuré depuis un poste filaire : l'index complet arrive en 6,6 s, soit
-/// environ 130 ms par page. Quinze secondes laissent donc une marge de cent
-/// fois sur une page, tout en rendant la panne visible en quinze secondes au
-/// lieu de jamais.
+/// Le pourquoi est écrit une fois pour toutes dans [requestTimeout] ; ce qui
+/// est propre à l'index, c'est la mesure : depuis un poste filaire, l'index
+/// complet arrive en 6,6 s, soit environ 130 ms par page. Quinze secondes
+/// laissent donc une marge de cent fois sur une page.
 const Duration indexPageTimeout = Duration(seconds: 15);
 
 class ArtIndexRepository {
@@ -48,7 +46,7 @@ class ArtIndexRepository {
   Future<int> count() async {
     final value = await _client
         .rpc<int>('art_hash_count')
-        .timeout(indexPageTimeout);
+        .timedOut(indexPageTimeout);
     return value;
   }
 
@@ -70,7 +68,7 @@ class ArtIndexRepository {
             'art_hash_page',
             params: {'p_offset': offset, 'p_limit': indexPageSize},
           )
-          .timeout(indexPageTimeout);
+          .timedOut(indexPageTimeout);
       if (rows.isEmpty) break;
 
       for (final row in rows.cast<Map<String, dynamic>>()) {

@@ -333,11 +333,13 @@ Ce qu'on y gagne est ce qu'aucune liste ne montrait : **les cases vides**. Le ba
 
 **Un vrai retournement, pas un fondu ni un glissement.** Ce qu'on reconnaît d'un classeur qu'on feuillette, c'est la feuille qui pivote sur sa reliure : elle se soulève, montre sa tranche, laisse voir la suivante par-dessous, puis retombe en présentant son dos. Un fondu enchaîné donnerait la même information sans donner la même chose à voir. `page_turn.dart` porte la mécanique.
 
-**La reliure est à gauche**, comme un classeur à anneaux ouvert à plat : glisser vers la gauche avance, vers la droite on revient. L'axe de rotation change avec le sens — bord gauche pour avancer, bord droit pour reculer — sans quoi la feuille pivoterait autour du mauvais côté et sortirait de la reliure. Le dos d'une feuille est la page suivante **en miroir** : sans cette inversion, la grille apparaîtrait à l'envers, première case à droite.
+**La reliure est à gauche**, comme un classeur à anneaux ouvert à plat : glisser vers la gauche avance, vers la droite on revient. Un seul mouvement est calculé — celui vers la gauche — et le retour en est l'image dans un miroir : une seule géométrie à écrire, donc une seule à régler. Le contenu est alors remis à l'endroit une seconde fois, sans quoi les cartes s'afficheraient inversées pendant tout le geste.
 
-**Le volume vient de la lumière, pas de la géométrie.** Une courbure par découpage en lamelles verticales a été tentée puis retirée : les tranches, pivotées chacune autour de son propre bord de l'angle global au lieu de l'angle relatif, se croisaient au lieu de rester jointes — les cartes apparaissaient coupées en morceaux pendant le geste. Un pliage juste demande de composer les transformations de proche en proche et de le régler à l'œil sur l'appareil ; une feuille franchement plane, correctement éclairée, vaut mieux qu'une courbure approximative qui déchire ce qu'elle montre.
+**Le dos d'une feuille ne montre pas la page suivante.** Il l'a d'abord fait, et l'effet était celui d'une feuille transparente : on voyait les cartes de la page découverte deux fois, dont une par-derrière. Ce qu'on voit en tournant une page de classeur, ce sont **les pochettes vides** — le plastique et ses logements, pas les cartes glissées de l'autre côté. Le verso n'y charge donc aucune image, ce qui évite au passage de doubler les neuf cartes d'une feuille en mouvement.
 
-Restent trois choses qui donnent le relief et ne peuvent rien casser : un **reflet** qui balaie la feuille au rythme de sa rotation, une **ombre portée** sur la page qu'elle découvre, et une **arête sombre** le long de la reliure, là où une page réelle s'incurve toujours. Les trois s'annulent à plat et culminent à mi-course.
+**La courbure se compose de proche en proche.** Un premier essai pivotait chaque lamelle verticale autour de son propre bord *de l'angle global* : les tranches se croisaient au lieu de rester jointes, et les cartes apparaissaient coupées en morceaux. Chaque lamelle repart maintenant du bord où la précédente s'achève — on avance de `cos θ` et on s'enfonce de `sin θ` —, si bien que la feuille reste continue quelle que soit la courbure. Une seconde erreur la dédoublait en escalier : le `Stack` des lamelles imposait la largeur totale à chacune d'elles ; des contraintes lâches ont suffi.
+
+Trois choses donnent le relief et ne peuvent rien casser : un **reflet** qui balaie la feuille au rythme de sa rotation, une **ombre portée** sur la page qu'elle découvre, et une **arête sombre** le long de la reliure, là où une page réelle s'incurve toujours. Les trois s'annulent à plat et culminent à mi-course. Les trois réglages de la courbure — nombre de lamelles, amplitude, profil — sont isolés en tête de fichier : ils ne se jugent qu'à l'œil, sur un appareil.
 
 **Le geste pilote l'animation, il ne la déclenche pas.** La feuille suit le doigt et l'on peut revenir en arrière en cours de route ; elle ne bascule qu'au-delà du tiers de la largeur, ou plus tôt si le geste est vif (600 px/s). Un frôlement pendant qu'on regarde ne tourne donc rien. La page ne change qu'une fois la feuille retombée : la changer à mi-course rechargerait la grille sous le doigt.
 
@@ -996,6 +998,18 @@ Le jalon 1 prouve la valeur du produit avant tout investissement dans la vision,
 **Une case a deux prix, pas un.** Le brillant et le normal s'y rangent ensemble mais se vendent du simple au triple : `my_binder_page` rend donc les deux, et la feuille d'action affiche celui de la finition qu'on s'apprête à ajouter. Un tiret dit l'absence de cote — un zéro ferait croire à une carte sans valeur.
 
 **Le renversement du tri avait été perdu** en passant des puces aux menus. Re-choisir un critère inverse le sens, comme dans l'ancienne liste ; l'entrée déjà sélectionnée annonce ce qu'un second appui fera — « Dernière page d'abord », « Les moins chères d'abord », « De Z à A » — plutôt que de paraître inerte. Le champ fermé, lui, ne montre que le critère : la phrase y déborderait.
+
+### Aucune requête ne peut plus attendre sans fin
+
+**Un écran restait en chargement perpétuel, et la cause n'était pas le serveur.** Mesuré sous l'identité du compte, les quatre fonctions que l'application appelle au démarrage — étagère, totaux, pile à trier, suggestions de decks — répondent en moins d'une seconde, y compris lancées ensemble ; l'étagère revient en 0,13 s. Aucune n'était donc en cause.
+
+Ce qui manquait était un **délai maximal**. Une connexion TCP qui meurt sans le dire — un VPN qui bascule, un Wi-Fi qu'on quitte pour les données mobiles — ne renvoie ni réponse ni erreur : le `Future` reste en attente indéfiniment, et l'indicateur de chargement avec lui. Sans message, sans bouton, sans fin. Le diagnostic avait déjà été posé pour l'index d'empreintes, qui porte son propre délai depuis ; il n'avait simplement jamais été généralisé, et **dix-neuf appels sur vingt en étaient dépourvus**.
+
+`requestTimeout` (`app/lib/src/config/request_timeout.dart`) porte désormais la règle une fois pour toutes : vingt secondes, soit vingt fois la marge mesurée, et une extension `.timedOut()` posée sur chaque appel. L'index d'empreintes garde son propre délai de quinze secondes, justifié par sa mesure — 130 ms par page — mais lève la même exception.
+
+**Un délai ne suffit pas** : il change un chargement sans fin en message d'erreur, ce qui reste une impasse. Les quatre écrans du classeur portent donc un bouton **Réessayer** qui redemande vraiment au serveur. Une panne de réseau n'est pas un état définitif ; sans ce bouton, il ne resterait qu'à quitter l'application.
+
+Enfin, l'exception est **à nous** plutôt que le `TimeoutException` de Dart : l'interface affiche le message tel quel, et « TimeoutException after 0:00:20.000000 » ne dit rien à qui tient un téléphone. Le texte nomme la cause probable, qui est presque toujours le réseau.
 
 ### La roue chromatique
 

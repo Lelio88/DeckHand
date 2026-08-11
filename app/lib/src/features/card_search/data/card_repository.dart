@@ -13,6 +13,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../config/request_timeout.dart';
 import '../../../config/selected_game.dart';
 
 import '../domain/card_hit.dart';
@@ -32,7 +33,7 @@ class CardRepository {
     final rows = await _client.rpc<List<dynamic>>(
       'cards_by_oracle_ids',
       params: {'p_ids': oracleIds},
-    );
+    ).timedOut();
 
     return rows
         .cast<Map<String, dynamic>>()
@@ -72,7 +73,7 @@ class CardRepository {
         'p_game': game.id,
         'p_types': types.toList(growable: false),
       },
-    );
+    ).timedOut();
 
     return rows
         .cast<Map<String, dynamic>>()
@@ -114,7 +115,7 @@ class CardRepository {
     final rows = await _client.rpc<List<dynamic>>(
       'search_cards_bulk',
       params: {'p_names': wanted, 'p_game': game.id},
-    );
+    ).timedOut();
 
     return {
       for (final row in rows.cast<Map<String, dynamic>>())

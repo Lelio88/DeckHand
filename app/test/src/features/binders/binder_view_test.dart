@@ -12,6 +12,7 @@
 /// classeurs vides.
 library;
 
+import 'package:deckhand/src/config/request_timeout.dart';
 import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/auth/data/auth_repository.dart';
 import 'package:deckhand/src/features/binders/data/binder_repository.dart';
@@ -93,8 +94,24 @@ class FakeBinderRepository implements BinderRepository {
   /// Finitions pour lesquelles la première page non vide a été demandée.
   final jumps = <FinishFilter>[];
 
+  /// Ce que le réseau oppose, tant qu'il l'oppose.
+  ///
+  /// Persistant, et non levé une seule fois : la vue demande l'étagère plus
+  /// d'une fois au montage, et une panne qui s'efface d'elle-même passerait
+  /// donc inaperçue. On la lève tant que le test ne l'a pas explicitement
+  /// levée — ce qui est aussi la vérité d'un réseau coupé.
+  Object? shelfError;
+
+  /// Nombre de fois que l'étagère a été demandée.
+  int shelfCalls = 0;
+
   @override
-  Future<List<BinderShelfEntry>> shelf({Game game = Game.magic}) async => entries;
+  Future<List<BinderShelfEntry>> shelf({Game game = Game.magic}) async {
+    shelfCalls++;
+    final error = shelfError;
+    if (error != null) throw error;
+    return entries;
+  }
 
   @override
   Future<List<BinderCell>> pageOf(
@@ -156,13 +173,14 @@ Future<FakeBinderRepository> pumpBinder(
   List<UnsortedCard> pile = const [],
   int firstFilledPage = 1,
   int unspecified = 0,
+  Object? shelfError,
 }) async {
   final repository = FakeBinderRepository(
     entries: entries,
     cells: cells,
     pile: pile,
     firstFilledPage: firstFilledPage,
-  );
+  )..shelfError = shelfError;
   final collection = FakeCollectionRepository()
     ..totals = CollectionSummary(
       totalCards: 1,
@@ -680,6 +698,47 @@ void main() {
     test('la complétion est une part, pas un compte', () {
       expect(shelfEntry(total: 100, owned: 25).completion, 0.25);
       expect(shelfEntry(total: 0, owned: 0).completion, 0);
+    });
+  });
+
+  group('quand le réseau lâche', () {
+    testWidgets('la panne se dit, au lieu de tourner sans fin', (tester) async {
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        shelfError: const RequestTimedOut(),
+      );
+
+      // Ce que l'utilisateur voyait auparavant : un indicateur immobile, pour
+      // toujours, sans message ni recours.
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.text('Étagère illisible'), findsOneWidget);
+      expect(
+        find.textContaining('Vérifiez votre connexion'),
+        findsOneWidget,
+        reason: 'le message doit nommer la cause probable, pas le type Dart',
+      );
+    });
+
+    testWidgets('un second essai suffit à repartir', (tester) async {
+      final repository = await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        shelfError: const RequestTimedOut(),
+      );
+      final before = repository.shelfCalls;
+
+      // Le réseau revient : c'est tout ce qui a changé entre les deux essais.
+      repository.shelfError = null;
+      await tester.tap(find.text('Réessayer'));
+      await tester.pumpAndSettle();
+
+      expect(
+        repository.shelfCalls,
+        greaterThan(before),
+        reason: 'le bouton doit redemander, pas seulement effacer le message',
+      );
+      expect(find.text('Marvel Super Heroes'), findsOneWidget);
     });
   });
 }

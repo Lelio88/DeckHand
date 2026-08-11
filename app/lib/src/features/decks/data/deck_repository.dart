@@ -8,6 +8,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../config/request_timeout.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../collection/data/collection_repository.dart';
 import '../domain/deck_suggestion.dart';
@@ -44,7 +45,7 @@ class DeckRepository {
             : filters.commander.trim(),
         'p_owned_commander': filters.ownedCommanderOnly,
       },
-    );
+    ).timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(DeckSuggestion.fromJson)
@@ -55,7 +56,7 @@ class DeckRepository {
     final rows = await _client.rpc<List<dynamic>>(
       'deck_missing_cards',
       params: {'p_deck_id': deckId},
-    );
+    ).timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(MissingCard.fromJson)

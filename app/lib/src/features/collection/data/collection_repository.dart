@@ -15,6 +15,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../config/request_timeout.dart';
 import '../../../config/selected_game.dart';
 
 import '../../auth/data/auth_repository.dart';
@@ -47,7 +48,7 @@ class CollectionRepository {
         'p_print_id': printId,
         'p_is_foil': isFoil,
       },
-    );
+    ).timedOut();
   }
 
   /// Retire des exemplaires et renvoie la quantité restante, zéro si la ligne a
@@ -66,7 +67,7 @@ class CollectionRepository {
         'p_print_id': printId,
         'p_is_foil': isFoil,
       },
-    );
+    ).timedOut();
   }
 
   /// Déplace des exemplaires d'une édition vers une autre.
@@ -92,7 +93,7 @@ class CollectionRepository {
         'p_from_foil': fromFoil,
         'p_to_foil': toFoil,
       },
-    );
+    ).timedOut();
   }
 
   /// Totaux de la collection entière, indépendants de ce qu'on regarde.
@@ -100,7 +101,7 @@ class CollectionRepository {
     final rows = await _client.rpc<List<dynamic>>(
       'my_collection_summary',
       params: {'p_game': game.id},
-    );
+    ).timedOut();
     if (rows.isEmpty) return CollectionSummary.empty;
     return CollectionSummary.fromJson(rows.first as Map<String, dynamic>);
   }

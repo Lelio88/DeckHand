@@ -9,6 +9,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../config/request_timeout.dart';
 import '../domain/card_printing.dart';
 
 class PrintingRepository {
@@ -38,7 +39,7 @@ class PrintingRepository {
         'p_limit': limit,
         'p_lang': lang,
       },
-    );
+    ).timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(CardPrinting.fromJson)
@@ -63,7 +64,7 @@ class PrintingRepository {
     final rows = await _client.rpc<List<dynamic>>(
       'sole_editions',
       params: {'p_oracle_ids': ids, 'p_lang': lang},
-    );
+    ).timedOut();
     return {
       for (final row in rows.cast<Map<String, dynamic>>())
         row['oracle_id'] as String: CardPrinting.fromJson(row),

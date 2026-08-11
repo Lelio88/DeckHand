@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../config/request_timeout.dart';
 import '../../../config/selected_game.dart';
 import '../../collection/domain/collection_entry.dart' show FinishFilter;
 import '../domain/binder.dart';
@@ -31,7 +32,7 @@ class BinderRepository {
     final rows = await _client.rpc<List<dynamic>>(
       'my_binder_shelf',
       params: {'p_game': game.id},
-    );
+    ).timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(BinderShelfEntry.fromJson)
@@ -59,7 +60,7 @@ class BinderRepository {
         'p_per_page': binderPageSize,
         'p_limit': limit,
       },
-    );
+    ).timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(BinderFind.fromJson)
@@ -79,7 +80,7 @@ class BinderRepository {
     final rows = await _client.rpc<List<dynamic>>(
       'my_unsorted_pile',
       params: {'p_game': game.id, 'p_page': page, 'p_per_page': perPage},
-    );
+    ).timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(UnsortedCard.fromJson)
@@ -109,7 +110,7 @@ class BinderRepository {
         'p_finish': finish.id,
         'p_descending': descending,
       },
-    );
+    ).timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(BinderCell.fromJson)
@@ -132,7 +133,7 @@ class BinderRepository {
         'p_per_page': perPage,
         'p_finish': finish.id,
       },
-    );
+    ).timedOut();
     return value;
   }
 }
