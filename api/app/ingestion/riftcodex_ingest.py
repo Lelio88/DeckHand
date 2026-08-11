@@ -196,13 +196,36 @@ def write_cards(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
     return written
 
 
+def tcgplayer_id(card: dict[str, Any]) -> int | None:
+    """Identifiant marchand de l'impression, ou None.
+
+    **Le seul chaînage vers un prix que la source offre.** Riftcodex ne cote
+    rien ; ce numéro désigne la même impression chez un marchand qui, lui, cote.
+    Il était reçu et jeté faute de colonne où l'écrire.
+
+    Servi comme chaîne de chiffres, converti en entier pour tenir dans la même
+    colonne que l'identifiant homonyme de Scryfall. Une valeur qui ne serait pas
+    numérique est ignorée plutôt que de faire échouer l'ingestion entière : sans
+    identifiant, l'impression reste parfaitement utilisable, simplement non
+    cotée — c'est déjà le cas des 227 cartes de l'extension `VEN`.
+    """
+    raw = card.get("tcgplayer_id")
+    if raw is None:
+        return None
+    try:
+        return int(str(raw).strip())
+    except ValueError:
+        return None
+
+
 def write_prints(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
     """Écrit chaque impression, avec l'URL de son visuel officiel."""
     statement = """
         INSERT INTO public.card_prints (scryfall_id, oracle_id, lang, printed_name,
                                         set_code, set_name, collector_number,
-                                        rarity, art_crop_url, illustration_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        rarity, art_crop_url, illustration_id,
+                                        tcgplayer_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (scryfall_id) DO UPDATE SET
             -- **L'identité doit suivre.** Sans cette ligne, une impression
             -- déjà connue reste rattachée à l'ancienne carte quand la règle
@@ -214,7 +237,13 @@ def write_prints(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
             printed_name     = EXCLUDED.printed_name,
             rarity           = EXCLUDED.rarity,
             art_crop_url     = EXCLUDED.art_crop_url,
-            illustration_id  = EXCLUDED.illustration_id
+            illustration_id  = EXCLUDED.illustration_id,
+            -- **COALESCE et non EXCLUDED seul.** Une extension trop récente
+            -- n'a pas encore d'identifiant marchand ; le jour où elle en
+            -- reçoit un, il s'écrit. Mais une réponse tronquée ne doit pas
+            -- effacer un identifiant déjà connu.
+            tcgplayer_id     = COALESCE(EXCLUDED.tcgplayer_id,
+                                        public.card_prints.tcgplayer_id)
     """
 
     written = 0
@@ -249,6 +278,7 @@ def write_prints(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
                     # calculera l'empreinte qu'une fois, comme il le fait pour
                     # Magic via l'identifiant d'illustration de Scryfall.
                     str(illustration_uuid(card)) if (card.get("media") or {}).get("image_url") else None,
+                    tcgplayer_id(card),
                 ),
             )
             written += 1

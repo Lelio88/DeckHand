@@ -9,12 +9,22 @@
 /// **L'empreinte transite en hexadécimal**, jamais en nombre : sur Flutter web,
 /// `int` est un double IEEE-754 et perdrait des bits au-delà de 2^53,
 /// silencieusement. La fonction serveur `art_hash_page` renvoie donc une chaîne.
+///
+/// **Un index par jeu, et pas seulement pour économiser du réseau.** L'index
+/// portait les 50 209 empreintes des deux catalogues, quel que soit le jeu
+/// choisi. En Riftbound, cinquante allers-retours pour 1 193 empreintes utiles ;
+/// en Magic, 1 193 empreintes qui ne pouvaient rien faire de bon. **379 d'entre
+/// elles tombent à moins de 12 bits d'une empreinte Magic** — sous le seuil de
+/// confiance —, si bien qu'une carte Magic photographiée pouvait se voir
+/// répondre une carte de l'autre jeu, ou perdre la marge de 4 bits qui autorise
+/// à trancher. Le cloisonnement n'était donc pas qu'une question de volume.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/request_timeout.dart';
+import '../../../config/selected_game.dart';
 import '../domain/art_hash.dart';
 import '../domain/art_hash_index.dart';
 import 'art_index_cache.dart';
@@ -42,23 +52,24 @@ class ArtIndexRepository {
 
   final SupabaseClient _client;
 
-  /// Nombre d'empreintes disponibles côté serveur.
-  Future<int> count() async {
+  /// Nombre d'empreintes disponibles côté serveur, pour ce jeu.
+  Future<int> count(Game game) async {
     final value = await _client
-        .rpc<int>('art_hash_count')
+        .rpc<int>('art_hash_count', params: {'p_game': game.id})
         .timedOut(indexPageTimeout);
     return value;
   }
 
-  /// Télécharge l'index complet.
+  /// Télécharge l'index complet d'un jeu.
   ///
   /// [onProgress] est appelé après chaque page avec le nombre d'entrées reçues
   /// et le total attendu — un index de plusieurs dizaines de milliers d'entrées
   /// met plusieurs secondes à arriver, l'utilisateur doit le voir.
-  Future<ArtHashIndex> download({
+  Future<ArtHashIndex> download(
+    Game game, {
     void Function(int received, int total)? onProgress,
   }) async {
-    final total = await count();
+    final total = await count(game);
     final entries = <IndexEntry>[];
 
     var offset = 0;
@@ -66,7 +77,11 @@ class ArtIndexRepository {
       final rows = await _client
           .rpc<List<dynamic>>(
             'art_hash_page',
-            params: {'p_offset': offset, 'p_limit': indexPageSize},
+            params: {
+              'p_offset': offset,
+              'p_limit': indexPageSize,
+              'p_game': game.id,
+            },
           )
           .timedOut(indexPageTimeout);
       if (rows.isEmpty) break;
@@ -115,7 +130,8 @@ class ArtIndexProgress extends Notifier<IndexProgress?> {
 final artIndexProgressProvider =
     NotifierProvider<ArtIndexProgress, IndexProgress?>(ArtIndexProgress.new);
 
-/// Index chargé en mémoire, servi depuis le cache quand il est à jour.
+/// Index du jeu choisi, chargé en mémoire, servi depuis le cache quand il est à
+/// jour.
 ///
 /// L'ordre des opérations porte tout l'arbitrage entre fraîcheur et
 /// disponibilité :
@@ -133,18 +149,24 @@ final artIndexProgressProvider =
 /// d'hier vaut infiniment mieux qu'un scan impossible — c'est vrai à toutes les
 /// étapes, pas seulement à la première.
 ///
+/// **Changer de jeu recharge l'index, sans le retélécharger.** Le provider suit
+/// [selectedGameProvider] : la mémoire ne porte donc que le jeu courant, alors
+/// que le cache local garde les deux. Une bascule aller-retour ne coûte qu'une
+/// relecture disque et un appel de comptage.
+///
 /// `keepAlive` implicite : le provider n'est pas `autoDispose`, l'index survit
 /// donc à la fermeture de l'écran de scan.
 final artHashIndexProvider = FutureProvider<ArtHashIndex>((ref) async {
   final repository = ref.watch(artIndexRepositoryProvider);
   final cache = ref.watch(artIndexCacheProvider);
+  final game = ref.watch(selectedGameProvider);
 
-  final cached = await cache.read();
+  final cached = await cache.read(game);
 
   if (cached != null) {
     int? serverCount;
     try {
-      serverCount = await repository.count();
+      serverCount = await repository.count(game);
     } on Object {
       // Hors ligne : le cache fait foi.
       return cached.index;
@@ -154,8 +176,11 @@ final artHashIndexProvider = FutureProvider<ArtHashIndex>((ref) async {
 
   final progress = ref.read(artIndexProgressProvider.notifier);
   try {
-    final downloaded = await repository.download(onProgress: progress.report);
-    await cache.write(downloaded);
+    final downloaded = await repository.download(
+      game,
+      onProgress: progress.report,
+    );
+    await cache.write(game, downloaded);
     progress.clear();
     return downloaded;
   } on Object {

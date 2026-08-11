@@ -9,14 +9,21 @@
 /// Le second point vérifié est l'avancement : il doit être publié pendant le
 /// téléchargement, et **effacé après**, abouti ou non. Un avancement figé à
 /// mi-course survivrait au provider et mentirait au chargement suivant.
+///
+/// Le troisième est le **cloisonnement par jeu**. L'index portait les deux
+/// catalogues, et 379 empreintes Riftbound tombent sous le seuil de confiance
+/// d'une empreinte Magic : servir le mauvais index n'est pas un gaspillage,
+/// c'est une reconnaissance qui peut répondre une carte de l'autre jeu.
 library;
 
+import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/scan/data/art_index_cache.dart';
 import 'package:deckhand/src/features/scan/data/art_index_repository.dart';
 import 'package:deckhand/src/features/scan/domain/art_hash.dart';
 import 'package:deckhand/src/features/scan/domain/art_hash_index.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 ArtHashIndex indexOf(List<String> ids) => ArtHashIndex.fromEntries([
   for (final id in ids)
@@ -30,48 +37,59 @@ class FakeIndexRepository implements ArtIndexRepository {
   int serverCount;
   ArtHashIndex? downloaded;
 
+  /// Index à servir par jeu, quand le fake doit les distinguer. Vide, le
+  /// [downloaded] commun fait foi.
+  Map<Game, ArtHashIndex> byGame = const {};
+
   /// Erreur à lever, respectivement au comptage et au téléchargement.
   Object? countError;
   Object? downloadError;
 
-  /// Avancements publiés, dans l'ordre.
-  final progress = <({int received, int total})>[];
+  /// Jeux demandés, dans l'ordre. C'est le maillon qui cède en silence : un
+  /// index téléchargé pour le mauvais jeu se comporte comme un index à jour.
+  final counted = <Game>[];
+  final downloads = <Game>[];
 
   @override
-  Future<int> count() async {
+  Future<int> count(Game game) async {
+    counted.add(game);
     if (countError != null) throw countError!;
-    return serverCount;
+    return byGame[game]?.length ?? serverCount;
   }
 
   @override
-  Future<ArtHashIndex> download({
+  Future<ArtHashIndex> download(
+    Game game, {
     void Function(int received, int total)? onProgress,
   }) async {
+    downloads.add(game);
     onProgress?.call(1, serverCount);
     if (downloadError != null) throw downloadError!;
     onProgress?.call(serverCount, serverCount);
-    return downloaded ?? indexOf(const []);
+    return byGame[game] ?? downloaded ?? indexOf(const []);
   }
 }
 
-/// Cache d'index en mémoire, sans `shared_preferences`.
+/// Cache d'index en mémoire, sans `shared_preferences`, une entrée par jeu.
 class FakeIndexCache implements ArtIndexCache {
-  FakeIndexCache([this.stored]);
+  FakeIndexCache([CachedIndex? magic]) {
+    if (magic != null) stored[Game.magic] = magic;
+  }
 
-  CachedIndex? stored;
+  final Map<Game, CachedIndex> stored = {};
   int writes = 0;
 
   @override
-  Future<CachedIndex?> read() async => stored;
+  Future<CachedIndex?> read(Game game) async => stored[game];
 
   @override
-  Future<void> write(ArtHashIndex index) async {
+  Future<void> write(Game game, ArtHashIndex index) async {
     writes++;
-    stored = (index: index, count: index.length);
+    stored[game] = (index: index, count: index.length);
   }
 
   @override
-  Future<void> clear() async => stored = null;
+  Future<void> clear(Game game) async => stored.remove(game);
 }
 
 ProviderContainer containerWith(
@@ -89,6 +107,8 @@ ProviderContainer containerWith(
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test('un cache à jour évite le téléchargement', () async {
     final cache = FakeIndexCache((index: indexOf(['a', 'b']), count: 2));
     final repository = FakeIndexRepository(serverCount: 2);
@@ -204,4 +224,77 @@ void main() {
       expect(container.read(artIndexProgressProvider), isNull);
     },
   );
+
+  group('un index par jeu', () {
+    test('c\'est l\'index du jeu choisi qui est demandé', () async {
+      final repository = FakeIndexRepository()
+        ..byGame = {
+          Game.magic: indexOf(['foudre', 'contresort']),
+          Game.riftbound: indexOf(['vi']),
+        };
+      final container = containerWith(repository, FakeIndexCache());
+
+      expect((await container.read(artHashIndexProvider.future)).length, 2);
+      expect(repository.downloads, [Game.magic]);
+
+      await container.read(selectedGameProvider.notifier).select(
+        Game.riftbound,
+      );
+
+      expect(
+        (await container.read(artHashIndexProvider.future)).length,
+        1,
+        reason:
+            'servir l\'index Magic en Riftbound ferait répondre une carte de '
+            'l\'autre jeu — 379 empreintes tombent sous le seuil de confiance',
+      );
+      expect(repository.downloads, [Game.magic, Game.riftbound]);
+    });
+
+    test('basculer d\'un jeu à l\'autre ne retélécharge rien', () async {
+      final repository = FakeIndexRepository()
+        ..byGame = {
+          Game.magic: indexOf(['foudre']),
+          Game.riftbound: indexOf(['vi']),
+        };
+      final cache = FakeIndexCache();
+      final container = containerWith(repository, cache);
+
+      await container.read(artHashIndexProvider.future);
+      final notifier = container.read(selectedGameProvider.notifier);
+      await notifier.select(Game.riftbound);
+      await container.read(artHashIndexProvider.future);
+
+      // Les deux index sont maintenant sur l'appareil : le retour à Magic ne
+      // doit rien redemander au réseau.
+      await notifier.select(Game.magic);
+      final back = await container.read(artHashIndexProvider.future);
+
+      expect(back.length, 1);
+      expect(
+        repository.downloads,
+        [Game.magic, Game.riftbound],
+        reason: 'le cache garde les deux jeux, la mémoire un seul',
+      );
+      expect(cache.stored.keys, containsAll([Game.magic, Game.riftbound]));
+    });
+
+    test('le comptage porte sur le même jeu que le cache', () async {
+      // Comparer les 1 193 empreintes Riftbound en cache au total tous jeux
+      // confondus déclencherait un téléchargement à chaque ouverture.
+      final cache = FakeIndexCache()
+        ..stored[Game.riftbound] = (index: indexOf(['vi']), count: 1);
+      final repository = FakeIndexRepository()
+        ..byGame = {Game.riftbound: indexOf(['vi'])};
+      final container = containerWith(repository, cache);
+
+      await container.read(selectedGameProvider.notifier).select(
+        Game.riftbound,
+      );
+      await container.read(artHashIndexProvider.future);
+
+      expect(repository.counted, contains(Game.riftbound));
+      expect(repository.downloads, isEmpty);
+    });
+  });
 }

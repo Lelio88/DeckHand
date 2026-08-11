@@ -16,10 +16,28 @@ blancs. Les
 gabarits sont cloisonnés par jeu — essayer un cadre Magic sur une carte
 Riftbound doublerait le calcul et le risque de correspondance fortuite.
 
-**L'index d'empreintes est construit** : 1 172 empreintes pour 1 035 cartes,
+**L'index d'empreintes est construit** : 1 193 empreintes pour 1 035 cartes,
 aucun échec de téléchargement. 17 cartes (1,6 %) n'en ont aucune — leur
 illustration est partagée avec une autre carte, qui l'a hachée la première ;
 elles seront reconnues sous ce nom-là, limite déjà connue pour Magic.
+
+**Et il est servi par jeu.** `art_hash_page` rendait les 50 209 empreintes des
+deux catalogues, quel que soit le jeu choisi : en Riftbound, cinquante
+allers-retours réseau pour 1 193 empreintes utiles. Ce n'était pas qu'un
+gaspillage. **379 empreintes Riftbound tombent à moins de 12 bits d'une
+empreinte Magic** — sous le seuil de confiance de la reconnaissance —, si bien
+qu'une carte Magic photographiée pouvait se voir répondre une carte de l'autre
+jeu, ou perdre la marge de 4 bits qui autorise à trancher. Le filtre se fait par
+jointure sur `cards.game`, non par un artefact découpé à la génération : la base
+sait déjà à quel jeu appartient chaque empreinte, et une jointure ne peut pas se
+désynchroniser du catalogue. Le cache local garde **les deux** index, la mémoire
+un seul : basculer d'un jeu à l'autre ne retélécharge rien.
+
+**Chaque impression porte son `tcgplayer_id`** — 1 224 sur 1 451 (84,4 %). C'est
+le seul chaînage vers un prix que la source offre, et l'ingestion le recevait
+sans avoir où l'écrire. Les 227 manquantes sont **toutes** de l'extension `VEN`,
+publiée le 31 juillet 2026 : trop récente pour être cotée, pas un trou de
+couverture réparti.
 
 **Les variantes d'impression ne sont pas des cartes.** La source suffixe les
 noms — « (Alternate Art) », « (Signature) », « (Metal) »… sur 243 des 1 451
@@ -45,10 +63,11 @@ diffèrent en revanche toutes : `search_cards` rend désormais une URL, et une
 vignette précède chaque résultat.
 
 **Ce qui manque encore**, et qu'aucune formulation optimiste ne doit masquer :
-les prix et le corpus de decks. La boucle de valeur du produit — saisir,
-valoriser, proposer des decks — n'est donc pas bouclée pour Riftbound. Il reste
-aussi à construire l'index d'empreintes du jeu, désormais possible puisque les
-gabarits sont connus.
+les prix, le corpus de decks, et la confrontation de la reconnaissance à une
+vraie carte papier. La boucle de valeur du produit — saisir, valoriser, proposer
+des decks — n'est donc pas bouclée pour Riftbound. Les deux premiers manques
+sont **des blocages de source, pas de code** : personne ne sert de prix
+Riftbound par lot, et aucun agrégateur de decklists n'expose d'API.
 
 ---
 
@@ -108,13 +127,22 @@ le débit décidera si c'est l'affaire de minutes ou d'heures.
 ### Ce qui reste ouvert
 
 - **Les prix.** Aucun pilier du produit n'y survit sans eux : valorisation de la
-  collection et coût de complétion en dépendent tous deux. Les API relevées sont
-  payantes au-delà d'un usage minimal ; à l'échelle d'un catalogue de ~1 100
-  cartes rafraîchi quotidiennement, il faut vérifier qu'un palier gratuit suffit.
+  collection et coût de complétion en dépendent tous deux. Le chaînage est en
+  place — `card_prints.tcgplayer_id` est renseigné pour 84,4 % des impressions —
+  mais il ne manque plus qu'une source qui accepte de coter **par lot**. Les API
+  relevées plafonnent autour de 100 requêtes par jour en gratuit : à ce rythme,
+  un seul passage sur 1 451 impressions demanderait une quinzaine de jours,
+  quand les prix se rafraîchissent tous les jours. Le palier gratuit ne permet
+  donc même pas un cycle. Ce qui rend l'ingestion Magic soutenable est le *bulk
+  data* de Scryfall — une requête pour tout le catalogue ; c'est un équivalent
+  Riftbound qu'il faut chercher, pas un quota plus élevé.
 - **Le corpus de decks.** Plusieurs sites annoncent des dizaines de milliers de
-  listes, mais aucun n'a d'API publique documentée à ce stade. Sans corpus, le
-  moteur de suggestion n'a rien à confronter. Les tournois organisés par Riot
-  figurent sur Piltover Archive — piste à privilégier, la source étant officielle.
+  listes, mais aucun n'a d'API publique documentée à ce stade — **relevé sur la
+  spec OpenAPI de Riftcodex : 25 endpoints, tous sur le catalogue et les
+  extensions, aucun sur les decks.** Sans corpus, le moteur de suggestion n'a
+  rien à confronter. Les tournois organisés par Riot figurent sur Piltover
+  Archive — piste à privilégier, la source étant officielle, mais elle dépend de
+  l'ouverture de l'API Riot.
 
 ---
 
