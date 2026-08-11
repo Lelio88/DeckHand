@@ -162,7 +162,9 @@ void main() {
 
     await tester.tap(find.byType(ColorWheelButton));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('R'));
+    // La pastille se désigne par sa sémantique : la lettre a cédé la place au
+    // symbole de mana imprimé, et une image ne se trouve pas par son texte.
+    await tester.tap(find.bySemanticsLabel(RegExp('^Rouge —')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Appliquer'));
     await tester.pumpAndSettle();

@@ -9,33 +9,34 @@
 /// decks depuis trente ans. Le trier autrement, fût-ce alphabétiquement, ferait
 /// hésiter un joueur devant une rangée qu'il lit d'habitude sans regarder.
 ///
-/// Les teintes sont celles du dos de carte, assombries juste assez pour qu'un
-/// texte reste lisible dessus dans les deux thèmes.
+/// **La teinte n'est plus ce qu'on montre, mais ce qui tient la place.** Les
+/// pastilles portaient une lettre — `W`, `U`, `B` — là où un joueur attend le
+/// symbole imprimé sur ses cartes. Celui-ci est désormais servi par Scryfall
+/// (voir `manaSymbolUrl`), et `swatch` ne sert plus qu'aux quartiers de la
+/// roue-résumé et à l'attente du réseau. Les teintes restent donc celles du dos
+/// de carte, plus saturées que les symboles officiels, qui sont pastel.
 library;
 
 import 'package:flutter/material.dart';
 
 class ManaColor {
-  const ManaColor(this.symbol, this.label, this.swatch, this.onSwatch);
+  const ManaColor(this.symbol, this.label, this.swatch);
 
-  /// Symbole Scryfall, envoyé au serveur.
+  /// Symbole Scryfall, envoyé au serveur — et nom du fichier de son icône.
   final String symbol;
 
   /// Nom français, pour l'infobulle.
   final String label;
 
   final Color swatch;
-
-  /// Couleur du texte posé sur la pastille.
-  final Color onSwatch;
 }
 
 const manaColors = <ManaColor>[
-  ManaColor('W', 'Blanc', Color(0xFFF3E9C8), Color(0xFF2B2416)),
-  ManaColor('U', 'Bleu', Color(0xFF3A7DC1), Color(0xFFF2F7FC)),
-  ManaColor('B', 'Noir', Color(0xFF2E2A31), Color(0xFFE8E4EA)),
-  ManaColor('R', 'Rouge', Color(0xFFC0453A), Color(0xFFFBEEEC)),
-  ManaColor('G', 'Vert', Color(0xFF3E8A5B), Color(0xFFEFF8F2)),
+  ManaColor('W', 'Blanc', Color(0xFFF3E9C8)),
+  ManaColor('U', 'Bleu', Color(0xFF3A7DC1)),
+  ManaColor('B', 'Noir', Color(0xFF2E2A31)),
+  ManaColor('R', 'Rouge', Color(0xFFC0453A)),
+  ManaColor('G', 'Vert', Color(0xFF3E8A5B)),
 ];
 
 /// Ce qu'on demande d'une couleur.

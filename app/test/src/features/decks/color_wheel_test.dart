@@ -7,9 +7,20 @@
 /// la phrase du bas doit dire ce que le filtre demande vraiment.
 library;
 
+import 'package:deckhand/src/features/decks/domain/mana_color.dart';
 import 'package:deckhand/src/features/decks/presentation/color_wheel.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Repère une couleur de la roue par son nom.
+///
+/// **La lettre a cédé la place au symbole imprimé**, et une image ne se trouve
+/// pas par son texte. La sémantique reste le repère juste : c'est aussi par
+/// elle qu'un lecteur d'écran désigne la pastille.
+Finder colorFace(String symbol) => find.bySemanticsLabel(
+  RegExp('^${manaColors.firstWhere((c) => c.symbol == symbol).label} —'),
+);
 
 /// Ouvre la roue et rend ce qu'elle produit après [taps] appuis sur [symbol].
 Future<(Set<String>, Set<String>)?> pumpWheel(
@@ -37,9 +48,10 @@ Future<(Set<String>, Set<String>)?> pumpWheel(
   await tester.tap(find.byType(ColorWheelButton));
   await tester.pumpAndSettle();
 
-  // La position est relevée une fois : une couleur bannie remplace sa lettre
-  // par une icône, et ne se retrouverait plus par son texte au troisième appui.
-  final centre = tester.getCenter(find.text(symbol));
+  // La position est relevée une fois : le libellé sémantique porte l'état
+  // choisi, et la pastille ne se retrouverait plus sous le même nom au
+  // deuxième appui.
+  final centre = tester.getCenter(colorFace(symbol));
   for (var i = 0; i < taps; i++) {
     await tester.tapAt(centre);
     await tester.pumpAndSettle();
@@ -78,6 +90,38 @@ void main() {
     final result = await pumpWheel(tester, symbol: 'R', taps: 2);
     expect(result?.$1, isEmpty);
     expect(result?.$2, {'R'});
+  });
+
+  testWidgets('les pastilles portent le symbole imprimé, pas une lettre', (
+    tester,
+  ) async {
+    // « W » ne veut rien dire à qui regarde ses cartes : c'est le symbole du
+    // mana qui y est imprimé, et celui que le joueur reconnaît sans lire.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: ColorWheelButton(
+              wanted: const {},
+              banned: const {},
+              onChanged: _ignore,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(ColorWheelButton));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SvgPicture), findsNWidgets(5));
+    for (final letter in ['W', 'U', 'B', 'R', 'G']) {
+      expect(
+        find.text(letter),
+        findsNothing,
+        reason: 'la lettre $letter doit avoir cédé la place à son symbole',
+      );
+    }
   });
 
   testWidgets('la phrase dit ce que le filtre demande', (tester) async {
@@ -124,8 +168,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final centres = [
-      for (final s in ['W', 'U', 'B', 'R', 'G'])
-        tester.getCenter(find.text(s)),
+      for (final s in ['W', 'U', 'B', 'R', 'G']) tester.getCenter(colorFace(s)),
     ];
     // Le blanc au sommet, puis le sens horaire : chaque couleur est plus basse
     // ou plus à droite que la précédente sur la moitié haute.

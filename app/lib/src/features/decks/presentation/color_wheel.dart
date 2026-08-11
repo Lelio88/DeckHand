@@ -23,7 +23,9 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../common/remote_svg.dart';
 import '../domain/mana_color.dart';
 
 /// Ordre du pentagone, en partant du haut et dans le sens horaire.
@@ -308,13 +310,19 @@ class _ColorFace extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
+          // Le symbole occupe tout son disque : sans cette marge il couvrirait
+          // l'anneau, qui est ce qui dit l'état choisi.
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             // Une couleur bannie perd sa teinte : la barrer sans l'éteindre
-            // laisserait croire qu'elle est encore demandée.
+            // laisserait croire qu'elle est encore demandée. Ailleurs, le fond
+            // est transparent — le symbole porte son propre disque, et une
+            // pastille saturée derrière un symbole pastel ferait un liseré
+            // discordant.
             color: banned
                 ? theme.colorScheme.surfaceContainerHighest
-                : color.swatch.withValues(alpha: wanted ? 1 : 0.4),
+                : Colors.transparent,
             border: Border.all(
               color: wanted
                   ? theme.colorScheme.primary
@@ -327,13 +335,25 @@ class _ColorFace extends StatelessWidget {
           child: Center(
             child: banned
                 ? Icon(Icons.block, color: theme.colorScheme.error, size: 26)
-                : Text(
-                    color.symbol,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: wanted
-                          ? color.onSwatch
-                          : color.onSwatch.withValues(alpha: 0.6),
-                      fontWeight: FontWeight.w700,
+                // **Le vrai symbole, jamais retouché.** Le fichier de Scryfall
+                // porte le disque coloré et son pictogramme : il occupe donc
+                // toute la pastille au lieu de se poser dessus. Une couleur
+                // indifférente s'estompe — l'opacité laisse le symbole entier,
+                // là où une teinte le dénaturerait.
+                : Opacity(
+                    opacity: wanted ? 1 : 0.45,
+                    child: SvgPicture(
+                      SafeSvgLoader(manaSymbolUrl(color.symbol)),
+                      // Le temps du chargement — et faute de réseau —, la
+                      // pastille de couleur tient la place. C'est le rendu
+                      // d'avant les symboles : la roue reste lisible et
+                      // n'attend jamais rien pour être utilisable.
+                      placeholderBuilder: (_) => DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: color.swatch,
+                        ),
+                      ),
                     ),
                   ),
           ),

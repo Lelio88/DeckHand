@@ -25,12 +25,10 @@
 /// avec le reste de la navigation.
 library;
 
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../common/remote_svg.dart';
 import '../domain/binder.dart';
 
 /// Hauteur de la bannière.
@@ -211,7 +209,7 @@ class _SetIcon extends StatelessWidget {
     ),
     padding: const EdgeInsets.all(7),
     child: SvgPicture(
-      _SafeSvgLoader(url),
+      SafeSvgLoader(url),
       // Le SVG de Scryfall ne porte pas de couleur : ses tracés prennent celle
       // du contexte. On la fixe donc explicitement plutôt que de dépendre du
       // noir par défaut, invisible sur ce fond.
@@ -221,45 +219,6 @@ class _SetIcon extends StatelessWidget {
       placeholderBuilder: (_) => const SizedBox.shrink(),
     ),
   );
-}
-
-/// Un chargeur de SVG distant qui ne peut pas faire tomber la tuile.
-///
-/// **Ce que le réseau renvoie n'est pas toujours un SVG.** `SvgNetworkLoader`
-/// ne regarde ni le code HTTP ni le type de contenu, et son `provideSvg` fait
-/// un `message!` : une URL morte — Scryfall répond alors 27 Ko de page HTML —
-/// ou un portail captif suffisent à faire lever « Invalid SVG data » au
-/// décodeur. L'exception naît dans un `compute`, hors de l'arbre, là où
-/// l'`errorBuilder` du widget ne la voit jamais : elle remonte donc jusqu'à la
-/// zone et emporte l'écran pour un ornement.
-///
-/// Le remède est pris à la source : l'échec réseau et le contenu qui n'est pas
-/// du SVG rendent tous deux un SVG **valide et vide**, que le décodeur accepte
-/// et qui ne dessine rien.
-class _SafeSvgLoader extends SvgNetworkLoader {
-  const _SafeSvgLoader(super.url);
-
-  /// Un SVG valide qui ne dessine rien.
-  static const String _nothing =
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>';
-
-  @override
-  Future<Uint8List?> prepareMessage(BuildContext? context) async {
-    try {
-      return await super.prepareMessage(context);
-    } on Exception {
-      // Réseau coupé, hôte injoignable, TLS refusé : il n'y a rien à montrer,
-      // et rien à dire non plus — le symbole est décoratif.
-      return null;
-    }
-  }
-
-  @override
-  String provideSvg(Uint8List? message) {
-    if (message == null || message.isEmpty) return _nothing;
-    final text = utf8.decode(message, allowMalformed: true);
-    return text.contains('<svg') ? text : _nothing;
-  }
 }
 
 /// Le fond d'une tuile, sous l'illustration.
