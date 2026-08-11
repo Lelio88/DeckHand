@@ -124,6 +124,36 @@ void main() {
     }
   });
 
+  testWidgets('une couleur bannie montre encore lequel des manas elle est', (
+    tester,
+  ) async {
+    // L'interdit seul disait qu'une couleur était refusée sans dire laquelle :
+    // il ne restait que la position dans le pentagone pour la reconnaître.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: ColorWheelButton(
+              wanted: const {},
+              banned: const {'R'},
+              onChanged: _ignore,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(ColorWheelButton));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byType(SvgPicture),
+      findsNWidgets(5),
+      reason: 'le symbole banni reste, barré plutôt que remplacé',
+    );
+    expect(find.byIcon(Icons.block), findsOneWidget);
+  });
+
   testWidgets('la phrase dit ce que le filtre demande', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

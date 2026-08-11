@@ -332,30 +332,55 @@ class _ColorFace extends StatelessWidget {
               width: choice == ManaChoice.neutral ? 1 : 3,
             ),
           ),
-          child: Center(
-            child: banned
-                ? Icon(Icons.block, color: theme.colorScheme.error, size: 26)
-                // **Le vrai symbole, jamais retouché.** Le fichier de Scryfall
-                // porte le disque coloré et son pictogramme : il occupe donc
-                // toute la pastille au lieu de se poser dessus. Une couleur
-                // indifférente s'estompe — l'opacité laisse le symbole entier,
-                // là où une teinte le dénaturerait.
-                : Opacity(
-                    opacity: wanted ? 1 : 0.45,
-                    child: SvgPicture(
-                      SafeSvgLoader(manaSymbolUrl(color.symbol)),
-                      // Le temps du chargement — et faute de réseau —, la
-                      // pastille de couleur tient la place. C'est le rendu
-                      // d'avant les symboles : la roue reste lisible et
-                      // n'attend jamais rien pour être utilisable.
-                      placeholderBuilder: (_) => DecoratedBox(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: color.swatch,
-                        ),
+          // **Le symbole reste, quel que soit l'état.** Le remplacer par un
+          // interdit disait qu'une couleur était bannie sans dire laquelle :
+          // il ne restait que la position dans le pentagone pour la
+          // reconnaître. Barré, il dit les deux à la fois.
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // **Le vrai symbole, jamais retouché.** Le fichier de Scryfall
+              // porte le disque coloré et son pictogramme : il occupe donc
+              // toute la pastille au lieu de se poser dessus. Les états se
+              // disent par l'opacité, qui laisse le symbole entier — une teinte
+              // le dénaturerait.
+              Opacity(
+                opacity: wanted
+                    ? 1
+                    : banned
+                    ? 0.3
+                    : 0.45,
+                child: SvgPicture(
+                  SafeSvgLoader(manaSymbolUrl(color.symbol)),
+                  // Le temps du chargement — et faute de réseau —, la pastille
+                  // de couleur tient la place. C'est le rendu d'avant les
+                  // symboles : la roue reste lisible et n'attend jamais rien
+                  // pour être utilisable.
+                  placeholderBuilder: (_) => DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color.swatch,
+                    ),
+                  ),
+                ),
+              ),
+              if (banned)
+                Center(
+                  // L'interdit se dimensionne sur la pastille plutôt qu'en
+                  // pixels : celle-ci vaut un quart de la roue, elle-même
+                  // bornée par l'écran.
+                  child: FractionallySizedBox(
+                    widthFactor: 0.72,
+                    heightFactor: 0.72,
+                    child: FittedBox(
+                      child: Icon(
+                        Icons.block,
+                        color: theme.colorScheme.error,
                       ),
                     ),
                   ),
+                ),
+            ],
           ),
         ),
       ),
