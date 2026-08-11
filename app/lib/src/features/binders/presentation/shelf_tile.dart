@@ -12,12 +12,24 @@
 /// en bas, texte blanc par-dessus. C'est aussi pourquoi l'habillage reste
 /// achromatique : la couleur vient de l'image, pas du thème.
 ///
+/// **Le symbole officiel tient lieu de bundle.** Aucune source exploitable ne
+/// publie les visuels des produits — boîtes, displays, illustrations
+/// promotionnelles appartiennent aux marchands ou à Wizards, sans API. Le
+/// symbole imprimé sur chaque carte est ce qui s'en approche le plus, et c'est
+/// le marqueur qu'un joueur reconnaît avant d'avoir lu le nom. Il est
+/// monochrome par nature : on le teinte en blanc, comme le reste de
+/// l'habillage.
+///
 /// **La tuile ne sait pas ouvrir un classeur** et n'a donc besoin d'aucun
 /// provider : elle reçoit [onOpen]. Le câblage vit dans `binder_view.dart`,
 /// avec le reste de la navigation.
 library;
 
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../domain/binder.dart';
 
@@ -84,6 +96,12 @@ class ShelfTile extends StatelessWidget {
                     errorBuilder: (_, _, _) => const SizedBox.shrink(),
                   ),
                 const _Veil(),
+                if (entry.iconSvgUri != null)
+                  Positioned(
+                    top: 9,
+                    right: 11,
+                    child: _SetIcon(url: entry.iconSvgUri!),
+                  ),
                 Align(
                   alignment: Alignment.bottomLeft,
                   child: Padding(
@@ -160,6 +178,87 @@ class ShelfTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Le symbole officiel de l'extension, en médaillon.
+///
+/// **Un jeton dans un jeton.** Le symbole est une silhouette pleine, souvent
+/// dense : posé nu sur une illustration il deviendrait illisible dès que
+/// celle-ci est claire. Le disque sombre lui donne le fond constant qu'un
+/// symbole imprimé a sur le carton d'une carte.
+///
+/// Le SVG n'est pas mis en cache par le disque ici — `flutter_svg` garde le
+/// rendu en mémoire pour la session, et une silhouette d'un kilo-octet ne
+/// justifie pas davantage.
+class _SetIcon extends StatelessWidget {
+  const _SetIcon({required this.url});
+
+  final String url;
+
+  /// Diamètre du disque. Assez grand pour qu'un symbole chargé se lise, assez
+  /// petit pour ne pas concurrencer l'illustration.
+  static const double _size = 38;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: _size,
+    height: _size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.black.withValues(alpha: 0.46),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+    ),
+    padding: const EdgeInsets.all(7),
+    child: SvgPicture(
+      _SafeSvgLoader(url),
+      // Le SVG de Scryfall ne porte pas de couleur : ses tracés prennent celle
+      // du contexte. On la fixe donc explicitement plutôt que de dépendre du
+      // noir par défaut, invisible sur ce fond.
+      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+      // Rien pendant le chargement : un disque vide vaut mieux qu'un indicateur
+      // qui clignote sur chaque tuile de la liste.
+      placeholderBuilder: (_) => const SizedBox.shrink(),
+    ),
+  );
+}
+
+/// Un chargeur de SVG distant qui ne peut pas faire tomber la tuile.
+///
+/// **Ce que le réseau renvoie n'est pas toujours un SVG.** `SvgNetworkLoader`
+/// ne regarde ni le code HTTP ni le type de contenu, et son `provideSvg` fait
+/// un `message!` : une URL morte — Scryfall répond alors 27 Ko de page HTML —
+/// ou un portail captif suffisent à faire lever « Invalid SVG data » au
+/// décodeur. L'exception naît dans un `compute`, hors de l'arbre, là où
+/// l'`errorBuilder` du widget ne la voit jamais : elle remonte donc jusqu'à la
+/// zone et emporte l'écran pour un ornement.
+///
+/// Le remède est pris à la source : l'échec réseau et le contenu qui n'est pas
+/// du SVG rendent tous deux un SVG **valide et vide**, que le décodeur accepte
+/// et qui ne dessine rien.
+class _SafeSvgLoader extends SvgNetworkLoader {
+  const _SafeSvgLoader(super.url);
+
+  /// Un SVG valide qui ne dessine rien.
+  static const String _nothing =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>';
+
+  @override
+  Future<Uint8List?> prepareMessage(BuildContext? context) async {
+    try {
+      return await super.prepareMessage(context);
+    } on Exception {
+      // Réseau coupé, hôte injoignable, TLS refusé : il n'y a rien à montrer,
+      // et rien à dire non plus — le symbole est décoratif.
+      return null;
+    }
+  }
+
+  @override
+  String provideSvg(Uint8List? message) {
+    if (message == null || message.isEmpty) return _nothing;
+    final text = utf8.decode(message, allowMalformed: true);
+    return text.contains('<svg') ? text : _nothing;
   }
 }
 

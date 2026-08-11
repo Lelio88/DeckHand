@@ -26,7 +26,7 @@ import time
 import psycopg
 
 from app.config import SupabaseConfig
-from app.ingestion import mtgjson_ingest, scryfall_ingest, topdeck_ingest
+from app.ingestion import mtgjson_ingest, scryfall_ingest, scryfall_sets, topdeck_ingest
 from app.ingestion.scryfall_client import BULK_ALL, fetch_bulk_catalog
 from app.ingestion.state import last_version, record
 from app.vision import index_builder
@@ -47,6 +47,12 @@ def refresh_catalogue(conn: psycopg.Connection, *, force: bool = False) -> bool:
     """Rafraîchit cartes, impressions et noms. Renvoie vrai si un travail a eu lieu."""
     version = _scryfall_version()
     previous = last_version(conn, SOURCE_SCRYFALL)
+
+    # **Les extensions sont ingérées quoi qu'il arrive**, avant le saut de
+    # version. Elles coûtent une poignée de pages là où le catalogue en coûte
+    # 390 Mo : les protéger par la même garde ferait qu'une table vide le
+    # resterait tant que Scryfall n'aurait pas republié son export.
+    print(f"  {scryfall_sets.run(conn)} extensions")
 
     if not force and previous == version:
         print(f"  catalogue déjà à jour (export du {version[:16]})")

@@ -151,3 +151,40 @@ def stream_bulk(bulk_type: str, client: httpx.Client | None = None) -> Iterator[
     finally:
         if owns_client:
             client.close()
+
+
+def fetch_sets(client: httpx.Client | None = None) -> list[dict[str, Any]]:
+    """Renvoie toutes les extensions publiées par Scryfall.
+
+    Seul endpoint paginé que DeckHand interroge, et c'est assumé : il n'existe
+    pas d'export groupé pour les extensions, et le volume ne le justifierait pas
+    — 1 047 objets, une poignée de pages, quelques centaines de kilo-octets. La
+    règle « les gros volumes passent par les exports » ne s'applique donc pas.
+
+    Le délai entre deux pages respecte le débit demandé par Scryfall.
+    """
+    owns_client = client is None
+    client = client or httpx.Client(timeout=30, headers=_headers(), follow_redirects=True)
+
+    sets: list[dict[str, Any]] = []
+    url: str | None = f"{API_ROOT}/sets"
+
+    try:
+        while url:
+            response = client.get(url)
+            response.raise_for_status()
+            payload = response.json()
+            sets.extend(payload.get("data", []))
+            url = payload.get("next_page") if payload.get("has_more") else None
+            if url:
+                time.sleep(_THROTTLE)
+    except httpx.HTTPError as exc:
+        raise ScryfallError(f"liste des extensions injoignable : {exc}") from exc
+    finally:
+        if owns_client:
+            client.close()
+
+    if not sets:
+        raise ScryfallError("liste des extensions vide ou inattendue")
+
+    return sets

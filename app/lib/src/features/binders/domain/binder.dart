@@ -78,6 +78,7 @@ class BinderShelfEntry {
     required this.ownedCopies,
     this.releasedAt,
     this.artCropUrl,
+    this.iconSvgUri,
   });
 
   final String setCode;
@@ -96,16 +97,30 @@ class BinderShelfEntry {
 
   final DateTime? releasedAt;
 
-  /// L'illustration de la plus chère des cartes qu'on y possède.
+  /// L'illustration de la carte-vedette de l'extension.
   ///
   /// **Une étagère de noms ne se distingue pas** : cinq lignes de texte gris se
-  /// ressemblent toutes, quand un classeur physique se reconnaît de loin. C'est
-  /// l'illustration recadrée qui sert ici, et non la carte entière — une
-  /// bannière est un paysage, une carte un portrait.
+  /// ressemblent toutes, quand un classeur physique se reconnaît de loin. La
+  /// vedette est la plus chère carte du **set entier**, non de la collection :
+  /// un classeur s'identifie comme un produit, et deux personnes qui possèdent
+  /// la même extension la reconnaissent à la même image.
   ///
-  /// Vaut `null` sur une édition dont aucune impression possédée ne porte
-  /// d'illustration ; la tuile s'habille alors d'elle-même.
+  /// C'est l'illustration recadrée qui sert ici, et non la carte entière — une
+  /// bannière est un paysage, une carte un portrait.
   final String? artCropUrl;
+
+  /// Le symbole officiel de l'extension, en SVG.
+  ///
+  /// **Ce que le bundle aurait été.** Aucune source exploitable ne publie les
+  /// visuels des produits — boîtes, displays, illustrations promotionnelles
+  /// appartiennent aux marchands ou à Wizards, sans API. Le symbole imprimé sur
+  /// chaque carte est ce qui s'en approche le plus, et c'est le marqueur que
+  /// tout joueur reconnaît.
+  ///
+  /// L'URL vient de `card_sets` et **ne se déduit pas** du code d'extension :
+  /// mesuré sur les 1 047 extensions du catalogue, la déduction est fausse deux
+  /// fois sur trois. Vaut `null` tant que les extensions ne sont pas ingérées.
+  final String? iconSvgUri;
 
   /// Part de l'édition possédée, entre 0 et 1.
   double get completion => totalCells == 0 ? 0 : ownedCells / totalCells;
@@ -123,6 +138,7 @@ class BinderShelfEntry {
         ? null
         : DateTime.tryParse(json['released_at'] as String),
     artCropUrl: json['art_crop_url'] as String?,
+    iconSvgUri: json['icon_svg_uri'] as String?,
   );
 }
 

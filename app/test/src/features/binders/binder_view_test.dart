@@ -24,6 +24,7 @@ import 'package:deckhand/src/features/binders/presentation/binder_view.dart';
 import 'package:deckhand/src/features/printings/presentation/foil_decoration.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -36,6 +37,7 @@ BinderShelfEntry shelfEntry({
   int owned = 216,
   int copies = 300,
   String? art,
+  String? icon,
 }) => BinderShelfEntry(
   setCode: setCode,
   setName: setName,
@@ -43,11 +45,18 @@ BinderShelfEntry shelfEntry({
   ownedCells: owned,
   ownedCopies: copies,
   artCropUrl: art,
+  iconSvgUri: icon,
 );
 
 /// Une URL d'illustration telle que le catalogue les porte.
 const _art =
     'https://cards.scryfall.io/art_crop/front/e/0/e040b456.jpg?1783902897';
+
+/// Le symbole d'une extension, tel que `card_sets` le porte.
+///
+/// L'URL est celle de Scryfall et non une invention : elle ne se déduit pas du
+/// code d'extension — mesuré, la déduction est fausse deux fois sur trois.
+const _icon = 'https://svgs.scryfall.io/sets/msh.svg?1786334400';
 
 BinderCell cell({
   required String number,
@@ -244,7 +253,9 @@ void main() {
       expect(find.text('48 %'), findsOneWidget);
     });
 
-    testWidgets('chaque classeur porte sa plus belle carte', (tester) async {
+    testWidgets('chaque classeur porte la carte-vedette de son extension', (
+      tester,
+    ) async {
       // Cinq lignes de texte gris se ressemblent toutes ; un classeur physique
       // se reconnaît de loin. L'illustration est ce qui distingue une édition
       // d'une autre avant même d'avoir lu son nom.
@@ -257,6 +268,30 @@ void main() {
         BoxFit.cover,
         reason: 'une bannière remplit sa tuile, elle ne s\'y encadre pas',
       );
+    });
+
+    testWidgets('le symbole officiel de l\'extension coiffe la tuile', (
+      tester,
+    ) async {
+      // Ce que le bundle aurait été : aucune source ne publie les visuels des
+      // produits, et le symbole imprimé sur chaque carte est le marqueur qu'un
+      // joueur reconnaît avant d'avoir lu le nom.
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry(art: _art, icon: _icon)],
+      );
+
+      expect(find.byType(SvgPicture), findsOneWidget);
+    });
+
+    testWidgets('une extension sans symbole n\'affiche pas de médaillon vide', (
+      tester,
+    ) async {
+      // Les extensions ne sont pas toutes ingérées, et un disque creux dirait
+      // qu'il manque quelque chose là où il n'y a rien à dire.
+      await pumpBinder(tester, entries: [shelfEntry(art: _art)]);
+
+      expect(find.byType(SvgPicture), findsNothing);
     });
 
     testWidgets('une édition sans illustration reste une tuile', (tester) async {
