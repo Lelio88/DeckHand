@@ -200,6 +200,40 @@ aussi avec réserve.
 reste utile pour les mises en page hors gabarit (`saga`, `transform`, pleine
 page), que l'empreinte ne sait pas cadrer.
 
+### Le coût d'une image, mesuré avant d'écrire un mode temps réel
+
+`app/tool/frame_bench.dart` chronomètre le trajet capteur → identifiant sur un
+poste de travail. Les durées absolues ne transfèrent pas à un téléphone — cœur
+plus lent, AOT contre JIT — mais **le rapport entre les chemins, si**, et c'est
+lui qui décide de la conception. Le banc embarqué
+(`--dart-define=DECKHAND_BENCH=true`) donne les durées réelles.
+
+| Résolution | luma | rgb | rgb plein | empreinte | recherche | **total luma** |
+|---|---|---|---|---|---|---|
+| 720 × 480 | 0,4 ms | 2,0 ms | 5,6 ms | 2,5 ms | 0,7 ms | **3,7 ms** |
+| 1280 × 720 | 1,4 ms | 6,2 ms | 15,2 ms | 6,1 ms | 0,8 ms | **8,3 ms** |
+| 1920 × 1080 | 2,9 ms | 13,2 ms | 33,3 ms | 13,6 ms | 0,8 ms | **17,4 ms** |
+
+**La conversion YUV→RGB est évitable en entier.** Le plan `Y` d'une image de
+caméra *est* la luminance, et `computeArtHash` commence par y ramener chaque
+pixel. Sur une image dont les trois canaux valent `Y`, son calcul rend
+exactement `Y` : `(Y·299 + Y·587 + Y·114) ÷ 1000 = Y`. Les deux chemins rendent
+donc la **même empreinte, à zéro bit près** aux trois résolutions — vérifié, et
+c'est la seule chose qui autorise le raccourci, l'index étant calculé par le
+jumeau Python sur du RGB.
+
+**Découper avant de convertir change l'ordre de grandeur.** L'empreinte ne porte
+que sur l'illustration ; lire ses seuls octets rend le coût proportionnel à
+elle. Convertir toute l'image d'abord coûte de 8 à 11 fois plus cher pour jeter
+ensuite les deux tiers des pixels.
+
+**Le goulot n'était pas celui qu'on annonçait.** La recherche linéaire coûtait
+5,4 ms sur 31 600 entrées — autant que la lecture et l'empreinte réunies. Non
+pas à cause du parcours, mais parce qu'elle construisait trente-et-un mille
+enregistrements pour les trier et en garder cinq. Une sélection partielle à
+tampon fixe la ramène à **0,8 ms**, sans allocation dans la boucle. Le mode
+photo en profite autant que le temps réel.
+
 ### Pourquoi hacher l'illustration et non la carte entière
 
 L'illustration est **identique en français et en anglais** ; seul le cadre de texte change. En hachant l'art, le mélange linguistique de la collection devient un non-sujet. Hacher la carte entière produirait deux empreintes distinctes pour la même carte.

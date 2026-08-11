@@ -49,6 +49,11 @@ dependencies:
   flutter_svg: ^2.3.0
   http: ^1.6.0
 
+  # Le flux vidéo, pour le mode temps réel (issue #8). Le paquet ne sert qu'à
+  # obtenir les plans d'une image ; la reconnaissance reste celle du mode photo,
+  # au bit près — c'est la condition pour que l'index embarqué reste valide.
+  camera: ^0.11.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

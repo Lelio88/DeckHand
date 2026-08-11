@@ -8,6 +8,13 @@
          sans elle, speech_to_text rapporte « indisponible » sur un appareil
          parfaitement capable. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Flux caméra du mode temps réel. Elle était jusqu'ici inutile : la
+         saisie photo passe par l'application appareil photo du système, qui
+         rend une image sans que DeckHand n'ait accès au capteur. Lire le flux
+         en continu, si. Déclarée ici plutôt que laissée à la fusion du
+         manifeste du greffon, pour que ce que l'application demande se lise
+         dans l'application. -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:label="DeckHand"

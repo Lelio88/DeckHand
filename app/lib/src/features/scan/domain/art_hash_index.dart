@@ -89,11 +89,36 @@ class ArtHashIndex {
   }
 
   /// Cherche les cartes dont l'empreinte est la plus proche de [query].
+  ///
+  /// **On ne garde que les meilleures, on ne trie pas les autres.** Une
+  /// première version construisait les trente-et-un mille distances puis les
+  /// triait pour en prendre cinq : mesuré au banc (`tool/frame_bench.dart`),
+  /// cela coûtait 5 à 7 ms sur un processeur de bureau — autant que la lecture
+  /// et la conversion de l'image réunies, et donc bien davantage sur un
+  /// téléphone. Le tri et les allocations n'étaient pas le prix de la
+  /// recherche, ils étaient le prix de la mise en forme.
+  ///
+  /// La sélection ci-dessous garde un tampon de [limit] éléments, insérés à
+  /// leur place. `limit` valant cinq, l'insertion est plus courte qu'une
+  /// comparaison de fonction, et la boucle n'alloue plus rien.
+  ///
+  /// Effet de bord souhaitable : à distance égale, l'ordre du catalogue est
+  /// désormais préservé — `List.sort` n'est pas stable en Dart, et deux appels
+  /// identiques pouvaient rendre deux ordres.
   HashSearchResult search(ArtHash query, {int limit = 5}) {
     if (_oracleIds.isEmpty) return const HashSearchResult([]);
 
-    final matches = <HashMatch>[];
+    final keep = limit < 1 ? 1 : limit;
     final q = query.bytes;
+
+    // Distances des candidats retenus, triées ; `_kept` compte ce qui est
+    // réellement rempli tant qu'on n'a pas vu `keep` cartes.
+    final bestDistance = Int32List(keep);
+    final bestIndex = Int32List(keep);
+    var kept = 0;
+    // Au-delà de cette distance, un candidat ne peut plus entrer : le test
+    // rejette la quasi-totalité du catalogue en une comparaison.
+    var worst = 1 << 30;
 
     for (var i = 0; i < _oracleIds.length; i++) {
       final base = i * hashBytes;
@@ -101,13 +126,24 @@ class ArtHashIndex {
       for (var b = 0; b < hashBytes; b++) {
         distance += _popcount[_hashes[base + b] ^ q[b]];
       }
-      matches.add((oracleId: _oracleIds[i], distance: distance));
+      if (kept == keep && distance >= worst) continue;
+
+      var at = kept < keep ? kept : keep - 1;
+      while (at > 0 && bestDistance[at - 1] > distance) {
+        bestDistance[at] = bestDistance[at - 1];
+        bestIndex[at] = bestIndex[at - 1];
+        at--;
+      }
+      bestDistance[at] = distance;
+      bestIndex[at] = i;
+      if (kept < keep) kept++;
+      worst = bestDistance[kept - 1];
     }
 
-    matches.sort((a, b) => a.distance.compareTo(b.distance));
-    return HashSearchResult(
-      matches.take(limit < 1 ? 1 : limit).toList(growable: false),
-    );
+    return HashSearchResult([
+      for (var i = 0; i < kept; i++)
+        (oracleId: _oracleIds[bestIndex[i]], distance: bestDistance[i]),
+    ]);
   }
 
   /// Sérialise l'index pour le conserver localement.

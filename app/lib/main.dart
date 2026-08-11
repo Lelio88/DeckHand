@@ -14,6 +14,7 @@ import 'src/config/supabase_config.dart';
 import 'src/features/auth/data/auth_repository.dart';
 import 'src/features/binders/presentation/public_binder_screen.dart';
 import 'src/features/auth/presentation/sign_in_screen.dart';
+import 'src/features/scan/presentation/frame_bench_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +27,9 @@ Future<void> main() async {
 
   runApp(const ProviderScope(child: DeckHandApp()));
 }
+
+/// Vrai sur un build de mesure du flux caméra (issue #8).
+const bool benchMode = bool.fromEnvironment('DECKHAND_BENCH');
 
 class DeckHandApp extends StatelessWidget {
   const DeckHandApp({super.key});
@@ -45,7 +49,11 @@ class DeckHandApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFF15131A),
         useMaterial3: true,
       ),
-      home: const _AuthGate(),
+      // **Le banc de mesure court-circuite l'application entière.** Il ne
+      // demande ni compte ni base : il chronomètre le flux caméra, et son
+      // seul rendu est une ligne de journal. Le passer par un écran de
+      // réglages le rendrait dépendant de ce qu'il doit mesurer.
+      home: benchMode ? const FrameBenchScreen() : const _AuthGate(),
     );
   }
 }

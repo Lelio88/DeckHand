@@ -18,7 +18,7 @@ Usage privé (le propriétaire et quelques amis) sur un dépôt public. Ni produ
 
 Topologie rapide :
 - `app/lib/src/features/` — par domaine : `card_search`, `collection`, `binders`, `decks`, `builder`, `scan`, `voice`, `printings`, `account`, `about`, `auth`
-- `app/lib/src/common/` et `config/` — images en cache, délais de requête, jeu sélectionné
+- `app/lib/src/common/` et `config/` — images en cache, délais de requête, jeu sélectionné ; `app/tool/` — bancs de mesure Dart
 - `api/app/ingestion/` — un connecteur isolé par source ; `api/app/vision/` — empreintes ; `api/app/measure/` — bancs de mesure ; `api/app/twitch/` — bot de chat en lecture, lancé le temps d'un direct
 - `supabase/migrations/` — fichiers horodatés, joués par `api/apply_migration.py`
 
@@ -26,7 +26,7 @@ Topologie rapide :
 
 *Versions contraintes par `app/pubspec.yaml` et `api/pyproject.toml`. N'introduisez aucune dépendance alternative sans approbation.*
 
-- **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg`
+- **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `camera` (flux temps réel), `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg`
 - **`api/`** : Python 3.11+, httpx, psycopg, Pillow, numpy — **chaque contrainte porte un plafond de majeure** : `numpy` et `Pillow` sont le seul chemin par lequel une bibliothèque peut dégrader la reconnaissance en silence, une empreinte au calcul modifié restant valide mais devenant incomparable au jumeau Dart
 - **Données** : Supabase — Postgres, Auth, Storage. Cloud uniquement, rien à déployer
 - **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks des deux jeux), MTGJSON (précons), Riftcodex (catalogue Riftbound), TCGCSV (prix Riftbound), BCE (taux de change)
@@ -61,8 +61,8 @@ Topologie rapide :
 # App — les --dart-define sont OBLIGATOIRES (valeurs dans ../.deckhand-secrets/supabase.env)
 cd app && flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=...
 
-cd app && flutter analyze && flutter test    # 400 tests
-cd api && .venv/Scripts/python -m pytest     # 83 tests
+cd app && flutter analyze && flutter test    # 413 tests
+cd api && .venv/Scripts/python -m pytest     # 121 tests
 
 # Ingestion — idempotente, saute ce qui n'a pas changé
 cd api && .venv/Scripts/python -m app.ingestion.refresh            # Magic (--force, --skip-decks)
@@ -70,11 +70,12 @@ cd api && .venv/Scripts/python -m app.ingestion.riftcodex_ingest   # catalogue R
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_prices      # prix Riftbound (--force)
 cd api && .venv/Scripts/python -m app.ingestion.topdeck_ingest --riftbound
 
-# Bot Twitch, en lecture seule — tourne le temps d'un direct, rien à déployer
-cd api && .venv/Scripts/python -m app.twitch          # --game riftbound
+# Bot Twitch en lecture — tourne le temps d'un direct, rien à déployer
+cd api && .venv/Scripts/python -m app.twitch                       # --game riftbound
 
-# Vérifier l'arithmétique de l'écran Decks : <format> <jeu>
+# Bancs de mesure : arithmétique de l'écran Decks, puis coût d'une image caméra
 cd api && .venv/Scripts/python -m app.measure.deck_math constructed riftbound
+cd app && dart run tool/frame_bench.dart   # durées réelles : --dart-define=DECKHAND_BENCH=true
 
 # Migrations — jouées par psycopg, le CLI Supabase exigeant un lien interactif
 cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichier>.sql
@@ -97,4 +98,4 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 ## VIII. Contexte de Session
 
 - **État** : 33 953 cartes Magic et 167 000 impressions cotées ; 1 035 cartes Riftbound, cotées et adossées à 2 500 decks. Les deux jeux bouclent la même promesse. Collection réelle : 343 lignes, 451 exemplaires, aucune sans édition. Compte `buton1@live.fr`, mot de passe dans `../.deckhand-secrets/supabase.env`.
-- **Focus immédiat** : la reconnaissance Riftbound n'a **jamais rencontré une carte de papier** (issues #4 et #5) — seul manque de ce jeu, et il demande du matériel, pas du code. Côté Twitch, la lecture publique et le bot `!card` sont en place ; restent l'overlay OBS (#14) et le temps réel (#8) dont il dépend, et dont la première tâche est une mesure : chronométrer une image de bout en bout sur l'appareil.
+- **Focus immédiat** : la reconnaissance Riftbound n'a **jamais rencontré une carte de papier** (issues #4 et #5) — seul manque de ce jeu, et il demande du matériel, pas du code. Côté Twitch, la lecture publique et le bot `!card` sont en place ; restent l'overlay OBS (#14) et le temps réel (#8) dont il dépend. Le coût d'une image est mesuré au poste de travail — la conversion YUV→RGB est évitable en entier, les deux chemins rendant la même empreinte à zéro bit près — mais **les durées sur appareil restent dues** : l'APK de mesure est prêt, il attend que le débogage sans fil soit rallumé.
