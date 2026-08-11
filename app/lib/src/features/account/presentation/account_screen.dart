@@ -167,6 +167,14 @@ class _GamePicker extends ConsumerWidget {
               Game.riftbound =>
                 'le TCG League of Legends — 1 035 cartes, pas encore de decks',
             },
+            // **Les prix Riftbound sont convertis, et ça se dit ici.** Ils sont
+            // relevés en dollars chez TCGplayer ; l'euro affiché passe par le
+            // taux de la BCE et n'est donc pas un prix de marché européen. Le
+            // chiffre est bon, sa provenance mérite d'être connue avant qu'on
+            // décide d'acheter sur sa foi.
+            note: game == Game.riftbound
+                ? 'Prix convertis du dollar au taux de la BCE'
+                : null,
             selected: game == selected,
             onTap: game == selected
                 ? null
@@ -176,8 +184,11 @@ class _GamePicker extends ConsumerWidget {
         ],
         Text(
           "Le catalogue, la reconnaissance et les suggestions ne sont pas propres "
-          "à Magic. Riftbound n'a pas encore de prix ni de decks : sa collection "
-          "se saisit et se consulte, mais rien ne la valorise.",
+          "à Magic. Riftbound n'a pas encore de decks : sa collection se saisit, "
+          "se consulte et se valorise, mais rien ne dit ce qu'elle permet de "
+          "construire. Une carte cotée seulement en brillante compte pour zéro "
+          "si on la possède en ordinaire — c'est le cas de près de la moitié du "
+          "catalogue, faute de cote et non par oubli.",
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -193,12 +204,16 @@ class _GameTile extends StatelessWidget {
     required this.detail,
     required this.selected,
     required this.onTap,
+    this.note,
   });
 
   final String name;
   final String detail;
   final bool selected;
   final VoidCallback? onTap;
+
+  /// Réserve à faire connaître avant de choisir ce jeu, ou `null`.
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -249,6 +264,17 @@ class _GameTile extends StatelessWidget {
                           : theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
+                  if (note != null)
+                    Text(
+                      note!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: selected
+                            ? theme.colorScheme.onPrimaryContainer.withValues(
+                                alpha: 0.7,
+                              )
+                            : theme.colorScheme.outline,
+                      ),
+                    ),
                 ],
               ),
             ),

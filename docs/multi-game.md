@@ -46,8 +46,12 @@ un seul : basculer d'un jeu à l'autre ne retélécharge rien.
 **Chaque impression porte son `tcgplayer_id`** — 1 224 sur 1 451 (84,4 %). C'est
 le seul chaînage vers un prix que la source offre, et l'ingestion le recevait
 sans avoir où l'écrire. Les 227 manquantes sont **toutes** de l'extension `VEN`,
-publiée le 31 juillet 2026 : trop récente pour être cotée, pas un trou de
+publiée le 31 juillet 2026 : trop récente pour être liée, pas un trou de
 couverture réparti.
+
+**Et la collection se valorise** — 1 196 impressions cotées, par
+`app.ingestion.tcgcsv_prices`. Voir [« Les prix Riftbound »](#6-les-prix-riftbound)
+plus bas pour la source, la conversion et ses limites.
 
 **Les variantes d'impression ne sont pas des cartes.** La source suffixe les
 noms — « (Alternate Art) », « (Signature) », « (Metal) »… sur 243 des 1 451
@@ -66,18 +70,16 @@ corpus étant jusque-là implicitement Magic. Un test vérifie que le choix
 cède en silence, et l'utilisateur verrait alors le catalogue Magic sous une
 étiquette Riftbound.
 
-**Les homonymes se distinguent par leur illustration.** Quatre-vingts noms
-Riftbound sont portés par plusieurs cartes réellement différentes, et leur ligne
-de type est identique dans tous les cas — mesuré, 0 sur 80. Leurs illustrations
-diffèrent en revanche toutes : `search_cards` rend désormais une URL, et une
-vignette précède chaque résultat.
+**Et l'utilisateur les distingue aussi.** Puisque seule l'illustration sépare ces
+quatre-vingts homonymes, la lui montrer est la seule façon de lui faire trancher :
+`search_cards` rend une URL d'illustration, et une vignette précède chaque
+résultat.
 
 **Ce qui manque encore**, et qu'aucune formulation optimiste ne doit masquer :
-les prix, le corpus de decks, et la confrontation de la reconnaissance à une
-vraie carte papier. La boucle de valeur du produit — saisir, valoriser, proposer
-des decks — n'est donc pas bouclée pour Riftbound. Les deux premiers manques
-sont **des blocages de source, pas de code** : personne ne sert de prix
-Riftbound par lot, et aucun agrégateur de decklists n'expose d'API.
+le corpus de decks et la confrontation de la reconnaissance à une vraie carte
+papier. La boucle de valeur du produit — saisir, valoriser, proposer des decks —
+n'est donc pas bouclée pour Riftbound. Le corpus est **un blocage de source, pas
+de code** : aucun agrégateur de decklists n'expose d'API, et scraper est exclu.
 
 ---
 
@@ -112,8 +114,8 @@ pas le même statut ici.
 | Pilier | Magic | Riftbound |
 |---|---|---|
 | Catalogue | Scryfall — libre, *bulk data*, sans clé | **API Riot officielle** — clé requise, attribution imposée, aucun export en masse annoncé |
-| Prix | fournis par Scryfall | **non fournis par Riot** — API tierces, payantes pour un usage commercial |
-| Corpus de decks | TopDeck.gg + MTGJSON | sites communautaires abondants, conditions non vérifiées |
+| Prix | fournis par Scryfall | **ni Riot ni Riftcodex n'en servent** — relevés chez TCGplayer via l'export groupé TCGCSV, convertis en euros ([§ 6](#6-les-prix-riftbound)) |
+| Corpus de decks | TopDeck.gg + MTGJSON | sites communautaires abondants, **aucune API publique** |
 
 ### Contraintes Riot relevées, à confirmer sur le portail
 
@@ -136,16 +138,7 @@ le débit décidera si c'est l'affaire de minutes ou d'heures.
 
 ### Ce qui reste ouvert
 
-- **Les prix.** Aucun pilier du produit n'y survit sans eux : valorisation de la
-  collection et coût de complétion en dépendent tous deux. Le chaînage est en
-  place — `card_prints.tcgplayer_id` est renseigné pour 84,4 % des impressions —
-  mais il ne manque plus qu'une source qui accepte de coter **par lot**. Les API
-  relevées plafonnent autour de 100 requêtes par jour en gratuit : à ce rythme,
-  un seul passage sur 1 451 impressions demanderait une quinzaine de jours,
-  quand les prix se rafraîchissent tous les jours. Le palier gratuit ne permet
-  donc même pas un cycle. Ce qui rend l'ingestion Magic soutenable est le *bulk
-  data* de Scryfall — une requête pour tout le catalogue ; c'est un équivalent
-  Riftbound qu'il faut chercher, pas un quota plus élevé.
+- **Les prix : réglé**, voir [§ 6](#6-les-prix-riftbound).
 - **Le corpus de decks.** Plusieurs sites annoncent des dizaines de milliers de
   listes, mais aucun n'a d'API publique documentée à ce stade — **relevé sur la
   spec OpenAPI de Riftcodex : 25 endpoints, tous sur le catalogue et les
@@ -290,11 +283,94 @@ l'illustration différente — l'index couvrira donc tout ce qui existe.
 
 ---
 
-## 5. Ce qui n'est pas fait, et pourquoi
+## 5. La règle qui a conduit ce chantier
 
-Aucune migration, aucun code. Le modèle de données ne se dessine pas sur des
-suppositions : c'est la règle qui a produit les décisions tenables de ce projet —
-la zone d'illustration, la taille d'empreinte, le seuil de taille de texte ont
-tous été mesurés avant d'être fixés, et plusieurs hypothèses de départ y ont été
-démenties. Concevoir un schéma multi-jeu avant de connaître les champs réels
-reproduirait exactement l'erreur que ce projet évite.
+Le modèle de données ne se dessine pas sur des suppositions. C'est la règle qui a
+produit les décisions tenables de ce projet — la zone d'illustration, la taille
+d'empreinte, le seuil de taille de texte ont tous été mesurés avant d'être fixés,
+et plusieurs hypothèses de départ y ont été démenties. Elle explique pourquoi
+rien n'a été écrit ici avant que les champs réels de la source soient connus, et
+pourquoi chaque affirmation de ce document porte un nombre.
+
+---
+
+## 6. Les prix Riftbound
+
+`api/app/ingestion/tcgcsv_prices.py` — 21 requêtes, quelques secondes, idempotent
+et sautant le jour déjà traité.
+
+### D'où ils viennent, et pourquoi pas d'ailleurs
+
+Riftcodex ne cote rien : sa spec OpenAPI ne porte que le catalogue et les
+extensions. Riot non plus. Il restait deux voies :
+
+- **les agrégateurs** (`tcg-cardmarket-api.com`, `cardmarket-api.com`,
+  `riftbound-api.com`) — cotent en euros, mais plafonnent autour de cent requêtes
+  par jour en gratuit. Un seul passage sur 1 451 impressions y demanderait une
+  quinzaine de jours, quand les prix se rafraîchissent quotidiennement : le
+  palier gratuit ne permet même pas un cycle ;
+- **un export groupé**, ce qui rend l'ingestion Magic soutenable depuis le
+  premier jour. [tcgcsv.com](https://tcgcsv.com/) publie les données TCGplayer par
+  catégorie, rafraîchies chaque jour vers 20:00 UTC. Riftbound y est la catégorie
+  **89**, avec ses dix extensions.
+
+Mesuré : **1 196 de nos 1 224 `tcgplayer_id` (97,7 %)** portent un prix de
+marché, séparé `Normal` / `Foil` — exactement la forme qu'attendent `price_usd`
+et `price_usd_foil`.
+
+**Ses conditions d'utilisation ne sont pas publiées.** Même configuration que
+Riftcodex, et le garde-fou §IV impose de le dire plutôt que de l'ignorer : on lui
+applique donc celles de Scryfall — `User-Agent` descriptif, débit bas,
+attribution visible dans l'écran « à propos ».
+
+### Les euros sont convertis, pas relevés
+
+TCGplayer cote en dollars ; l'application affiche des euros de bout en bout
+(`price_usd` existe dans le schéma mais aucune fonction SQL ni ligne de Dart ne
+la lit). La conversion passe par le **taux de référence quotidien de la Banque
+centrale européenne** — donnée publique, officielle et datée, non un taux
+inventé.
+
+Ce n'est pas pour autant un prix de marché européen : Cardmarket et TCGplayer
+divergent sur ce jeu. Trois dispositions rendent le chiffre traçable plutôt que
+péremptoire :
+
+1. `price_usd` conserve le montant **relevé**, à côté du montant dérivé ;
+2. `ingestion_state` consigne le taux et sa date
+   (`2026-08-11 usd_par_eur=1.1540 (BCE 2026-08-11)`) ;
+3. le sélecteur de jeu et l'écran « à propos » le disent à l'utilisateur.
+
+La date consignée est celle de la BCE et non celle du jour : elle ne publie ni
+les week-ends ni les jours fériés, et le taux du vendredi tient jusqu'au lundi.
+
+`to_euros` **divise** par le taux publié, qui exprime le nombre de dollars que
+vaut un euro. L'erreur inverse majorerait tout de 15 % en restant parfaitement
+crédible à l'œil — c'est le premier cas que couvrent les tests.
+
+### Deux limites à connaître
+
+**`marketPrice` et non `lowPrice`.** Le prix bas est une annonce isolée — carte
+abîmée, erreur de saisie ; le prix de marché est la valeur calculée sur les
+ventes réelles, et c'est aussi ce que Scryfall publie pour Magic. Les deux jeux
+se valorisent donc sur la même notion, condition pour que les totaux se
+comparent. Un produit sans prix de marché est absent plutôt que mal valorisé.
+
+**493 impressions de base ne sont cotées qu'en brillante.** Un exemplaire
+ordinaire de ces cartes compte donc pour zéro : c'est la règle « une carte sans
+cote compte pour 0 €, jamais pour une estimation inventée », appliquée à une
+absence réelle de cote et non à un oubli. `card_cheapest_price` reste sur le prix
+ordinaire, inchangée — la modifier changerait aussi la valorisation Magic.
+
+**Les 227 impressions de `VEN` restent sans prix**, faute de `tcgplayer_id` chez
+Riftcodex. TCGCSV connaît pourtant le groupe : on pourrait rapprocher par nom et
+numéro. On ne le fait pas — un rapprochement approximatif écrirait un prix
+plausible sur la mauvaise carte sans que rien ne le signale, là où une carte sans
+cote compte pour zéro, ce qui est faux mais visible.
+
+### Vérifié de bout en bout
+
+Dans une transaction **annulée**, sous le rôle `authenticated` et les claims du
+compte réel : trois exemplaires ajoutés (deux ordinaires, un brillant) donnent un
+total de **34,87 €**, égal au centime à la somme attendue
+(15,17 + 4,28 + 15,42). Le prix de la finition possédée est bien celui retenu.
+La collection réelle n'a pas été touchée.

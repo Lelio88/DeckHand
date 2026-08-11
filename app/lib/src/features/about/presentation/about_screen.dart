@@ -42,6 +42,22 @@ const _credits = <({String name, String url, String role})>[
     url: 'riotgames.com',
     role: 'Riftbound, ses cartes et leurs illustrations',
   ),
+  // Riftcodex ne cote rien : les prix Riftbound viennent d'ailleurs, et le
+  // crédit doit suivre la donnée et non le chemin qui y mène.
+  (
+    name: 'TCGplayer, via TCGCSV',
+    url: 'tcgcsv.com',
+    role: 'Prix de marché des cartes Riftbound',
+  ),
+  // **La conversion est une source comme une autre.** Les prix Riftbound sont
+  // relevés en dollars ; l'euro affiché est une conversion au taux de référence
+  // de la BCE, pas un prix de marché européen. Le taire ferait passer un chiffre
+  // dérivé pour un chiffre relevé.
+  (
+    name: 'Banque centrale européenne',
+    url: 'ecb.europa.eu',
+    role: 'Taux de change quotidien dollar / euro',
+  ),
 ];
 
 /// Nom lisible de chaque source d'ingestion.
@@ -50,6 +66,7 @@ const _sourceLabels = <String, String>{
   'art_hashes': 'Empreintes d\'illustrations',
   'topdeck': 'Decks de tournoi',
   'mtgjson': 'Précons Commander',
+  'tcgcsv_prices': 'Prix Riftbound (convertis en euros)',
 };
 
 class AboutScreen extends ConsumerWidget {
