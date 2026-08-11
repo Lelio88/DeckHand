@@ -341,6 +341,18 @@ Les cartes sans édition précisée n'ont **aucune case**, par construction. Ell
 
 **Le prix d'une case est celui de la plus chère de ses impressions.** L'impression représentative est choisie française pour son nom imprimé, or Scryfall ne cote pratiquement que l'anglais : trier par valeur ne triait rien, toutes les cases valant zéro. La case étant le même objet physique quelle que soit la langue, son prix se prend sur l'ensemble.
 
+### Le journal des mouvements
+
+**Une quantité et une date ne racontent pas une histoire.** `collection_items` porte « ×3 » et une seule estampille, qu'un ajout écrase : une ligne alimentée trois jours de suite n'en garde qu'un seul. « Quand ai-je acquis cette carte » n'avait donc aucune réponse — constaté sur une Cavalerie atlante possédée en trois exemplaires français, dont il était impossible de dire combien dataient de la veille. `collection_movements` garde chaque entrée et chaque sortie.
+
+**Un trigger plutôt que trois fonctions réécrites.** `add_to_collection`, `remove_from_collection` et `set_collection_print` sont éprouvées ; les rouvrir pour y glisser une écriture risquait une régression sur les gestes les plus employés du produit. Le trigger consigne à leur place, et surtout **rien ne peut lui échapper** : une écriture directe, un script d'ingestion, une correction à la main laissent tous leur trace.
+
+**Ce qu'on ne stocke pas, c'est l'intention.** Le trigger ne voit que des deltas. Préciser l'édition d'une carte déplace des exemplaires d'une impression à une autre — un retrait et un ajout, qui ne sont pourtant ni une perte ni une acquisition. Plutôt qu'une colonne « genre » que l'appelant devrait renseigner honnêtement, on retient l'**identifiant de transaction** et l'on reconnaît un déplacement à sa signature : **exactement deux mouvements, de somme nulle, sur la même carte**. La première version de cette règle demandait seulement à la transaction de porter les deux signes ; trois gestes joués ensemble y répondaient tous, et le journal les étiquetait tous « changement d'édition ». Passer par l'application ne pose pas la question — chaque appel RPC est sa propre transaction — mais la règle protège des scripts et des corrections à la main.
+
+**Le journal ne réécrit pas le passé.** Il s'amorce sur un report d'ouverture, une ligne par entrée existante, datée de son `added_at`. C'est faux au détail près — ces ×3 sont peut-être trois gestes — et honnête à l'échelle : le solde du journal égale la collection dès le premier jour, et l'on sait que tout ce qui précède l'ouverture est une reprise en bloc. `is_opening` le dit à la lecture, et l'écran l'affiche « Déjà là » plutôt que « Ajoutée ».
+
+**Inaltérable depuis le client.** Aucun droit d'écriture n'est accordé sur la table ; seul le trigger écrit, sous les droits du propriétaire (`SECURITY DEFINER`). L'application peut lire son journal, pas le maquiller.
+
 ### La pile à trier
 
 **Une carte sans édition précisée n'a aucune case**, par construction — ni extension, ni numéro. Elle était donc invisible dès que la collection se regardait en classeur, ce qui est devenu grave le jour où le classeur est passé en vue par défaut. `my_unsorted_pile` la montre.

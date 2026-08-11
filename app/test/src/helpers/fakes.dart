@@ -15,6 +15,7 @@ import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/printings/domain/card_printing.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
+import 'package:deckhand/src/features/collection/domain/collection_movement.dart';
 import 'package:deckhand/src/features/decks/data/deck_repository.dart';
 import 'package:deckhand/src/features/builder/data/buildable_repository.dart';
 import 'package:deckhand/src/features/builder/domain/buildable_card.dart';
@@ -261,6 +262,24 @@ class FakeCollectionRepository implements CollectionRepository {
 
   @override
   Future<CollectionSummary> summary({Game game = Game.magic}) async => totals;
+
+  /// Ce que le journal rendra, quelle que soit la fenêtre demandée.
+  List<CollectionMovement> movements = const [];
+
+  /// Carte dont l'histoire a été demandée en dernier — `null` pour toute la
+  /// collection.
+  String? lastHistoryOracleId;
+
+  @override
+  Future<List<CollectionMovement>> history({
+    Game game = Game.magic,
+    String? oracleId,
+    int limit = 60,
+    int offset = 0,
+  }) async {
+    lastHistoryOracleId = oracleId;
+    return movements;
+  }
 }
 
 /// Faux dépôt d'éditions, pour les écrans qui ouvrent le sélecteur.

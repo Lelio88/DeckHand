@@ -29,6 +29,7 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/card_search/presentation/card_search_screen.dart';
 import '../features/collection/data/collection_repository.dart';
 import '../features/collection/presentation/collection_screen.dart';
+import '../features/collection/presentation/history_sheet.dart';
 import '../features/decks/presentation/deck_suggestions_screen.dart';
 import '../features/scan/presentation/scan_screen.dart';
 import '../features/scan/presentation/spread_scan_screen.dart';
@@ -187,7 +188,11 @@ class _CaptureButtons extends StatelessWidget {
   }
 }
 
-/// Ce que pèse la collection, en un nombre.
+/// Ce que pèse la collection, et son histoire.
+///
+/// Le nombre dit l'état, le journal dit comment on y est arrivé — « quand ai-je
+/// acquis cette carte » est une question que la collection seule ne sait pas
+/// résoudre, sa date étant écrasée à chaque ajout.
 class _CollectionWeight extends ConsumerWidget {
   const _CollectionWeight();
 
@@ -197,9 +202,20 @@ class _CollectionWeight extends ConsumerWidget {
     final summary = ref.watch(collectionProvider).asData?.value;
     if (summary == null || summary.isEmpty) return const SizedBox.shrink();
 
-    return Text(
-      '${summary.totalCards} cartes',
-      style: theme.textTheme.titleSmall,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Journal des ajouts',
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.history, size: 20),
+          onPressed: () => showCollectionHistory(context),
+        ),
+        Text(
+          '${summary.totalCards} cartes',
+          style: theme.textTheme.titleSmall,
+        ),
+      ],
     );
   }
 }
@@ -240,15 +256,21 @@ class _AccountBadge extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final email = ref.watch(sessionProvider).asData?.value?.user.email;
+    final user = ref.watch(sessionProvider).asData?.value?.user;
+    final email = user?.email;
     if (email == null || email.isEmpty) return const SizedBox.shrink();
+
+    // **Le nom du compte, et à défaut ce qui précède le @.** Le repli n'est
+    // qu'un pis-aller : il donnait « test » sur un compte nommé
+    // `test@deckhand.app`, et suivrait n'importe quel changement d'adresse.
+    final name = (user?.userMetadata?['name'] as String?)?.trim();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          email.split('@').first,
+          name == null || name.isEmpty ? email.split('@').first : name,
           style: theme.textTheme.titleSmall,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

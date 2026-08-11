@@ -20,6 +20,7 @@ import '../../../config/selected_game.dart';
 
 import '../../auth/data/auth_repository.dart';
 import '../domain/collection_entry.dart';
+import '../domain/collection_movement.dart';
 
 /// Taille de page. Assez grande pour remplir un écran sans à-coups, assez
 /// petite pour que le premier affichage soit immédiat.
@@ -128,6 +129,33 @@ class CollectionRepository {
     if (rows.isEmpty) return CollectionSummary.empty;
     return CollectionSummary.fromJson(rows.first as Map<String, dynamic>);
   }
+
+  /// Le journal des mouvements, du plus récent au plus ancien.
+  ///
+  /// [oracleId] restreint à une carte — « quand ai-je acquis celle-ci ». Sans
+  /// lui, c'est l'histoire de la collection entière.
+  Future<List<CollectionMovement>> history({
+    Game game = Game.magic,
+    String? oracleId,
+    int limit = 60,
+    int offset = 0,
+  }) async {
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'my_collection_history',
+          params: {
+            'p_game': game.id,
+            'p_oracle_id': oracleId,
+            'p_limit': limit,
+            'p_offset': offset,
+          },
+        )
+        .timedOut();
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(CollectionMovement.fromJson)
+        .toList(growable: false);
+  }
 }
 
 final collectionRepositoryProvider = Provider<CollectionRepository>(
@@ -144,3 +172,19 @@ final collectionProvider = FutureProvider<CollectionSummary>((ref) async {
   final game = ref.watch(selectedGameProvider);
   return ref.watch(collectionRepositoryProvider).summary(game: game);
 });
+
+/// Le journal de la collection, ou celui d'une seule carte.
+///
+/// La clé porte l'`oracleId` : consulter l'histoire d'une carte depuis sa case
+/// ne rejette pas celle de la collection entière.
+final collectionHistoryProvider =
+    FutureProvider.family<List<CollectionMovement>, String?>((
+      ref,
+      oracleId,
+    ) async {
+      final session = ref.watch(sessionProvider).asData?.value;
+      if (session == null) return const [];
+      return ref
+          .watch(collectionRepositoryProvider)
+          .history(game: ref.watch(selectedGameProvider), oracleId: oracleId);
+    });
