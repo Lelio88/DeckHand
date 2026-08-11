@@ -31,15 +31,17 @@ class PrintingRepository {
     int limit = 60,
     String? lang,
   }) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'card_printings',
-      params: {
-        'p_oracle_id': oracleId,
-        'p_query': (query ?? '').trim().isEmpty ? null : query!.trim(),
-        'p_limit': limit,
-        'p_lang': lang,
-      },
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'card_printings',
+          params: {
+            'p_oracle_id': oracleId,
+            'p_query': (query ?? '').trim().isEmpty ? null : query!.trim(),
+            'p_limit': limit,
+            'p_lang': lang,
+          },
+        )
+        .timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(CardPrinting.fromJson)
@@ -61,10 +63,12 @@ class PrintingRepository {
     final ids = oracleIds.toSet().toList(growable: false);
     if (ids.isEmpty) return const {};
 
-    final rows = await _client.rpc<List<dynamic>>(
-      'sole_editions',
-      params: {'p_oracle_ids': ids, 'p_lang': lang},
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'sole_editions',
+          params: {'p_oracle_ids': ids, 'p_lang': lang},
+        )
+        .timedOut();
     return {
       for (final row in rows.cast<Map<String, dynamic>>())
         row['oracle_id'] as String: CardPrinting.fromJson(row),
@@ -80,11 +84,12 @@ final printingRepositoryProvider = Provider<PrintingRepository>(
 ///
 /// `family` sur le couple (carte, recherche) : deux cartes distinctes ne partagent
 /// pas de résultat, et frapper au clavier doit relancer la requête.
-final printingsProvider = FutureProvider.family<
-  List<CardPrinting>,
-  ({String oracleId, String query, String? lang})
->(
-  (ref, args) => ref
-      .watch(printingRepositoryProvider)
-      .forCard(args.oracleId, query: args.query, lang: args.lang),
-);
+final printingsProvider =
+    FutureProvider.family<
+      List<CardPrinting>,
+      ({String oracleId, String query, String? lang})
+    >(
+      (ref, args) => ref
+          .watch(printingRepositoryProvider)
+          .forCard(args.oracleId, query: args.query, lang: args.lang),
+    );

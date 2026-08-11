@@ -39,7 +39,9 @@ void main() {
 
   group('dix-neuf cartes en éventail', () {
     test('le filtre laisse passer la grande majorité des noms', () {
-      final names = spreadNameCandidates(measuredFan).map((c) => c.text).toList();
+      final names = spreadNameCandidates(
+        measuredFan,
+      ).map((c) => c.text).toList();
       final found = _cardsAmong(fanTruth, names);
 
       // **Dix noms passent tels quels, seize après résolution.** Ce test
@@ -51,7 +53,8 @@ void main() {
       expect(
         found.length,
         greaterThanOrEqualTo(10),
-        reason: 'à 1,15 il n\'en restait que huit : le seuil coupait au milieu '
+        reason:
+            'à 1,15 il n\'en restait que huit : le seuil coupait au milieu '
             'de la population des noms, faute de séparation à exploiter',
       );
     });
@@ -69,13 +72,16 @@ void main() {
     test('remonter le seuil détruit le rappel', () {
       // Contre-épreuve chiffrée : ce test échouerait si quelqu'un remontait le
       // seuil en pensant gagner en précision.
-      final strict = spreadNameCandidates(measuredFan, heightRatio: 1.15)
-          .map((c) => c.text);
+      final strict = spreadNameCandidates(
+        measuredFan,
+        heightRatio: 1.15,
+      ).map((c) => c.text);
 
       expect(
         _cardsAmong(fanTruth, strict).length,
         lessThan(12),
-        reason: 'la mesure donne huit cartes sur dix-neuf à 1,15 — le seuil '
+        reason:
+            'la mesure donne huit cartes sur dix-neuf à 1,15 — le seuil '
             'élevé n\'est pas un réglage prudent, c\'est une perte sèche',
       );
     });
@@ -94,10 +100,16 @@ void main() {
       // parfois des parasites, d'où un texte lu plus long que le nom trouvé.
       expect(isPlausibleMatch('Agent Maria Hil', 'Agent Maria Hill'), isTrue);
       expect(
-        isPlausibleMatch('Quake, agent du S.H.LE.L.D.', 'Quake, agent du S.H.I.E.L.D.'),
+        isPlausibleMatch(
+          'Quake, agent du S.H.LE.L.D.',
+          'Quake, agent du S.H.I.E.L.D.',
+        ),
         isTrue,
       );
-      expect(isPlausibleMatch('( Croisade de Murdock', 'Croisade de Murdock'), isTrue);
+      expect(
+        isPlausibleMatch('( Croisade de Murdock', 'Croisade de Murdock'),
+        isTrue,
+      );
     });
 
     test('un nom vide ne vaut jamais correspondance', () {

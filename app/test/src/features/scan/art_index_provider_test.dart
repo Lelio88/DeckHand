@@ -116,25 +116,33 @@ void main() {
 
   test('un comptage impossible sert le cache', () async {
     final cache = FakeIndexCache((index: indexOf(['a', 'b']), count: 2));
-    final repository = FakeIndexRepository()..countError = Exception('hors ligne');
+    final repository = FakeIndexRepository()
+      ..countError = Exception('hors ligne');
     final container = containerWith(repository, cache);
 
     expect((await container.read(artHashIndexProvider.future)).length, 2);
   });
 
-  test('un téléchargement interrompu sert le cache plutôt que d\'échouer', () async {
-    // Le cas qui manquait : la coupure survient après le comptage, donc passé
-    // le seul repli qui existait. L'écran annonçait « index indisponible »
-    // alors qu'un index utilisable dormait sur l'appareil.
-    final cache = FakeIndexCache((index: indexOf(['a', 'b']), count: 2));
-    final repository = FakeIndexRepository(serverCount: 9)
-      ..downloadError = Exception('réseau coupé en cours de route');
-    final container = containerWith(repository, cache);
+  test(
+    'un téléchargement interrompu sert le cache plutôt que d\'échouer',
+    () async {
+      // Le cas qui manquait : la coupure survient après le comptage, donc passé
+      // le seul repli qui existait. L'écran annonçait « index indisponible »
+      // alors qu'un index utilisable dormait sur l'appareil.
+      final cache = FakeIndexCache((index: indexOf(['a', 'b']), count: 2));
+      final repository = FakeIndexRepository(serverCount: 9)
+        ..downloadError = Exception('réseau coupé en cours de route');
+      final container = containerWith(repository, cache);
 
-    final index = await container.read(artHashIndexProvider.future);
+      final index = await container.read(artHashIndexProvider.future);
 
-    expect(index.length, 2, reason: 'un index d\'hier vaut mieux qu\'aucun scan');
-  });
+      expect(
+        index.length,
+        2,
+        reason: 'un index d\'hier vaut mieux qu\'aucun scan',
+      );
+    },
+  );
 
   test('sans cache, un téléchargement raté remonte l\'erreur', () async {
     // Rien à servir : mieux vaut le dire que rendre un index vide, qui ne
@@ -183,14 +191,17 @@ void main() {
     );
   });
 
-  test('l\'avancement est effacé même quand le téléchargement échoue', () async {
-    final repository = FakeIndexRepository(serverCount: 5)
-      ..downloadError = Exception('coupure');
-    final cache = FakeIndexCache((index: indexOf(['a']), count: 1));
-    final container = containerWith(repository, cache);
+  test(
+    'l\'avancement est effacé même quand le téléchargement échoue',
+    () async {
+      final repository = FakeIndexRepository(serverCount: 5)
+        ..downloadError = Exception('coupure');
+      final cache = FakeIndexCache((index: indexOf(['a']), count: 1));
+      final container = containerWith(repository, cache);
 
-    await container.read(artHashIndexProvider.future);
+      await container.read(artHashIndexProvider.future);
 
-    expect(container.read(artIndexProgressProvider), isNull);
-  });
+      expect(container.read(artIndexProgressProvider), isNull);
+    },
+  );
 }

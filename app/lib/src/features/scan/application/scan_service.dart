@@ -96,14 +96,14 @@ class ScanOutcome {
 
   /// Le même résultat, augmenté du texte lu sur la photo.
   ScanOutcome withLines(List<ReadLine> lines) => ScanOutcome(
-        oracleIds: oracleIds,
-        isConfident: isConfident,
-        method: method,
-        readName: readName,
-        readLines: lines,
-        frame: frame,
-        error: error,
-      );
+    oracleIds: oracleIds,
+    isConfident: isConfident,
+    method: method,
+    readName: readName,
+    readLines: lines,
+    frame: frame,
+    error: error,
+  );
 
   factory ScanOutcome.failure(String message) =>
       ScanOutcome(oracleIds: const [], isConfident: false, error: message);
@@ -134,7 +134,6 @@ class SpreadFind {
 /// laisse passer une lettre mal lue sur un nom long sans admettre les
 /// rapprochements approximatifs.
 const double _decisiveScore = 0.9;
-
 
 class ScanService {
   const ScanService(this._index, this._reader, this._cards);
@@ -176,7 +175,8 @@ class ScanService {
 
     // Les deux voies concordent : le doute est levé, quelle que soit la
     // distance d'empreinte — c'est la confirmation croisée qui fait foi.
-    final confirmed = art.oracleIds.isNotEmpty && found.contains(art.oracleIds.first);
+    final confirmed =
+        art.oracleIds.isNotEmpty && found.contains(art.oracleIds.first);
 
     return ScanOutcome(
       // **Les candidats par illustration ne sont pas mêlés à ceux du nom.**
@@ -330,7 +330,9 @@ class ScanService {
       final along = <String, double>{};
       for (final entry in places.entries) {
         for (final line in entry.value) {
-          if (line.left < card.left - mx || line.left > card.right + mx) continue;
+          if (line.left < card.left - mx || line.left > card.right + mx) {
+            continue;
+          }
           if (line.top < card.top - my || line.top > card.bottom + my) continue;
           final axis = horizontal ? line.left : line.top;
           final at = (axis - lo) / (hi - lo);
@@ -385,9 +387,7 @@ class ScanService {
       // contredirait sans qu'on puisse savoir laquelle a sauté.
       diagnose('spread_citations', {
         'low': low,
-        'rejected': [
-          for (final id in rejected) found[id]?.matchedName ?? id,
-        ],
+        'rejected': [for (final id in rejected) found[id]?.matchedName ?? id],
       });
     }
     return rejected;
@@ -445,7 +445,11 @@ class ScanService {
   ///
   /// Sert de contrôle : l'outil de balayage refait ces recherches depuis le
   /// poste de travail, et doit retrouver les mêmes scores.
-  void _diagnoseMatch(NameCandidate candidate, CardHit? hit, {required bool kept}) {
+  void _diagnoseMatch(
+    NameCandidate candidate,
+    CardHit? hit, {
+    required bool kept,
+  }) {
     if (!diagnosticsEnabled) return;
     diagnose('spread_match', {
       'read': candidate.text,

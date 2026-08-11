@@ -78,7 +78,11 @@ ArtHashIndex indexOf(Map<String, img.Image> cards, CardFrame frame) =>
 void main() {
   test('une photo bien cadrée retrouve la carte', () async {
     final card = fakeCard(CardFrame.modern, seed: 1);
-    final service = ScanService(indexOf({'cible': card}, CardFrame.modern), FakeCardTextReader(), FakeCardRepository());
+    final service = ScanService(
+      indexOf({'cible': card}, CardFrame.modern),
+      FakeCardTextReader(),
+      FakeCardRepository(),
+    );
 
     final outcome = await service.recognise(photoOf(card));
 
@@ -89,7 +93,11 @@ void main() {
 
   test('une carte au cadre ancien est reconnue aussi', () async {
     final card = fakeCard(CardFrame.legacy, seed: 2);
-    final service = ScanService(indexOf({'ancienne': card}, CardFrame.legacy), FakeCardTextReader(), FakeCardRepository());
+    final service = ScanService(
+      indexOf({'ancienne': card}, CardFrame.legacy),
+      FakeCardTextReader(),
+      FakeCardRepository(),
+    );
 
     final outcome = await service.recognise(photoOf(card));
 
@@ -100,7 +108,11 @@ void main() {
   test('une carte absente de l\'index n\'est pas affirmée', () async {
     final connue = fakeCard(CardFrame.modern, seed: 3);
     final inconnue = fakeCard(CardFrame.modern, seed: 99);
-    final service = ScanService(indexOf({'connue': connue}, CardFrame.modern), FakeCardTextReader(), FakeCardRepository());
+    final service = ScanService(
+      indexOf({'connue': connue}, CardFrame.modern),
+      FakeCardTextReader(),
+      FakeCardRepository(),
+    );
 
     final outcome = await service.recognise(photoOf(inconnue));
 
@@ -115,7 +127,11 @@ void main() {
   test('des candidats sont proposés même sans certitude', () async {
     final connue = fakeCard(CardFrame.modern, seed: 4);
     final inconnue = fakeCard(CardFrame.modern, seed: 88);
-    final service = ScanService(indexOf({'connue': connue}, CardFrame.modern), FakeCardTextReader(), FakeCardRepository());
+    final service = ScanService(
+      indexOf({'connue': connue}, CardFrame.modern),
+      FakeCardTextReader(),
+      FakeCardRepository(),
+    );
 
     final outcome = await service.recognise(photoOf(inconnue));
 
@@ -126,7 +142,11 @@ void main() {
     final cards = {
       for (var i = 0; i < 6; i++) 'c$i': fakeCard(CardFrame.modern, seed: i),
     };
-    final service = ScanService(indexOf(cards, CardFrame.modern), FakeCardTextReader(), FakeCardRepository());
+    final service = ScanService(
+      indexOf(cards, CardFrame.modern),
+      FakeCardTextReader(),
+      FakeCardRepository(),
+    );
 
     final outcome = await service.recognise(photoOf(cards['c0']!), limit: 2);
 
@@ -145,20 +165,30 @@ void main() {
     expect(outcome.error, isNotNull);
   });
 
-  test('un index vide est signalé plutôt que de renvoyer un faux résultat', () async {
-    final service = ScanService(ArtHashIndex.fromEntries([]), FakeCardTextReader(), FakeCardRepository());
-    final outcome = await service.recognise(photoOf(fakeCard(CardFrame.modern)));
+  test(
+    'un index vide est signalé plutôt que de renvoyer un faux résultat',
+    () async {
+      final service = ScanService(
+        ArtHashIndex.fromEntries([]),
+        FakeCardTextReader(),
+        FakeCardRepository(),
+      );
+      final outcome = await service.recognise(
+        photoOf(fakeCard(CardFrame.modern)),
+      );
 
-    expect(outcome.error, contains('Index'));
-  });
+      expect(outcome.error, contains('Index'));
+    },
+  );
 
   group("le nom lu prime sur l'illustration", () {
     test("une carte absente de l'index est retrouvee par son nom", () async {
       // Cas mesure sur le terrain : illustration d'une reedition inconnue de
       // l'index, mais nom parfaitement lisible.
       final service = ScanService(
-        indexOf({'autre-carte': fakeCard(CardFrame.modern, seed: 9)},
-            CardFrame.modern),
+        indexOf({
+          'autre-carte': fakeCard(CardFrame.modern, seed: 9),
+        }, CardFrame.modern),
         FakeCardTextReader()
           ..lines = [const ReadLine('Cherchauloin', 0.05, 0.04)],
         FakeCardRepository()..results = [_hit('farseek')],
@@ -182,7 +212,10 @@ void main() {
         FakeCardRepository()..results = [_hit('cible')],
       );
 
-      final outcome = await service.recognise(photoOf(card), photoPath: '/p.png');
+      final outcome = await service.recognise(
+        photoOf(card),
+        photoPath: '/p.png',
+      );
 
       expect(outcome.method, ScanMethod.nameAndArt);
       expect(outcome.isConfident, isTrue);
@@ -196,37 +229,50 @@ void main() {
         FakeCardRepository(),
       );
 
-      final outcome = await service.recognise(photoOf(card), photoPath: '/p.png');
+      final outcome = await service.recognise(
+        photoOf(card),
+        photoPath: '/p.png',
+      );
 
       expect(outcome.oracleIds.first, 'cible');
       expect(outcome.method, ScanMethod.art);
     });
 
-    test("un nom introuvable au catalogue ne masque pas l'illustration", () async {
-      final card = fakeCard(CardFrame.modern, seed: 6);
-      final service = ScanService(
-        indexOf({'cible': card}, CardFrame.modern),
-        FakeCardTextReader()..lines = [const ReadLine('Zzzz Illisible', 0.05, 0.04)],
-        FakeCardRepository(),  // aucune correspondance
-      );
+    test(
+      "un nom introuvable au catalogue ne masque pas l'illustration",
+      () async {
+        final card = fakeCard(CardFrame.modern, seed: 6);
+        final service = ScanService(
+          indexOf({'cible': card}, CardFrame.modern),
+          FakeCardTextReader()
+            ..lines = [const ReadLine('Zzzz Illisible', 0.05, 0.04)],
+          FakeCardRepository(), // aucune correspondance
+        );
 
-      final outcome = await service.recognise(photoOf(card), photoPath: '/p.png');
+        final outcome = await service.recognise(
+          photoOf(card),
+          photoPath: '/p.png',
+        );
 
-      expect(
-        outcome.oracleIds.first,
-        'cible',
-        reason: "une lecture ratee ne doit pas priver du recours par empreinte",
-      );
-    });
+        expect(
+          outcome.oracleIds.first,
+          'cible',
+          reason:
+              "une lecture ratee ne doit pas priver du recours par empreinte",
+        );
+      },
+    );
   });
 
   group("l'étalement interroge le catalogue en un seul aller-retour", () {
-    ScanService serviceReading(List<ReadLine> lines, FakeCardRepository cards) =>
-        ScanService(
-          ArtHashIndex.fromEntries([]),
-          FakeCardTextReader()..lines = lines,
-          cards,
-        );
+    ScanService serviceReading(
+      List<ReadLine> lines,
+      FakeCardRepository cards,
+    ) => ScanService(
+      ArtHashIndex.fromEntries([]),
+      FakeCardTextReader()..lines = lines,
+      cards,
+    );
 
     test('toutes les lignes partent dans la même requête', () async {
       // **Ce test protège une mesure, pas un goût.** Une requête par ligne
@@ -251,29 +297,35 @@ void main() {
       expect(
         cards.lastBulkQuery,
         ['Foudre', 'Anneau solaire'],
-        reason: "les deux noms doivent partir ensemble ; s'ils partaient un "
+        reason:
+            "les deux noms doivent partir ensemble ; s'ils partaient un "
             "par un, le dernier appel ne porterait que le second",
       );
     });
 
-    test('une panne du catalogue remonte au lieu de passer pour un vide', () async {
-      // **La régression qui a coûté le plus cher.** Le code rattrapait toute
-      // erreur en rendant « aucune carte trouvée ». Une coupure réseau
-      // devenait alors indiscernable d'un étalement illisible : l'écran
-      // restait muet, et le journal ne portait aucune trace de la panne.
-      // Il a fallu rejouer les requêtes depuis le poste pour comprendre.
-      final cards = FakeCardRepository()
-        ..results = [_spreadHit('33333333-3333-3333-3333-333333333333', 'Foudre')]
-        ..searchError = Exception('connexion perdue');
-      final service = serviceReading(const [
-        ReadLine('Foudre', 0.10, 0.03),
-      ], cards);
+    test(
+      'une panne du catalogue remonte au lieu de passer pour un vide',
+      () async {
+        // **La régression qui a coûté le plus cher.** Le code rattrapait toute
+        // erreur en rendant « aucune carte trouvée ». Une coupure réseau
+        // devenait alors indiscernable d'un étalement illisible : l'écran
+        // restait muet, et le journal ne portait aucune trace de la panne.
+        // Il a fallu rejouer les requêtes depuis le poste pour comprendre.
+        final cards = FakeCardRepository()
+          ..results = [
+            _spreadHit('33333333-3333-3333-3333-333333333333', 'Foudre'),
+          ]
+          ..searchError = Exception('connexion perdue');
+        final service = serviceReading(const [
+          ReadLine('Foudre', 0.10, 0.03),
+        ], cards);
 
-      await expectLater(
-        service.recogniseSpread('etalement.jpg'),
-        throwsA(isA<Exception>()),
-      );
-    });
+        await expectLater(
+          service.recogniseSpread('etalement.jpg'),
+          throwsA(isA<Exception>()),
+        );
+      },
+    );
 
     test('quatre exemplaires posés donnent une quantité de quatre', () async {
       // **Vérité terrain.** Une photo portait onze cartes dont quatre du même
@@ -281,7 +333,9 @@ void main() {
       // L'appareil lisait bien les quatre lignes ; elles étaient fusionnées en
       // une carte de quantité 1, et la perte ne se voyait nulle part.
       final cards = FakeCardRepository()
-        ..results = [_spreadHit('44444444-4444-4444-4444-444444444444', 'Dino')];
+        ..results = [
+          _spreadHit('44444444-4444-4444-4444-444444444444', 'Dino'),
+        ];
       final service = serviceReading(const [
         ReadLine('Dino', 0.20, 0.010, 0.10, 0.15),
         ReadLine('Dino', 0.20, 0.010, 0.45, 0.15),
@@ -301,7 +355,9 @@ void main() {
       // l'utilisateur ne peut pas voir venir — une quantité trop haute
       // s'enregistre sans rien signaler.
       final cards = FakeCardRepository()
-        ..results = [_spreadHit('55555555-5555-5555-5555-555555555555', 'Foudre')];
+        ..results = [
+          _spreadHit('55555555-5555-5555-5555-555555555555', 'Foudre'),
+        ];
       final service = serviceReading(const [
         ReadLine('Foudre', 0.20, 0.010, 0.10, 0.15),
       ], cards);
@@ -311,33 +367,41 @@ void main() {
       expect(found.single.copies, 1);
     });
 
-    test('deux lectures différentes de la même carte comptent deux fois', () async {
-      // Deux exemplaires sont rarement lus à l'identique — « Dinosaure de la
-      // Terre sauvage » et « Dinosaure de la Terre sauyage » —, et un
-      // exemplaire anglais rejoint son homologue français sur la même identité.
-      // Le regroupement doit donc se faire à la carte, pas à la ligne lue.
-      final cards = FakeCardRepository()
-        ..results = [
-          _spreadHit('66666666-6666-6666-6666-666666666666', 'Dinosaure'),
-          _spreadHit('66666666-6666-6666-6666-666666666666', 'Savage Land Dino'),
-        ];
-      final service = serviceReading(const [
-        ReadLine('Dinosaure', 0.20, 0.010, 0.10, 0.15),
-        ReadLine('Savage Land Dino', 0.60, 0.010, 0.45, 0.15),
-      ], cards);
+    test(
+      'deux lectures différentes de la même carte comptent deux fois',
+      () async {
+        // Deux exemplaires sont rarement lus à l'identique — « Dinosaure de la
+        // Terre sauvage » et « Dinosaure de la Terre sauyage » —, et un
+        // exemplaire anglais rejoint son homologue français sur la même identité.
+        // Le regroupement doit donc se faire à la carte, pas à la ligne lue.
+        final cards = FakeCardRepository()
+          ..results = [
+            _spreadHit('66666666-6666-6666-6666-666666666666', 'Dinosaure'),
+            _spreadHit(
+              '66666666-6666-6666-6666-666666666666',
+              'Savage Land Dino',
+            ),
+          ];
+        final service = serviceReading(const [
+          ReadLine('Dinosaure', 0.20, 0.010, 0.10, 0.15),
+          ReadLine('Savage Land Dino', 0.60, 0.010, 0.45, 0.15),
+        ], cards);
 
-      final found = await service.recogniseSpread('etalement.jpg');
+        final found = await service.recogniseSpread('etalement.jpg');
 
-      expect(found.length, 1, reason: 'même identité, deux langues');
-      expect(found.single.copies, 2);
-    });
+        expect(found.length, 1, reason: 'même identité, deux langues');
+        expect(found.single.copies, 2);
+      },
+    );
 
     test('un nom coupé en deux ne fabrique pas un second exemplaire', () async {
       // Deux morceaux d'un nom trop long sont sur des lignes consécutives.
       // Mesuré : les exemplaires réels les plus rapprochés étaient à 8,3
       // hauteurs de texte, un nom coupé tiendrait dans une ou deux.
       final cards = FakeCardRepository()
-        ..results = [_spreadHit('77777777-7777-7777-7777-777777777777', 'Foudre')];
+        ..results = [
+          _spreadHit('77777777-7777-7777-7777-777777777777', 'Foudre'),
+        ];
       final service = serviceReading(const [
         ReadLine('Foudre', 0.200, 0.010, 0.10, 0.15),
         ReadLine('Foudre', 0.212, 0.010, 0.10, 0.15),

@@ -222,9 +222,7 @@ List<CardBounds> findCards(img.Image photo, {int workWidth = _workWidth}) {
     final bh = max(box[3] - box[1], 1);
     final ratio = max(bw, bh) / min(bw, bh);
     if (ratio < _minRatio || ratio > _maxRatio) continue;
-    found.add(
-      CardBounds(box[0] / w, box[1] / h, box[2] / w, box[3] / h),
-    );
+    found.add(CardBounds(box[0] / w, box[1] / h, box[2] / w, box[3] / h));
   }
 
   found.sort((a, b) {

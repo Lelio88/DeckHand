@@ -68,8 +68,7 @@ class _FakeCatalogue implements CardRepository {
     return {
       for (final name in names)
         for (final card in cards)
-          if (card.matchedName.toLowerCase() == name.toLowerCase())
-            name: card,
+          if (card.matchedName.toLowerCase() == name.toLowerCase()) name: card,
     };
   }
 }
@@ -98,7 +97,9 @@ CardHit _hit(String oracleId, String name, {String lang = 'fr'}) => CardHit(
 );
 
 /// Monte l'écran, déclenche un scan, et rend les doublures pour inspection.
-Future<({FakeCollectionRepository collection, FakePrintingRepository printings})>
+Future<
+  ({FakeCollectionRepository collection, FakePrintingRepository printings})
+>
 pumpSpreadScan(
   WidgetTester tester, {
   required List<CardHit> found,
@@ -108,7 +109,12 @@ pumpSpreadScan(
   final collection = FakeCollectionRepository();
   final printings = FakePrintingRepository()
     ..printings = const [
-      CardPrinting(printId: 'print-msh', setCode: 'msh', setName: 'Marvel', lang: 'fr'),
+      CardPrinting(
+        printId: 'print-msh',
+        setCode: 'msh',
+        setName: 'Marvel',
+        lang: 'fr',
+      ),
     ]
     ..sole = sole
     ..soleError = soleError;
@@ -146,7 +152,10 @@ void main() {
   testWidgets('les cartes repérées sont proposées', (tester) async {
     await pumpSpreadScan(
       tester,
-      found: [_hit('id-1', 'Agent Phil Coulson'), _hit('id-2', "Agent d'Atlas")],
+      found: [
+        _hit('id-1', 'Agent Phil Coulson'),
+        _hit('id-2', "Agent d'Atlas"),
+      ],
     );
 
     expect(find.text('Agent Phil Coulson'), findsOneWidget);
@@ -158,7 +167,10 @@ void main() {
   ) async {
     final fakes = await pumpSpreadScan(
       tester,
-      found: [_hit('id-1', 'Agent Phil Coulson'), _hit('id-2', "Agent d'Atlas")],
+      found: [
+        _hit('id-1', 'Agent Phil Coulson'),
+        _hit('id-2', "Agent d'Atlas"),
+      ],
     );
 
     await tester.longPress(find.text("Agent d'Atlas"));
@@ -167,7 +179,8 @@ void main() {
     expect(
       fakes.printings.lastOracleId,
       'id-2',
-      reason: "l'aperçu doit porter sur la carte maintenue ; se tromper de "
+      reason:
+          "l'aperçu doit porter sur la carte maintenue ; se tromper de "
           'carte afficherait une illustration plausible et donc indétectable',
     );
     expect(
@@ -182,7 +195,10 @@ void main() {
   ) async {
     final fakes = await pumpSpreadScan(
       tester,
-      found: [_hit('id-1', 'Agent Phil Coulson'), _hit('id-2', "Agent d'Atlas")],
+      found: [
+        _hit('id-1', 'Agent Phil Coulson'),
+        _hit('id-2', "Agent d'Atlas"),
+      ],
     );
 
     // On décoche la première : c'est le geste de correction que l'écran existe
@@ -195,7 +211,8 @@ void main() {
     expect(
       fakes.collection.quantities.keys.map((k) => k.$1),
       ['id-2'],
-      reason: 'une carte décochée qui serait tout de même écrite fausserait '
+      reason:
+          'une carte décochée qui serait tout de même écrite fausserait '
           'durablement les suggestions de decks',
     );
   });
@@ -236,7 +253,8 @@ void main() {
     expect(
       fakes.collection.quantities.keys.single.$2,
       'print-msh',
-      reason: "une édition affichée mais non transmise vaudrait pire que pas "
+      reason:
+          "une édition affichée mais non transmise vaudrait pire que pas "
           "d'édition : la valorisation paraîtrait précise en restant fausse",
     );
   });
@@ -285,7 +303,8 @@ void main() {
       expect(
         find.text("Préciser l'édition"),
         findsOneWidget,
-        reason: 'sans réponse unique, choisir à la place de l\'utilisateur '
+        reason:
+            'sans réponse unique, choisir à la place de l\'utilisateur '
             'reviendrait à inventer une édition',
       );
 
@@ -311,7 +330,8 @@ void main() {
       expect(
         fakes.collection.added.single.isFoil,
         isTrue,
-        reason: 'un brillant enregistré comme normal sous-évalue la collection '
+        reason:
+            'un brillant enregistré comme normal sous-évalue la collection '
             'du simple au triple',
       );
     });
@@ -340,7 +360,8 @@ void main() {
       expect(
         fakes.collection.added.single.isFoil,
         isTrue,
-        reason: 'enregistrer sa jumelle normale reviendrait à inventer un '
+        reason:
+            'enregistrer sa jumelle normale reviendrait à inventer un '
             'exemplaire qui n\'a jamais été imprimé',
       );
     });
@@ -374,7 +395,8 @@ void main() {
       expect(
         fakes.printings.soleAsked,
         ['id-1', 'id-2', 'id-3'],
-        reason: 'une requête par carte coûtait 77 s sur dix-sept cartes ; la '
+        reason:
+            'une requête par carte coûtait 77 s sur dix-sept cartes ; la '
             'leçon vaut ici comme pour la recherche par lot',
       );
     });

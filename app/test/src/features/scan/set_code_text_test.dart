@@ -81,19 +81,19 @@ void main() {
       // Mesuré sur le terrain : sur trois cartes scannées, la ligne
       // « MSH • EN • GRACE ZHU » de Moonstone est sortie « MSHEN GRACE ZH ».
       // La puce séparatrice a disparu, et le code parfaitement lu était perdu.
-      expect(
-        readSetCode([line('MSHEN GRACE ZH')], const {'msh'}),
-        'msh',
-      );
+      expect(readSetCode([line('MSHEN GRACE ZH')], const {'msh'}), 'msh');
     });
 
-    test('un mot qui commence par le code sans langue derrière ne compte pas', () {
-      // « MARVEL » est imprimé au bas de chaque carte de ces extensions, et
-      // `mar` en est une. Accepter un simple préfixe ferait de la mention
-      // d'éditeur une désignation d'extension — sur la carte qui l'affiche.
-      expect(readSetCode([line('MARVEL')], const {'mar'}), isNull);
-      expect(readSetCode([line('OMARVEL')], const {'mar'}), isNull);
-    });
+    test(
+      'un mot qui commence par le code sans langue derrière ne compte pas',
+      () {
+        // « MARVEL » est imprimé au bas de chaque carte de ces extensions, et
+        // `mar` en est une. Accepter un simple préfixe ferait de la mention
+        // d'éditeur une désignation d'extension — sur la carte qui l'affiche.
+        expect(readSetCode([line('MARVEL')], const {'mar'}), isNull);
+        expect(readSetCode([line('OMARVEL')], const {'mar'}), isNull);
+      },
+    );
 
     test('les capitales font foi', () {
       // Le code est toujours imprimé en capitales. Sans cette exigence, le mot

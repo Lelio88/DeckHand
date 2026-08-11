@@ -56,17 +56,24 @@ enum CardFrame {
   /// forme une bande pleine largeur qui, sinon, gèlerait une ligne entière de
   /// la grille d'empreinte — un huitième de son information dépensé en
   /// constante.
-  riftbound((left: 0.065, top: 0.047, right: 0.934, bottom: 0.517), 'riftbound'),
+  riftbound((
+    left: 0.065,
+    top: 0.047,
+    right: 0.934,
+    bottom: 0.517,
+  ), 'riftbound'),
 
   /// Riftbound, cartes horizontales : les 71 champs de bataille.
   ///
   /// Leur nom est incrusté *dans* l'illustration et ne peut en être retiré ;
   /// il est donc haché avec elle, ce qui est sans conséquence puisqu'il est
   /// constant pour une carte donnée.
-  riftboundWide(
-    (left: 0.041, top: 0.199, right: 0.962, bottom: 0.777),
-    'riftbound',
-  );
+  riftboundWide((
+    left: 0.041,
+    top: 0.199,
+    right: 0.962,
+    bottom: 0.777,
+  ), 'riftbound');
 
   const CardFrame(this.box, this.game);
 

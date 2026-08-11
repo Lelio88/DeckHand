@@ -36,9 +36,9 @@ File? _fileHolding(String contenu) {
   );
   if (!dir.existsSync()) return null;
   for (final file in dir.listSync().whereType<File>()) {
-    if (utf8.decode(file.readAsBytesSync(), allowMalformed: true).contains(
-      contenu,
-    )) {
+    if (utf8
+        .decode(file.readAsBytesSync(), allowMalformed: true)
+        .contains(contenu)) {
       return file;
     }
   }
@@ -85,7 +85,8 @@ void main() {
     expect(
       await readCachedImage(_url),
       isNull,
-      reason: 'servir la carte d\'une autre URL est le seul défaut '
+      reason:
+          'servir la carte d\'une autre URL est le seul défaut '
           'inacceptable d\'un cache d\'images',
     );
   });

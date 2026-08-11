@@ -54,7 +54,9 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await container.read(cardSearchProvider(cardQuery('foudre', const [])).future);
+    await container.read(
+      cardSearchProvider(cardQuery('foudre', const [])).future,
+    );
     expect(catalogue.lastGame, Game.magic, reason: 'Magic par défaut');
 
     await container.read(selectedGameProvider.notifier).select(Game.riftbound);
@@ -63,7 +65,8 @@ void main() {
     expect(
       catalogue.lastGame,
       Game.riftbound,
-      reason: 'sans ce paramètre, le serveur répondrait avec le catalogue '
+      reason:
+          'sans ce paramètre, le serveur répondrait avec le catalogue '
           'Magic sous une étiquette Riftbound — une erreur invisible',
     );
   });

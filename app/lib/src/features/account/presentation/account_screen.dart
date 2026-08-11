@@ -32,7 +32,6 @@ class AccountScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       children: [
-
         summary.when(
           loading: () => const Center(
             child: Padding(
@@ -83,9 +82,9 @@ class AccountScreen extends ConsumerWidget {
           leading: const Icon(Icons.info_outline),
           title: const Text('À propos et crédits'),
           subtitle: const Text('Scryfall, TopDeck.gg, MTGJSON'),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const AboutScreen()),
-          ),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const AboutScreen())),
         ),
         ListTile(
           contentPadding: EdgeInsets.zero,

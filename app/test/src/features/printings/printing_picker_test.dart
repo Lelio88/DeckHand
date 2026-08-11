@@ -207,22 +207,23 @@ void main() {
     expect(find.textContaining('lue sur la carte'), findsNothing);
   });
 
-  testWidgets('plusieurs cases dans l\'extension lue : l\'utilisateur choisit', (
-    tester,
-  ) async {
-    // Le code désigne une extension, pas une case. Tant qu'il en reste
-    // plusieurs — la carte et sa version étendue —, trancher à la place de
-    // l'utilisateur rangerait une carte sur deux dans la mauvaise.
-    await pumpPicker(
-      tester,
-      printings: catalogue,
-      readSetCode: (codes) => 'msh',
-    );
+  testWidgets(
+    'plusieurs cases dans l\'extension lue : l\'utilisateur choisit',
+    (tester) async {
+      // Le code désigne une extension, pas une case. Tant qu'il en reste
+      // plusieurs — la carte et sa version étendue —, trancher à la place de
+      // l'utilisateur rangerait une carte sur deux dans la mauvaise.
+      await pumpPicker(
+        tester,
+        printings: catalogue,
+        readSetCode: (codes) => 'msh',
+      );
 
-    expect(find.byType(ListTile), findsWidgets);
-    final tiles = tester.widgetList<ListTile>(find.byType(ListTile));
-    expect(tiles.where((t) => t.selected), isEmpty);
-  });
+      expect(find.byType(ListTile), findsWidgets);
+      final tiles = tester.widgetList<ListTile>(find.byType(ListTile));
+      expect(tiles.where((t) => t.selected), isEmpty);
+    },
+  );
 
   testWidgets('une seule case dans l\'extension lue : elle est retenue', (
     tester,

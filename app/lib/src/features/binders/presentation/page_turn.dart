@@ -205,7 +205,10 @@ class _PageTurnerState extends State<PageTurner>
       }
     }
 
-    _controller.value = (_controller.value + delta * _direction).clamp(0.0, 1.0);
+    _controller.value = (_controller.value + delta * _direction).clamp(
+      0.0,
+      1.0,
+    );
   }
 
   Future<void> _onDragEnd(DragEndDetails details, double width) async {
@@ -521,9 +524,7 @@ class _Stripe extends StatelessWidget {
             ),
             IgnorePointer(
               child: ColoredBox(
-                color: Colors.black.withValues(
-                  alpha: shade.clamp(0.0, 1.0),
-                ),
+                color: Colors.black.withValues(alpha: shade.clamp(0.0, 1.0)),
               ),
             ),
           ],

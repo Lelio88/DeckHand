@@ -35,7 +35,10 @@ BuildableCard card({
 ///
 /// Les rôles y sont volontairement rares : c'est ainsi qu'on voit si le
 /// constructeur va les chercher plutôt que de remplir au hasard.
-List<BuildableCard> plainCollection(int count, {Set<String> colors = const {'B'}}) => [
+List<BuildableCard> plainCollection(
+  int count, {
+  Set<String> colors = const {'B'},
+}) => [
   for (var i = 0; i < count; i++)
     card(name: 'Carte ${i.toString().padLeft(3, '0')}', colors: colors),
 ];
@@ -103,7 +106,10 @@ void main() {
     test('le général ne se retrouve pas dans son propre deck', () {
       final deck = builder.build([general, ...plainCollection(80)], general);
 
-      expect(deck.spells.map((c) => c.oracleId), isNot(contains(general.oracleId)));
+      expect(
+        deck.spells.map((c) => c.oracleId),
+        isNot(contains(general.oracleId)),
+      );
     });
 
     test("aucune carte hors de l'identité du général", () {
@@ -138,32 +144,33 @@ void main() {
       final first = builder.build(collection, general);
       final second = builder.build(collection, general);
 
-      expect(
-        first.spells.map((c) => c.name),
-        second.spells.map((c) => c.name),
-      );
+      expect(first.spells.map((c) => c.name), second.spells.map((c) => c.name));
     });
   });
 
   group('remplir les rôles', () {
-    test('le constructeur va chercher le retrait plutôt que du remplissage', () {
-      // Six cartes de retrait sont visées ; la collection en contient
-      // exactement six, noyées dans du neutre. Les rater signerait un
-      // remplissage aveugle.
-      final removals = [
-        for (var i = 0; i < 6; i++)
-          card(name: 'Retrait $i', text: 'Destroy target creature.'),
-      ];
-      final deck = builder.build(
-        [general, ...plainCollection(80), ...removals],
-        general,
-      );
+    test(
+      'le constructeur va chercher le retrait plutôt que du remplissage',
+      () {
+        // Six cartes de retrait sont visées ; la collection en contient
+        // exactement six, noyées dans du neutre. Les rater signerait un
+        // remplissage aveugle.
+        final removals = [
+          for (var i = 0; i < 6; i++)
+            card(name: 'Retrait $i', text: 'Destroy target creature.'),
+        ];
+        final deck = builder.build([
+          general,
+          ...plainCollection(80),
+          ...removals,
+        ], general);
 
-      final chosen = deck.spells
-          .where((c) => rolesOf(c).contains(CardRole.removal))
-          .length;
-      expect(chosen, 6);
-    });
+        final chosen = deck.spells
+            .where((c) => rolesOf(c).contains(CardRole.removal))
+            .length;
+        expect(chosen, 6);
+      },
+    );
 
     test('la pioche et la rampe sont cherchées aussi', () {
       final draws = [
@@ -171,13 +178,14 @@ void main() {
           card(name: 'Pioche $i', text: 'Draw a card.'),
       ];
       final ramps = [
-        for (var i = 0; i < 6; i++)
-          card(name: 'Rampe $i', text: 'Add {B}{B}.'),
+        for (var i = 0; i < 6; i++) card(name: 'Rampe $i', text: 'Add {B}{B}.'),
       ];
-      final deck = builder.build(
-        [general, ...plainCollection(80), ...draws, ...ramps],
+      final deck = builder.build([
         general,
-      );
+        ...plainCollection(80),
+        ...draws,
+        ...ramps,
+      ], general);
 
       final roles = deck.spells.map(rolesOf).toList();
       expect(roles.where((r) => r.contains(CardRole.draw)).length, 12);
@@ -218,7 +226,10 @@ void main() {
         ...plainCollection(10, colors: {'R'}),
       ], dual);
 
-      expect(deck.basicLands['Swamp']!, greaterThan(deck.basicLands['Mountain']!));
+      expect(
+        deck.basicLands['Swamp']!,
+        greaterThan(deck.basicLands['Mountain']!),
+      );
       expect(deck.basicCount, 38);
     });
 
@@ -229,10 +240,10 @@ void main() {
         type: 'Legendary Creature — Human',
         colors: {'B', 'R'},
       );
-      final deck = builder.build(
-        [dual, ...plainCollection(80, colors: {'B'})],
+      final deck = builder.build([
         dual,
-      );
+        ...plainCollection(80, colors: {'B'}),
+      ], dual);
 
       expect(deck.basicLands['Mountain'], greaterThan(0));
     });
@@ -242,10 +253,11 @@ void main() {
         for (var i = 0; i < 5; i++)
           card(name: 'Terrain $i', type: 'Land', cmc: 0, colors: const {}),
       ];
-      final deck = builder.build(
-        [general, ...plainCollection(80), ...specials],
+      final deck = builder.build([
         general,
-      );
+        ...plainCollection(80),
+        ...specials,
+      ], general);
 
       expect(deck.lands.length, 5);
       expect(deck.basicCount, 33);

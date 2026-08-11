@@ -73,9 +73,9 @@ void main() {
     // pilotent donc par son état, et non par un geste.
     Future<void> switchToBuilding(WidgetTester tester) async {
       final element = tester.element(find.byType(DeckSuggestionsScreen));
-      ProviderScope.containerOf(element)
-          .read(deckModeProvider.notifier)
-          .select(DeckMode.building);
+      ProviderScope.containerOf(
+        element,
+      ).read(deckModeProvider.notifier).select(DeckMode.building);
       await tester.pumpAndSettle();
     }
 
@@ -153,7 +153,6 @@ void main() {
     expect(decks.lastFilters?.budget.maxCostEur, isNull);
   });
 
-
   testWidgets('les couleurs choisies atteignent le serveur', (tester) async {
     // Le tamis vit côté serveur : le sens exact du filtre — couleurs voulues,
     // couleurs bannies — est éprouvé sur la roue elle-même. Ce qui compte ici
@@ -209,7 +208,8 @@ void main() {
       expect(
         find.text('TopDeck.gg'),
         findsNothing,
-        reason: 'la pastille disparaît ; le bandeau porte le crédit en toutes '
+        reason:
+            'la pastille disparaît ; le bandeau porte le crédit en toutes '
             'lettres',
       );
     });

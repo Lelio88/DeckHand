@@ -17,7 +17,13 @@ import 'dart:math';
 
 /// Une ligne de texte lue sur la photo, avec sa position verticale relative.
 class ReadLine {
-  const ReadLine(this.text, this.top, this.height, [this.left = 0, this.width = 0]);
+  const ReadLine(
+    this.text,
+    this.top,
+    this.height, [
+    this.left = 0,
+    this.width = 0,
+  ]);
 
   final String text;
 

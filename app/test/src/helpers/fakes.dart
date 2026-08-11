@@ -166,7 +166,8 @@ class FakeCollectionRepository implements CollectionRepository {
   CollectionSummary totals = CollectionSummary.empty;
 
   /// Dernier déplacement d'édition demandé.
-  ({String oracleId, String? from, String? to, int? quantity})? lastPrintingMove;
+  ({String oracleId, String? from, String? to, int? quantity})?
+  lastPrintingMove;
 
   /// Ajouts recus, dans l'ordre et sans agregation.
   ///

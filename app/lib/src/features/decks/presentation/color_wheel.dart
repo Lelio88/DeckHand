@@ -373,10 +373,7 @@ class _ColorFace extends StatelessWidget {
                     widthFactor: 0.72,
                     heightFactor: 0.72,
                     child: FittedBox(
-                      child: Icon(
-                        Icons.block,
-                        color: theme.colorScheme.error,
-                      ),
+                      child: Icon(Icons.block, color: theme.colorScheme.error),
                     ),
                   ),
                 ),

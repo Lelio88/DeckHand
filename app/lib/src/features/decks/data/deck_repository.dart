@@ -24,28 +24,30 @@ class DeckRepository {
     DeckFilters filters = const DeckFilters(),
     int maxResults = 30,
   }) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'deck_suggestions',
-      params: {
-        'p_format': format.id,
-        // Zéro carte manquante = constructible dès maintenant.
-        'p_max_missing': filters.budget.maxMissing,
-        'p_max_results': maxResults,
-        'p_max_cost': filters.budget.maxCostEur,
-        // `p_tier` reste offert par le serveur : le jour où une source
-        // apportera des listes de tournoi Commander, la distinction
-        // redeviendra utile. Aujourd'hui elle doublonne le format.
-        'p_tier': null,
-        // Trié pour que la requête soit la même d'une sélection à l'autre : le
-        // serveur n'a que faire de l'ordre dans lequel on a touché les pastilles.
-        'p_colors': (filters.colors.toList()..sort()),
-        'p_banned_colors': (filters.bannedColors.toList()..sort()),
-        'p_commander': filters.commander.trim().isEmpty
-            ? null
-            : filters.commander.trim(),
-        'p_owned_commander': filters.ownedCommanderOnly,
-      },
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'deck_suggestions',
+          params: {
+            'p_format': format.id,
+            // Zéro carte manquante = constructible dès maintenant.
+            'p_max_missing': filters.budget.maxMissing,
+            'p_max_results': maxResults,
+            'p_max_cost': filters.budget.maxCostEur,
+            // `p_tier` reste offert par le serveur : le jour où une source
+            // apportera des listes de tournoi Commander, la distinction
+            // redeviendra utile. Aujourd'hui elle doublonne le format.
+            'p_tier': null,
+            // Trié pour que la requête soit la même d'une sélection à l'autre : le
+            // serveur n'a que faire de l'ordre dans lequel on a touché les pastilles.
+            'p_colors': (filters.colors.toList()..sort()),
+            'p_banned_colors': (filters.bannedColors.toList()..sort()),
+            'p_commander': filters.commander.trim().isEmpty
+                ? null
+                : filters.commander.trim(),
+            'p_owned_commander': filters.ownedCommanderOnly,
+          },
+        )
+        .timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(DeckSuggestion.fromJson)
@@ -53,10 +55,9 @@ class DeckRepository {
   }
 
   Future<List<MissingCard>> missingCards(String deckId) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'deck_missing_cards',
-      params: {'p_deck_id': deckId},
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>('deck_missing_cards', params: {'p_deck_id': deckId})
+        .timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(MissingCard.fromJson)
@@ -170,7 +171,6 @@ class DeckFiltersNotifier extends Notifier<DeckFilters> {
   DeckFilters build() => const DeckFilters();
 
   void setBudget(DeckBudget budget) => state = state.copyWith(budget: budget);
-
 
   /// Remplace les deux ensembles d'un coup.
   ///

@@ -35,7 +35,8 @@ void main() {
     expect(
       kept.length,
       flatTruthCount,
-      reason: 'la photo portait dix-sept cartes, comptées sur la table ; '
+      reason:
+          'la photo portait dix-sept cartes, comptées sur la table ; '
           'toute autre valeur signale une carte ratée ou une carte inventée',
     );
   });
@@ -69,7 +70,8 @@ void main() {
     expect(
       keptAt(0.53).length,
       greaterThan(flatTruthCount),
-      reason: 'sous le seuil retenu, des lignes de règles deviennent des cartes',
+      reason:
+          'sous le seuil retenu, des lignes de règles deviennent des cartes',
     );
   });
 
@@ -86,7 +88,8 @@ void main() {
     expect(
       byLengthOnly,
       isNotEmpty,
-      reason: 'si plus rien ne tombe sur la longueur, le garde-fou est devenu '
+      reason:
+          'si plus rien ne tombe sur la longueur, le garde-fou est devenu '
           'inopérant et les fragments passent par le score seul',
     );
     expect(keptAt(spreadScoreThreshold).intersection(byLengthOnly), isEmpty);

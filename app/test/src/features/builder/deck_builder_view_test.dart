@@ -73,14 +73,18 @@ void main() {
     // rien à proposer, et une liste vide n'expliquerait pas pourquoi.
     await pumpBuilder(tester, cards: [card(name: 'Ordinaire')]);
 
-    expect(
-      find.textContaining('Aucune créature légendaire'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Aucune créature légendaire'), findsOneWidget);
   });
 
   testWidgets('les généraux possibles sont proposés', (tester) async {
-    await pumpBuilder(tester, cards: [general, other, card(name: 'Ordinaire')]);
+    await pumpBuilder(
+      tester,
+      cards: [
+        general,
+        other,
+        card(name: 'Ordinaire'),
+      ],
+    );
 
     expect(find.text('2 généraux possibles'), findsOneWidget);
     expect(find.text('Général'), findsOneWidget);
@@ -147,7 +151,13 @@ void main() {
   testWidgets('une collection trop maigre est annoncée comme telle', (
     tester,
   ) async {
-    await pumpBuilder(tester, cards: [general, card(name: 'Seule')]);
+    await pumpBuilder(
+      tester,
+      cards: [
+        general,
+        card(name: 'Seule'),
+      ],
+    );
 
     await tester.tap(find.text('Général'));
     await tester.pumpAndSettle();

@@ -35,9 +35,7 @@ void main() {
 
   group('quantités', () {
     test('un nombre en toutes lettres est reconnu', () {
-      expect(parseDictation('quatre foudre'), [
-        (query: 'foudre', quantity: 4),
-      ]);
+      expect(parseDictation('quatre foudre'), [(query: 'foudre', quantity: 4)]);
     });
 
     test('un nombre en chiffres est reconnu', () {
@@ -114,7 +112,8 @@ void main() {
       expect(
         parseDictation('a'),
         isEmpty,
-        reason: 'proposer une carte au hasard sur du bruit serait pire '
+        reason:
+            'proposer une carte au hasard sur du bruit serait pire '
             'que de ne rien proposer',
       );
     });

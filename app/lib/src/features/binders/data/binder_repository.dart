@@ -29,10 +29,9 @@ class BinderRepository {
   /// Les 690 autres du catalogue seraient des classeurs vides : l'étagère ne
   /// montre que ce qui a quelque chose dedans.
   Future<List<BinderShelfEntry>> shelf({Game game = Game.magic}) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'my_binder_shelf',
-      params: {'p_game': game.id},
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>('my_binder_shelf', params: {'p_game': game.id})
+        .timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(BinderShelfEntry.fromJson)
@@ -52,15 +51,17 @@ class BinderRepository {
     final needle = query.trim();
     if (needle.isEmpty) return const [];
 
-    final rows = await _client.rpc<List<dynamic>>(
-      'my_binder_find',
-      params: {
-        'p_query': needle,
-        'p_game': game.id,
-        'p_per_page': binderPageSize,
-        'p_limit': limit,
-      },
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'my_binder_find',
+          params: {
+            'p_query': needle,
+            'p_game': game.id,
+            'p_per_page': binderPageSize,
+            'p_limit': limit,
+          },
+        )
+        .timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(BinderFind.fromJson)
@@ -77,10 +78,12 @@ class BinderRepository {
     int page = 1,
     int perPage = binderPageSize,
   }) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'my_unsorted_pile',
-      params: {'p_game': game.id, 'p_page': page, 'p_per_page': perPage},
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'my_unsorted_pile',
+          params: {'p_game': game.id, 'p_page': page, 'p_per_page': perPage},
+        )
+        .timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(UnsortedCard.fromJson)
@@ -100,17 +103,19 @@ class BinderRepository {
     FinishFilter finish = FinishFilter.all,
     bool descending = false,
   }) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'my_binder_page',
-      params: {
-        'p_set_code': setCode,
-        'p_page': page,
-        'p_per_page': perPage,
-        'p_sort': sort.id,
-        'p_finish': finish.id,
-        'p_descending': descending,
-      },
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'my_binder_page',
+          params: {
+            'p_set_code': setCode,
+            'p_page': page,
+            'p_per_page': perPage,
+            'p_sort': sort.id,
+            'p_finish': finish.id,
+            'p_descending': descending,
+          },
+        )
+        .timedOut();
     return rows
         .cast<Map<String, dynamic>>()
         .map(BinderCell.fromJson)
@@ -126,14 +131,16 @@ class BinderRepository {
     int perPage = binderPageSize,
     FinishFilter finish = FinishFilter.all,
   }) async {
-    final value = await _client.rpc<int>(
-      'my_binder_first_page',
-      params: {
-        'p_set_code': setCode,
-        'p_per_page': perPage,
-        'p_finish': finish.id,
-      },
-    ).timedOut();
+    final value = await _client
+        .rpc<int>(
+          'my_binder_first_page',
+          params: {
+            'p_set_code': setCode,
+            'p_per_page': perPage,
+            'p_finish': finish.id,
+          },
+        )
+        .timedOut();
     return value;
   }
 }

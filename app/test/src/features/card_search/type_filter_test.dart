@@ -58,14 +58,17 @@ void main() {
   testWidgets('plusieurs types s\'accumulent', (tester) async {
     // On cherche parfois « créature ou artefact » : le filtre n'est pas un
     // choix exclusif.
-    expect(
-      await pumpFilter(tester, selected: {'Creature'}, tap: 'Éphémère'),
-      {'Creature', 'Instant'},
-    );
+    expect(await pumpFilter(tester, selected: {'Creature'}, tap: 'Éphémère'), {
+      'Creature',
+      'Instant',
+    });
   });
 
   testWidgets('re-cocher un type le retire', (tester) async {
-    expect(await pumpFilter(tester, selected: {'Creature'}, tap: 'Créature'), isEmpty);
+    expect(
+      await pumpFilter(tester, selected: {'Creature'}, tap: 'Créature'),
+      isEmpty,
+    );
   });
 
   testWidgets('« Tous types » efface la sélection', (tester) async {

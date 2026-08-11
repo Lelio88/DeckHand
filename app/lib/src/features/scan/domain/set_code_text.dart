@@ -53,8 +53,22 @@ final _separators = RegExp(r'[^A-Za-z0-9]+');
 /// imprimées qui en diffèrent (`JP` pour le japonais, `CS`/`CT` pour les deux
 /// chinois, `ZH` quand la variante n'est pas précisée).
 const _languages = {
-  'EN', 'FR', 'DE', 'IT', 'ES', 'PT', 'JA', 'JP', 'KO', 'RU',
-  'ZH', 'ZHS', 'ZHT', 'CS', 'CT', 'PH',
+  'EN',
+  'FR',
+  'DE',
+  'IT',
+  'ES',
+  'PT',
+  'JA',
+  'JP',
+  'KO',
+  'RU',
+  'ZH',
+  'ZHS',
+  'ZHT',
+  'CS',
+  'CT',
+  'PH',
 };
 
 /// Le code d'extension lu, ou `null` si rien de sûr n'a été trouvé.
@@ -98,7 +112,9 @@ String? _codeGluedToLanguage(String word, Map<String, String> wanted) {
   for (final entry in wanted.entries) {
     if (word.length <= entry.key.length) continue;
     if (!word.startsWith(entry.key)) continue;
-    if (_languages.contains(word.substring(entry.key.length))) return entry.value;
+    if (_languages.contains(word.substring(entry.key.length))) {
+      return entry.value;
+    }
   }
   return null;
 }

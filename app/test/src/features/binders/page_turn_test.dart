@@ -45,10 +45,8 @@ Future<List<int>> pumpTurner(
 }
 
 /// Bord droit d'une lamelle, déduit de sa pose et de sa longueur.
-({double x, double z}) rightEdge(StripePlacement p, double length) => (
-  x: p.x + length * math.cos(p.angle),
-  z: p.z - length * math.sin(p.angle),
-);
+({double x, double z}) rightEdge(StripePlacement p, double length) =>
+    (x: p.x + length * math.cos(p.angle), z: p.z - length * math.sin(p.angle));
 
 void main() {
   testWidgets('glisser vers la gauche avance', (tester) async {

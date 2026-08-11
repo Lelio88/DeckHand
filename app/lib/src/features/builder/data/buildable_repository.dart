@@ -25,10 +25,12 @@ class BuildableRepository {
     DeckFormat format = DeckFormat.commander,
     Game game = Game.magic,
   }) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'my_buildable_cards',
-      params: {'p_format': format.id, 'p_game': game.id},
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'my_buildable_cards',
+          params: {'p_format': format.id, 'p_game': game.id},
+        )
+        .timedOut();
 
     return rows
         .cast<Map<String, dynamic>>()

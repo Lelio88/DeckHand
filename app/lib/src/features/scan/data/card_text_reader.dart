@@ -55,7 +55,9 @@ class CardTextReader {
       final recognizer = _recognizer ??= TextRecognizer(
         script: TextRecognitionScript.latin,
       );
-      final recognised = await recognizer.processImage(InputImage.fromFilePath(path));
+      final recognised = await recognizer.processImage(
+        InputImage.fromFilePath(path),
+      );
 
       final height = _imageHeight(recognised);
       if (height <= 0) return const [];
@@ -72,9 +74,9 @@ class CardTextReader {
               // photographiée de travers, la boîte mesure la longueur de la
               // ligne bien plus que la taille de ses caractères.
               textHeightFromCorners(
-                line.cornerPoints,
-                line.boundingBox.height.toDouble(),
-              ) /
+                    line.cornerPoints,
+                    line.boundingBox.height.toDouble(),
+                  ) /
                   height,
               width <= 0 ? 0 : line.boundingBox.left / width,
               width <= 0 ? 0 : line.boundingBox.width / width,

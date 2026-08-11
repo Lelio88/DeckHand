@@ -73,7 +73,10 @@ extension TimedOutFuture<T> on Future<T> {
   /// seconde — c'est littéralement ce que l'écran affichait.
   Future<T> timedOut([Duration limit = requestTimeout]) async {
     try {
-      return await timeout(limit, onTimeout: () => throw const RequestTimedOut());
+      return await timeout(
+        limit,
+        onTimeout: () => throw const RequestTimedOut(),
+      );
     } on ClientException {
       throw const NetworkUnreachable();
     }

@@ -50,7 +50,8 @@ void main() {
     expect(
       tops.toList(),
       orderedEquals(tops.toList()..sort()),
-      reason: 'l\'utilisateur relit son étalement de haut en bas ; '
+      reason:
+          'l\'utilisateur relit son étalement de haut en bas ; '
           'proposer les cartes dans le désordre l\'obligerait à chercher',
     );
   });
@@ -103,7 +104,8 @@ void main() {
     expect(
       maxSpreadCandidates,
       greaterThanOrEqualTo(85),
-      reason: "sous ce seuil, une photo de dix-sept cartes perd des rangées "
+      reason:
+          "sous ce seuil, une photo de dix-sept cartes perd des rangées "
           "entières — et le symptôme est trompeur : relâcher le filtre de "
           "taille dégrade alors le résultat au lieu de l'améliorer",
     );
@@ -143,23 +145,26 @@ void main() {
     expect(strict, isNot(contains('menu fretin')));
   });
 
-  test('sans le filtre de taille, les lignes de règles redeviennent candidates', () {
-    // Contre-épreuve du test précédent : il ne prouverait rien si les deux
-    // lignes citant une carte étaient écartées pour une autre raison — leur
-    // longueur, un mot-clé. En désactivant le seul filtre de taille, elles
-    // doivent réapparaître, sans quoi ce n'est pas lui qui les retient.
-    final names = spreadNameCandidates([
-      ReadLine('Anneau solaire', 0.05, 0.030),
-      ReadLine('Ajoutez deux manas incolores', 0.12, 0.012),
-      ReadLine('Foudre inflige 3 blessures', 0.16, 0.012),
-      ReadLine('Cherchauloin', 0.40, 0.030),
-      ReadLine('Cherchez une carte de plaine', 0.47, 0.012),
-      ReadLine('Chercheur des profondeurs', 0.51, 0.012),
-    ], heightRatio: 0).map((c) => c.text);
+  test(
+    'sans le filtre de taille, les lignes de règles redeviennent candidates',
+    () {
+      // Contre-épreuve du test précédent : il ne prouverait rien si les deux
+      // lignes citant une carte étaient écartées pour une autre raison — leur
+      // longueur, un mot-clé. En désactivant le seul filtre de taille, elles
+      // doivent réapparaître, sans quoi ce n'est pas lui qui les retient.
+      final names = spreadNameCandidates([
+        ReadLine('Anneau solaire', 0.05, 0.030),
+        ReadLine('Ajoutez deux manas incolores', 0.12, 0.012),
+        ReadLine('Foudre inflige 3 blessures', 0.16, 0.012),
+        ReadLine('Cherchauloin', 0.40, 0.030),
+        ReadLine('Cherchez une carte de plaine', 0.47, 0.012),
+        ReadLine('Chercheur des profondeurs', 0.51, 0.012),
+      ], heightRatio: 0).map((c) => c.text);
 
-    expect(names, contains('Foudre inflige 3 blessures'));
-    expect(names, contains('Chercheur des profondeurs'));
-  });
+      expect(names, contains('Foudre inflige 3 blessures'));
+      expect(names, contains('Chercheur des profondeurs'));
+    },
+  );
 
   test('une photo sans texte lisible ne propose rien', () {
     expect(spreadNameCandidates(const []), isEmpty);

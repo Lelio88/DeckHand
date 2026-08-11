@@ -40,15 +40,17 @@ class CollectionRepository {
     String? printId,
     bool isFoil = false,
   }) async {
-    return _client.rpc<int>(
-      'add_to_collection',
-      params: {
-        'p_oracle_id': oracleId,
-        'p_quantity': quantity,
-        'p_print_id': printId,
-        'p_is_foil': isFoil,
-      },
-    ).timedOut();
+    return _client
+        .rpc<int>(
+          'add_to_collection',
+          params: {
+            'p_oracle_id': oracleId,
+            'p_quantity': quantity,
+            'p_print_id': printId,
+            'p_is_foil': isFoil,
+          },
+        )
+        .timedOut();
   }
 
   /// Retire des exemplaires et renvoie la quantité restante, zéro si la ligne a
@@ -59,15 +61,17 @@ class CollectionRepository {
     String? printId,
     bool isFoil = false,
   }) async {
-    return _client.rpc<int>(
-      'remove_from_collection',
-      params: {
-        'p_oracle_id': oracleId,
-        'p_quantity': quantity,
-        'p_print_id': printId,
-        'p_is_foil': isFoil,
-      },
-    ).timedOut();
+    return _client
+        .rpc<int>(
+          'remove_from_collection',
+          params: {
+            'p_oracle_id': oracleId,
+            'p_quantity': quantity,
+            'p_print_id': printId,
+            'p_is_foil': isFoil,
+          },
+        )
+        .timedOut();
   }
 
   /// Déplace des exemplaires d'une édition vers une autre.
@@ -83,25 +87,29 @@ class CollectionRepository {
     bool fromFoil = false,
     bool toFoil = false,
   }) async {
-    return _client.rpc<int>(
-      'set_collection_print',
-      params: {
-        'p_oracle_id': oracleId,
-        'p_from_print_id': fromPrintId,
-        'p_to_print_id': toPrintId,
-        'p_quantity': quantity,
-        'p_from_foil': fromFoil,
-        'p_to_foil': toFoil,
-      },
-    ).timedOut();
+    return _client
+        .rpc<int>(
+          'set_collection_print',
+          params: {
+            'p_oracle_id': oracleId,
+            'p_from_print_id': fromPrintId,
+            'p_to_print_id': toPrintId,
+            'p_quantity': quantity,
+            'p_from_foil': fromFoil,
+            'p_to_foil': toFoil,
+          },
+        )
+        .timedOut();
   }
 
   /// Totaux de la collection entière, indépendants de ce qu'on regarde.
   Future<CollectionSummary> summary({Game game = Game.magic}) async {
-    final rows = await _client.rpc<List<dynamic>>(
-      'my_collection_summary',
-      params: {'p_game': game.id},
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'my_collection_summary',
+          params: {'p_game': game.id},
+        )
+        .timedOut();
     if (rows.isEmpty) return CollectionSummary.empty;
     return CollectionSummary.fromJson(rows.first as Map<String, dynamic>);
   }

@@ -136,20 +136,24 @@ class BinderShelfEntry {
   double get completion => totalCells == 0 ? 0 : ownedCells / totalCells;
 
   /// Nombre de pages de neuf cases, arrondi au supérieur.
-  int get pages => totalCells == 0 ? 0 : (totalCells + binderPageSize - 1) ~/ binderPageSize;
+  int get pages =>
+      totalCells == 0 ? 0 : (totalCells + binderPageSize - 1) ~/ binderPageSize;
 
-  factory BinderShelfEntry.fromJson(Map<String, dynamic> json) => BinderShelfEntry(
-    setCode: json['set_code'] as String,
-    setName: (json['set_name'] as String?) ?? (json['set_code'] as String).toUpperCase(),
-    totalCells: (json['total_cells'] as num?)?.toInt() ?? 0,
-    ownedCells: (json['owned_cells'] as num?)?.toInt() ?? 0,
-    ownedCopies: (json['owned_copies'] as num?)?.toInt() ?? 0,
-    releasedAt: json['released_at'] == null
-        ? null
-        : DateTime.tryParse(json['released_at'] as String),
-    artCropUrl: json['art_crop_url'] as String?,
-    iconSvgUri: json['icon_svg_uri'] as String?,
-  );
+  factory BinderShelfEntry.fromJson(Map<String, dynamic> json) =>
+      BinderShelfEntry(
+        setCode: json['set_code'] as String,
+        setName:
+            (json['set_name'] as String?) ??
+            (json['set_code'] as String).toUpperCase(),
+        totalCells: (json['total_cells'] as num?)?.toInt() ?? 0,
+        ownedCells: (json['owned_cells'] as num?)?.toInt() ?? 0,
+        ownedCopies: (json['owned_copies'] as num?)?.toInt() ?? 0,
+        releasedAt: json['released_at'] == null
+            ? null
+            : DateTime.tryParse(json['released_at'] as String),
+        artCropUrl: json['art_crop_url'] as String?,
+        iconSvgUri: json['icon_svg_uri'] as String?,
+      );
 }
 
 /// Où une carte possédée est rangée.

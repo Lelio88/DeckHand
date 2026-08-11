@@ -128,7 +128,8 @@ void main() {
     expect(
       collection.quantities[('oracle-1', 'print-mh2')],
       1,
-      reason: 'sans cela l\'édition serait affichée mais jamais enregistrée, '
+      reason:
+          'sans cela l\'édition serait affichée mais jamais enregistrée, '
           'et la carte valorisée au mauvais prix',
     );
   });
@@ -236,7 +237,8 @@ void main() {
       expect(
         shownArt(tester),
         'https://exemple/reference.jpg',
-        reason: 'un cadre vide se lirait comme une panne, alors que rien '
+        reason:
+            'un cadre vide se lirait comme une panne, alors que rien '
             "n'a échoué",
       );
     });
@@ -254,7 +256,8 @@ void main() {
       expect(
         find.text('1.12 €'),
         findsOneWidget,
-        reason: "c'est ce que la collection comptera pour elle : le prix de "
+        reason:
+            "c'est ce que la collection comptera pour elle : le prix de "
             "l'édition, ou le moins cher connu à défaut",
       );
     });
@@ -288,7 +291,8 @@ void main() {
     expect(
       printings.lastQuery,
       'alpha',
-      reason: 'certaines cartes ont plus de mille éditions : filtrer côté écran '
+      reason:
+          'certaines cartes ont plus de mille éditions : filtrer côté écran '
           'ne suffirait pas, le serveur n\'en envoie qu\'une partie',
     );
     expect(find.text('Modern Horizons 2'), findsNothing);
@@ -300,7 +304,9 @@ void main() {
     expect(find.text('Déjà 3'), findsOneWidget);
   });
 
-  testWidgets('la notification d\'ajout s\'efface d\'elle-même', (tester) async {
+  testWidgets('la notification d\'ajout s\'efface d\'elle-même', (
+    tester,
+  ) async {
     await pumpSearch(tester, results: [hit()]);
 
     await tester.tap(find.byTooltip('Ajouter à ma collection'));

@@ -154,9 +154,7 @@ final artHashIndexProvider = FutureProvider<ArtHashIndex>((ref) async {
 
   final progress = ref.read(artIndexProgressProvider.notifier);
   try {
-    final downloaded = await repository.download(
-      onProgress: progress.report,
-    );
+    final downloaded = await repository.download(onProgress: progress.report);
     await cache.write(downloaded);
     progress.clear();
     return downloaded;

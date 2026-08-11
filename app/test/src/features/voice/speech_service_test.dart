@@ -27,7 +27,8 @@ void main() {
     expect(
       restartDelayAfter(finalSeen: false),
       greaterThan(SpeechToText.defaultFinalTimeout),
-      reason: 'relancer avant la fin du rattrapage annule la promotion du '
+      reason:
+          'relancer avant la fin du rattrapage annule la promotion du '
           'dernier partiel en résultat final, et la phrase est perdue',
     );
   });

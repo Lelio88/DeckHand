@@ -113,7 +113,8 @@ void main() {
       expect(
         find.byType(BottomSheet),
         findsOneWidget,
-        reason: 'toucher agit : la tuile ouvre sa liste de cartes manquantes, '
+        reason:
+            'toucher agit : la tuile ouvre sa liste de cartes manquantes, '
             'y compris sur la ligne du général',
       );
     });
@@ -159,7 +160,8 @@ void main() {
       expect(
         find.byType(Dialog),
         findsOneWidget,
-        reason: 'maintenir montre : le geste est le même que dans le classeur, '
+        reason:
+            'maintenir montre : le geste est le même que dans le classeur, '
             'le sélecteur d\'édition, les scans et les decks',
       );
     });

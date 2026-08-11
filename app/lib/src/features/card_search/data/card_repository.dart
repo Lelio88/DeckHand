@@ -30,10 +30,9 @@ class CardRepository {
   Future<List<CardHit>> byOracleIds(List<String> oracleIds) async {
     if (oracleIds.isEmpty) return const [];
 
-    final rows = await _client.rpc<List<dynamic>>(
-      'cards_by_oracle_ids',
-      params: {'p_ids': oracleIds},
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>('cards_by_oracle_ids', params: {'p_ids': oracleIds})
+        .timedOut();
 
     return rows
         .cast<Map<String, dynamic>>()
@@ -65,15 +64,17 @@ class CardRepository {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
 
-    final rows = await _client.rpc<List<dynamic>>(
-      'search_cards',
-      params: {
-        'q': trimmed,
-        'max_results': limit,
-        'p_game': game.id,
-        'p_types': types.toList(growable: false),
-      },
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'search_cards',
+          params: {
+            'q': trimmed,
+            'max_results': limit,
+            'p_game': game.id,
+            'p_types': types.toList(growable: false),
+          },
+        )
+        .timedOut();
 
     return rows
         .cast<Map<String, dynamic>>()
@@ -112,10 +113,12 @@ class CardRepository {
         .toList(growable: false);
     if (wanted.isEmpty) return const {};
 
-    final rows = await _client.rpc<List<dynamic>>(
-      'search_cards_bulk',
-      params: {'p_names': wanted, 'p_game': game.id},
-    ).timedOut();
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'search_cards_bulk',
+          params: {'p_names': wanted, 'p_game': game.id},
+        )
+        .timedOut();
 
     return {
       for (final row in rows.cast<Map<String, dynamic>>())

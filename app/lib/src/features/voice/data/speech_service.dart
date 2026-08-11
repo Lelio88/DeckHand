@@ -259,10 +259,7 @@ class SpeechService {
       _failures = 0;
     } catch (e) {
       _failures++;
-      diagnose('speech_listen_failed', {
-        'error': '$e',
-        'failures': _failures,
-      });
+      diagnose('speech_listen_failed', {'error': '$e', 'failures': _failures});
       if (_failures >= _maxConsecutiveFailures) {
         _wanted = false;
         _watchdog?.cancel();

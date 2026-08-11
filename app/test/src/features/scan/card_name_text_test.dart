@@ -74,14 +74,17 @@ void main() {
     );
   });
 
-  test('plusieurs candidats sont proposés, pour rattraper une mauvaise lecture', () {
-    final names = cardNameCandidates([
-      ReadLine('Cherchaulom', 0.05, 0.04), // « in » lu « m »
-      ReadLine('Cherchauloin', 0.12, 0.04),
-    ]);
+  test(
+    'plusieurs candidats sont proposés, pour rattraper une mauvaise lecture',
+    () {
+      final names = cardNameCandidates([
+        ReadLine('Cherchaulom', 0.05, 0.04), // « in » lu « m »
+        ReadLine('Cherchauloin', 0.12, 0.04),
+      ]);
 
-    expect(names.length, greaterThan(1));
-  });
+      expect(names.length, greaterThan(1));
+    },
+  );
 
   test('une ligne trop courte est ignorée', () {
     final names = cardNameCandidates([
@@ -115,7 +118,8 @@ void main() {
     expect(
       names.first,
       'Foudre',
-      reason: 'un cadrage approximatif ne doit pas faire manquer le nom — '
+      reason:
+          'un cadrage approximatif ne doit pas faire manquer le nom — '
           'c\'est précisément ce que la lecture du texte doit rattraper',
     );
   });
@@ -138,13 +142,19 @@ void main() {
 
     test('une ligne longue et fine ne passe pas pour du gros texte', () {
       // Boite englobante : 45 pixels de haut. Caracteres : 10.
-      expect(textHeightFromCorners(tilted(length: 200, height: 10), 45), closeTo(10, 1));
+      expect(
+        textHeightFromCorners(tilted(length: 200, height: 10), 45),
+        closeTo(10, 1),
+      );
     });
 
     test('un nom court en gros caracteres garde sa taille', () {
       // Boite englobante : 36 pixels, soit MOINS que la ligne de regles
       // ci-dessus alors que ses caracteres sont deux fois plus grands.
-      expect(textHeightFromCorners(tilted(length: 80, height: 22), 36), closeTo(22, 1));
+      expect(
+        textHeightFromCorners(tilted(length: 80, height: 22), 36),
+        closeTo(22, 1),
+      );
     });
 
     test('le nom ressort au-dessus du texte de regles, mesure ainsi', () {
@@ -286,7 +296,11 @@ void main() {
         'Dinosaure de la Terre sauyage 4',
         'Oiseau Moqueur, agente de talent 3',
       ]) {
-        expect(looksLikeCardName(name), isTrue, reason: '« $name » est un nom lu');
+        expect(
+          looksLikeCardName(name),
+          isTrue,
+          reason: '« $name » est un nom lu',
+        );
       }
     });
   });
