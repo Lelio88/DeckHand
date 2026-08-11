@@ -61,6 +61,20 @@ class DeckHandApp extends StatelessWidget {
 /// donnée à lire la rendrait inutile. Le contrôle n'est pas ici mais en base —
 /// une collection non publiée est refusée par la politique, quel que soit le
 /// chemin.
+/// Cette version ne sait que lire des classeurs partagés.
+///
+/// **Ce qu'elle protège, ce sont les inscriptions.** L'application se compile
+/// pour le web, et une adresse publique donnerait à n'importe qui l'écran de
+/// connexion — donc la création de compte, ouverte sur ce projet Supabase.
+/// DeckHand n'est pas un service ouvert (`CLAUDE.md` §I) : la version hébergée
+/// n'embarque donc pas de quoi s'y inscrire, plutôt que de compter sur le fait
+/// que personne n'essaiera.
+///
+/// La clé publiable qu'elle emporte ne peut alors servir qu'à des lectures
+/// anonymes, et celles-ci sont bornées par les politiques — vérifiées dans les
+/// deux sens, collection publiée et collection qui ne l'est pas.
+const bool publicOnly = bool.fromEnvironment('DECKHAND_PUBLIC_ONLY');
+
 class _AuthGate extends ConsumerWidget {
   const _AuthGate();
 
@@ -68,6 +82,7 @@ class _AuthGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final shared = collectionFromUrl(Uri.base);
     if (shared != null) return PublicBinderScreen(collectionId: shared);
+    if (publicOnly) return const _SharedOnly();
 
     final session = ref.watch(sessionProvider);
 
@@ -84,6 +99,59 @@ class _AuthGate extends ConsumerWidget {
         ),
       ),
       data: (value) => value == null ? const SignInScreen() : const HomeShell(),
+    );
+  }
+}
+
+/// Ce que montre la version hébergée quand l'adresse ne désigne aucun classeur.
+///
+/// Ni connexion ni inscription : il n'y a rien à faire ici sans un lien.
+class _SharedOnly extends StatelessWidget {
+  const _SharedOnly();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.menu_book_outlined,
+                  size: 40,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(height: 16),
+                Text('DeckHand', style: theme.textTheme.headlineSmall),
+                const SizedBox(height: 8),
+                Text(
+                  'Cette page affiche un classeur partagé. Il faut pour cela '
+                  'l\'adresse que son propriétaire a donnée.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Cartes, images et prix : Scryfall. Magic: The Gathering est '
+                  'une marque de Wizards of the Coast, qui n\'est pas affiliée '
+                  'à DeckHand.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

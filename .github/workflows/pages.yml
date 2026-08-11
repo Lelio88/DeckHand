@@ -1,0 +1,78 @@
+# Publie le classeur partagé sur GitHub Pages.
+#
+# **Ce qui est publié n'est pas l'application.** `DECKHAND_PUBLIC_ONLY` compile
+# une variante qui ne sait que lire des classeurs partagés : ni connexion, ni
+# inscription. L'inscription est ouverte sur le projet Supabase, et une adresse
+# publique donnerait sinon à n'importe qui de quoi créer un compte — ce que
+# `CLAUDE.md` §I dit ne pas vouloir. La clé publiable qu'emporte cette variante
+# ne peut donc servir qu'à des lectures anonymes, bornées par les politiques.
+#
+# **Les clés viennent des secrets d'actions, jamais du dépôt** (§IV.7). Le
+# résultat du build est envoyé comme artefact et n'atterrit sur aucune branche :
+# rien de compilé n'entre dans l'historique.
+#
+# `--base-href` est obligatoire : un site de projet est servi sous
+# `/<dépôt>/`, et sans lui l'application chercherait ses ressources à la racine.
+
+name: Classeur partagé
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Une seule publication à la fois ; une plus récente annule celle en cours.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Dépendances
+        working-directory: app
+        run: flutter pub get
+
+      # Ce qui est publié doit passer les tests : une page cassée est vue par
+      # des inconnus avant de l'être par nous.
+      - name: Tests
+        working-directory: app
+        run: flutter test
+
+      - name: Compilation web
+        working-directory: app
+        run: >
+          flutter build web --release
+          --base-href "/${GITHUB_REPOSITORY#*/}/"
+          --dart-define=DECKHAND_PUBLIC_ONLY=true
+          --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
