@@ -25,6 +25,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/account/presentation/account_screen.dart';
+import '../features/binders/presentation/binder_view.dart'
+    show binderIsImmersive;
 import '../features/auth/data/auth_repository.dart';
 import '../features/card_search/presentation/card_search_screen.dart';
 import '../features/collection/data/collection_repository.dart';
@@ -47,14 +49,23 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    // **Un classeur couché prend tout l'écran.** C'est le seul endroit où la
+    // coque s'efface : la barre du haut et la navigation coûtent 150 points de
+    // hauteur sur les 408 d'un téléphone couché, et une page de classeur en
+    // manque. On y entre en tournant l'appareil, on en sort en le redressant —
+    // le geste est réversible, aucun bouton n'est donc nécessaire pour rendre
+    // la navigation. La largeur maximale saute aussi : une double page a
+    // besoin de toute la table.
+    final immersive = binderIsImmersive(context, ref);
+
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
+            constraints: BoxConstraints(maxWidth: immersive ? 1600 : 720),
             child: Column(
               children: [
-                _TopBar(index: _index),
+                if (!immersive) _TopBar(index: _index),
                 Expanded(
                   // IndexedStack et non un simple switch : passer d'un onglet à
                   // l'autre ne doit pas effacer la recherche en cours.
@@ -73,28 +84,30 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           ),
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.add), label: 'Ajouter'),
-          NavigationDestination(
-            icon: Icon(Icons.style_outlined),
-            selectedIcon: Icon(Icons.style),
-            label: 'Collection',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            selectedIcon: Icon(Icons.auto_awesome),
-            label: 'Decks',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Compte',
-          ),
-        ],
-      ),
+      bottomNavigationBar: immersive
+          ? null
+          : NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              destinations: const [
+                NavigationDestination(icon: Icon(Icons.add), label: 'Ajouter'),
+                NavigationDestination(
+                  icon: Icon(Icons.style_outlined),
+                  selectedIcon: Icon(Icons.style),
+                  label: 'Collection',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.auto_awesome_outlined),
+                  selectedIcon: Icon(Icons.auto_awesome),
+                  label: 'Decks',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: 'Compte',
+                ),
+              ],
+            ),
     );
   }
 }
@@ -211,10 +224,7 @@ class _CollectionWeight extends ConsumerWidget {
           icon: const Icon(Icons.history, size: 20),
           onPressed: () => showCollectionHistory(context),
         ),
-        Text(
-          '${summary.totalCards} cartes',
-          style: theme.textTheme.titleSmall,
-        ),
+        Text('${summary.totalCards} cartes', style: theme.textTheme.titleSmall),
       ],
     );
   }

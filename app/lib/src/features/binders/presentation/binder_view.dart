@@ -53,6 +53,22 @@ final openBinderProvider = NotifierProvider<OpenBinder, String?>(
   OpenBinder.new,
 );
 
+/// Vrai quand le classeur couché doit occuper l'écran entier.
+///
+/// **Mesuré, et c'est ce qui a rendu la double page nécessaire à regarder avant
+/// de la déclarer bonne.** Sur un téléphone couché — 907 × 408 —, la barre du
+/// haut, l'entête du classeur, les menus de lecture et la navigation du bas
+/// consommaient 290 points sur 408. Il en restait 118 pour dix-huit cartes :
+/// des vignettes de quarante points perdues dans du noir. La géométrie n'y peut
+/// rien, trois rangées de cartes réclament de la hauteur ; la seule variable
+/// est ce qu'on leur laisse.
+///
+/// Debout, rien ne change : la hauteur ne manque pas, et faire disparaître la
+/// navigation coûterait plus qu'elle ne rapporterait.
+bool binderIsImmersive(BuildContext context, WidgetRef ref) =>
+    ref.watch(openBinderProvider) != null &&
+    MediaQuery.orientationOf(context) == Orientation.landscape;
+
 /// Page courante du classeur ouvert, à partir de 1.
 class BinderPageNumber extends Notifier<int> {
   @override
@@ -759,7 +775,11 @@ class _Binder extends ConsumerWidget {
       child: Column(
         children: [
           _BinderHeader(entry: entry, setCode: setCode, page: page),
-          _ReadingSelector(setCode: setCode),
+          // **Les menus de lecture ne survivent pas au paysage.** Ils coûtent
+          // une rangée de cartes sur un écran qui n'en a que trois, pour un
+          // réglage qu'on pose une fois et qu'on retrouve intact en redressant
+          // l'appareil.
+          if (!spread) _ReadingSelector(setCode: setCode),
           Expanded(
             child: cells.when(
               loading: () => const Center(
