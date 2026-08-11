@@ -462,10 +462,13 @@ class _UnsortedCardTile extends ConsumerWidget {
     if (chosen == null || chosen.isUnspecified || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
+    // La tuile disparaît de la pile avec le rangement : l'annulation ne peut
+    // pas s'appuyer sur `ref`, dont l'état meurt avec elle.
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       // Le même geste que dans la liste : « ces exemplaires-là sont de cette
       // édition ». Rien n'est ajouté, tout est déplacé.
-      await ref
+      final moved = await container
           .read(collectionRepositoryProvider)
           .setPrinting(
             card.oracleId,
@@ -473,20 +476,29 @@ class _UnsortedCardTile extends ConsumerWidget {
             toFoil: chosen.isFoil,
           );
 
-      // La carte quitte la pile et rejoint une case : les trois vues changent.
-      ref.invalidate(unsortedPileProvider);
-      ref.invalidate(binderShelfProvider);
-      ref.invalidate(collectionProvider);
+      _refreshPile(container);
 
       // **La vignette s'évanouit : il faut dire où elle est allée.** C'est le
       // geste dont la disparition est la moins lisible — la carte quitte
-      // l'écran regardé pour un classeur qu'on n'a pas ouvert.
+      // l'écran regardé pour un classeur qu'on n'a pas ouvert. Et c'est aussi
+      // pourquoi le retour est offert : se tromper de case range la carte hors
+      // de vue, là où la retrouver suppose de savoir où l'on s'est trompé.
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
             content: Text('Rangée dans ${chosen.printing.label}'),
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 5),
+            // Sans cela le bandeau attendrait un balayage et recouvrirait la
+            // pile qu'on est en train de trier.
+            persist: false,
+            action: moved < 1
+                ? null
+                : SnackBarAction(
+                    label: 'Annuler',
+                    onPressed: () =>
+                        unawaited(_unsort(messenger, container, chosen, moved)),
+                  ),
           ),
         );
     } catch (e) {
@@ -494,6 +506,42 @@ class _UnsortedCardTile extends ConsumerWidget {
         SnackBar(content: Text('Rangement impossible : $e')),
       );
     }
+  }
+
+  /// Ramène à la pile les exemplaires qu'on vient d'en sortir — ceux-là seuls.
+  ///
+  /// La quantité est indispensable : la case de destination peut déjà porter
+  /// des exemplaires de la même édition, et un retour sans elle les emporterait
+  /// avec. Ils quitteraient un classeur où ils étaient bien rangés.
+  Future<void> _unsort(
+    ScaffoldMessengerState messenger,
+    ProviderContainer container,
+    PrintingChoice chosen,
+    int moved,
+  ) async {
+    try {
+      await container
+          .read(collectionRepositoryProvider)
+          .setPrinting(
+            card.oracleId,
+            fromPrintId: chosen.printing.printId,
+            toPrintId: null,
+            quantity: moved,
+            fromFoil: chosen.isFoil,
+          );
+      _refreshPile(container);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Annulation impossible : $e')),
+      );
+    }
+  }
+
+  /// La carte change de place : la pile, l'étagère et les totaux changent avec.
+  void _refreshPile(ProviderContainer container) {
+    container.invalidate(unsortedPileProvider);
+    container.invalidate(binderShelfProvider);
+    container.invalidate(collectionProvider);
   }
 
   @override
@@ -1204,23 +1252,62 @@ class _CellActionsState extends ConsumerState<_CellActions> {
   ///
   /// L'échec parle aussi : il était jusqu'ici avalé, la feuille se refermant
   /// de la même façon qu'en cas de succès.
+  ///
+  /// **[action] rend ce qu'elle a fait**, non l'état résultant : le nombre
+  /// d'exemplaires retirés ou déplacés. Zéro veut dire « rien n'a bougé » — la
+  /// ligne visée n'existait pas —, et alors ni [done] ni [undo] n'ont lieu
+  /// d'être : annoncer un retrait qui n'a pas eu lieu serait un mensonge, et
+  /// proposer de l'annuler inventerait une carte. C'est le cas réel d'une case
+  /// qui ne contient que du normal et sur laquelle on demande « retirer un
+  /// exemplaire brillant », les deux finitions se rangeant ensemble.
+  ///
+  /// **[undo] reçoit ce nombre**, seule information dont il ait besoin pour
+  /// écrire l'inverse exact. Il s'exécute après la fermeture de la feuille,
+  /// donc sur le conteneur de providers et non sur `ref`, dont l'état est mort
+  /// avec le widget.
   Future<void> _write(
     BuildContext context,
     WidgetRef ref, {
-    required Future<void> Function() action,
+    required Future<int> Function() action,
     required String done,
     required String failed,
+    String? nothing,
+    Future<void> Function(ProviderContainer container, int count)? undo,
   }) async {
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    // Le conteneur survit à la feuille, `ref` non : c'est lui qui portera
+    // l'annulation et le rafraîchissement qui la suit.
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
-      await action();
-      _refresh(ref);
+      final count = await action();
+      _refresh(container);
       navigator.pop();
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text(done), duration: const Duration(seconds: 2)),
+          count < 1
+              ? SnackBar(
+                  content: Text(nothing ?? done),
+                  duration: const Duration(seconds: 3),
+                )
+              : SnackBar(
+                  content: Text(done),
+                  duration: const Duration(seconds: 5),
+                  // Flutter fait persister indéfiniment toute notification
+                  // porteuse d'une action : le bandeau attendrait un balayage
+                  // et recouvrirait entre-temps les commandes du classeur.
+                  // Annuler est une commodité, pas une question posée.
+                  persist: false,
+                  action: undo == null
+                      ? null
+                      : SnackBarAction(
+                          label: 'Annuler',
+                          onPressed: () => unawaited(
+                            _undo(messenger, container, undo, count, failed),
+                          ),
+                        ),
+                ),
         );
     } catch (e) {
       navigator.pop();
@@ -1228,11 +1315,31 @@ class _CellActionsState extends ConsumerState<_CellActions> {
     }
   }
 
-  void _refresh(WidgetRef ref) {
-    ref.invalidate(binderPageProvider);
-    ref.invalidate(binderShelfProvider);
-    ref.invalidate(collectionProvider);
-    ref.invalidate(binderFindProvider);
+  /// Rejoue l'inverse, et le dit s'il échoue.
+  ///
+  /// Statique de fait — elle ne touche à rien du widget, qui n'existe plus.
+  static Future<void> _undo(
+    ScaffoldMessengerState messenger,
+    ProviderContainer container,
+    Future<void> Function(ProviderContainer, int) undo,
+    int count,
+    String failed,
+  ) async {
+    try {
+      await undo(container, count);
+      _refresh(container);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Annulation impossible : $e')),
+      );
+    }
+  }
+
+  static void _refresh(ProviderContainer container) {
+    container.invalidate(binderPageProvider);
+    container.invalidate(binderShelfProvider);
+    container.invalidate(collectionProvider);
+    container.invalidate(binderFindProvider);
   }
 
   @override
@@ -1319,9 +1426,14 @@ class _CellActionsState extends ConsumerState<_CellActions> {
               onTap: () => _write(
                 context,
                 ref,
+                // `add` rend le total de l'édition ; ce qui a été fait, c'est
+                // un exemplaire. On le dit plutôt que de laisser un total
+                // passer pour tel — l'inverse est d'ailleurs offert juste en
+                // dessous, ce qui dispense d'un « Annuler » ici.
                 action: () => ref
                     .read(collectionRepositoryProvider)
-                    .add(oracleId, printId: cell.printId, isFoil: _foil),
+                    .add(oracleId, printId: cell.printId, isFoil: _foil)
+                    .then((_) => 1),
                 done: _foil
                     ? 'Un exemplaire brillant ajouté'
                     : 'Un exemplaire ajouté',
@@ -1344,7 +1456,24 @@ class _CellActionsState extends ConsumerState<_CellActions> {
                 done: _foil
                     ? 'Un exemplaire brillant retiré'
                     : 'Un exemplaire retiré',
+                // Une case range ensemble le normal et le brillant : demander
+                // à retirer une finition qu'elle ne contient pas est un cas
+                // ordinaire, et il ne doit pas s'annoncer comme un retrait.
+                nothing: _foil
+                    ? 'Aucun exemplaire brillant à retirer ici'
+                    : 'Aucun exemplaire normal à retirer ici',
                 failed: 'Retrait impossible',
+                // L'inverse d'un retrait est un ajout sur la même ligne, et il
+                // est exact : la ligne a perdu ce nombre d'exemplaires, elle
+                // les retrouve. Si elle avait disparu, elle renaît avec eux.
+                undo: (container, count) => container
+                    .read(collectionRepositoryProvider)
+                    .add(
+                      oracleId,
+                      quantity: count,
+                      printId: cell.printId,
+                      isFoil: _foil,
+                    ),
               ),
             ),
             ListTile(
@@ -1378,7 +1507,22 @@ class _CellActionsState extends ConsumerState<_CellActions> {
                         toFoil: chosen.isFoil,
                       ),
                   done: 'Édition enregistrée : ${chosen.printing.label}',
+                  nothing: 'Cette édition était déjà celle enregistrée',
                   failed: 'Édition non enregistrée',
+                  // **L'inverse n'est exact qu'avec la quantité.** La
+                  // destination peut porter d'autres exemplaires que ceux qui
+                  // viennent d'arriver — ils y ont fusionné —, et un
+                  // mouvement de retour sans quantité les emporterait tous.
+                  undo: (container, count) => container
+                      .read(collectionRepositoryProvider)
+                      .setPrinting(
+                        oracleId,
+                        fromPrintId: chosen.printing.printId,
+                        toPrintId: cell.printId,
+                        quantity: count,
+                        fromFoil: chosen.isFoil,
+                        toFoil: _foil,
+                      ),
                 );
               },
             ),

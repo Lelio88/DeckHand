@@ -196,6 +196,11 @@ class FakeCollectionRepository implements CollectionRepository {
     return quantities[key]!;
   }
 
+  /// Rend le nombre **retire**, comme la fonction Postgres.
+  ///
+  /// Zero veut dire que la ligne visee n'existait pas — et non « il ne reste
+  /// rien ». C'est cette distinction qui permet a l'appelant de savoir s'il a
+  /// un retrait a annoncer et quelque chose a annuler.
   @override
   Future<int> remove(
     String oracleId, {
@@ -204,13 +209,16 @@ class FakeCollectionRepository implements CollectionRepository {
     bool isFoil = false,
   }) async {
     final key = (oracleId, printId);
-    final left = (quantities[key] ?? 0) - quantity;
-    if (left <= 0) {
+    final current = quantities[key] ?? 0;
+    if (current == 0) return 0;
+
+    final removed = quantity < current ? quantity : current;
+    if (removed >= current) {
       quantities.remove(key);
-      return 0;
+    } else {
+      quantities[key] = current - removed;
     }
-    quantities[key] = left;
-    return left;
+    return removed;
   }
 
   @override
@@ -229,6 +237,9 @@ class FakeCollectionRepository implements CollectionRepository {
       quantity: quantity,
     );
 
+    // Source et destination confondues : rien ne bouge.
+    if (fromPrintId == toPrintId && fromFoil == toFoil) return 0;
+
     final source = (oracleId, fromPrintId);
     final available = quantities[source] ?? 0;
     if (available == 0) return 0;
@@ -242,7 +253,10 @@ class FakeCollectionRepository implements CollectionRepository {
 
     final target = (oracleId, toPrintId);
     quantities[target] = (quantities[target] ?? 0) + moved;
-    return quantities[target]!;
+    // Le nombre **deplace**, et non le total de la destination : celle-ci peut
+    // porter d'autres exemplaires, et c'est precisement ce qui rend le total
+    // inutilisable pour ecrire l'inverse.
+    return moved;
   }
 
   @override

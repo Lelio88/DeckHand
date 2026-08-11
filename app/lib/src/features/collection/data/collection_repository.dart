@@ -53,8 +53,14 @@ class CollectionRepository {
         .timedOut();
   }
 
-  /// Retire des exemplaires et renvoie la quantité restante, zéro si la ligne a
-  /// quitté la collection.
+  /// Retire des exemplaires et renvoie le nombre **effectivement retiré**.
+  ///
+  /// Zéro signifie que la ligne visée n'existait pas — cas courant depuis le
+  /// classeur, où une case range ensemble le normal et le brillant et propose
+  /// donc de retirer une finition qu'elle ne contient peut-être pas. C'est ce
+  /// chiffre, et non un total, qui dit s'il y a un retrait à annoncer et
+  /// quelque chose à annuler : rajouter un exemplaire jamais retiré
+  /// inventerait une carte.
   Future<int> remove(
     String oracleId, {
     int quantity = 1,
@@ -74,11 +80,20 @@ class CollectionRepository {
         .timedOut();
   }
 
-  /// Déplace des exemplaires d'une édition vers une autre.
+  /// Déplace des exemplaires d'une édition vers une autre et renvoie le nombre
+  /// **effectivement déplacé**.
   ///
   /// C'est le geste « ces quatre-là sont de cette édition » : [fromPrintId] nul
   /// désigne les exemplaires non précisés, [toPrintId] nul y ramène. Quantité
   /// omise : tout est déplacé. Les exemplaires fusionnent si la cible existe déjà.
+  ///
+  /// **C'est la fusion qui impose de rendre le nombre déplacé** plutôt que le
+  /// total de la destination. On possède 2 Foudre MH2 et l'on y corrige 1
+  /// Foudre non précisée : la ligne MH2 en porte 3, mais une seule en vient.
+  /// Rejouer le mouvement en sens inverse sans quantité renverrait les trois —
+  /// la collection resterait juste en nombre, et deux cartes bien rangées
+  /// auraient quitté leur classeur sans que rien ne le dise. L'inverse exact
+  /// s'écrit donc `setPrinting(cible → source, quantity: <ce nombre>)`.
   Future<int> setPrinting(
     String oracleId, {
     String? fromPrintId,

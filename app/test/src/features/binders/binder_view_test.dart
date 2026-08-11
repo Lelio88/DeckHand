@@ -19,6 +19,7 @@ import 'package:deckhand/src/features/binders/data/binder_repository.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
+import 'package:deckhand/src/features/printings/domain/card_printing.dart';
 import 'package:deckhand/src/common/card_image.dart';
 import 'package:deckhand/src/features/binders/domain/binder.dart';
 import 'package:deckhand/src/features/binders/presentation/binder_view.dart';
@@ -187,6 +188,8 @@ Future<FakeBinderRepository> pumpBinder(
   int firstFilledPage = 1,
   int unspecified = 0,
   Object? shelfError,
+  FakeCollectionRepository? collection,
+  FakePrintingRepository? printings,
 }) async {
   final repository = FakeBinderRepository(
     entries: entries,
@@ -194,20 +197,22 @@ Future<FakeBinderRepository> pumpBinder(
     pile: pile,
     firstFilledPage: firstFilledPage,
   )..shelfError = shelfError;
-  final collection = FakeCollectionRepository()
-    ..totals = CollectionSummary(
-      totalCards: 1,
-      distinctCards: 1,
-      totalValueEur: 0,
-      unspecifiedPrints: unspecified,
-    );
+  collection ??= FakeCollectionRepository();
+  collection.totals = CollectionSummary(
+    totalCards: 1,
+    distinctCards: 1,
+    totalValueEur: 0,
+    unspecifiedPrints: unspecified,
+  );
 
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         binderRepositoryProvider.overrideWithValue(repository),
         collectionRepositoryProvider.overrideWithValue(collection),
-        printingRepositoryProvider.overrideWithValue(FakePrintingRepository()),
+        printingRepositoryProvider.overrideWithValue(
+          printings ?? FakePrintingRepository(),
+        ),
         // Les totaux — d'où vient le compte des cartes à trier — ne sont
         // demandés que pour une session ouverte.
         sessionProvider.overrideWith(
@@ -922,6 +927,122 @@ void main() {
       expect(find.text('Retirer un exemplaire normal'), findsOneWidget);
       expect(find.text('Corriger l\'édition'), findsOneWidget);
       expect(find.text('Brillante'), findsOneWidget);
+    });
+
+    testWidgets('annuler un retrait rend l\'exemplaire à la même ligne', (
+      tester,
+    ) async {
+      // Retirer est la seule écriture sans inverse à portée de doigt : la
+      // feuille se referme, la case a changé, et rien ne dit ce qui est parti.
+      final collection = FakeCollectionRepository();
+      collection.quantities[('oracle-1', 'print-1')] = 2;
+
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '1', owned: 2, art: _art)],
+        collection: collection,
+      );
+      await openActions(tester);
+
+      await tester.tap(find.text('Retirer un exemplaire normal'));
+      await tester.pumpAndSettle();
+
+      expect(collection.quantities[('oracle-1', 'print-1')], 1);
+      expect(find.text('Un exemplaire retiré'), findsOneWidget);
+
+      await tester.tap(find.text('Annuler'));
+      await tester.pumpAndSettle();
+
+      expect(
+        collection.quantities[('oracle-1', 'print-1')],
+        2,
+        reason: 'annuler doit rendre exactement ce qui a été retiré',
+      );
+    });
+
+    testWidgets('retirer une finition absente ne s\'annonce pas comme un '
+        'retrait', (tester) async {
+      // Une case range ensemble le normal et le brillant : demander à retirer
+      // une finition qu'elle ne contient pas est ordinaire. L'annoncer comme
+      // un retrait serait faux, et proposer de l'annuler créerait une carte
+      // qui n'a jamais existé.
+      final collection = FakeCollectionRepository();
+
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '1', owned: 2, art: _art)],
+        collection: collection,
+      );
+      await openActions(tester);
+
+      await tester.tap(find.text('Retirer un exemplaire normal'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Aucun exemplaire normal à retirer ici'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Annuler'),
+        findsNothing,
+        reason: 'il n\'y a rien à annuler quand rien n\'a été retiré',
+      );
+    });
+
+    testWidgets('annuler une correction ne ramène que les exemplaires '
+        'déplacés', (tester) async {
+      // **Le piège est la fusion.** La destination peut déjà porter des
+      // exemplaires ; un mouvement de retour sans quantité les emporterait
+      // avec, et deux cartes bien rangées quitteraient leur classeur sans
+      // que rien ne le dise. La quantité est donc l'assertion du test.
+      final collection = FakeCollectionRepository();
+      collection.quantities[('oracle-1', 'print-1')] = 1;
+      collection.quantities[('oracle-1', 'print-mh2')] = 2;
+
+      final printings = FakePrintingRepository()
+        ..printings = const [
+          CardPrinting(
+            printId: 'print-mh2',
+            setCode: 'mh2',
+            setName: 'Modern Horizons 2',
+            lang: 'fr',
+          ),
+        ];
+
+      await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '1', owned: 1, art: _art)],
+        collection: collection,
+        printings: printings,
+      );
+      await openActions(tester);
+
+      await tester.tap(find.text('Corriger l\'édition'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Modern Horizons 2').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        collection.quantities[('oracle-1', 'print-mh2')],
+        3,
+        reason: 'l\'exemplaire corrigé a fusionné avec les deux déjà rangés',
+      );
+
+      await tester.tap(find.text('Annuler'));
+      await tester.pumpAndSettle();
+
+      expect(
+        collection.lastPrintingMove?.quantity,
+        1,
+        reason:
+            'sans quantité, le retour emporterait les trois exemplaires '
+            'alors qu\'un seul vient d\'arriver',
+      );
+      expect(collection.quantities[('oracle-1', 'print-mh2')], 2);
+      expect(collection.quantities[('oracle-1', 'print-1')], 1);
     });
 
     testWidgets('une case vide n\'ouvre rien', (tester) async {

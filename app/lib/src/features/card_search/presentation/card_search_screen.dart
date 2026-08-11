@@ -364,7 +364,8 @@ class _CardTileState extends ConsumerState<_CardTile> {
           content: Text(
             printing == null
                 ? '${hit.matchedName} ajoutée — vous en avez $total'
-                : '${hit.matchedName} · ${printing.printing.setCode.toUpperCase()}${printing.isFoil ? " foil" : ""} — vous en avez $total',
+                // « brillante » et non « foil », comme partout ailleurs.
+                : '${hit.matchedName} · ${printing.printing.setCode.toUpperCase()}${printing.isFoil ? " brillante" : ""} — vous en avez $total',
           ),
           duration: const Duration(seconds: 4),
           // Flutter fait persister indéfiniment toute notification porteuse
@@ -384,7 +385,12 @@ class _CardTileState extends ConsumerState<_CardTile> {
               : SnackBarAction(
                   label: 'Annuler',
                   onPressed: () async {
-                    final left = await ref
+                    // `remove` rend ce qu'il a retiré, non ce qui reste : le
+                    // compte affiché s'en déduit par soustraction. Zéro veut
+                    // dire que la ligne n'existait plus — un second appui, ou
+                    // un retrait fait ailleurs entre-temps — et le badge ne
+                    // doit alors pas bouger.
+                    final removed = await ref
                         .read(collectionRepositoryProvider)
                         .remove(
                           hit.oracleId,
@@ -392,7 +398,12 @@ class _CardTileState extends ConsumerState<_CardTile> {
                           isFoil: printing.isFoil,
                         );
                     ref.invalidate(collectionProvider);
-                    if (mounted) setState(() => _owned = left);
+                    if (mounted) {
+                      setState(
+                        () =>
+                            _owned = (_quantity - removed).clamp(0, _quantity),
+                      );
+                    }
                   },
                 ),
         ),
