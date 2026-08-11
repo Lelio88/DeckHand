@@ -5,9 +5,12 @@
 /// premiers résultats, soit souvent aucun. Ce qui se vérifie ici est donc que le
 /// geste produit bien l'ensemble de types que l'écran transmettra au catalogue.
 ///
-/// Il est testé isolément parce que son menu ne s'ouvre pas sous le harnais de
-/// test lorsqu'il est enfoui dans l'écran complet — le composant, lui, répond
-/// normalement.
+/// Il est testé **isolément** pour couvrir ses quatre gestes — cocher,
+/// accumuler, décocher, tout effacer — sans rejouer l'écran entier à chaque
+/// fois. La chaîne complète, du geste jusqu'à la requête au catalogue, est
+/// vérifiée une fois dans `card_search_screen_test.dart` : c'est elle qui
+/// prouve que le filtre est branché, ce que des tests isolés ne peuvent pas
+/// dire.
 library;
 
 import 'package:deckhand/src/features/card_search/domain/card_type.dart';

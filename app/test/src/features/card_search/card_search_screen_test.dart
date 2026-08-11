@@ -318,4 +318,24 @@ void main() {
           'balayage et recouvrirait les commandes de l\'écran suivant',
     );
   });
+
+  testWidgets('les types retenus atteignent le catalogue', (tester) async {
+    // **Le filtrage vit côté serveur.** Restreindre après coup ne garderait que
+    // les créatures des vingt premiers résultats, soit souvent aucune : ce qui
+    // se vérifie ici est donc que le geste traverse l'écran jusqu'à la requête.
+    await pumpSearch(tester, results: [hit()]);
+    await tester.enterText(find.byType(TextField), 'agent');
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(cards.lastTypes, isEmpty);
+
+    await tester.tap(find.byType(TypeFilter));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(CheckedPopupMenuItem<String>, 'Créature'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(cards.lastTypes, ['Creature']);
+  });
 }
