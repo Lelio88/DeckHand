@@ -83,6 +83,71 @@ const double _perspective = 0.0016;
 
 typedef PageBuilder = Widget Function(BuildContext context, int page);
 
+/// Où poser une lamelle, et de quel angle la pivoter.
+class StripePlacement {
+  const StripePlacement({
+    required this.x,
+    required this.z,
+    required this.angle,
+  });
+
+  /// Décalage du bord gauche de la lamelle, dans le plan de l'écran.
+  final double x;
+
+  /// Profondeur du même bord. Négatif : vers l'œil.
+  final double z;
+
+  /// Rotation autour de l'axe vertical, en radians.
+  final double angle;
+}
+
+/// Découpe la feuille en lamelles **jointes bout à bout**.
+///
+/// **Une lamelle commence exactement là où la précédente finit**, et c'est la
+/// seule propriété qui compte : chacune est posée au bord gauche que la
+/// précédente lui laisse, puis pivotée. Le bord droit se déduit alors du même
+/// angle que la rotation — d'où la continuité, par construction.
+///
+/// Le premier essai employait **deux angles différents** : celui du milieu de
+/// la lamelle pour la pivoter, celui de son bord droit pour avancer le curseur.
+/// Les lamelles ne se rejoignaient donc pas tout à fait, et l'écart s'ouvrait
+/// avec la courbure : de fines fentes verticales laissaient voir la page du
+/// dessous à travers la feuille, alors même que celle-ci est opaque. On croyait
+/// distinguer les cases les unes des autres ; on voyait passer le jour entre
+/// deux facettes.
+List<StripePlacement> stripePlacements({
+  required double t,
+  required double width,
+  int stripes = _stripes,
+  double curl = _curl,
+  double curlProfile = _curlProfile,
+}) {
+  final base = t * math.pi;
+  // La courbure naît et meurt avec le mouvement : une page est plate quand elle
+  // repose, et n'a aucune raison d'arriver pliée sur la pile.
+  final amplitude = curl * math.sin(base);
+  final stripeWidth = width / stripes;
+
+  final placements = <StripePlacement>[];
+  var x = 0.0;
+  var z = 0.0;
+
+  for (var i = 0; i < stripes; i++) {
+    // L'angle du segment, pris en son milieu : c'est ce qui approche le mieux
+    // une courbe par une ligne brisée.
+    final along = (i + 0.5) / stripes;
+    final angle = base + amplitude * math.pow(along, curlProfile);
+    placements.add(StripePlacement(x: x, z: z, angle: angle));
+
+    x += stripeWidth * math.cos(angle);
+    // Négatif : la feuille passe devant l'œil. Positif, elle s'enfoncerait dans
+    // le classeur, ce qui donne l'impression de pousser la page.
+    z -= stripeWidth * math.sin(angle);
+  }
+
+  return placements;
+}
+
 /// Un classeur feuilletable.
 class PageTurner extends StatefulWidget {
   const PageTurner({
@@ -338,52 +403,46 @@ class _CurlingLeaf extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = t * math.pi;
-    // La courbure naît et meurt avec le mouvement : une page est plate quand
-    // elle repose, et n'a aucune raison d'arriver pliée sur la pile.
-    final curl = _curl * math.sin(base);
     final stripeWidth = width / _stripes;
-
-    // Le pliage se compose de proche en proche : sans cela les lamelles se
-    // croisent, et c'est exactement le défaut qui coupait les cartes en
-    // morceaux dans la première version.
-    var x = 0.0;
-    var z = 0.0;
+    // Le pliage se compose de proche en proche — voir [stripePlacements], qui
+    // porte la géométrie et la garantie que les lamelles restent jointes.
+    final placements = stripePlacements(t: t, width: width);
     final leaves = <Widget>[];
 
-    for (var i = 0; i < _stripes; i++) {
+    for (var i = 0; i < placements.length; i++) {
+      final placement = placements[i];
       final along = (i + 0.5) / _stripes;
-      final angle = base + curl * math.pow(along, _curlProfile);
 
       leaves.add(
         Transform(
           alignment: Alignment.topLeft,
           transform: Matrix4.identity()
             ..setEntry(3, 2, _perspective)
-            ..translateByDouble(x, 0, z, 1)
-            ..rotateY(angle),
+            ..translateByDouble(placement.x, 0, placement.z, 1)
+            ..rotateY(placement.angle),
           child: _Stripe(
             index: i,
-            width: stripeWidth,
+            // **Un cheveu de plus que sa part.** Deux lamelles jointes au
+            // pixel près laissent quand même filtrer le jour : l'arrondi de la
+            // rastérisation ne tombe pas au même endroit de part et d'autre de
+            // la couture. Un léger recouvrement coûte un demi-pixel de contenu
+            // et ferme la fente pour de bon.
+            width: stripeWidth + 0.5,
             height: height,
             total: width,
             // Chaque lamelle choisit sa face : au-delà du quart de tour, c'est
             // son dos qu'on voit. Une feuille souple en montre les deux à la
             // fois, de part et d'autre de la pliure — un panneau rigide, jamais.
-            showsBack: angle > math.pi / 2,
+            showsBack: placement.angle > math.pi / 2,
             // La lumière rase le creux de la courbe. Sans elle, dix facettes ne
             // montreraient que des arêtes.
             shade: 0.34 * math.sin(base) * along,
+            slice: stripeWidth,
             front: front,
             back: back,
           ),
         ),
       );
-
-      final bordAngle = base + curl * math.pow((i + 1) / _stripes, _curlProfile);
-      x += stripeWidth * math.cos(bordAngle);
-      // Négatif : la feuille passe devant l'œil. Positif, elle s'enfoncerait
-      // dans le classeur, ce qui donne l'impression de pousser la page.
-      z -= stripeWidth * math.sin(bordAngle);
     }
 
     // **Contraintes lâches, impérativement.** En `StackFit.expand`, chaque
@@ -407,16 +466,26 @@ class _Stripe extends StatelessWidget {
     required this.total,
     required this.showsBack,
     required this.shade,
+    required this.slice,
     required this.front,
     required this.back,
   });
 
   final int index;
+
+  /// Largeur peinte, légèrement supérieure à [slice] pour fermer la couture.
   final double width;
+
   final double height;
   final double total;
   final bool showsBack;
   final double shade;
+
+  /// Part exacte de la feuille qui revient à cette lamelle. C'est elle qui
+  /// place la tranche dans la page, [width] ne faisant que déborder d'un
+  /// cheveu sur la voisine.
+  final double slice;
+
   final Widget front;
   final Widget back;
 
@@ -446,7 +515,7 @@ class _Stripe extends StatelessWidget {
               minHeight: height,
               maxHeight: height,
               child: Transform.translate(
-                offset: Offset(-index * width, 0),
+                offset: Offset(-index * slice, 0),
                 child: SizedBox(width: total, height: height, child: face),
               ),
             ),
