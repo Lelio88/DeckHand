@@ -139,14 +139,20 @@ class CollectionRepository {
   Future<Publication> publication() async {
     final rows = await _client
         .from('collections')
-        .select('id, is_public')
+        .select('id, is_public, slug, shared_sets')
         .limit(1)
         .timedOut();
     if (rows.isEmpty) return Publication.none;
     final row = rows.first;
+    final sets = row['shared_sets'] as List<dynamic>?;
     return Publication(
       collectionId: row['id'] as String,
       isPublic: row['is_public'] as bool? ?? false,
+      handle: row['slug'] as String?,
+      // **Nul veut dire « tout », et ce n'est pas la même chose qu'une liste
+      // vide** — celle-ci ne partagerait rien. La distinction traverse donc
+      // toute la chaîne sans jamais être aplatie.
+      sharedSets: sets?.cast<String>(),
     );
   }
 
@@ -157,6 +163,38 @@ class CollectionRepository {
         .update({'is_public': isPublic})
         .eq('id', collectionId)
         .timedOut();
+  }
+
+  /// Choisit le nom lisible de l'adresse de partage. `null` le retire.
+  ///
+  /// Lève si le nom est déjà pris : deux collections derrière la même adresse
+  /// n'auraient aucun sens, et la base l'interdit par un index unique.
+  Future<void> setHandle(String collectionId, String? handle) async {
+    await _client
+        .from('collections')
+        .update({'slug': handle})
+        .eq('id', collectionId)
+        .timedOut();
+  }
+
+  /// Choisit les extensions données à lire. `null` les partage toutes.
+  Future<void> setSharedSets(String collectionId, List<String>? sets) async {
+    await _client
+        .from('collections')
+        .update({'shared_sets': sets})
+        .eq('id', collectionId)
+        .timedOut();
+  }
+
+  /// Résout une adresse de partage — un nom ou un identifiant — en collection.
+  ///
+  /// Rend `null` pour une collection qui n'est pas publiée : une adresse
+  /// essayée au hasard ne doit pas révéler qu'elle existe.
+  Future<String?> collectionByHandle(String handle) async {
+    final value = await _client
+        .rpc<String?>('collection_by_handle', params: {'p_handle': handle})
+        .timedOut();
+    return value;
   }
 
   /// Le journal des mouvements, du plus récent au plus ancien.
@@ -189,10 +227,27 @@ class CollectionRepository {
 
 /// L'état de publication d'une collection.
 class Publication {
-  const Publication({required this.collectionId, required this.isPublic});
+  const Publication({
+    required this.collectionId,
+    required this.isPublic,
+    this.handle,
+    this.sharedSets,
+  });
 
   final String? collectionId;
   final bool isPublic;
+
+  /// Nom lisible de l'adresse, ou `null` : l'identifiant fait alors office.
+  final String? handle;
+
+  /// Extensions partagées, ou `null` pour toutes. Une liste **vide** ne
+  /// partagerait rien — ce n'est pas la même chose, et la nuance est portée
+  /// jusqu'à la base.
+  final List<String>? sharedSets;
+
+  /// Ce qu'il faut mettre dans une adresse : le nom s'il existe, l'identifiant
+  /// sinon.
+  String? get address => handle ?? collectionId;
 
   static const none = Publication(collectionId: null, isPublic: false);
 }

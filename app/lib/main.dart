@@ -81,7 +81,7 @@ class _AuthGate extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shared = collectionFromUrl(Uri.base);
-    if (shared != null) return PublicBinderScreen(collectionId: shared);
+    if (shared != null) return PublicBinderScreen(handle: shared);
     if (publicOnly) return const _SharedOnly();
 
     final session = ref.watch(sessionProvider);

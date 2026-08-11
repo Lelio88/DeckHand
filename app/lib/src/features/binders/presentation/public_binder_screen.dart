@@ -20,6 +20,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../collection/data/collection_repository.dart';
 import '../data/binder_repository.dart';
 import 'binder_view.dart';
 
@@ -45,11 +46,22 @@ String? collectionFromUrl(Uri url) {
   return (inner == null || inner.isEmpty) ? null : inner;
 }
 
+/// Collection derrière une adresse de partage — un nom ou un identifiant.
+///
+/// **La résolution vit côté serveur**, et ne rend rien pour une collection non
+/// publiée : une adresse essayée au hasard ne doit pas révéler qu'elle existe.
+final resolvedCollectionProvider = FutureProvider.autoDispose
+    .family<String?, String>(
+      (ref, handle) =>
+          ref.watch(collectionRepositoryProvider).collectionByHandle(handle),
+    );
+
 /// Écran d'un classeur partagé.
 class PublicBinderScreen extends ConsumerStatefulWidget {
-  const PublicBinderScreen({super.key, required this.collectionId});
+  const PublicBinderScreen({super.key, required this.handle});
 
-  final String collectionId;
+  /// Ce que portait l'adresse : un nom choisi, ou l'identifiant brut.
+  final String handle;
 
   @override
   ConsumerState<PublicBinderScreen> createState() => _PublicBinderScreenState();
@@ -57,25 +69,30 @@ class PublicBinderScreen extends ConsumerStatefulWidget {
 
 class _PublicBinderScreenState extends ConsumerState<PublicBinderScreen> {
   @override
-  void initState() {
-    super.initState();
-    // Désigné avant le premier rendu : le classeur lit ce provider dès sa
-    // construction, et le renseigner après aurait montré une étagère vide le
-    // temps d'une image.
-    Future.microtask(
-      () => ref.read(readCollectionProvider.notifier).look(widget.collectionId),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Tant que la collection n'est pas désignée, on n'affiche pas un classeur
-    // qui interrogerait la mauvaise.
-    if (ref.watch(readCollectionProvider) != widget.collectionId) {
+    final resolved = ref.watch(resolvedCollectionProvider(widget.handle));
+    final id = resolved.asData?.value;
+
+    // Le classeur lit `readCollectionProvider` dès sa construction : il faut
+    // donc le renseigner avant de le montrer, et jamais pendant un rendu.
+    if (id != null && ref.read(readCollectionProvider) != id) {
+      Future.microtask(
+        () => ref.read(readCollectionProvider.notifier).look(id),
+      );
+    }
+
+    if (resolved.isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
+    }
+
+    // **Une adresse qui ne mène nulle part se tait.** Collection inexistante ou
+    // non publiée : la même réponse, faute de quoi on confirmerait l'existence
+    // de la seconde.
+    if (id == null || ref.watch(readCollectionProvider) != id) {
+      return _Empty(loading: id != null);
     }
 
     return Scaffold(
@@ -129,6 +146,55 @@ class _Attribution extends StatelessWidget {
         textAlign: TextAlign.center,
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+/// Ce qu'on montre quand l'adresse ne mène nulle part.
+class _Empty extends StatelessWidget {
+  const _Empty({required this.loading});
+
+  /// Vrai le temps que le classeur se branche sur la collection résolue.
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.menu_book_outlined,
+                  size: 40,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 16),
+                Text('Rien à voir ici', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  'Cette adresse ne mène à aucun classeur partagé.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

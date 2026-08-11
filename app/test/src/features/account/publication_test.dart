@@ -1,18 +1,22 @@
-/// Tests de la publication d'une collection.
+/// Tests du partage d'une collection.
 ///
-/// **Ce qu'ils protègent, c'est une collection qu'on croit privée.** Un
-/// interrupteur est un objet dangereux quand il ment : s'il s'affiche sur
-/// « publié » sans que le serveur l'ait su, on montre sa collection en croyant
-/// l'avoir refermée — et l'inverse, plus grave, laisse ouvert ce qu'on pense
-/// avoir fermé. Les assertions portent donc sur **ce que le dépôt a reçu**, pas
-/// sur ce que l'écran affiche.
+/// **Ce qu'ils protègent, c'est une collection qu'on croit privée** — ou une
+/// portée qu'on croit restreinte. Un réglage est un objet dangereux quand il
+/// ment : s'il s'affiche sur « partagé » sans que le serveur l'ait su, on montre
+/// sa collection en croyant l'avoir refermée ; et décocher un classeur sans que
+/// rien ne parte laisse ouvert ce qu'on pense avoir masqué. Les assertions
+/// portent donc sur **ce que le dépôt a reçu**, jamais sur ce que l'écran
+/// affiche.
 ///
-/// Le second point est le **défaut** : rien n'est publié tant qu'on n'y touche
-/// pas, et l'adresse de partage ne s'affiche que lorsqu'elle mène quelque part.
+/// Le second point est la distinction entre **« tout »** et **« rien »** : la
+/// portée nulle partage l'intégralité, la liste vide ne partage rien. Les
+/// aplatir en un seul cas ouvrirait une collection entière par accident.
 library;
 
 import 'package:deckhand/src/features/account/presentation/account_screen.dart';
+import 'package:deckhand/src/features/account/presentation/sharing_screen.dart';
 import 'package:deckhand/src/features/auth/data/auth_repository.dart';
+import 'package:deckhand/src/features/binders/data/binder_repository.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
 import 'package:flutter/material.dart';
@@ -22,11 +26,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../helpers/fakes.dart';
+import '../binders/binder_view_test.dart' show FakeBinderRepository, shelfEntry;
 
-Future<FakeCollectionRepository> pumpAccount(
+Future<FakeCollectionRepository> pump(
   WidgetTester tester, {
+  required Widget screen,
   bool isPublic = false,
+  String? handle,
+  List<String>? sharedSets,
 }) async {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(800, 1400);
+  addTearDown(tester.view.reset);
+
   final collection = FakeCollectionRepository()
     ..totals = const CollectionSummary(
       totalCards: 451,
@@ -37,17 +49,27 @@ Future<FakeCollectionRepository> pumpAccount(
     ..publication_ = Publication(
       collectionId: 'collection-1',
       isPublic: isPublic,
+      handle: handle,
+      sharedSets: sharedSets,
     );
 
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         collectionRepositoryProvider.overrideWithValue(collection),
+        binderRepositoryProvider.overrideWithValue(
+          FakeBinderRepository(
+            entries: [
+              shelfEntry(),
+              shelfEntry(setCode: 'mar', setName: 'Marvel Universe'),
+            ],
+          ),
+        ),
         sessionProvider.overrideWith(
           (ref) => Stream<Session?>.value(fakeSession()),
         ),
       ],
-      child: const MaterialApp(home: Scaffold(body: AccountScreen())),
+      child: MaterialApp(home: Scaffold(body: screen)),
     ),
   );
   await tester.pumpAndSettle();
@@ -57,51 +79,173 @@ Future<FakeCollectionRepository> pumpAccount(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('rien n\'est publié tant qu\'on n\'y touche pas', (tester) async {
-    final collection = await pumpAccount(tester);
+  group('la porte, depuis le compte', () {
+    testWidgets('dit ce qui est partagé sans qu\'on l\'ouvre', (tester) async {
+      await pump(tester, screen: const AccountScreen());
+      expect(find.text('Vous seul voyez votre collection.'), findsOneWidget);
 
-    expect(find.text('Vous seul voyez votre collection.'), findsOneWidget);
-    expect(
-      collection.lastPublish,
-      isNull,
-      reason: 'afficher l\'écran ne publie rien',
-    );
+      await pump(tester, screen: const AccountScreen(), isPublic: true);
+      expect(find.text('Partagé — tous vos classeurs'), findsOneWidget);
+
+      await pump(
+        tester,
+        screen: const AccountScreen(),
+        isPublic: true,
+        sharedSets: const ['msh'],
+      );
+      expect(find.text('Partagé — 1 classeur'), findsOneWidget);
+    });
   });
 
-  testWidgets('l\'adresse ne s\'affiche que si elle mène quelque part', (
-    tester,
-  ) async {
-    await pumpAccount(tester);
-    expect(find.text('collection-1'), findsNothing);
+  group('publier', () {
+    testWidgets('rien n\'est partagé tant qu\'on n\'y touche pas', (
+      tester,
+    ) async {
+      final collection = await pump(tester, screen: const SharingScreen());
 
-    await pumpAccount(tester, isPublic: true);
-    expect(find.text('collection-1'), findsOneWidget);
+      expect(find.text('Vous seul voyez votre collection.'), findsOneWidget);
+      expect(collection.lastPublish, isNull);
+      // Ni adresse ni portée : régler un partage qui n'existe pas donnerait des
+      // réglages sans effet et un lien qui ne mène nulle part.
+      expect(find.text('Adresse'), findsNothing);
+      expect(find.text('Tous mes classeurs'), findsNothing);
+    });
+
+    testWidgets('la bascule atteint le serveur', (tester) async {
+      final collection = await pump(tester, screen: const SharingScreen());
+
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+
+      expect(collection.lastPublish?.id, 'collection-1');
+      expect(collection.lastPublish?.isPublic, isTrue);
+      expect(find.text('Adresse'), findsOneWidget);
+    });
+
+    testWidgets('on peut refermer ce qu\'on a ouvert', (tester) async {
+      final collection = await pump(
+        tester,
+        screen: const SharingScreen(),
+        isPublic: true,
+      );
+
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+
+      expect(collection.lastPublish?.isPublic, isFalse);
+    });
   });
 
-  testWidgets('la bascule atteint le serveur', (tester) async {
-    // Le maillon qui cède en silence : un interrupteur qui bascule à l'écran
-    // sans que rien ne parte laisse croire à une collection publiée.
-    final collection = await pumpAccount(tester);
+  group('l\'adresse', () {
+    testWidgets('l\'identifiant sert tant qu\'aucun nom n\'est choisi', (
+      tester,
+    ) async {
+      await pump(tester, screen: const SharingScreen(), isPublic: true);
+      expect(
+        find.textContaining('?c=collection-1'),
+        findsOneWidget,
+        reason: 'le lien doit être complet et copiable, pas un fragment',
+      );
+    });
 
-    await tester.tap(find.byType(SwitchListTile));
-    await tester.pumpAndSettle();
+    testWidgets('un nom choisi remplace l\'identifiant dans le lien', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        screen: const SharingScreen(),
+        isPublic: true,
+        handle: 'lelio',
+      );
+      expect(find.textContaining('?c=lelio'), findsOneWidget);
+    });
 
-    expect(collection.lastPublish?.id, 'collection-1');
-    expect(collection.lastPublish?.isPublic, isTrue);
-    expect(
-      find.textContaining('N\'importe qui peut voir'),
-      findsOneWidget,
-      reason: 'l\'écran se relit après la bascule, il ne la suppose pas',
-    );
+    testWidgets('un nom mal formé est refusé avant d\'atteindre le serveur', (
+      tester,
+    ) async {
+      // La base a une contrainte de forme ; la traduire en message ici évite de
+      // montrer une violation de contrainte à quelqu'un qui a juste mis un
+      // espace.
+      final collection = await pump(
+        tester,
+        screen: const SharingScreen(),
+        isPublic: true,
+      );
+
+      await tester.enterText(find.byType(TextField), 'Mon Nom !');
+      await tester.tap(find.text('Enregistrer'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Minuscules'), findsOneWidget);
+      expect(collection.handleWritten, isFalse);
+    });
+
+    testWidgets('un nom déjà pris se dit, plutôt que d\'échouer en silence', (
+      tester,
+    ) async {
+      final collection = await pump(
+        tester,
+        screen: const SharingScreen(),
+        isPublic: true,
+      );
+      collection.handleError = Exception('duplicate key');
+
+      await tester.enterText(find.byType(TextField), 'lelio');
+      await tester.tap(find.text('Enregistrer'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ce nom est déjà pris.'), findsOneWidget);
+    });
   });
 
-  testWidgets('on peut refermer ce qu\'on a ouvert', (tester) async {
-    final collection = await pumpAccount(tester, isPublic: true);
+  group('la portée', () {
+    testWidgets('« tous » n\'est pas « tous cochés »', (tester) async {
+      // Cocher les classeurs du jour figerait la liste : une extension ajoutée
+      // plus tard ne serait pas partagée, sans que rien ne le dise.
+      final collection = await pump(
+        tester,
+        screen: const SharingScreen(),
+        isPublic: true,
+      );
 
-    await tester.tap(find.byType(SwitchListTile));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Tous mes classeurs'));
+      await tester.pumpAndSettle();
 
-    expect(collection.lastPublish?.isPublic, isFalse);
-    expect(find.text('Vous seul voyez votre collection.'), findsOneWidget);
+      expect(
+        collection.lastSharedSets,
+        isEmpty,
+        reason: 'décocher « tous » ne partage plus rien, et ne fige aucune liste',
+      );
+    });
+
+    testWidgets('cocher un classeur n\'envoie que celui-là', (tester) async {
+      final collection = await pump(
+        tester,
+        screen: const SharingScreen(),
+        isPublic: true,
+        sharedSets: const [],
+      );
+
+      await tester.tap(find.text('Marvel Universe'));
+      await tester.pumpAndSettle();
+
+      expect(collection.lastSharedSets, ['mar']);
+    });
+
+    testWidgets('décocher un classeur le retire de ce qui part', (
+      tester,
+    ) async {
+      final collection = await pump(
+        tester,
+        screen: const SharingScreen(),
+        isPublic: true,
+        sharedSets: const ['msh', 'mar'],
+      );
+
+      await tester.tap(find.text('Marvel Universe'));
+      await tester.pumpAndSettle();
+
+      expect(collection.lastSharedSets, ['msh']);
+    });
   });
 }

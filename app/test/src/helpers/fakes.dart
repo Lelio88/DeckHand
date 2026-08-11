@@ -286,7 +286,58 @@ class FakeCollectionRepository implements CollectionRepository {
   @override
   Future<void> publish(String collectionId, {required bool isPublic}) async {
     lastPublish = (id: collectionId, isPublic: isPublic);
-    publication_ = Publication(collectionId: collectionId, isPublic: isPublic);
+    publication_ = Publication(
+      collectionId: collectionId,
+      isPublic: isPublic,
+      handle: publication_.handle,
+      sharedSets: publication_.sharedSets,
+    );
+  }
+
+  /// Nom demandé en dernier, et portée demandée en dernier. La seconde retient
+  /// aussi le fait d'avoir été appelée : `null` y veut dire « tout », ce qui ne
+  /// se distingue pas d'un appel absent sans ce drapeau.
+  String? lastHandle;
+  bool handleWritten = false;
+  List<String>? lastSharedSets;
+  bool sharedSetsWritten = false;
+
+  /// Erreur à lever à l'écriture du nom — un nom déjà pris, typiquement.
+  Object? handleError;
+
+  @override
+  Future<void> setHandle(String collectionId, String? handle) async {
+    if (handleError != null) throw handleError!;
+    lastHandle = handle;
+    handleWritten = true;
+    publication_ = Publication(
+      collectionId: collectionId,
+      isPublic: publication_.isPublic,
+      handle: handle,
+      sharedSets: publication_.sharedSets,
+    );
+  }
+
+  @override
+  Future<void> setSharedSets(String collectionId, List<String>? sets) async {
+    lastSharedSets = sets;
+    sharedSetsWritten = true;
+    publication_ = Publication(
+      collectionId: collectionId,
+      isPublic: publication_.isPublic,
+      handle: publication_.handle,
+      sharedSets: sets,
+    );
+  }
+
+  /// Ce que la résolution d'une adresse rendra.
+  String? resolved;
+  String? lastResolvedHandle;
+
+  @override
+  Future<String?> collectionByHandle(String handle) async {
+    lastResolvedHandle = handle;
+    return resolved;
   }
 
   /// Ce que le journal rendra, quelle que soit la fenêtre demandée.

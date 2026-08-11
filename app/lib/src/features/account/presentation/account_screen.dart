@@ -20,6 +20,7 @@ import '../../../config/selected_game.dart';
 import '../../about/presentation/about_screen.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../collection/data/collection_repository.dart';
+import 'sharing_screen.dart';
 
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
@@ -78,7 +79,7 @@ class AccountScreen extends ConsumerWidget {
         const SizedBox(height: 28),
         Text('Partage', style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
-        const _Publication(),
+        const _PublicationTile(),
 
         const SizedBox(height: 28),
         const Divider(),
@@ -290,76 +291,49 @@ class _GameTile extends StatelessWidget {
   }
 }
 
-/// Donner sa collection à lire, ou la reprendre.
+/// Porte vers l'écran de partage, et son état d'un coup d'œil.
 ///
-/// **Un interrupteur, pas un jeton.** Publier est un geste explicite et
-/// révocable ; le défaut est de ne rien montrer, et il le reste tant qu'on n'y
-/// touche pas. Ce qui devient lisible est ce qu'on possède et où c'est rangé —
-/// jamais l'adresse du compte, que le serveur refuse de rendre à qui n'est pas
-/// connecté.
-class _Publication extends ConsumerWidget {
-  const _Publication();
+/// **Un interrupteur ici ne suffisait pas.** Publier engage deux autres choix —
+/// sous quelle adresse, et quels classeurs — qu'une bascule ne peut pas porter.
+/// L'état reste visible sans ouvrir, parce que c'est la seule chose qu'on vient
+/// vérifier la plupart du temps.
+class _PublicationTile extends ConsumerWidget {
+  const _PublicationTile();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final state = ref.watch(publicationProvider);
 
-    return state.when(
-      loading: () => const ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-        title: Text('Partage'),
-      ),
-      error: (error, _) => ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.cloud_off),
-        title: const Text('Partage indisponible'),
-        subtitle: Text('$error', maxLines: 2, overflow: TextOverflow.ellipsis),
-      ),
+    final subtitle = state.when(
+      loading: () => 'Chargement…',
+      error: (error, _) => 'État indisponible',
       data: (publication) {
-        final id = publication.collectionId;
-        if (id == null) return const SizedBox.shrink();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: publication.isPublic,
-              title: const Text('Classeurs consultables sans compte'),
-              subtitle: Text(
-                publication.isPublic
-                    ? 'N\'importe qui peut voir ce que vous possédez et où c\'est rangé.'
-                    : 'Vous seul voyez votre collection.',
-                style: theme.textTheme.bodySmall,
-              ),
-              onChanged: (wanted) async {
-                await ref
-                    .read(collectionRepositoryProvider)
-                    .publish(id, isPublic: wanted);
-                ref.invalidate(publicationProvider);
-              },
-            ),
-            if (publication.isPublic) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Adresse de partage',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              // L'identifiant de la **collection**, et non celui du compte : il
-              // n'ouvre rien d'autre que ce classeur, et ne dit pas à qui il est.
-              SelectableText(id, style: theme.textTheme.bodySmall),
-            ],
-          ],
-        );
+        if (!publication.isPublic) return 'Vous seul voyez votre collection.';
+        final sets = publication.sharedSets;
+        final quoi = sets == null
+            ? 'tous vos classeurs'
+            : '${sets.length} classeur${sets.length > 1 ? 's' : ''}';
+        return 'Partagé — $quoi';
       },
+    );
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        state.asData?.value.isPublic == true
+            ? Icons.public
+            : Icons.lock_outline,
+        color: state.asData?.value.isPublic == true
+            ? theme.colorScheme.primary
+            : theme.colorScheme.onSurfaceVariant,
+      ),
+      title: const Text('Classeurs partagés'),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const SharingScreen())),
     );
   }
 }

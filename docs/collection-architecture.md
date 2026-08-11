@@ -168,6 +168,30 @@ Ce qui devient lisible est ce qu'on possède et où c'est rangé. **`owner_id`,
 non** : une collection publiée ne se rattache à aucun compte. L'adresse de
 partage est l'identifiant de la **collection**, jamais celui de l'utilisateur.
 
+### Ce qu'on donne, et sous quel nom
+
+Un interrupteur seul publiait **tout** — les deux jeux et tous les classeurs. Ce
+n'est presque jamais ce qu'on veut : on montre le classeur qu'on remplit, pas
+l'inventaire complet. Deux colonnes portent ce que l'interrupteur ne pouvait pas
+dire.
+
+**`shared_sets text[]`, et `NULL` n'est pas `{}`.** `NULL` partage tout, y
+compris les extensions à venir ; le tableau vide ne partage rien. Les aplatir en
+un seul cas ouvrirait une collection entière par accident, et cocher les cinq
+classeurs du jour figerait la liste — une extension ajoutée plus tard cesserait
+d'être partagée sans que rien ne le dise. La portée est **une règle de la base**,
+pas un filtre d'affichage : `collection_item_is_readable(collection, print)` la
+consulte ligne par ligne, faute de quoi un visiteur curieux interrogerait la
+collection directement et verrait tout.
+
+**`slug`, facultatif.** Un UUID ne se dicte ni ne se retient ; un nom, oui.
+Index unique **partiel** — deux collections privées peuvent rester sans nom, ce
+qu'une contrainte d'unicité ordinaire n'aurait pas permis. `collection_by_handle`
+accepte les deux formes, et ne rend rien pour une collection fermée : essayer des
+noms au hasard ne doit pas révéler lesquels existent. L'identifiant continue de
+fonctionner après qu'un nom a été pris, sans quoi les liens déjà donnés
+mourraient.
+
 ### Trois refus de Postgres, et ce qu'ils apprennent
 
 1. **`readable_collection` doit lire `owner_id` sans le rendre.** Elle répond à

@@ -35,6 +35,9 @@ Future<FakeBinderRepository> pumpPublic(
     cells: [cell(number: '1', owned: 1)],
   );
   final collection = FakeCollectionRepository()
+    // L'adresse est résolue côté serveur : sans cette réponse, la page ne sait
+    // pas quelle collection lire et s'arrête avant le classeur.
+    ..resolved = collectionId
     ..totals = CollectionSummary(
       totalCards: 1,
       distinctCards: 1,
@@ -49,7 +52,7 @@ Future<FakeBinderRepository> pumpPublic(
         collectionRepositoryProvider.overrideWithValue(collection),
         printingRepositoryProvider.overrideWithValue(FakePrintingRepository()),
       ],
-      child: MaterialApp(home: PublicBinderScreen(collectionId: collectionId)),
+      child: MaterialApp(home: PublicBinderScreen(handle: collectionId)),
     ),
   );
   await tester.pumpAndSettle();
@@ -136,7 +139,7 @@ void main() {
             ),
           ],
           child: const MaterialApp(
-            home: PublicBinderScreen(collectionId: 'collection-2'),
+            home: PublicBinderScreen(handle: 'collection-2'),
           ),
         ),
       );
