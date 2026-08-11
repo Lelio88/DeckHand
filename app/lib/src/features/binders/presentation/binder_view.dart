@@ -27,6 +27,7 @@ import '../../printings/presentation/printing_picker.dart';
 import '../data/binder_repository.dart';
 import '../domain/binder.dart';
 import 'page_turn.dart';
+import 'shelf_tile.dart';
 
 /// Code réservé à la pile à trier, qui n'est l'extension de personne.
 ///
@@ -239,9 +240,17 @@ class _Shelf extends ConsumerWidget {
                 // La pile à trier ouvre l'étagère plutôt que de la clore :
                 // c'est le travail en cours, et ce qu'on range aujourd'hui
                 // remplira les classeurs demain.
-                itemBuilder: (context, i) => i == 0
-                    ? const _UnsortedTile()
-                    : _ShelfTile(entry: entries[i - 1]),
+                itemBuilder: (context, i) {
+                  if (i == 0) return const _UnsortedTile();
+                  final entry = entries[i - 1];
+                  return ShelfTile(
+                    entry: entry,
+                    onOpen: () {
+                      ref.read(binderPageNumberProvider.notifier).set(1);
+                      ref.read(openBinderProvider.notifier).open(entry.setCode);
+                    },
+                  );
+                },
               ),
             ),
           ],
@@ -477,56 +486,6 @@ class _UnsortedCardTile extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ShelfTile extends ConsumerWidget {
-  const _ShelfTile({required this.entry});
-
-  final BinderShelfEntry entry;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final percent = (entry.completion * 100).toStringAsFixed(
-      entry.completion < 0.1 ? 1 : 0,
-    );
-
-    return ListTile(
-      onTap: () {
-        ref.read(binderPageNumberProvider.notifier).set(1);
-        ref.read(openBinderProvider.notifier).open(entry.setCode);
-      },
-      title: Text(
-        entry.setName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 4),
-          Text(
-            '${entry.setCode.toUpperCase()} · '
-            '${entry.ownedCells} / ${entry.totalCells} cases · '
-            '${entry.pages} pages',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 6),
-          // La barre dit d'un coup d'œil ce que le rapport chiffré demande de
-          // calculer — c'est le taux de complétion qui fait regarder un
-          // classeur, pas le nombre de cartes.
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: entry.completion,
-              minHeight: 5,
-            ),
-          ),
-        ],
-      ),
-      trailing: Text('$percent %', style: theme.textTheme.titleSmall),
     );
   }
 }

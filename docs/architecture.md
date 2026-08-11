@@ -285,6 +285,10 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 
 **L'entrée est une étagère, pas un classeur.** 695 éditions au catalogue : n'y figurent que celles où au moins une carte est rangée, les autres seraient 690 classeurs vides. Mesuré sur la collection réelle : `msh` 216/453 cases (47,7 %), `tmsh` 15/27, `msc` 12/866, `mar` 3/100, `tmsc` 1/32. La page est demandée au serveur et non découpée côté application — une édition compte jusqu'à 866 cases, soit 97 feuilles.
 
+**Chaque classeur porte sa plus belle carte.** Une étagère de noms ne se distingue pas : cinq lignes de texte gris se ressemblent toutes, quand un classeur physique se reconnaît de loin. `my_binder_shelf` remonte donc l'illustration de **la plus chère des cartes qu'on possède dans l'édition** — le joyau du classeur, celui qu'on a envie d'aller revoir —, et la tuile en fait une bannière. Le choix est **personnel et non éditorial** : une carte représentative de l'extension serait la même pour tout le monde, là où le classeur est le sien. Mesuré : `msh` ouvre sur sa carte #18 (9,93 €), `mar` sur la #61 (15,49 €). Le prix passe par `print_price` et son repli linguistique, sans quoi une collection française — que Scryfall ne cote pratiquement pas — élirait une carte au hasard. La couverture est **calculée, jamais stockée**, comme le reste de la vue : elle suit la collection sans qu'on ait à la tenir à jour.
+
+C'est l'**illustration recadrée** qui sert ici, et non la carte entière comme dans une case : une bannière est un paysage, une carte un portrait. Le texte tient dessus grâce à un voile sombre en dégradé plutôt qu'à un pari sur le contraste — on ne sait pas si l'illustration qui remontera sera claire ou foncée. C'est aussi pourquoi l'habillage (titre, pourcentage, barre de complétion) reste blanc : la couleur vient de l'image, pas du thème. Une édition sans illustration connue, ou un réseau absent, laissent voir un dégradé peint sous l'image — la tuile reste une tuile plutôt que de devenir un trou dans l'étagère.
+
 Les cartes sans édition précisée n'ont **aucune case**, par construction. Elles ne sont pas perdues pour autant : `my_collection_summary` les compte, et le bandeau de l'onglet le rappelle.
 
 **La case montre la carte entière, pas son illustration.** Une case de classeur contient une carte — son cadre, son nom, son coût, son numéro. N'en montrer que l'illustration donnait une planche-contact, jolie mais impossible à reconnaître comme sa propre collection. À trois par ligne le texte imprimé devient illisible, exactement comme dans un vrai classeur qu'on regarde de loin : c'est l'image qu'on reconnaît, pas le texte qu'on lit. L'URL de la carte entière est **déduite** de celle de l'illustration (`fullCardImage`), les tailles de Scryfall ne différant que par un segment de chemin — vérifié sur de vraies URL. La solution de rechange serait une colonne de plus sur 167 000 impressions et une réingestion complète ; elle redeviendra la bonne réponse si Scryfall change la forme de ses URL, ce qui casserait de toute façon `art_crop_url` du même coup.
@@ -293,7 +297,9 @@ Les cartes sans édition précisée n'ont **aucune case**, par construction. Ell
 
 ### Ranger ou inventorier : deux régimes, une seule différence
 
-**Le tri par numéro range, les autres inventorient**, et tout tient dans le sort des cases vides. Trié par **numéro**, le classeur montre les trous : la question posée est « que me manque-t-il ». Trié par **valeur** ou par **nom**, la question devient « mes cartes, de la plus chère à la moins chère » — et une case vide n'a alors ni valeur, ni nom, ni place dans un ordre qui ignore les numéros. Elle disparaît, et c'est ce que la demande implique. `BinderSort.keepsEmptyCells` porte cette distinction, et `my_binder_page` l'applique côté serveur : hors du rangement, les cases non possédées ne sont pas rendues.
+**Le tri par numéro range, les autres inventorient**, et tout tient dans le sort des cases vides. Trié par **numéro**, le classeur montre les trous : la question posée est « que me manque-t-il ». Trié par **valeur**, par **exemplaires** ou par **nom**, la question devient « mes cartes, de la plus chère à la moins chère » — et une case vide n'a alors ni valeur, ni exemplaire, ni nom, ni place dans un ordre qui ignore les numéros. Elle disparaît, et c'est ce que la demande implique. `BinderSort.keepsEmptyCells` porte cette distinction, et `my_binder_page` l'applique côté serveur : hors du rangement, les cases non possédées ne sont pas rendues.
+
+**« Combien en ai-je » est une question de rangement.** Le compte des doublons figurait déjà au coin de chaque case, mais il fallait parcourir cinquante feuilles pour rassembler ce qu'on possède en nombre — alors que c'est la question posée avant de bâtir un deck : un playset se repère, il ne se cherche pas. Le tri par exemplaires la met en tête de classeur. **L'égalité y est la règle** et non l'exception, la plupart des cartes étant possédées une seule fois : l'ordre du rangement reprend alors la main, si bien que la queue du classeur reste feuilletable comme un classeur. Mesuré sur `msh` : six Forêts, puis cinq Plaines, Marais et Montagnes, puis les quatre exemplaires de « Brutes de Roxxon » — les terrains de base dominent, ce qui est précisément l'inventaire qu'on venait chercher.
 
 **Le filtre de finition, lui, ne change pas de régime.** Restreindre au brillant ne sort pas du rangement : l'ordre reste le numéro, seule change la définition de « possédé ». Une case vide y signifie « je n'ai pas cette carte en brillant » — c'est la complétion d'un classeur de brillants, et les trous restent à dessein.
 
@@ -321,7 +327,7 @@ L'onglet Collection n'a plus qu'une vue. Chacun des services de la liste a trouv
 
 | Ce que la liste faisait | Ce qui le fait |
 |---|---|
-| Trier par valeur, par nom | Les régimes de lecture du classeur |
+| Trier par valeur, par quantité, par nom | Les régimes de lecture du classeur |
 | Filtrer sur la finition | Le filtre du classeur, trous conservés |
 | Atteindre les cartes sans édition | La pile « à trier » |
 | Chercher une carte par son nom | La recherche de l'étagère, qui donne la page |

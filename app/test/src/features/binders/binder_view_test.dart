@@ -35,12 +35,14 @@ BinderShelfEntry shelfEntry({
   int total = 453,
   int owned = 216,
   int copies = 300,
+  String? art,
 }) => BinderShelfEntry(
   setCode: setCode,
   setName: setName,
   totalCells: total,
   ownedCells: owned,
   ownedCopies: copies,
+  artCropUrl: art,
 );
 
 /// Une URL d'illustration telle que le catalogue les porte.
@@ -239,6 +241,31 @@ void main() {
       await pumpBinder(tester, entries: [shelfEntry()]);
 
       expect(find.textContaining('216 / 453 cases'), findsOneWidget);
+      expect(find.text('48 %'), findsOneWidget);
+    });
+
+    testWidgets('chaque classeur porte sa plus belle carte', (tester) async {
+      // Cinq lignes de texte gris se ressemblent toutes ; un classeur physique
+      // se reconnaît de loin. L'illustration est ce qui distingue une édition
+      // d'une autre avant même d'avoir lu son nom.
+      await pumpBinder(tester, entries: [shelfEntry(art: _art)]);
+
+      final image = tester.widget<Image>(find.byType(Image));
+      expect((image.image as NetworkImage).url, _art);
+      expect(
+        image.fit,
+        BoxFit.cover,
+        reason: 'une bannière remplit sa tuile, elle ne s\'y encadre pas',
+      );
+    });
+
+    testWidgets('une édition sans illustration reste une tuile', (tester) async {
+      // Réseau absent, impression sans illustration connue : la tuile doit
+      // rester une tuile plutôt que devenir un trou dans l'étagère.
+      await pumpBinder(tester, entries: [shelfEntry()]);
+
+      expect(find.byType(Image), findsNothing);
+      expect(find.text('Marvel Super Heroes'), findsOneWidget);
       expect(find.text('48 %'), findsOneWidget);
     });
 
@@ -482,6 +509,32 @@ void main() {
       await choose(tester, sortMenu, 'Nom');
 
       expect(repository.requested.last.descending, isFalse);
+    });
+
+    testWidgets('trier par exemplaires atteint le serveur', (tester) async {
+      // Trier neuf cases côté application trierait une page, pas un classeur :
+      // les doublons d'une édition sont éparpillés sur cinquante feuilles.
+      final repository = await openBinder(tester);
+
+      await choose(tester, sortMenu, 'Exemplaires');
+
+      expect(repository.requested.last.sort, BinderSort.copies);
+      expect(
+        repository.requested.last.descending,
+        isFalse,
+        reason: 'le sens naturel est « les plus nombreuses d\'abord »',
+      );
+    });
+
+    testWidgets('trier par exemplaires ne saute nulle part', (tester) async {
+      // Comme la valeur et le nom, ce tri inventorie : les cases vides ayant
+      // disparu, la première page est pleine par construction.
+      final repository = await openBinder(tester);
+      repository.jumps.clear();
+
+      await choose(tester, sortMenu, 'Exemplaires');
+
+      expect(repository.jumps, isEmpty);
     });
 
     testWidgets('le filtre de finition atteint le serveur', (tester) async {

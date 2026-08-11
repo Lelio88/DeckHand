@@ -24,11 +24,11 @@ const int binderPageSize = 9;
 ///
 /// **Deux régimes, et la différence porte sur les cases vides.** Par
 /// [number], le classeur range : les cases vides figurent, parce que la question
-/// posée est « que me manque-t-il ». Par [price] ou [name], il inventorie — « mes
-/// cartes, de la plus chère à la moins chère » — et une case vide n'a alors ni
-/// valeur, ni nom, ni place dans un ordre qui ignore les numéros. Elle disparaît,
-/// et c'est ce que la demande implique : on ne regarde plus ce qui manque, on
-/// regarde ce qu'on a.
+/// posée est « que me manque-t-il ». Par [price], [copies] ou [name], il
+/// inventorie — « mes cartes, de la plus chère à la moins chère » — et une case
+/// vide n'a alors ni valeur, ni exemplaire, ni nom, ni place dans un ordre qui
+/// ignore les numéros. Elle disparaît, et c'est ce que la demande implique : on
+/// ne regarde plus ce qui manque, on regarde ce qu'on a.
 ///
 /// Le filtre de finition, lui, ne change pas de régime : restreindre au brillant
 /// laisse les trous, car « je n'ai pas cette carte en brillant » reste une
@@ -36,6 +36,14 @@ const int binderPageSize = 9;
 enum BinderSort {
   number('number', 'Numéro'),
   price('price', 'Valeur'),
+
+  /// Les cartes possédées en plusieurs exemplaires d'abord.
+  ///
+  /// **C'est la question qu'on pose avant de bâtir un deck** : un playset se
+  /// repère, il ne se cherche pas. Le compte figurait déjà au coin de chaque
+  /// case, mais il fallait parcourir le classeur entier pour rassembler les
+  /// doublons.
+  copies('copies', 'Exemplaires'),
   name('name', 'Nom');
 
   const BinderSort(this.id, this.label);
@@ -55,6 +63,7 @@ enum BinderSort {
   String get reversedLabel => switch (this) {
     BinderSort.number => "Dernière page d'abord",
     BinderSort.price => "Les moins chères d'abord",
+    BinderSort.copies => "Les moins nombreuses d'abord",
     BinderSort.name => 'De Z à A',
   };
 }
@@ -68,6 +77,7 @@ class BinderShelfEntry {
     required this.ownedCells,
     required this.ownedCopies,
     this.releasedAt,
+    this.artCropUrl,
   });
 
   final String setCode;
@@ -86,6 +96,17 @@ class BinderShelfEntry {
 
   final DateTime? releasedAt;
 
+  /// L'illustration de la plus chère des cartes qu'on y possède.
+  ///
+  /// **Une étagère de noms ne se distingue pas** : cinq lignes de texte gris se
+  /// ressemblent toutes, quand un classeur physique se reconnaît de loin. C'est
+  /// l'illustration recadrée qui sert ici, et non la carte entière — une
+  /// bannière est un paysage, une carte un portrait.
+  ///
+  /// Vaut `null` sur une édition dont aucune impression possédée ne porte
+  /// d'illustration ; la tuile s'habille alors d'elle-même.
+  final String? artCropUrl;
+
   /// Part de l'édition possédée, entre 0 et 1.
   double get completion => totalCells == 0 ? 0 : ownedCells / totalCells;
 
@@ -101,6 +122,7 @@ class BinderShelfEntry {
     releasedAt: json['released_at'] == null
         ? null
         : DateTime.tryParse(json['released_at'] as String),
+    artCropUrl: json['art_crop_url'] as String?,
   );
 }
 
