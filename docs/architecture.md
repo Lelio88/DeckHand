@@ -622,6 +622,54 @@ Sur 40 cartes, seuil de confiance à 12 bits :
 
 **Limites mesurées.** Le régime « soigné » est le moins bon des cinq (33/40) : à 3 % de marge, la carte frôle le bord de la photo, et l'inondation du fond depuis les bords a peu de prise pour la contourner. Et un fond parfaitement uniforme privait le seuil de table de toute matière — corrigé, mais c'est le genre de cas qu'une photo réelle ne produit jamais et qu'un test de synthèse révèle immédiatement.
 
+### Ce que ce banc ne voyait pas : l'éclairage
+
+Ces cinq régimes décrivent tous ce que la **main** fait de travers, jamais ce
+que la **lumière** fait. Ils ont donc laissé passer un défaut que la première
+carte de papier a révélé d'un coup : photographiée sur une table éclairée de
+côté, une carte plaçait la bonne empreinte au rang 146 sur 1 035, à 28 bits —
+du bruit — alors que les cinq régimes affichaient 37 sur 40.
+
+Le mécanisme est celui du seuillage global : le coin de table le plus sombre
+passait sous le seuil qui sépare le carton du décor, touchait la carte, et la
+recherche de forme réunissait les deux. La boîte englobante devenait l'image
+entière. Le garde-fou d'aspect ne pouvait rien y faire — une photo de téléphone
+en portrait (0,750) et une carte (0,716) se ressemblent à 0,034 près, pour une
+tolérance qui en accepte 0,30.
+
+**Le banc a donc été porté en Dart** (`app/tool/framing_bench.dart`), puisque
+c'est le code Dart qui tourne sur l'appareil, et augmenté de trois régimes où
+l'éclairage latéral est marqué — une lampe de côté, rien d'exotique. Sur
+40 cartes :
+
+| Régime | Seuil global (avant) | Seuil local (après) |
+|---|---|---|
+| cinq régimes d'origine | 179/200 | **181/200** |
+| soigné + lampe | 11/40 | **36/40** |
+| ordinaire + lampe | **0/40** | **38/40** |
+| négligent + lampe | 3/40 | **36/40** |
+
+Le remède est un **seuillage local** : chaque pixel se compare à la moyenne de
+son voisinage, calculée par image intégrale, au lieu d'une constante tirée de
+l'image entière. Le seuil suit alors l'éclairage au lieu de le subir. Vérifié
+sur la carte de papier qui avait servi à découvrir le défaut : rang 1 sur
+1 035, à 7 bits, avec 10 bits de marge sur le suivant.
+
+**Trois enseignements valent au-delà de ce cas.**
+
+Un banc ne mesure que ce qu'il fabrique. Celui-ci décrivait cinq façons de mal
+cadrer et aucune de mal éclairer ; il aurait donné son aval à n'importe quelle
+correction sans jamais voir le défaut.
+
+Une photo ne suffit pas à départager des corrections. Quatre approches ont été
+mesurées sur cette seule carte : celle qui y obtenait le **meilleur** score
+n'améliore rien au banc (16/120 contre 14). Le classement s'inverse dès qu'on
+élargit l'échantillon.
+
+Un sommet nominal n'est pas un réglage. `cardCeiling` culmine à 0,88 sur un
+tirage et s'effondre sur un autre au grain doublé ; 0,84 est le seul point haut
+des deux, et c'est lui qui est retenu.
+
 Cette exigence n'était pas visible dans les mesures antérieures (100 % de reconnaissance, 0 faux positif) parce qu'elles partaient des `art_crop` de Scryfall, c'est-à-dire d'illustrations déjà découpées au pixel près. **Le protocole validait le comparateur d'empreintes, jamais la chaîne photo → illustration.**
 
 Conséquence doctrinale : le cadrage guidé ne remplace pas la détection des bords de la carte. La note « la détection de contours ne devient nécessaire qu'au jalon 3 » est invalidée — elle l'est dès le jalon 2.

@@ -27,6 +27,16 @@
 /// suffisant pour la perspective légère d'une photo à main levée.
 ///
 /// Ce module doit rester le jumeau de `api/app/vision/card_bounds.py`.
+///
+/// **Et il ne l'est plus.** [_cardMask] compare désormais chaque pixel à son
+/// voisinage ; le jumeau Python en est resté au seuil calé sur l'image entière.
+/// Les deux ne rendront donc pas les mêmes coins sur une photo à l'éclairage
+/// inégal — et, comme les coins commandent la zone lue, pas non plus la même
+/// empreinte. Ce qui reste vrai : le calcul de l'empreinte elle-même
+/// (`art_hash`) n'a pas bougé, donc rien de ce qui est déjà indexé n'est
+/// invalidé. Ce qui est faux tant que le portage n'est pas fait : le banc
+/// `api/app/measure/framing_bench.py` ne mesure plus le code qui tourne sur le
+/// téléphone. C'est `app/tool/framing_bench.dart` qui fait foi.
 library;
 
 import 'dart:math' as math;
@@ -48,7 +58,53 @@ const double minCardArea = 0.10;
 /// Écart toléré au rapport d'une carte. Large à dessein : une carte vue de
 /// biais s'écarte de ses proportions nominales, et rejeter trop strictement
 /// reviendrait à ne détecter que les photos déjà parfaites.
+///
+/// **Ce garde-fou ne rattrape pas un masque faux.** Une photo de téléphone en
+/// portrait vaut 0,750 et une carte 63:88 vaut 0,716 : 0,034 d'écart, quand la
+/// tolérance en accepte 0,30. Un masque qui retient l'image entière passe donc
+/// le contrôle sans broncher. C'est au seuillage de ne pas produire ce
+/// masque-là — pas à cette constante de le rattraper.
 const double aspectTolerance = 0.30;
+
+/// Fenêtre du seuillage local, en fraction du petit côté de l'image d'analyse.
+///
+/// Elle doit être assez large pour qu'un pixel de bordure « voie » la table
+/// autour de lui — sinon la bordure, uniforme sur sa propre épaisseur, ne se
+/// distingue plus de son voisinage —, et assez étroite pour suivre l'éclairage
+/// plutôt que le subir. Balayée sur le banc de cadrage (40 cartes × 8 régimes)
+/// à 6, 12, 20, 30 et 45 %, elle donne 105, 105, 102, 91 puis 60 cartes
+/// reconnues sur les 120 régimes à lampe : plat en deçà de 20 %, puis la
+/// fenêtre devient trop large pour épouser l'éclairage. 12 % est pris au milieu
+/// du plateau.
+const double localWindow = 0.12;
+
+/// Sous quelle fraction du niveau local de la table un pixel compte pour du
+/// carton.
+///
+/// **C'est l'ancien seuil global de 0,72, rendu local** — même forme, même rôle,
+/// seule la référence a changé (voir [_cardMask]). La valeur diffère parce que
+/// la référence n'est plus la même : un niveau de table estimé sur un voisinage
+/// tombe plus bas que la médiane claire de toute l'image, il faut donc un
+/// plafond plus haut pour rattraper la même bordure.
+///
+/// **Balayée de 0,60 à 1,00** sur le banc de cadrage (40 cartes × 8 régimes),
+/// elle rend, en cartes reconnues sur 320 : 268, 278, 283, 287, **291**, 296,
+/// 275, 183, 69. Le sommet nominal est à 0,88 — et pourtant 0,84 est retenu.
+///
+/// **Parce que 0,88 n'a plus de marge.** Sur une table nue, sans carte, ce
+/// plafond marque déjà 10 % des pixels : le grain du bois y passe pour du
+/// carton, et seules la recherche de composante et l'aire minimale empêchent la
+/// détection d'inventer une carte. À 0,84 la même table ne marque **aucun
+/// pixel**. À 0,96 elle en marque 53 % et la détection rend un quadrilatère de
+/// la taille de l'image, de rapport 0,735 — que la tolérance d'aspect laisse
+/// passer sans broncher, exactement le mode de défaillance que ce module
+/// existe pour éviter.
+///
+/// Rejoué sur une table au grain doublé, le classement s'inverse : 283, 286,
+/// **292**, 283, 221 pour 0,72 à 0,92. 0,84 est le seul point haut des deux
+/// tirages, quand 0,88 gagne 5 cartes sur l'un et en perd 9 sur l'autre. On
+/// prend le sommet stable, pas le sommet d'un seul bruit.
+const double cardCeiling = 0.84;
 
 /// Un point de l'image, en pixels.
 typedef Point = ({double x, double y});
@@ -182,46 +238,156 @@ debugDetection(img.Image image) {
 
 /// Ce qui est carte plutôt que table.
 ///
-/// Deux signatures, réunies : une carte porte une **bordure sombre** sur tout
-/// son pourtour, et son illustration est plus **saturée** qu'un plateau de bois
-/// ou une nappe. L'une sans l'autre laisse passer les cartes claires ou les
-/// tables colorées ; ensemble elles tiennent. Le seuil de table est pris sur la
-/// moitié la plus lumineuse de l'image, pour qu'une carte sombre occupant la
-/// moitié du cadre ne tire pas la référence vers le bas.
+/// **Une seule signature : le carton est plus sombre que la table qui
+/// l'entoure.** Une carte, dans les deux jeux, porte un cadre sombre fermé sur
+/// tout son pourtour ; cet anneau suffit à la délimiter, car [_fillHoles] rend
+/// ensuite plein tout ce qu'il cerne — ni l'illustration ni le pavé de règles
+/// n'ont à être reconnus pour eux-mêmes.
+///
+/// **Pourquoi la référence est locale.** Elle était l'image entière : un pixel
+/// comptait pour du carton s'il tombait sous 72 % de la clarté médiane de la
+/// table. Sous éclairage latéral, c'est intenable — le coin de table le plus
+/// sombre passe sous ce seuil, rejoint la carte, et [_largestComponent] rend
+/// une forme couvrant la photo entière. Le banc de cadrage le chiffre : sur les
+/// 120 photos à lampe, 14 cartes reconnues avec la référence globale, 111 avec
+/// une référence locale.
+///
+/// **Pourquoi la moitié claire du voisinage, et non sa moyenne.** Comparer
+/// chaque pixel à la moyenne de son voisinage corrige bien l'éclairage, mais
+/// c'est une règle de **contraste**, pas de niveau : elle retient par
+/// construction à peu près la moitié la plus sombre de tout voisinage, où qu'il
+/// soit. La carte en ressort **creuse** — son pourtour et ses détails sombres,
+/// rien d'autre —, et si elle finit pleine c'est uniquement parce que
+/// [_fillHoles] bouche ce que ce pourtour cerne. Tout tient alors à un anneau
+/// d'un pixel.
+///
+/// Le banc montre ce que cela coûte quand l'anneau cède. Sur une carte à fond
+/// perdu, dont l'illustration claire touche la table sans marche de clarté — 126
+/// à 160 de part et d'autre du bord, mesuré —, il n'y a rien à cerner : le fond
+/// s'engouffre, remplit l'intérieur vide, et la plus grande composante n'est
+/// plus qu'un bas de carte. Forme retenue : 41,7 % de l'image au lieu de 68 %,
+/// coins hauts à `y = 187` au lieu de `y = 41`, rapport 1,02 quand une carte
+/// vaut 0,716 — donc abandon. À l'échelle du banc, la moyenne simple perd 4
+/// cartes sur les 200 photos sans lampe et fait passer les abandons de 5 à 23.
+///
+/// La référence retenue est donc la clarté moyenne de la **seule moitié claire**
+/// du voisinage : le niveau local de la table, estimé en écartant ce que la
+/// carte y met de sombre. C'est une règle de **niveau**, et elle se resserre ou
+/// se relâche exactement où il faut. Sur un voisinage plat, la moitié claire ne
+/// dépasse sa moyenne que de 3 % : la règle reste aussi stricte qu'avant, et une
+/// table nue ne marque aucun pixel. Sur un voisinage contrasté, la moitié claire
+/// s'en détache largement, le seuil monte avec elle, et le corps de la carte
+/// sort plein au lieu de creux. Sur la même photo : 56,2 % de pixels marqués au
+/// lieu de 43,0 %, forme retenue 69,3 %, coins à un pixel près de la vérité.
+/// Sur le banc entier : 181 cartes reconnues sur les 200 photos sans lampe
+/// (contre 179 à la référence globale et 175 à la moyenne locale), 110 sur les
+/// 120 à lampe, et les abandons ramenés de 23 à 14.
+///
+/// **Une image intégrale, donc un coût linéaire.** La moyenne d'une fenêtre
+/// quelconque se lit en quatre accès dans la table des sommes cumulées ; le coût
+/// ne dépend plus de la taille de la fenêtre, et les trois moyennes de boîte
+/// restent au même ordre de grandeur que la lecture des pixels.
+///
+/// **Ce qui a été retiré, et pourquoi.** Un second critère faisait entrer tout
+/// pixel de saturation supérieure à 0,38, au motif qu'une illustration est plus
+/// colorée qu'un plateau de bois. C'est l'inverse qui se mesure : un bureau de
+/// bois clair dépasse ce seuil sur la quasi-totalité de sa surface, et ce
+/// critère à lui seul reconduit l'échec — 29 bits de la bonne carte en le
+/// gardant, 8 en le retirant, à seuillage local identique.
+///
+/// **Limite assumée** : une carte à bordure *blanche* — le cadre Magic d'avant
+/// 1993 —, ou une carte à fond perdu dont l'illustration claire touche le bord,
+/// n'a sur cette portion aucun pourtour plus sombre que la table. C'est alors
+/// son cadre intérieur qui forme l'anneau, et le quadrilatère rendu est
+/// légèrement plus petit que la carte.
 List<bool> _cardMask(img.Image image) {
-  final count = image.width * image.height;
+  final width = image.width;
+  final height = image.height;
+  final count = width * height;
   final greys = Float32List(count);
-  final saturations = Float32List(count);
 
   var index = 0;
-  for (var y = 0; y < image.height; y++) {
-    for (var x = 0; x < image.width; x++) {
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
       final pixel = image.getPixel(x, y);
-      final r = pixel.r.toDouble();
-      final g = pixel.g.toDouble();
-      final b = pixel.b.toDouble();
-      greys[index] = (r + g + b) / 3;
-      final high = r > g ? (r > b ? r : b) : (g > b ? g : b);
-      final low = r < g ? (r < b ? r : b) : (g < b ? g : b);
-      saturations[index] = high > 0 ? (high - low) / high : 0;
-      index++;
+      greys[index++] =
+          (pixel.r.toDouble() + pixel.g.toDouble() + pixel.b.toDouble()) / 3;
     }
   }
 
-  final sorted = Float32List.fromList(greys)..sort();
-  final floor = sorted[(sorted.length * 0.40).floor().clamp(0, count - 1)];
-  final bright = <double>[];
-  for (final g in greys) {
-    if (g > floor) bright.add(g);
-  }
-  bright.sort();
-  final table = bright.isEmpty ? floor : bright[bright.length ~/ 2];
-
-  return List<bool>.generate(
-    count,
-    (i) => greys[i] < table * 0.72 || saturations[i] > 0.38,
-    growable: false,
+  // Le petit côté fixe le rayon : sur une photo en portrait, se caler sur la
+  // largeur donnerait la même fenêtre, alors que se caler sur la hauteur la
+  // rendrait plus grossière sans rien apporter.
+  final radius = math.max(
+    1,
+    (math.min(width, height) * localWindow / 2).round(),
   );
+
+  final mean = _boxMean(greys, width, height, radius);
+
+  // Ne retenir que ce qui dépasse sa propre moyenne locale : sur la table, à peu
+  // près la moitié des pixels ; le long d'un bord de carte, la table seule.
+  final lit = Float32List(count);
+  final share = Float32List(count);
+  for (var i = 0; i < count; i++) {
+    if (greys[i] > mean[i]) {
+      lit[i] = greys[i];
+      share[i] = 1;
+    }
+  }
+  // Les deux moyennes portent sur la même fenêtre : leur quotient est donc
+  // exactement la moyenne des seuls pixels clairs, sans avoir à les compter à
+  // part. Une fenêtre qui n'en contient aucun — un aplat parfaitement uni —
+  // retombe sur la moyenne, qui y vaut la même chose.
+  final litMean = _boxMean(lit, width, height, radius);
+  final litShare = _boxMean(share, width, height, radius);
+
+  final mask = List<bool>.filled(count, false, growable: false);
+  for (var i = 0; i < count; i++) {
+    final table = litShare[i] > 0 ? litMean[i] / litShare[i] : mean[i];
+    mask[i] = greys[i] < table * cardCeiling;
+  }
+  return mask;
+}
+
+/// Moyenne de [source] sur la fenêtre carrée de rayon [radius], par image
+/// intégrale — quatre accès par pixel, quelle que soit la fenêtre.
+///
+/// **La fenêtre est écrêtée au cadre, et la moyenne divisée par ce qui reste.**
+/// La tentation est de voir là un artefact de bord : un pixel proche du cadre
+/// verrait un voisinage tronqué, donc moins fiable. Mesuré, ce n'en est pas un.
+/// Les trois traitements possibles — écrêter, glisser la fenêtre vers
+/// l'intérieur pour lui garder sa taille, ou prolonger l'image en miroir — ont
+/// été joués sur le banc entier : **résultats identiques à la carte près**, sur
+/// les huit régimes. Ce n'est pas là que se jouent les cadrages à marge large.
+Float32List _boxMean(Float32List source, int width, int height, int radius) {
+  // Sommes cumulées, décalées d'une ligne et d'une colonne pour que la fenêtre
+  // collée au bord n'ait pas besoin d'un cas particulier.
+  final sums = Float64List((width + 1) * (height + 1));
+  for (var y = 0; y < height; y++) {
+    var row = 0.0;
+    for (var x = 0; x < width; x++) {
+      row += source[y * width + x];
+      sums[(y + 1) * (width + 1) + x + 1] = sums[y * (width + 1) + x + 1] + row;
+    }
+  }
+
+  final out = Float32List(width * height);
+  for (var y = 0; y < height; y++) {
+    final y0 = y - radius < 0 ? 0 : y - radius;
+    final y1 = y + radius > height - 1 ? height - 1 : y + radius;
+    for (var x = 0; x < width; x++) {
+      final x0 = x - radius < 0 ? 0 : x - radius;
+      final x1 = x + radius > width - 1 ? width - 1 : x + radius;
+      final total =
+          sums[(y1 + 1) * (width + 1) + x1 + 1] -
+          sums[y0 * (width + 1) + x1 + 1] -
+          sums[(y1 + 1) * (width + 1) + x0] +
+          sums[y0 * (width + 1) + x0];
+      out[y * width + x] = total / ((x1 - x0 + 1) * (y1 - y0 + 1));
+    }
+  }
+  return out;
 }
 
 /// Bouche ce qui est cerné par la forme.

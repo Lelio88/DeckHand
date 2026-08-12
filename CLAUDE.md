@@ -61,7 +61,7 @@ Topologie rapide :
 # App — les --dart-define sont OBLIGATOIRES (valeurs dans ../.deckhand-secrets/supabase.env)
 cd app && flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=...
 
-cd app && flutter analyze && flutter test    # 425 tests
+cd app && flutter analyze && flutter test    # 429 tests
 cd api && .venv/Scripts/python -m pytest     # 121 tests
 
 # Ingestion — idempotente, saute ce qui n'a pas changé
@@ -78,6 +78,10 @@ cd api && .venv/Scripts/python -m app.measure.deck_math constructed riftbound
 # Où tombe, dans l'index réel, une empreinte relevée sur le terrain (`art_hash` du journal)
 cd api && .venv/Scripts/python -m app.measure.art_probe <hex> --game riftbound --expect "<carte>"
 cd app && dart run tool/frame_bench.dart   # durées réelles : --dart-define=DECKHAND_BENCH=true
+# Détection de bords : 40 cartes × 8 régimes de cadrage et d'éclairage
+cd api && .venv/Scripts/python -m app.measure.export_framing_set   # une fois, hors dépôt
+cd app && dart run tool/framing_bench.dart              # --centered pour comparer
+cd app && dart run tool/probe_photo.dart <photo> --game riftbound --out <dossier>
 
 # Migrations — jouées par psycopg, le CLI Supabase exigeant un lien interactif
 cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichier>.sql
@@ -100,4 +104,4 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 ## VIII. Contexte de Session
 
 - **État** : 33 953 cartes Magic et 167 000 impressions cotées ; 1 035 cartes Riftbound, cotées et adossées à 2 500 decks. Les deux jeux bouclent la même promesse. Collection réelle : 343 lignes, 451 exemplaires, aucune sans édition. Compte `buton1@live.fr`, mot de passe dans `../.deckhand-secrets/supabase.env`.
-- **Focus immédiat** : la reconnaissance Riftbound n'a **jamais rencontré une carte de papier** (issues #4 et #5). Ce n'était pas qu'une affaire de matériel : le jeu saisi n'atteignait pas les gabarits, et toute carte était découpée au cadre Magic avant d'être cherchée dans l'index Riftbound. Corrigé, et l'empreinte journalise désormais ce qu'elle trouve (`art_match`) pour qu'un échec terrain soit analysable. Les cartes couchées — les 64 champs de bataille — restent hors de portée : `findCard` rejette leur rapport. Côté Twitch, la lecture publique et le bot `!card` sont en place ; restent l'overlay OBS (#14) et le temps réel (#8) dont il dépend. Le coût d'une image est mesuré au poste de travail — la conversion YUV→RGB est évitable en entier, les deux chemins rendant la même empreinte à zéro bit près — mais **les durées sur appareil restent dues** : l'APK de mesure est prêt, il attend que le débogage sans fil soit rallumé.
+- **Focus immédiat** : la reconnaissance a rencontré sa première carte de papier Riftbound, et quatre défauts y sont tombés — le jeu saisi n'atteignait ni les gabarits ni le catalogue, trois messages d'échec accusaient la lecture de ce qu'elle avait réussi, et la détection de bords cédait sous un éclairage latéral. Cette carte se reconnaît désormais par son nom **et** par son illustration (rang 1 sur 1 035, 7 bits). Ce qui reste dû : le **lot** que #5 réclame — cartes trouvées sur cartes réelles, et surtout fausses cartes annoncées avec assurance. Deux chantiers de dette ouverts : le **jumeau Python** `card_bounds.py` a divergé du Dart (le banc Python ne mesure plus le code qui tourne), et les 64 champs de bataille couchés restent hors de portée. Côté Twitch, la lecture publique et le bot `!card` sont en place ; restent l'overlay OBS (#14) et le temps réel (#8) dont il dépend. Le coût d'une image est mesuré au poste de travail — la conversion YUV→RGB est évitable en entier, les deux chemins rendant la même empreinte à zéro bit près — mais **les durées sur appareil restent dues** : l'APK de mesure est prêt, il attend que le débogage sans fil soit rallumé.
