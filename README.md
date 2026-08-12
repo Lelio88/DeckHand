@@ -93,7 +93,7 @@ DeckHand n'existe que grâce à ces services, qui ouvrent leurs données.
 - **[Riftcodex](https://riftcodex.com)** — catalogue des cartes Riftbound. Base communautaire
   non affiliée à Riot Games, qui ne publie pas de conditions d'usage : DeckHand lui applique
   les mêmes égards qu'à Scryfall, et ne réhéberge aucune illustration.
-- **[TCGCSV](https://tcgcsv.com)** — prix de marché TCGplayer pour Riftbound, convertis en
+- **[TCGCSV](https://tcgcsv.com)** — prix de marché TCGplayer pour Riftbound et Yu-Gi-Oh, convertis en
   euros au **taux de référence quotidien de la [Banque centrale européenne](https://www.ecb.europa.eu)**.
   Ce sont donc des prix convertis, non relevés sur un marché européen, et l'application le dit.
 - **[Riot Games](https://riotgames.com)** — Riftbound, ses cartes et leurs illustrations.

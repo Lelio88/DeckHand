@@ -358,11 +358,24 @@ void _report(Map<String, List<int>> distances, int gaveUp, int skipped) {
 /// désormais son jeu et sa disposition, ce qui est la seule façon de mesurer un
 /// gabarit qui n'est pas celui par défaut — à commencer par les cartes
 /// couchées, dont le cadre est mesuré depuis longtemps sans avoir jamais servi.
+/// Le cadre qu'annonce une entrée du tirage.
+///
+/// **Se tromper ici ne se voit pas dans les nombres.** Un cadre d'un autre jeu
+/// découpe de travers et rend des distances énormes, qu'on imputerait au
+/// gabarit mesuré plutôt qu'au banc. C'est pourquoi le tirage porte son jeu et
+/// sa disposition plutôt que de les laisser deviner.
 CardFrame _frameOf(Map<String, dynamic> entry) {
   final game = entry['game'] as String? ?? 'magic';
   final layout = entry['layout'] as String? ?? 'normal';
-  if (game != 'riftbound') return CardFrame.modern;
-  return layout == 'landscape' ? CardFrame.riftboundWide : CardFrame.riftbound;
+  return switch (game) {
+    'riftbound' =>
+      layout == 'landscape' ? CardFrame.riftboundWide : CardFrame.riftbound,
+    // `layout` porte ici le `frameType` de la source, et « pendulum » y figure
+    // pour les 390 cartes dont l'illustration déborde — et pour elles seules.
+    'yugioh' =>
+      layout.contains('pendulum') ? CardFrame.yugiohPendulum : CardFrame.yugioh,
+    _ => CardFrame.modern,
+  };
 }
 
 String? _option(List<String> args, String name) {

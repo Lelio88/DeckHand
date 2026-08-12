@@ -47,7 +47,7 @@ const _credits = <({String name, String url, String role})>[
   (
     name: 'TCGplayer, via TCGCSV',
     url: 'tcgcsv.com',
-    role: 'Prix de marché des cartes Riftbound',
+    role: 'Prix de marché des cartes Riftbound et Yu-Gi-Oh',
   ),
   // Le guide de l'API YGOPRODeck tient lieu de conditions, faute de CGU
   // publiées, et il demande explicitement le stockage local des données. Le

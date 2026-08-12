@@ -29,7 +29,7 @@ Topologie rapide :
 - **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `camera` (flux temps réel), `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg`
 - **`api/`** : Python 3.11+, httpx, psycopg, Pillow, numpy — **chaque contrainte porte un plafond de majeure** : `numpy` et `Pillow` sont le seul chemin par lequel une bibliothèque peut dégrader la reconnaissance en silence, une empreinte au calcul modifié restant valide mais devenant incomparable au jumeau Dart
 - **Données** : Supabase — Postgres, Auth, Storage. Cloud uniquement, rien à déployer
-- **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks), MTGJSON (précons), Riftcodex (catalogue Riftbound), TCGCSV (prix Riftbound), BCE (taux de change), YGOPRODeck (catalogue Yu-Gi-Oh)
+- **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks), MTGJSON (précons), Riftcodex (catalogue Riftbound), TCGCSV (prix Riftbound et Yu-Gi-Oh), BCE (taux de change), YGOPRODeck (catalogue Yu-Gi-Oh)
 
 ## IV. Garde-Fous non négociables
 
@@ -69,6 +69,7 @@ cd api && .venv/Scripts/python -m app.ingestion.refresh            # Magic (--fo
 cd api && .venv/Scripts/python -m app.ingestion.riftcodex_ingest   # catalogue Riftbound
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_prices      # prix Riftbound (--force)
 cd api && .venv/Scripts/python -m app.ingestion.ygoprodeck_ingest  # catalogue Yu-Gi-Oh (--force)
+cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_yugioh_prices # prix Yu-Gi-Oh (--force)
 cd api && .venv/Scripts/python -m app.ingestion.topdeck_ingest --riftbound
 
 # Bot Twitch en lecture — tourne le temps d'un direct, rien à déployer

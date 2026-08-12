@@ -89,6 +89,43 @@ après correction : 2 801 résultats, soit exactement le nombre de magies.
 pas au catalogue : `card_prints` porte les impressions anglaises, et le français
 vit dans `card_search_names`, qui est fait pour ça.
 
+### Les prix : le piège du catalogue
+
+**La source cote ses cartes, et il a fallu refuser ses prix.** YGOPRODeck sert un
+`cardmarket_price` sur 96,6 % des cartes, en euros — de quoi croire qu'on ferait
+l'économie de TCGCSV et de la conversion BCE. Mesuré, le *Magicien Sombre* y
+vaut **0,02 €**, et le *Dragon Blanc aux Yeux Bleus* autant, quand leurs
+impressions se vendent de 7 à 74 $.
+
+Ce n'est pas un prix de marché : c'est le **plancher**, la plus basse annonce
+toutes impressions confondues. Sur les 12 352 impressions où les deux chiffres
+existent, le prix par impression vaut **20 fois** le prix par carte en médiane —
+et cet écart **ne dépend pas de la rareté** (18 pour les Common, 27 pour les
+Secret Rare), ce qui exclut l'explication naturelle. La règle du projet tranche :
+`marketPrice` et non `lowPrice`, faute de quoi les totaux de deux jeux ne se
+comparent plus.
+
+**Le rapprochement est un identifiant composite, pas une ressemblance.**
+Riftbound se lie par `tcgplayer_id` ; YGOPRODeck n'en sert aucun. Mais TCGplayer
+publie le numéro d'impression et la rareté, et le catalogue porte les mêmes :
+« LOB-005 · Ultra Rare » désigne une et une seule impression. Le catalogue écrit
+`LOB-EN005` là où TCGplayer écrit `LOB-005` — sans cette normalisation, **aucune**
+carte ne serait cotée, et l'échec serait muet.
+
+Mesuré sur douze extensions tirées au hasard : **79 % des produits TCGplayer**
+trouvent leur impression, et **99,7 % de celles-ci portent un prix de marché**.
+
+**Les éditions ne sont pas des finitions.** TCGplayer sépare `1st Edition`,
+`Unlimited` et `Limited` là où Magic sépare ordinaire et brillante. Le modèle
+n'en porte qu'une : `price_usd` reçoit l'édition courante — `Unlimited` d'abord,
+`1st Edition` à défaut —, et `price_usd_foil` reste vide. Écrire la première
+édition dans une colonne nommée « foil » ferait passer une édition rare pour une
+brillante, ce qu'aucun écran ne saurait détromper ; la retenir par défaut aurait
+gonflé la valeur d'une collection ordinaire d'un facteur quatre sur les cartes
+mesurées. La distinction 1re édition / illimitée n'est donc pas modélisée — perte
+réelle, du même ordre que les 493 impressions Riftbound cotées seulement en
+brillante, et écrite plutôt que tue.
+
 ### Le volume a changé une manière de faire
 
 C'est le seul endroit où ce jeu a demandé autre chose. Riftbound écrit ses 1 451
