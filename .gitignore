@@ -20,6 +20,12 @@ service-account*.json
 art_hashes.bin
 *.sqlite
 *.db
+# Tirage du banc de cadrage : des URL Scryfall et des empreintes, donc de la
+# donnée de source. Régénéré par `python -m app.measure.export_framing_set`.
+/app/tool/framing_set.json
+# Images du même banc, mises en cache pour ne pas retélécharger à chaque
+# exécution — ce que le débit demandé par Scryfall rend nécessaire.
+/app/tool/.framing_cache/
 
 # --- Python ------------------------------------------------------------------
 __pycache__/
