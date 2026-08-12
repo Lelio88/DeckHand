@@ -33,10 +33,24 @@ Deux différences avec Magic, toutes deux à notre avantage :
   cartes qu'il faut posséder ; elles sont donc fondues dans le pan principal, car
   c'est lui qui porte le calcul de complétion. La Légende est en outre retenue à
   part, pour occuper `decks.commander_oracle_id` comme le fait un commandant.
+
+**Yu-Gi-Oh passe par la même porte, et pose deux pièges qui font conclure à
+tort** — tous deux mesurés, aucun ne lève d'erreur :
+
+* **Le jeu s'écrit `Yu-Gi-Oh`, sans point d'exclamation.** Avec le point, l'API
+  rend `200` et une liste **vide** ; `Yugioh`, `YuGiOh` et `YGO` font de même. On
+  conclurait que la source ne couvre pas le jeu, alors qu'elle sert 396 tournois.
+* **Le format qui porte le nom du jeu ne porte pas son corpus.** `Advanced`, le
+  format de tournoi courant, n'a que 3 decklists sur 168 tournois ; 97 % du
+  corpus est dans les formats rétro (Edison 3 069, Goat 485, REDU 320, HAT 81).
+  C'est une bonne nouvelle et non un manque : un format rétro puise dans un pool
+  figé, donc des cartes disponibles et bon marché — le raisonnement même qui fait
+  du Pauper le format prioritaire de Magic.
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -47,12 +61,24 @@ API_ROOT = "https://topdeck.gg/api"
 GAME_MAGIC = "Magic: The Gathering"
 GAME_RIFTBOUND = "Riftbound"
 
+#: **Sans point d'exclamation.** `Yu-Gi-Oh!` rend `200` et zéro tournoi, en
+#: silence : l'erreur ne se voit pas, elle se déduit d'un corpus vide.
+GAME_YUGIOH = "Yu-Gi-Oh"
+
 USER_AGENT = "DeckHand/0.1 (https://github.com/Lelio88/DeckHand)"
 
 # Libellés de format tels que l'API les attend — sensibles à la casse.
 FORMAT_PAUPER = "Pauper"
 FORMAT_MODERN = "Modern"
 FORMAT_CONSTRUCTED = "Constructed"
+
+#: Formats Yu-Gi-Oh retenus, **classés par volume mesuré et non par notoriété**.
+#: Edison en tête comme Pauper l'est pour Magic. `Advanced` est écarté : trois
+#: decklists en un an n'emplissent pas un onglet.
+FORMAT_EDISON = "Edison"
+FORMAT_GOAT = "Goat"
+FORMAT_REDU = "REDU"
+FORMAT_HAT = "HAT"
 
 #: Zones d'un deck Riftbound qui désignent des cartes à posséder.
 #:
@@ -61,6 +87,70 @@ FORMAT_CONSTRUCTED = "Constructed"
 #: même si elle est aussi retenue à part pour `commander_oracle_id`.
 RIFTBOUND_MAIN_ZONES = ("Legend", "Champion", "Runes", "Battlefields", "Mainboard")
 RIFTBOUND_LEGEND_ZONE = "Legend"
+
+#: Zone technique présente dans tout `deckObj` Yu-Gi-Oh, sans carte à l'intérieur.
+YUGIOH_METADATA_ZONE = "metadata"
+
+
+def normalise_yugioh_zone(zone: str) -> str | None:
+    """`#main`, `Deck - 41 Cards`, `extra deck:15` -> `main` / `extra` / `side`.
+
+    **Les libellés de zone sont saisis à la main par les organisateurs**, et
+    lire les seuls `Deck` / `Extra` / `Side` coûte 305 decks sur 3 946 — 7,7 %
+    du corpus, dont les 265 listes qui écrivent `#main`, `!side` et `#extra`.
+    Ces decks-là n'auraient pas produit d'erreur : leur pan principal serait
+    resté vide, ils auraient été comptés « écartés, trop de cartes inconnues »,
+    et le corpus aurait paru simplement plus petit qu'il n'est.
+
+    La reconnaissance se fait sur les seules lettres, ce qui absorbe la
+    ponctuation décorative (`#`, `!`, `~~`), la casse et les décomptes collés au
+    libellé (`Main deck -41`). L'ordre des tests n'est pas indifférent :
+    `extra deck` et `side deck` contiennent tous deux « deck », qui désigne le
+    pan principal — les chercher d'abord évite de verser l'Extra dans le Main.
+
+    Une zone non reconnue rend `None` et sera ignorée : mieux vaut une zone
+    perdue qu'un Side compté dans la complétion.
+    """
+    letters = re.sub(r"[^a-z]", "", zone.lower())
+    if not letters or letters.startswith(YUGIOH_METADATA_ZONE):
+        return None
+    if "extra" in letters:
+        return "extra"
+    if "side" in letters:
+        return "side"
+    if "main" in letters or letters.startswith("deck") or "decklist" in letters:
+        return "main"
+    return None
+
+
+def yugioh_boards(deck_obj: dict[str, Any]) -> tuple[dict[str, int], dict[str, int]]:
+    """Aplatit un `deckObj` Yu-Gi-Oh en (principal, réserve), par passcode.
+
+    **L'Extra Deck est fondu dans le pan principal.** On ne joue pas sans lui :
+    l'omettre annoncerait constructible une liste dont quinze cartes manquent —
+    et il en porte quinze en médiane, autant que le Side. La réserve, elle, en
+    est exclue comme partout ailleurs.
+
+    La clé retenue est le **passcode** que porte chaque entrée, pas le nom qui
+    lui sert d'étiquette : c'est l'identifiant imprimé sur le carton, celui dont
+    le catalogue tire déjà l'identité des cartes, et il ne dépend d'aucune
+    langue. Une entrée sans passcode est ignorée plutôt que rabattue sur son
+    nom — mélanger deux sortes de clés dans un même dictionnaire produirait un
+    deck où certaines cartes se résolvent et d'autres non, sans que rien ne dise
+    laquelle.
+    """
+    main: dict[str, int] = {}
+    side: dict[str, int] = {}
+
+    for zone, raw in deck_obj.items():
+        target = normalise_yugioh_zone(zone)
+        if target is None:
+            continue
+        board = side if target == "side" else main
+        for code, quantity in _board(raw, by_code=True).items():
+            board[code] = board.get(code, 0) + quantity
+
+    return main, side
 
 
 class TopdeckError(RuntimeError):
@@ -202,6 +292,8 @@ def fetch_decks(
             legend: str | None = None
             if game == GAME_RIFTBOUND:
                 mainboard, sideboard, legend = riftbound_boards(deck_obj)
+            elif game == GAME_YUGIOH:
+                mainboard, sideboard = yugioh_boards(deck_obj)
             else:
                 mainboard = _board(deck_obj.get("Mainboard"))
                 sideboard = _board(deck_obj.get("Sideboard"))

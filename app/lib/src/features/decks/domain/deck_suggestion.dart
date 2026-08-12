@@ -13,7 +13,10 @@ enum DeckFormat {
   modern('modern', 'Modern'),
   commander('commander', 'Commander'),
   constructed('constructed', 'Construit'),
-  advanced('advanced', 'Advanced');
+  edison('edison', 'Edison'),
+  goat('goat', 'Goat'),
+  redu('redu', 'REDU'),
+  hat('hat', 'HAT');
 
   const DeckFormat(this.id, this.label);
 
@@ -29,16 +32,23 @@ const _magicFormats = [
 
 const _riftboundFormats = [DeckFormat.constructed];
 
-/// **Un seul format, et il est relevé et non inventé** : `Advanced` est le
-/// format de tournoi courant du jeu, et c'est sous ce nom que TopDeck.gg le
-/// sert. Les six autres qu'il expose — Edison, Goat, HAT, REDU, Genesys,
-/// Domain — sont des formats rétro, dont l'intérêt pour une collection
-/// ordinaire est réel mais dont le volume de listes reste à mesurer avant d'en
-/// proposer un onglet.
+/// **Quatre formats rétro, et pas le format courant du jeu.** Le premier jet
+/// déclarait `Advanced` — le format de tournoi actuel — sur la foi de son nom.
+/// Mesuré sur un an chez TopDeck.gg, il porte **3 decklists sur 168 tournois**,
+/// quand Edison en porte 3 069, Goat 485, REDU 320 et HAT 81 : 97 % du corpus
+/// est dans les formats rétro. L'onglet `Advanced` serait resté vide.
 ///
-/// Tant que le corpus n'est pas importé, cet onglet annonce « aucun deck ».
-/// C'est exact, et préférable à l'absence d'onglet : le jeu a bien un format.
-const _yugiohFormats = [DeckFormat.advanced];
+/// Ce n'est pas un pis-aller, c'est le meilleur cas pour ce produit : un format
+/// rétro puise dans un pool figé et ancien, donc des cartes disponibles et bon
+/// marché, là où un format courant demande les raretés récentes que personne ne
+/// possède par accident. Edison vient en tête pour la même raison que Pauper
+/// chez Magic — c'est là qu'une collection ordinaire produit des decks complets.
+const _yugiohFormats = [
+  DeckFormat.edison,
+  DeckFormat.goat,
+  DeckFormat.redu,
+  DeckFormat.hat,
+];
 
 /// Formats proposés pour un jeu.
 ///

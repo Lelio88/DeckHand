@@ -26,7 +26,7 @@ const _credits = <({String name, String url, String role})>[
   (
     name: 'TopDeck.gg',
     url: 'topdeck.gg',
-    role: 'Decklists de tournoi pour les formats 60 cartes',
+    role: 'Decklists de tournoi, pour les trois jeux',
   ),
   (name: 'MTGJSON', url: 'mtgjson.com', role: 'Decks préconstruits officiels'),
   (

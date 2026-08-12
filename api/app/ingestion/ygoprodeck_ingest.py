@@ -49,6 +49,7 @@ import hashlib
 import json
 import sys
 import time
+import urllib.error
 import urllib.request
 import uuid
 from typing import Any, Iterator
@@ -123,6 +124,36 @@ def fetch(lang: str | None = None) -> list[dict[str, Any]]:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=180) as response:
         return json.load(response)["data"]
+
+
+def fetch_names_by_passcode(passcodes: list[str]) -> dict[str, str]:
+    """Traduit des passcodes en noms canoniques, **en un seul appel**.
+
+    Sert un seul cas, celui des illustrations alternatives : une carte rééditée
+    reçoit un second passcode que le catalogue ne retient pas, et les decklists
+    le citent parfois. La source, elle, sait le reconnaître et rend la carte sous
+    son nom — qui se résout ensuite contre le catalogue, où zéro homonyme rend
+    l'opération sûre.
+
+    L'appel est groupé parce qu'il n'y a rien à gagner à le fractionner : les
+    passcodes inconnus se comptent en dizaines pour un import entier. La source
+    **ignore silencieusement** ceux qu'elle ne connaît pas — 11 sur 21 au dernier
+    relevé, de vraies inconnues — et rend `400` si elle n'en reconnaît aucun ;
+    les deux cas donnent une table vide, pas une erreur, car il ne s'agit que
+    d'un repli.
+    """
+    if not passcodes:
+        return {}
+
+    url = f"{BASE}?id={','.join(passcodes)}"
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            data = json.load(response).get("data") or []
+    except (urllib.error.URLError, json.JSONDecodeError, KeyError):
+        return {}
+
+    return {str(card["id"]): card["name"] for card in data if card.get("name")}
 
 
 def catalogue_version(cards: list[dict[str, Any]]) -> str:

@@ -88,7 +88,7 @@ DeckHand n'existe que grâce à ces services, qui ouvrent leurs données.
   identité couleur, prix et illustrations. DeckHand respecte leurs
   [directives d'API](https://scryfall.com/docs/api) : débit limité, `User-Agent` identifiant,
   exports groupés plutôt qu'appels unitaires.
-- **[TopDeck.gg](https://topdeck.gg)** — decklists de tournoi, pour les deux jeux.
+- **[TopDeck.gg](https://topdeck.gg)** — decklists de tournoi, pour les trois jeux.
 - **[MTGJSON](https://mtgjson.com)** — decks préconstruits officiels, sous licence MIT.
 - **[Riftcodex](https://riftcodex.com)** — catalogue des cartes Riftbound. Base communautaire
   non affiliée à Riot Games, qui ne publie pas de conditions d'usage : DeckHand lui applique

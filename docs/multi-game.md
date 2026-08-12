@@ -142,10 +142,98 @@ magician', 'yugioh')` rend les cinq Magiciens Sombres avec leurs lignes de type 
 français ; le filtre « Spell Card » sur « dragon » ne rend que des magies ; et la
 même requête en Magic ne rend aucune carte Yu-Gi-Oh — le cloisonnement tient.
 
-**Ce qui reste dû** : les prix (#26), le corpus de decks (#27), et l'index
-d'empreintes, sans lequel la reconnaissance par illustration n'a rien à
-interroger. Aucune carte Yu-Gi-Oh de papier n'a encore été photographiée — c'est
-le même verrou que Riftbound a mis longtemps à lever.
+### Le corpus de decks — le format qui porte le nom du jeu ne porte pas ses listes
+
+`api/app/ingestion/topdeck_ingest.py --yugioh` — **3 935 decks** en quatre
+formats, sur la fenêtre d'un an.
+
+**Deux pièges, et le premier fait conclure à tort.** Le jeu s'écrit `Yu-Gi-Oh`,
+**sans point d'exclamation** : avec le point, l'API rend `200` et une liste
+**vide**, sans erreur ni message — comme le font `Yugioh`, `YuGiOh` et `YGO`. On
+en conclurait que TopDeck.gg ne couvre pas le jeu, alors qu'il en sert 396
+tournois.
+
+Le second est que `Advanced`, le format de tournoi **courant**, n'a que **3
+decklists sur 168 tournois**. Le corpus est ailleurs :
+
+| Format | Tournois | Decklists |
+|---|---|---|
+| **Edison** | 186 | **3 069** |
+| **Goat** | 24 | **485** |
+| **REDU** | 11 | **320** |
+| **HAT** | 3 | **81** |
+| Advanced | 168 | 3 |
+
+C'est une bonne nouvelle et non un manque : un format rétro puise dans un pool
+**figé et ancien**, donc des cartes disponibles et bon marché, là où un format
+courant demande les raretés récentes que personne ne possède par accident. C'est
+le raisonnement même qui fait du Pauper le format prioritaire de Magic, et il
+vaut ici sans transposition. `deckFormatsFor(Game.yugioh)` rendait `Advanced`,
+déclaré **sur la foi du nom** ; il rend désormais Edison, Goat, REDU, HAT.
+
+**L'identité est celle du carton.** Chaque entrée d'une decklist porte le
+*passcode* à huit chiffres — celui dont le catalogue dérive déjà ses `oracle_id`.
+La résolution est donc un calcul, pas une recherche : **99,94 %** des citations
+se résolvent, et zéro homonyme rend l'opération sûre. Mesuré, la résolution par
+nom donne exactement le même taux ; le passcode l'emporte parce qu'il ne dépend
+d'aucune langue de saisie.
+
+**Trois défauts qui ne lèvent rien, tous mesurés** — le dernier ne concernant
+pas Yu-Gi-Oh mais découvert en l'accueillant :
+
+- **Les libellés de zone sont saisis à la main.** Lire les seuls `Deck`, `Extra`
+  et `Side` coûte **305 decks sur 3 946** — dont 265 qui écrivent `#main`,
+  `!side` et `#extra`, et quelques-uns `Deck - 41 Cards` ou `extra deck:15`. Rien
+  n'aurait échoué : leur pan principal serait resté vide, ils auraient été
+  comptés « écartés » et le corpus aurait paru plus petit. La normalisation ne
+  garde que les lettres, et cherche `extra` et `side` **avant** `deck` — les deux
+  contiennent « deck », et l'ordre inverse verserait l'Extra dans le principal.
+- **Une carte rééditée reçoit un second passcode.** Monster Reborn est `83764719`
+  au catalogue et `83764718` en illustration alternative ; les decklists citent
+  l'un ou l'autre. 21 cartes étaient introuvables — Monster Reborn, Cyber Dragon,
+  Foolish Burial, rien d'exotique —, touchant **97 decks sur 3 950**, dont 93
+  seraient passés sous le seuil de tolérance et auraient été enregistrés
+  **amputés**, donc annoncés plus complets qu'ils ne sont. Un appel groupé rend
+  leur nom canonique, qui se résout contre le catalogue ; 10 des 21 sont ainsi
+  récupérés, les 11 autres étant inconnus de la source elle-même.
+- **L'index de noms est partagé par les trois catalogues**, et **227 noms
+  normalisés sont portés par plusieurs jeux** : « Blizzard », « Backfire »,
+  « Change of Heart », « Apprenti sorcier ». L'import Magic chargeait l'index
+  entier — un deck citant l'un de ces noms recevait l'une ou l'autre carte selon
+  l'ordre des lignes rendues par la base. Aucun deck n'est touché : les listes
+  Magic ont été importées avant que la table ne soit partagée. `load_name_index`
+  prend désormais un jeu, et les deux appels le passent.
+
+**Le seuil vient du trou dans la distribution, pas des règles.** Les tailles
+observées sont : 1 carte (9 listes), puis **rien entre 2 et 37**, puis 38 (1),
+39 (4), 40 (2 326), 41 (1 112)… Le seuil se pose dans ce vide, à **30** : il
+écarte les listes enregistrées à moitié et garde les cinq decks à 38 ou 39
+cartes, que la règle des quarante aurait jetés sans rien gagner.
+
+**L'Extra Deck compte dans la complétion, le Side non.** On ne joue pas sans
+l'Extra, et il porte quinze cartes en médiane — autant que la réserve. Le mode du
+pan principal enregistré est donc **55 cartes** (40 + 15), sur 1 992 decks.
+
+`decks.format` accueille `edison`, `goat`, `redu` et `hat` (migration
+`20260812230000`). `DeckBlueprint.of` continue de rendre `null` : le corpus
+existe désormais, mais le gabarit reste à mesurer — le déclarer d'avance referait
+l'erreur que le choix du format a déjà coûtée à ce jeu.
+
+### Vérifié sous le rôle qui subira les règles (decks)
+
+Sous `authenticated`, `deck_suggestions(p_game => 'yugioh')` rend des decks pour
+les quatre formats, avec leur coût de complétion valorisé (16,20 € pour la
+première liste Edison). Aucune carte d'un autre jeu n'est entrée dans un deck
+Yu-Gi-Oh — vérifié par jointure, zéro ligne.
+
+**Le corpus et les prix se rejoignent** : 1 555 des 1 562 cartes citées par ces
+decks portent un prix, soit **99,6 %**. Le coût de complétion est donc chiffrable
+pour presque toute liste — c'est la promesse du produit, pas un chiffre
+d'agrément.
+
+**Ce qui reste dû** : l'index d'empreintes est plein, les prix et les decks sont
+en base ; il manque **une carte de papier**. Aucune carte Yu-Gi-Oh n'a encore été
+photographiée — c'est le même verrou que Riftbound a mis longtemps à lever.
 
 ---
 
@@ -382,7 +470,7 @@ dans l'application.
 | Élément | Nature du changement |
 |---|---|
 | `cards.oracle_id uuid PRIMARY KEY` | C'est l'identifiant **Scryfall**. Riftbound n'en a pas : des UUIDv5 déterministes sont dérivés du triplet nom + type + texte, de sorte qu'une réingestion retombe sur les mêmes clés |
-| `decks.format CHECK (… IN ('pauper','modern','commander'))` | **Non touchée** : les formats Riftbound ne sont pas connus, et une contrainte inventée d'avance vaut moins qu'une contrainte ajoutée quand la donnée existera |
+| `decks.format CHECK (…)` | **Élargie deux fois, jamais d'avance.** Elle n'a accueilli `constructed` (`20260815140000`) puis `edison`, `goat`, `redu`, `hat` (`20260812230000`) qu'une fois la donnée en main : chaque valeur vient d'un volume de decklists mesuré, non d'un nom de format lu quelque part |
 | `cards.legal_pauper / legal_modern / legal_commander` | Colonnes **générées**, donc figées dans la définition de table |
 | Les fonctions de lecture | `search_cards` prend un paramètre de jeu (`magic` par défaut). Les autres suivront quand l'application saura choisir un jeu |
 | L'application | **Reste à faire** : un choix de jeu, et sa propagation jusqu'aux écrans de collection et de decks |

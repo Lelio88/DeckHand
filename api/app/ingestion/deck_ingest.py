@@ -43,16 +43,33 @@ class IngestReport:
         return "\n".join(lines)
 
 
-def load_name_index(conn: psycopg.Connection) -> dict[str, str]:
+def load_name_index(
+    conn: psycopg.Connection, game: str | None = None
+) -> dict[str, str]:
     """Charge l'index nom normalisé -> oracle_id.
 
     Le catalogue tient largement en mémoire ; interroger la base une fois par
     carte de chaque decklist serait absurde.
+
+    **`game` borne l'index à un seul catalogue, et il faut le passer.** La table
+    est partagée par les trois jeux, et **227 noms normalisés sont portés par
+    plusieurs d'entre eux** — « Blizzard », « Backfire », « Change of Heart »,
+    « Apprenti sorcier ». Sans ce filtre, un deck reçoit l'une ou l'autre carte
+    selon l'ordre des lignes rendues par la base, et rien ne le signale : la
+    decklist se résout, le deck s'enregistre, et une carte d'un autre jeu y
+    dort. Le paramètre reste facultatif pour ne pas rompre l'appel des sources
+    qui fournissent un identifiant plutôt qu'un nom.
     """
+    query = "SELECT s.normalized, s.oracle_id::text FROM public.card_search_names s"
+    params: tuple = ()
+    if game is not None:
+        query += (
+            " JOIN public.cards c ON c.oracle_id = s.oracle_id WHERE c.game = %s"
+        )
+        params = (game,)
+
     with conn.cursor() as cur:
-        rows = cur.execute(
-            "SELECT normalized, oracle_id::text FROM public.card_search_names"
-        ).fetchall()
+        rows = cur.execute(query, params).fetchall()
     return {normalized: oracle_id for normalized, oracle_id in rows}
 
 

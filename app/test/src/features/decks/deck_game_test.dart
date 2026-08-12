@@ -57,7 +57,22 @@ void main() {
       DeckFormat.commander,
     ]);
     expect(deckFormatsFor(Game.riftbound), [DeckFormat.constructed]);
-    expect(deckFormatsFor(Game.yugioh), [DeckFormat.advanced]);
+    expect(deckFormatsFor(Game.yugioh), [
+      DeckFormat.edison,
+      DeckFormat.goat,
+      DeckFormat.redu,
+      DeckFormat.hat,
+    ]);
+  });
+
+  test('le format en tête est celui qui porte le corpus', () {
+    // **C'est l'onglet ouvert par défaut**, donc le seul que beaucoup verront.
+    // Le premier jet mettait `Advanced` en tête pour Yu-Gi-Oh sur la foi de son
+    // nom : mesuré, il portait 3 decklists contre 3 069 à Edison, et l'écran
+    // se serait ouvert vide. Pauper tient ce rôle chez Magic pour la même
+    // raison — c'est là qu'une collection ordinaire produit des decks complets.
+    expect(deckFormatsFor(Game.magic).first, DeckFormat.pauper);
+    expect(deckFormatsFor(Game.yugioh).first, DeckFormat.edison);
   });
 
   test('chaque jeu propose au moins un format', () {

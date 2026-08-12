@@ -158,3 +158,75 @@ class PrintCodeResolver(CardResolver):
             return None
         self._resolved_count += 1
         return oracle_id
+
+
+class PasscodeResolver(CardResolver):
+    """Variante pour les sources désignant les cartes par leur **passcode** — le
+    nombre à huit chiffres imprimé sur la carte elle-même.
+
+    C'est le cas des decklists Yu-Gi-Oh de TopDeck.gg, et c'est le meilleur des
+    trois cas possibles : le passcode est déjà l'identité dont le catalogue
+    dérive ses `oracle_id`, il ne dépend d'aucune langue, et il n'a pas d'homonyme
+    par construction. Mesuré sur les quatre formats retenus, il résout 99,94 %
+    des citations. La résolution est donc un **calcul** et non une recherche : nul
+    index de dizaines de milliers d'entrées à charger, seul l'ensemble des
+    identités connues sert à vérifier que la carte existe bien au catalogue.
+
+    **Le passcode cité n'est pas toujours celui du catalogue.** Une carte
+    rééditée avec une nouvelle illustration reçoit un second passcode, voisin du
+    premier — Monster Reborn est `83764719` au catalogue et `83764718` en
+    illustration alternative — et les decklists cite l'un ou l'autre. Le
+    catalogue ne retient que l'illustration principale : sans traduction, 21
+    cartes restaient introuvables, dont Monster Reborn, Cyber Dragon et Foolish
+    Burial. Ces cartes-là ne sont pas exotiques, elles sont partout : 97 decks
+    sur 3 950 en portaient une, et 93 auraient été enregistrés **amputés** en
+    passant sous le seuil de tolérance — donc annoncés plus complets qu'ils ne
+    sont, ce que ce produit ne peut pas se permettre.
+
+    D'où `aliases` : une table de traduction passcode -> `oracle_id`, construite
+    par l'appelant pour les seuls passcodes que le calcul n'a pas su résoudre.
+    """
+
+    def __init__(
+        self,
+        known_oracle_ids: set[str],
+        identity,
+        aliases: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__({})
+        self._known = known_oracle_ids
+        # Fonction passcode (int) -> identité de la carte. Injectée plutôt
+        # qu'importée : c'est le catalogue du jeu qui définit l'identité de ses
+        # cartes, ce module ne fait que s'en servir.
+        self._identity = identity
+        self._aliases = aliases or {}
+
+    def resolve(self, name: str) -> str | None:
+        """Le calcul fait autorité, la traduction n'est qu'un repli.
+
+        L'ordre importe même si les deux ne peuvent en principe pas se
+        contredire — la table n'est construite que sur les passcodes en échec.
+        C'est précisément pourquoi le catalogue passe en premier : un alias
+        erroné ne peut alors pas détourner une carte qui se résolvait bien.
+        """
+        code = (name or "").strip()
+        if not code:
+            return None
+
+        oracle_id: str | None = None
+        try:
+            candidate = str(self._identity(int(code)))
+        except (TypeError, ValueError):
+            candidate = None
+        if candidate is not None and candidate in self._known:
+            oracle_id = candidate
+
+        if oracle_id is None:
+            oracle_id = self._aliases.get(code)
+
+        if oracle_id is None:
+            self._unresolved[code] += 1
+            return None
+
+        self._resolved_count += 1
+        return oracle_id
