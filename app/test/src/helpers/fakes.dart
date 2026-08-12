@@ -118,6 +118,14 @@ class FakeCardRepository implements CardRepository {
   List<CardHit> results = const [];
   String? lastQuery;
 
+  /// Jeu reçu lors de la dernière interrogation, quelle qu'en soit la forme.
+  ///
+  /// **Ce qui s'observe ici est un câblage, pas un filtrage.** Le tri par jeu
+  /// est fait par le serveur ; ce qu'un test peut vérifier, c'est que le jeu
+  /// saisi lui parvienne. Mesuré sur le terrain : faute de le transmettre, une
+  /// carte Riftbound française se voyait répondre des cartes Magic.
+  Game? lastGame;
+
   /// Types demandes lors de la derniere recherche. Le filtrage est fait par le
   /// serveur : ce qui s'observe ici, c'est qu'il lui parvienne.
   List<String>? lastTypes;
@@ -130,6 +138,7 @@ class FakeCardRepository implements CardRepository {
     Iterable<String> types = const [],
   }) async {
     lastQuery = query;
+    lastGame = game;
     lastTypes = types.toList(growable: false);
     return query.trim().isEmpty ? const [] : results;
   }
@@ -150,6 +159,7 @@ class FakeCardRepository implements CardRepository {
     Game game = Game.magic,
   }) async {
     lastBulkQuery = names;
+    lastGame = game;
     if (searchError != null) throw searchError!;
     // La correspondance se fait sur le nom demandé, comme côté serveur : le
     // faux catalogue rend un résultat pour toute ligne qui porte le nom d'une

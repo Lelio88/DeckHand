@@ -243,6 +243,7 @@ class ScanService {
     try {
       results = await _cards.searchMany(
         candidates.map((c) => c.text).toList(growable: false),
+        game: game,
       );
     } catch (error) {
       diagnose('spread_search_failed', {
@@ -568,7 +569,7 @@ class ScanService {
     for (final name in names) {
       final List<CardHit> hits;
       try {
-        hits = await _cards.search(name, limit: limit);
+        hits = await _cards.search(name, limit: limit, game: game);
       } catch (_) {
         // Sans réseau, la lecture ne sert à rien : l'empreinte prend le relais.
         return const [];

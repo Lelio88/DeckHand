@@ -310,6 +310,45 @@ void main() {
       expect(outcome.frame?.game, 'riftbound');
     });
 
+    test('le catalogue est interrogé dans le jeu saisi', () async {
+      // **Mesuré sur une vraie carte, et c'est le journal qui l'a dit.** Une
+      // carte Riftbound française photographiée en mode Riftbound se voyait
+      // proposer « United Front » et « Arcaniste du Bûcher de gel » — deux
+      // cartes Magic. Le nom lu partait au catalogue sans son jeu, et le
+      // défaut du paramètre valait `magic` : la recherche interrogeait donc
+      // l'autre catalogue, où seul le hasard des scores décide.
+      final cards = FakeCardRepository();
+      final service = ScanService(
+        indexOf({'x': fakeCard(CardFrame.riftbound)}, CardFrame.riftbound),
+        FakeCardTextReader()
+          ..lines = [const ReadLine('Archer du Val gelé', 0.05, 0.04)],
+        cards,
+        game: Game.riftbound,
+      );
+
+      await service.recognise(
+        photoOf(fakeCard(CardFrame.riftbound)),
+        photoPath: '/p.png',
+      );
+
+      expect(cards.lastGame, Game.riftbound);
+    });
+
+    test("l'étalement interroge lui aussi le bon catalogue", () async {
+      final cards = FakeCardRepository();
+      final service = ScanService(
+        ArtHashIndex.fromEntries([]),
+        FakeCardTextReader()
+          ..lines = [const ReadLine('Icevale Archer', 0.10, 0.03)],
+        cards,
+        game: Game.riftbound,
+      );
+
+      await service.recogniseSpread('etalement.jpg');
+
+      expect(cards.lastGame, Game.riftbound);
+    });
+
     test('Magic reste le jeu par défaut', () async {
       final card = fakeCard(CardFrame.modern, seed: 13);
       final service = ScanService(
