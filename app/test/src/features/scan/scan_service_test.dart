@@ -14,7 +14,7 @@ import 'package:deckhand/src/features/scan/application/scan_service.dart';
 import 'package:deckhand/src/features/scan/domain/art_box.dart';
 import 'package:deckhand/src/features/scan/domain/art_hash.dart';
 import 'package:deckhand/src/features/scan/domain/art_hash_index.dart';
-import 'package:deckhand/src/features/scan/domain/card_framing.dart';
+import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
 import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,7 +24,9 @@ import '../../helpers/fakes.dart';
 
 /// Fausse carte : fond uni, illustration texturée dans la zone du gabarit.
 img.Image fakeCard(CardFrame frame, {int seed = 0, int width = 400}) {
-  final height = (width / cardAspectRatio).round();
+  // La fausse carte prend les proportions du jeu de son cadre : composer au
+  // format d'un autre jeu déplacerait la zone d'illustration sans le dire.
+  final height = (width / cardAspectFor(frame.game)).round();
   final card = img.Image(width: width, height: height);
   img.fill(card, color: img.ColorRgb8(28, 28, 34));
 

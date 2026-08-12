@@ -39,6 +39,7 @@ from PIL import Image
 
 from app.config import SupabaseConfig
 from app.vision.card_bounds import find_card, sample_art
+from app.vision.card_geometry import card_aspect_for
 from app.vision.dhash import dhash, from_signed_64, hamming_distance
 
 USER_AGENT = "DeckHand/0.1 (https://github.com/Lelio88/DeckHand)"
@@ -48,8 +49,10 @@ USER_AGENT = "DeckHand/0.1 (https://github.com/Lelio88/DeckHand)"
 #: reconnaît rien.
 CONFIDENCE = 12
 
-#: Proportions d'une carte Magic, 63 × 88 mm. Jumeau de `card_framing.dart`.
-CARD_ASPECT = 63 / 88
+#: Proportions de la carte que ce banc compose. Il tire des cartes Magic ; le
+#: rapport vient donc de `card_geometry.py`, seule source de cette valeur depuis
+#: qu'elle dépend du jeu.
+CARD_ASPECT = card_aspect_for("magic")
 
 #: Gabarit du cadre moderne, jumeau de `art_box.dart`. Le cadre ancien existe
 #: aussi ; le banc s'en tient au moderne, qui couvre les cartes tirées ici.

@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../config/selected_game.dart';
 import '../../../diagnostics/diagnostics.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
@@ -67,6 +68,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             toolbarWidgetColor: theme.colorScheme.onSurface,
             webContext: context,
             crop: crop,
+            game: ref.read(selectedGameProvider).id,
           );
       // Abandon à la prise de vue ou au recadrage : rien à signaler.
       if (photo == null) {

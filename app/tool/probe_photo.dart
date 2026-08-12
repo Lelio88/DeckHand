@@ -27,6 +27,7 @@ import 'dart:io';
 import 'package:deckhand/src/features/scan/domain/art_box.dart';
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
 import 'package:deckhand/src/features/scan/domain/card_framing.dart';
+import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
 import 'package:image/image.dart' as img;
 
 void main(List<String> args) {
@@ -89,7 +90,7 @@ void main(List<String> args) {
   } else {
     stdout.writeln(
       'coins   détectés, rapport ${quad.aspect.toStringAsFixed(3)} '
-      '(carte : ${cardAspect.toStringAsFixed(3)})',
+      '(carte : ${cardAspectFor(game).toStringAsFixed(3)})',
     );
     stdout.writeln(
       '        haut-gauche (${quad.topLeft.x.round()}, ${quad.topLeft.y.round()})'

@@ -25,6 +25,18 @@ qu'on ne cherche pas dans l'index d'un jeu une empreinte découpée au cadre de
 l'autre — une carte reste alors introuvable pour une raison qui n'a rien à voir
 avec la qualité du gabarit, ce qui est le pire des diagnostics.
 
+**Et il décide aussi du format du carton.** Le rapport largeur sur hauteur était
+écrit en dur neuf fois, toujours à 63 × 88 mm : invisible tant que les deux jeux
+couverts impriment sur le même carton — Riftbound y compris, à un millième près.
+Il est désormais une propriété du jeu (`card_geometry.dart`, jumelé côté Python,
+parité verrouillée par un test qui relit le fichier Dart). Ce n'est pas le
+contrôle d'aspect qui était en jeu, sa tolérance étant vingt fois plus large que
+l'écart attendu, mais le **cadrage de repli** et le **cadre imposé à
+l'utilisateur** — les deux endroits sans tolérance, détaillés dans
+[`architecture.md`](./architecture.md) § « Le format d'une carte dépend du
+jeu ». C'est le préalable de tout jeu qui n'imprime pas en 63 × 88, à commencer
+par Yu-Gi-Oh.
+
 **Le gabarit vertical est éprouvé sur une carte de papier.** C'est ce que #4 et
 #5 attendaient, et la réponse est bonne : photographiée à main levée sur une
 table éclairée de côté, une carte française (*Archer du Val gelé*, UNL 65) place

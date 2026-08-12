@@ -579,9 +579,19 @@ class ScanService {
     // reconnue à partir d'un cadrage ordinaire. La détection ramène ce chiffre à
     // 37 sur 40 — et quand elle renonce, on retombe exactement sur l'ancien
     // comportement, jamais sur pire.
+    //
+    // **Le jeu va aux trois, pas à deux sur trois.** Il partait bien à la
+    // détection et aux gabarits, mais pas au cadrage de repli, qui découpait
+    // donc au format d'une carte Magic quel que soit le jeu saisi — puis se
+    // voyait appliquer le bon gabarit d'illustration. Sans conséquence tant que
+    // les deux jeux couverts partagent le même carton ; muet et faux dès qu'un
+    // jeu imprime autrement, puisque l'empreinte reste plausible.
     final quad = findCard(decoded, game: game.id);
     final candidates = quad == null
-        ? artHashCandidates(cropToCardFrame(decoded), game: game.id)
+        ? artHashCandidates(
+            cropToCardFrame(decoded, game: game.id),
+            game: game.id,
+          )
         : artHashCandidatesInQuad(decoded, quad, game: game.id);
     final outcome = _index.searchAny(candidates, limit: limit);
     _diagnoseArt(outcome, framed: quad != null, candidates: candidates);

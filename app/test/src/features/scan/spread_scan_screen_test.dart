@@ -82,6 +82,7 @@ class _FakePhotoSource implements PhotoSource {
     required Color toolbarWidgetColor,
     BuildContext? webContext,
     bool crop = false,
+    String game = 'magic',
   }) async => CapturedPhoto(bytes: Uint8List(0), path: 'etalement.jpg');
 }
 

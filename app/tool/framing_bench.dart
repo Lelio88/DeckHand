@@ -46,6 +46,7 @@ import 'package:deckhand/src/features/scan/domain/art_box.dart';
 import 'package:deckhand/src/features/scan/domain/art_hash.dart';
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
 import 'package:deckhand/src/features/scan/domain/card_framing.dart';
+import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
 import 'package:image/image.dart' as img;
 
 /// Seuil de confiance du scan, en bits. Au-delà, la carte est « perdue » : ce
@@ -153,6 +154,11 @@ Future<void> main(List<String> args) async {
     // qui permet de mesurer les cartes couchées, que le banc ignorait.
     final frame = _frameOf(entry);
     final couchee = frame == CardFrame.riftboundWide;
+    final game = entry['game'] as String? ?? 'magic';
+    // La carte synthétique est découpée aux proportions du jeu tiré, et non à
+    // celles de Magic : composer une carte au mauvais format mesurerait la
+    // détection sur un objet qui n'existe pas.
+    final aspect = cardAspectFor(game);
 
     for (final shot in regimes) {
       // Une graine par (carte, régime) : le grain de la table et le tirage sont
@@ -163,14 +169,13 @@ Future<void> main(List<String> args) async {
         shot,
         math.Random(20260810 + i * 17),
         couchee: couchee,
+        aspect: aspect,
       );
-      final quad = centered
-          ? null
-          : findCard(photo, game: entry['game'] as String? ?? 'magic');
+      final quad = centered ? null : findCard(photo, game: game);
       final img.Image art;
       if (quad == null) {
         if (!centered) gaveUp++;
-        art = cropArt(cropToCardFrame(photo), frame);
+        art = cropArt(cropToCardFrame(photo, game: game), frame);
       } else {
         art = sampleArt(photo, quad, frame.box);
       }
@@ -270,12 +275,13 @@ img.Image _compose(
   Shot shot,
   math.Random rng, {
   bool couchee = false,
+  double aspect = defaultCardAspect,
 }) {
   // Le grand côté fixe la taille, quelle que soit l'orientation : une carte
   // couchée occupe la même surface qu'une carte debout, elle est seulement
   // tournée d'un quart de tour.
   const long = 900;
-  final court = (long * cardAspectRatio).round();
+  final court = (long * aspect).round();
   final cardWidth = couchee ? long : court;
   final cardHeight = couchee ? court : long;
   var card = img.copyResize(
@@ -305,7 +311,7 @@ img.Image _compose(
   }
 
   final dx = (cardWidth * shot.offset).round();
-  final dy = (cardHeight * shot.offset * cardAspectRatio).round();
+  final dy = (cardHeight * shot.offset * aspect).round();
   img.compositeImage(
     photo,
     card,

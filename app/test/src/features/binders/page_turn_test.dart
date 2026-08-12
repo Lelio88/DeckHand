@@ -17,6 +17,7 @@ library;
 import 'dart:math' as math;
 
 import 'package:deckhand/src/features/binders/presentation/page_turn.dart';
+import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -32,6 +33,7 @@ Future<List<int>> pumpTurner(
         body: PageTurner(
           page: page,
           pageCount: pageCount,
+          cardAspect: cardAspectFor('magic'),
           onTurned: turned.add,
           builder: (context, p) => ColoredBox(
             color: Colors.white,

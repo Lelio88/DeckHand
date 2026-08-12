@@ -537,7 +537,7 @@ Trois choses donnent le relief et ne peuvent rien casser : un **reflet** qui bal
 
 **La feuille entière tient à l'écran.** Un rapport figé à 0,716 — la proportion d'une carte — débordait en hauteur et coupait la troisième rangée. Une feuille de classeur ne défile pas, elle se tourne : c'est donc la grille qui s'adapte à la place disponible, quitte à laisser de l'air sur les côtés. Dans le même but, les six puces de tri et de finition ont laissé place à **deux menus** sur une seule ligne, et la glissière permanente a disparu — elle coûtait la hauteur d'une rangée pour un geste rare. Traverser les 51 feuilles reste possible en touchant « Page 3 sur 51 ».
 
-**Le cadre de l'agrandissement épouse la carte, pas l'écran.** Sans rapport imposé, le reflet des brillantes couvrait toute la boîte de dialogue : la carte flottait au milieu d'un rectangle irisé. Le rapport 63 × 88 — celui d'une carte — borne le reflet à ce qu'il qualifie.
+**Le cadre de l'agrandissement épouse la carte, pas l'écran.** Sans rapport imposé, le reflet des brillantes couvrait toute la boîte de dialogue : la carte flottait au milieu d'un rectangle irisé. Le rapport d'une carte du jeu affiché borne le reflet à ce qu'il qualifie.
 
 **L'appui long montre la carte en grand.** À trois par ligne, le texte imprimé est illisible — c'est assumé, on reconnaît l'image — mais lire une carte reste parfois nécessaire. Le reflet suit la carte agrandie : c'est le moment où l'on regarde vraiment l'exemplaire qu'on possède.
 
@@ -673,6 +673,61 @@ des deux, et c'est lui qui est retenu.
 Cette exigence n'était pas visible dans les mesures antérieures (100 % de reconnaissance, 0 faux positif) parce qu'elles partaient des `art_crop` de Scryfall, c'est-à-dire d'illustrations déjà découpées au pixel près. **Le protocole validait le comparateur d'empreintes, jamais la chaîne photo → illustration.**
 
 Conséquence doctrinale : le cadrage guidé ne remplace pas la détection des bords de la carte. La note « la détection de contours ne devient nécessaire qu'au jalon 3 » est invalidée — elle l'est dès le jalon 2.
+
+### Le format d'une carte dépend du jeu
+
+Ce rapport était écrit **en dur, neuf fois**, toujours à la même valeur : celle
+d'une carte Magic, 63 × 88 mm. Rien ne le signalait, et rien ne pouvait le
+signaler, puisque les deux jeux couverts impriment sur le même carton — Riftbound
+compris, dont une carte debout mesure 744 × 1039 au catalogue, soit 0,7160 contre
+0,7159 pour le carton. `card_geometry.dart` porte désormais la table, jumelée à
+`api/app/vision/card_geometry.py`.
+
+**Ce n'est pas le contrôle d'aspect qui était en danger.** `aspectTolerance` vaut
+0,30 ; un jeu qui s'écarterait de 4 % passerait sans encombre. Le point sensible
+est ailleurs, en deux endroits qui n'ont, eux, aucune tolérance :
+
+- **le repli du scan.** `scan_service.dart` transmettait le jeu à `findCard` et à
+  `artHashCandidates`, mais pas à `cropToCardFrame` — le découpage centré sur
+  lequel on retombe quand la détection renonce, soit 14 photos sur 320 au banc.
+  La photo aurait donc été découpée au format Magic, puis le gabarit
+  d'illustration du bon jeu appliqué à ce découpage faux ;
+- **le cadre imposé à l'utilisateur.** `photo_source.dart` verrouille le
+  recadrage guidé aux proportions d'une carte, et c'est ce cadre que l'empreinte
+  lit. Or [`multi-game.md`](./multi-game.md) fait de ce recadrage une obligation
+  pour Riftbound, l'illustration y primant sur le nom.
+
+Dans les deux cas l'échec ne s'annonce pas : l'empreinte reste plausible, et la
+reconnaissance rend une mauvaise carte ou aucune sans que rien n'explique
+pourquoi. C'est le mode de défaillance que tout ce chapitre existe pour éviter.
+
+**La parité Dart ↔ Python est verrouillée mécaniquement**, et c'est nouveau.
+`api/tests/test_card_geometry.py` **relit le fichier Dart** et compare les deux
+tables, clé par clé et valeur par valeur. Un test qui recopierait les valeurs à
+la main ne verrouillerait rien : il divergerait en même temps que le module qu'il
+surveille. L'intention figurait de longue date dans `art_box.py` — « `test_art_box.py`
+verrouille cette parité en relisant les valeurs du fichier Dart » — sans qu'aucun
+fichier ne la porte.
+
+**Ajouter un jeu sans ses proportions retombe sur celles de Magic**, et c'est
+délibéré : refuser de scanner serait pire que scanner de travers. Ce sont deux
+tests qui empêchent d'y arriver par accident — l'un vérifie que tout jeu déclaré
+dans `Game` figure dans la table, l'autre que les deux tables se correspondent.
+
+**Vérifié inchangé, au banc et non par raisonnement.** Après le chantier, les
+mêmes 40 cartes × 8 régimes rendent exactement les chiffres publiés plus haut :
+14 abandons, 181 reconnues sur les 200 photos sans lampe, 110 sur les 120 à
+lampe. La valeur retenue étant la même expression littérale, l'invariance était
+attendue — la mesurer coûte trois minutes et la transforme en fait.
+
+**Le tirage couché n'a pas pu être rejoué, pour une raison étrangère au code.**
+`_cardImage` télécharge via `HttpClient` de `dart:io`, qui ne pose **aucun délai
+d'expiration** et n'implémente pas de bascule IPv4 : le CDN qui sert les
+illustrations Riftbound publie des adresses IPv6 que ce poste ne route pas, et le
+banc attend indéfiniment là où `curl` répond en une demi-seconde. Le tirage Magic
+échappe au défaut parce que ses quarante images sont déjà en cache local. C'est
+une dette à part — un banc qui pend sans rien dire est un banc qu'on cesse de
+lancer.
 
 ### Étalement : distinguer un nom d'un texte de règles
 
@@ -1320,7 +1375,7 @@ Trois dialogues d'aperçu coexistaient, avec **deux contenus** et **trois façon
 
 **Taper la carte referme, partout.** Le classeur enseignait ce réflexe ; ailleurs il ne produisait rien, et la zone de sortie se réduisait aux douze pixels de marge autour d'une image qui remplit l'écran. Le geste est capté sur le cadre entier, si bien que le chargement et les messages d'absence se referment de la même façon.
 
-**Le cadre épouse la carte** (63 × 88) et le reflet de diffraction suit la finition choisie : sans ce rapport, le reflet d'une brillante couvrait toute la boîte de dialogue.
+**Le cadre épouse la carte** — aux proportions du jeu affiché — et le reflet de diffraction suit la finition choisie : sans ce rapport, le reflet d'une brillante couvrait toute la boîte de dialogue.
 
 ### Les images de cartes tiennent sur l'appareil
 

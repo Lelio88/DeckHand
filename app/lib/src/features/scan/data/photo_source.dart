@@ -33,6 +33,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../domain/card_geometry.dart';
+
 /// Photo cadrée, sous ses deux formes.
 ///
 /// Les octets alimentent le calcul d'empreinte, le chemin la lecture du texte —
@@ -44,9 +46,12 @@ class CapturedPhoto {
   final String path;
 }
 
-/// Proportions d'une carte Magic : 63 × 88 mm.
-const _cardRatioX = 63.0;
-const _cardRatioY = 88.0;
+/// Hauteur de référence du cadre de recadrage.
+///
+/// Le paquet de recadrage attend deux nombres plutôt qu'un rapport ; on fixe
+/// donc la hauteur et on en déduit la largeur, ce qui revient au même et évite
+/// de garder ici une seconde écriture des proportions d'une carte.
+const _cropFrameHeight = 88.0;
 
 class PhotoSource {
   const PhotoSource();
@@ -58,12 +63,18 @@ class PhotoSource {
   /// [webContext] n'est utilisé que par la variante web du paquet de recadrage,
   /// qui exige un `BuildContext` pour afficher sa boîte de dialogue. Ailleurs il
   /// reste nul, et aucune couche de données ne dépend de l'arbre de widgets.
+  /// [game] décide des proportions du cadre imposé à l'utilisateur. **Ce n'est
+  /// pas un détail d'affichage** : ce cadre est ce que l'empreinte lira, et un
+  /// rapport emprunté à un autre jeu déplacerait la zone d'illustration
+  /// exactement comme le ferait un cadrage de travers. La reconnaissance
+  /// échouerait sans que rien ne l'explique.
   Future<CapturedPhoto?> capture({
     required ImageSource source,
     required Color toolbarColor,
     required Color toolbarWidgetColor,
     BuildContext? webContext,
     bool crop = false,
+    String game = 'magic',
   }) async {
     final picked = await ImagePicker().pickImage(
       source: source,
@@ -83,9 +94,9 @@ class PhotoSource {
 
     final cropped = await ImageCropper().cropImage(
       sourcePath: picked.path,
-      aspectRatio: const CropAspectRatio(
-        ratioX: _cardRatioX,
-        ratioY: _cardRatioY,
+      aspectRatio: CropAspectRatio(
+        ratioX: _cropFrameHeight * cardAspectFor(game),
+        ratioY: _cropFrameHeight,
       ),
       compressFormat: ImageCompressFormat.png,
       uiSettings: [

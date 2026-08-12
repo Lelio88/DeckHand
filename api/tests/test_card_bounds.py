@@ -10,7 +10,11 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from app.vision.card_bounds import CARD_ASPECT, find_card, sample_art
+from app.vision.card_bounds import find_card, sample_art
+from app.vision.card_geometry import card_aspect_for
+
+#: Le banc compose des cartes Magic ; le rapport attendu est donc le sien.
+CARD_ASPECT = card_aspect_for("magic")
 
 ART_BOX = (0.080, 0.120, 0.920, 0.550)
 

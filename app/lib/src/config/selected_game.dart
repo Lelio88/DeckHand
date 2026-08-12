@@ -14,6 +14,8 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/scan/domain/card_geometry.dart';
+
 /// Jeux couverts.
 ///
 /// L'identifiant est celui de la colonne `cards.game` : il part tel quel dans
@@ -26,6 +28,16 @@ enum Game {
 
   final String id;
   final String label;
+
+  /// Rapport largeur sur hauteur d'une carte de ce jeu.
+  ///
+  /// **Rendu ici pour que les vues n'aient pas à connaître le domaine du
+  /// scan.** La valeur y est définie — c'est là qu'elle décide de quelque
+  /// chose —, mais le classeur et l'aperçu d'une impression en ont besoin
+  /// aussi : leurs cases ont les proportions d'une carte du jeu affiché, et
+  /// elles écrivaient jusqu'ici `0.716` en clair, une décision que même une
+  /// recherche ne retrouvait pas.
+  double get aspect => cardAspectFor(id);
 
   static Game fromId(String? id) =>
       Game.values.firstWhere((g) => g.id == id, orElse: () => Game.magic);

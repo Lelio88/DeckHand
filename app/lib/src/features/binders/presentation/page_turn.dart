@@ -169,11 +169,25 @@ class PageTurner extends StatefulWidget {
     required this.pageCount,
     required this.builder,
     required this.onTurned,
+    required this.cardAspect,
     this.facingBuilder,
   });
 
   final int page;
   final int pageCount;
+
+  /// Proportions d'une case, pour le **verso** des feuilles.
+  ///
+  /// **Reçu plutôt que lu dans un fournisseur d'état**, et c'est délibéré : ce
+  /// fichier est une brique d'animation qui n'importe ni Riverpod ni rien du
+  /// domaine, et lui faire connaître le jeu saisi le coupleraient au produit
+  /// pour la seule forme de neuf pochettes vides. Une donnée de géométrie
+  /// entre ; un jeu, non.
+  ///
+  /// **Exigé, faute de valeur par défaut défendable.** Un défaut serait une
+  /// neuvième écriture du format d'une carte Magic, exactement ce que ce
+  /// chantier a supprimé partout ailleurs.
+  final double cardAspect;
 
   /// La face qui se rabat quand on avance — la page de droite.
   final PageBuilder builder;
@@ -332,7 +346,7 @@ class _PageTurnerState extends State<PageTurner>
                           mirrored: !forward,
                           child: turning(context, widget.page),
                         ),
-                        back: const _SheetBack(),
+                        back: _SheetBack(cardAspect: widget.cardAspect),
                       ),
                     ],
                   ),
@@ -401,7 +415,9 @@ class _Mirrored extends StatelessWidget {
 /// n'y est chargée : le verso ne coûte donc rien, alors qu'y remettre une page
 /// entière doublerait les neuf cartes d'une feuille en mouvement.
 class _SheetBack extends StatelessWidget {
-  const _SheetBack();
+  const _SheetBack({required this.cardAspect});
+
+  final double cardAspect;
 
   @override
   Widget build(BuildContext context) {
@@ -413,7 +429,7 @@ class _SheetBack extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: GridView.count(
           crossAxisCount: 3,
-          childAspectRatio: 0.716,
+          childAspectRatio: cardAspect,
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
           physics: const NeverScrollableScrollPhysics(),

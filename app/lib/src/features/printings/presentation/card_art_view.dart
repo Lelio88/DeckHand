@@ -26,9 +26,10 @@
 /// marge seule ne suffisait pas — à douze pixels d'écart, la zone de sortie
 /// était de quelques pixels sur une carte qui remplit le cadre.
 ///
-/// **Le cadre épouse la carte, pas l'écran.** Une carte fait 63 × 88 mm : sans
-/// ce rapport, le reflet d'une brillante couvrait toute la boîte de dialogue et
-/// la carte flottait au milieu d'un rectangle irisé.
+/// **Le cadre épouse la carte, pas l'écran.** Sans ce rapport, le reflet d'une
+/// brillante couvrait toute la boîte de dialogue et la carte flottait au milieu
+/// d'un rectangle irisé. Le rapport vient du **jeu affiché** : il valait 63 × 88
+/// en dur, ce qui n'est vrai que des deux premiers jeux couverts.
 ///
 /// **L'illustration se charge à la demande, jamais d'avance.** Une liste de
 /// vingt cartes dictées déclencherait vingt requêtes vers Scryfall pour des
@@ -38,13 +39,11 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../common/card_image.dart';
+import '../../../config/selected_game.dart';
 
 import '../data/printing_repository.dart';
 import '../domain/scryfall_image.dart';
 import 'foil_decoration.dart';
-
-/// Rapport d'une vraie carte : 63 × 88 mm.
-const double _cardAspectRatio = 63 / 88;
 
 const BorderRadius _cardRadius = BorderRadius.all(Radius.circular(14));
 
@@ -158,7 +157,11 @@ class _CardArtDialog extends ConsumerWidget {
 }
 
 /// La carte, aussi grande que l'écran le permet.
-class _Preview extends StatelessWidget {
+///
+/// **Consommateur pour une seule raison** : l'aperçu a les proportions d'une
+/// carte du jeu affiché, et elles étaient écrites en dur ici. Une carte n'a pas
+/// le même format d'un jeu à l'autre — voir `card_geometry.dart`.
+class _Preview extends ConsumerWidget {
   const _Preview({required this.url, required this.title, required this.foil});
 
   final String? url;
@@ -166,7 +169,7 @@ class _Preview extends StatelessWidget {
   final bool foil;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
     if (url == null) {
@@ -180,7 +183,7 @@ class _Preview extends StatelessWidget {
         children: [
           Flexible(
             child: AspectRatio(
-              aspectRatio: _cardAspectRatio,
+              aspectRatio: ref.watch(selectedGameProvider).aspect,
               child: ClipRRect(
                 borderRadius: _cardRadius,
                 // **Le reflet suit la carte.** Une brillante vue en grand doit

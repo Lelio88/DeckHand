@@ -15,6 +15,7 @@ library;
 import 'dart:math' as math;
 
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
+import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
@@ -285,7 +286,7 @@ void main() {
       expect(quad, isNotNull);
       expect(quad!.topLeft.x.round(), 90);
       expect(quad.topLeft.y.round(), 70);
-      expect(quad.aspect, closeTo(1 / cardAspect, 0.02));
+      expect(quad.aspect, closeTo(1 / cardAspectFor('riftbound'), 0.02));
     });
 
     test('ouvrir le travers ne retire rien au debout', () {

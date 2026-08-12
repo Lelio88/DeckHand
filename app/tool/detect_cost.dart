@@ -27,6 +27,7 @@ library;
 import 'dart:io';
 
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
+import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
 import 'package:image/image.dart' as img;
 
 /// Résolutions servies par le paquet `camera`, de l'aperçu au cliché.
@@ -86,7 +87,7 @@ img.Image _scene(int width, int height) {
     }
   }
   final cardHeight = (height * 0.6).round();
-  final cardWidth = (cardHeight * 63 / 88).round();
+  final cardWidth = (cardHeight * cardAspectFor('magic')).round();
   final card = img.Image(width: cardWidth, height: cardHeight);
   img.fill(card, color: img.ColorRgb8(20, 18, 24));
   final art = img.Image(

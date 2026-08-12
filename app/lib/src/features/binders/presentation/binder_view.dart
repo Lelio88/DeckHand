@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../config/selected_game.dart';
 import '../../../common/card_image.dart';
 import '../../../common/state_message.dart';
 import '../../collection/data/collection_repository.dart';
@@ -658,10 +659,9 @@ class _UnsortedCardTile extends ConsumerWidget {
   }
 }
 
-/// Marge d'une feuille, écart entre deux cases, proportion d'une carte.
+/// Marge d'une feuille et écart entre deux cases.
 const _facePadding = 12.0;
 const _cellSpacing = 8.0;
-const _cardRatio = 0.716;
 
 /// Largeur qu'une face de neuf cases occupe naturellement à cette hauteur.
 ///
@@ -670,10 +670,14 @@ const _cardRatio = 0.716;
 /// largeur suit. Sans cela, la double page s'écartait aux deux bords d'un écran
 /// couché en laissant deux cent soixante points de vide au milieu — deux
 /// colonnes isolées, et plus rien qui ressemble à un classeur ouvert.
-double binderFaceWidth(double height) {
+///
+/// [cardAspect] vient du jeu affiché. Il valait `0.716` en clair — la même
+/// décision que celle du scan, écrite sous une forme qu'une recherche ne
+/// retrouvait même pas.
+double binderFaceWidth(double height, double cardAspect) {
   final cellHeight = (height - _facePadding * 2 - _cellSpacing * 2) / 3;
   if (cellHeight <= 0) return 0;
-  return cellHeight * _cardRatio * 3 + _cellSpacing * 2 + _facePadding * 2;
+  return cellHeight * cardAspect * 3 + _cellSpacing * 2 + _facePadding * 2;
 }
 
 /// Numéro de la page de gauche de la double page qui contient [page].
@@ -840,6 +844,7 @@ class _Binder extends ConsumerWidget {
                     // composant compte en feuilles, la collection en faces.
                     page: spread ? (left + 1) ~/ 2 : page,
                     pageCount: spread ? (pages + 1) ~/ 2 : pages,
+                    cardAspect: ref.watch(selectedGameProvider).aspect,
                     onTurned: (p) => ref
                         .read(binderPageNumberProvider.notifier)
                         .set(spread ? (p * 2 - 1).clamp(1, pages) : p),
@@ -885,7 +890,11 @@ class _Binder extends ConsumerWidget {
             SizedBox(
               width: math.min(
                 constraints.maxWidth,
-                binderFaceWidth(constraints.maxHeight) * 2,
+                binderFaceWidth(
+                      constraints.maxHeight,
+                      ref.watch(selectedGameProvider).aspect,
+                    ) *
+                    2,
               ),
               child: sheet,
             ),
@@ -1043,7 +1052,7 @@ class _PageFace extends ConsumerWidget {
               // Une case ne dépasse jamais la proportion d'une carte : au-delà,
               // l'image serait rognée sur les côtés au lieu de l'être en bas.
               const spacing = _cellSpacing;
-              const cardRatio = _cardRatio;
+              final cardRatio = ref.watch(selectedGameProvider).aspect;
 
               // **La feuille se règle sur la plus contraignante des deux
               // dimensions.** En portrait c'est la largeur, et la grille

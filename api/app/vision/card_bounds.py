@@ -44,14 +44,12 @@ import numpy as np
 from PIL import Image
 
 from app.vision.art_box import GAMES_WITH_LANDSCAPE
+from app.vision.card_geometry import card_aspect_for
 
 #: Largeur à laquelle l'analyse travaille. La carte reste largement assez grande
 #: pour que ses bords soient nets, et le coût du parcours de composantes — le
 #: seul point coûteux — est divisé par quatre par rapport à une photo entière.
 ANALYSIS_WIDTH = 400
-
-#: Proportions d'une carte Magic, 63 × 88 mm.
-CARD_ASPECT = 63 / 88
 
 #: Une carte occupe au moins cette fraction de la photo. En deçà, ce qu'on a
 #: trouvé est une tache sur la table, pas une carte : mieux vaut renoncer et
@@ -136,13 +134,18 @@ def _has_card_aspect(aspect: float, game: str) -> bool:
     connu de ce module est justement le quadrilatère faux qui franchit le
     contrôle d'aspect.
 
+    **Le rapport attendu vient du jeu**, et non d'une constante du module : les
+    deux jeux couverts impriment en 63 × 88 mm, le suivant n'imprimera pas au
+    même format. Voir `card_geometry.py`.
+
     Jumeau de `_hasCardAspect`.
     """
-    if abs(aspect - CARD_ASPECT) <= ASPECT_TOLERANCE:
+    debout = card_aspect_for(game)
+    if abs(aspect - debout) <= ASPECT_TOLERANCE:
         return True
     if game not in GAMES_WITH_LANDSCAPE:
         return False
-    return abs(aspect - 1 / CARD_ASPECT) <= ASPECT_TOLERANCE
+    return abs(aspect - 1 / debout) <= ASPECT_TOLERANCE
 
 
 def _box_mean(source: np.ndarray, radius: int) -> np.ndarray:

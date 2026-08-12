@@ -45,6 +45,7 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
 import 'art_box.dart';
+import 'card_geometry.dart';
 
 /// Largeur à laquelle l'analyse travaille. La carte y reste assez grande pour
 /// que ses bords soient nets, et le parcours de composantes — le seul point
@@ -198,14 +199,15 @@ CardQuad? findCard(img.Image photo, {String game = 'magic'}) {
 /// connu de ce module est justement le quadrilatère faux qui franchit le
 /// contrôle d'aspect — une photo de téléphone en portrait vaut 0,750, à 0,034
 /// seulement d'une carte.
+/// **Le rapport attendu vient du jeu**, et non d'une constante du module : les
+/// deux jeux couverts impriment en 63 × 88 mm, le suivant n'imprimera pas au
+/// même format. Voir `card_geometry.dart`.
 bool _hasCardAspect(double aspect, String game) {
-  if ((aspect - cardAspect).abs() <= aspectTolerance) return true;
+  final debout = cardAspectFor(game);
+  if ((aspect - debout).abs() <= aspectTolerance) return true;
   final couche = CardFrame.values.any((f) => f.game == game && f.landscape);
-  return couche && (aspect - 1 / cardAspect).abs() <= aspectTolerance;
+  return couche && (aspect - 1 / debout).abs() <= aspectTolerance;
 }
-
-/// Proportions d'une carte Magic, 63 × 88 mm.
-const double cardAspect = 63 / 88;
 
 /// Ce que la détection voit, avant qu'elle ne conclue.
 ///
