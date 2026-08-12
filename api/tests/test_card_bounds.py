@@ -77,3 +77,42 @@ def test_la_lecture_reste_dans_les_bornes_de_la_photo():
         size=(8, 8),
     )
     assert art.size == (8, 8)
+
+
+def photo_couchee() -> Image.Image:
+    """La même carte, posée en travers.
+
+    Mesuré sur le catalogue Riftbound : une carte couchée fait 1039 × 744, soit
+    le rapport inverse d'une carte debout. Ce n'est pas un autre format, c'est
+    la même carte tournée d'un quart de tour — la figure est donc celle des
+    autres tests, avec largeur et hauteur échangées.
+    """
+    canvas = Image.new("RGB", (400, 300), (170, 152, 126))
+    card = Image.new("RGB", (176, 126), (18, 16, 20))
+    card.paste(Image.new("RGB", (74, 100), (200, 60, 40)), (21, 10))
+    canvas.paste(card, (90, 70))
+    return canvas
+
+
+def test_une_carte_couchee_est_refusee_a_un_jeu_qui_n_en_a_pas():
+    # Toutes les cartes Magic sont debout. Y accepter les deux orientations
+    # reviendrait à laisser passer n'importe quel rectangle — et le mode de
+    # défaillance connu de ce module est justement le quadrilatère faux qui
+    # franchit le contrôle d'aspect.
+    assert find_card(photo_couchee(), game="magic") is None
+
+
+def test_une_carte_couchee_est_trouvee_par_un_jeu_qui_en_a():
+    quad = find_card(photo_couchee(), game="riftbound")
+    assert quad is not None
+    assert quad.top_left == (90.0, 70.0)
+    assert quad.bottom_right == (265.0, 195.0)
+    assert quad.aspect == pytest.approx(1 / CARD_ASPECT, abs=0.02)
+
+
+def test_une_carte_debout_reste_trouvee_par_un_jeu_qui_a_les_deux():
+    # Ouvrir l'orientation couchée ne doit rien retirer à l'autre : les 971
+    # cartes Riftbound verticales passent par le même chemin.
+    quad = find_card(photo(), game="riftbound")
+    assert quad is not None
+    assert quad.top_left == (70.0, 90.0)

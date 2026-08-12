@@ -113,7 +113,7 @@ Future<void> main(List<String> args) async {
   final limit = int.tryParse(_option(args, '--cards') ?? '') ?? 40;
 
   final root = File.fromUri(Platform.script).parent;
-  final setFile = File('${root.path}/framing_set.json');
+  final setFile = File('${root.path}/${_option(args, '--set') ?? 'framing_set.json'}');
   if (!setFile.existsSync()) {
     stderr.writeln(
       'tirage absent : ${setFile.path}\n'
@@ -148,19 +148,31 @@ Future<void> main(List<String> args) async {
       continue;
     }
     final expected = ArtHash.fromHex(entry['hash'] as String);
+    // **Le tirage dit ce qu'il contient.** Le gabarit et l'orientation se
+    // déduisent du jeu et de la disposition, au lieu d'être supposés : c'est ce
+    // qui permet de mesurer les cartes couchées, que le banc ignorait.
+    final frame = _frameOf(entry);
+    final couchee = frame == CardFrame.riftboundWide;
 
     for (final shot in regimes) {
       // Une graine par (carte, régime) : le grain de la table et le tirage sont
       // ainsi identiques d'une exécution à l'autre, donc d'une approche à
       // l'autre. Sans cela, deux mesures différeraient par leur bruit.
-      final photo = _compose(card, shot, math.Random(20260810 + i * 17));
-      final quad = centered ? null : findCard(photo);
+      final photo = _compose(
+        card,
+        shot,
+        math.Random(20260810 + i * 17),
+        couchee: couchee,
+      );
+      final quad = centered
+          ? null
+          : findCard(photo, game: entry['game'] as String? ?? 'magic');
       final img.Image art;
       if (quad == null) {
         if (!centered) gaveUp++;
-        art = cropArt(cropToCardFrame(photo), CardFrame.modern);
+        art = cropArt(cropToCardFrame(photo), frame);
       } else {
-        art = sampleArt(photo, quad, CardFrame.modern.box);
+        art = sampleArt(photo, quad, frame.box);
       }
       distances[shot.name]!.add(_hamming(computeArtHash(art), expected));
     }
@@ -253,9 +265,19 @@ img.Image _tableBackground(
 }
 
 /// Photo synthétique : la carte posée sur une table, vue de travers.
-img.Image _compose(img.Image source, Shot shot, math.Random rng) {
-  const cardHeight = 900;
-  final cardWidth = (cardHeight * cardAspectRatio).round();
+img.Image _compose(
+  img.Image source,
+  Shot shot,
+  math.Random rng, {
+  bool couchee = false,
+}) {
+  // Le grand côté fixe la taille, quelle que soit l'orientation : une carte
+  // couchée occupe la même surface qu'une carte debout, elle est seulement
+  // tournée d'un quart de tour.
+  const long = 900;
+  final court = (long * cardAspectRatio).round();
+  final cardWidth = couchee ? long : court;
+  final cardHeight = couchee ? court : long;
   var card = img.copyResize(
     source,
     width: cardWidth,
@@ -263,7 +285,7 @@ img.Image _compose(img.Image source, Shot shot, math.Random rng) {
     interpolation: img.Interpolation.cubic,
   );
 
-  final margin = (cardHeight * shot.margin).round();
+  final margin = (long * shot.margin).round();
   final photoWidth = cardWidth + 2 * margin;
   final photoHeight = cardHeight + 2 * margin;
   final photo = _tableBackground(photoWidth, photoHeight, rng, shot.lighting);
@@ -322,6 +344,19 @@ void _report(Map<String, List<int>> distances, int gaveUp, int skipped) {
       '${(values.length - found).toString().padLeft(10)}',
     );
   }
+}
+
+/// Gabarit à appliquer, d'après ce que le tirage déclare.
+///
+/// Le banc mesurait Magic seul et prenait `modern` pour acquis. Un tirage porte
+/// désormais son jeu et sa disposition, ce qui est la seule façon de mesurer un
+/// gabarit qui n'est pas celui par défaut — à commencer par les cartes
+/// couchées, dont le cadre est mesuré depuis longtemps sans avoir jamais servi.
+CardFrame _frameOf(Map<String, dynamic> entry) {
+  final game = entry['game'] as String? ?? 'magic';
+  final layout = entry['layout'] as String? ?? 'normal';
+  if (game != 'riftbound') return CardFrame.modern;
+  return layout == 'landscape' ? CardFrame.riftboundWide : CardFrame.riftbound;
 }
 
 String? _option(List<String> args, String name) {

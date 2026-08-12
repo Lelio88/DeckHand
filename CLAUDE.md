@@ -61,8 +61,8 @@ Topologie rapide :
 # App — les --dart-define sont OBLIGATOIRES (valeurs dans ../.deckhand-secrets/supabase.env)
 cd app && flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=...
 
-cd app && flutter analyze && flutter test    # 429 tests
-cd api && .venv/Scripts/python -m pytest     # 121 tests
+cd app && flutter analyze && flutter test    # 432 tests
+cd api && .venv/Scripts/python -m pytest     # 124 tests
 
 # Ingestion — idempotente, saute ce qui n'a pas changé
 cd api && .venv/Scripts/python -m app.ingestion.refresh            # Magic (--force, --skip-decks)
@@ -104,4 +104,4 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 ## VIII. Contexte de Session
 
 - **État** : 33 953 cartes Magic et 167 000 impressions cotées ; 1 035 cartes Riftbound, cotées et adossées à 2 500 decks. Les deux jeux bouclent la même promesse. Collection réelle : 343 lignes, 451 exemplaires, aucune sans édition. Compte `buton1@live.fr`, mot de passe dans `../.deckhand-secrets/supabase.env`.
-- **Focus immédiat** : la reconnaissance a rencontré sa première carte de papier Riftbound, et quatre défauts y sont tombés — le jeu saisi n'atteignait ni les gabarits ni le catalogue, trois messages d'échec accusaient la lecture de ce qu'elle avait réussi, et la détection de bords cédait sous un éclairage latéral. Cette carte se reconnaît désormais par son nom **et** par son illustration (rang 1 sur 1 035, 7 bits). Ce qui reste dû : le **lot** que #5 réclame — cartes trouvées sur cartes réelles, et surtout fausses cartes annoncées avec assurance. Reste hors de portée : les 64 champs de bataille couchés, que `findCard` rejette sur leur rapport. Côté Twitch, la lecture publique et le bot `!card` sont en place ; restent l'overlay OBS (#14) et le temps réel (#8) dont il dépend. Le coût d'une image est mesuré au poste de travail — la conversion YUV→RGB est évitable en entier, les deux chemins rendant la même empreinte à zéro bit près — mais **les durées sur appareil restent dues** : l'APK de mesure est prêt, il attend que le débogage sans fil soit rallumé.
+- **Focus immédiat** : la reconnaissance a rencontré sa première carte de papier Riftbound, et quatre défauts y sont tombés — le jeu saisi n'atteignait ni les gabarits ni le catalogue, trois messages d'échec accusaient la lecture de ce qu'elle avait réussi, et la détection de bords cédait sous un éclairage latéral. Cette carte se reconnaît désormais par son nom **et** par son illustration (rang 1 sur 1 035, 7 bits). Ce qui reste dû : le **lot** que #5 réclame — cartes trouvées sur cartes réelles, et surtout fausses cartes annoncées avec assurance. Les 64 champs de bataille couchés sont désormais détectables : mesuré au banc, 96 photos sur 96 contre aucune avant, médianes de 1 à 3 bits — reste à l'éprouver sur du carton. Côté Twitch, la lecture publique et le bot `!card` sont en place ; restent l'overlay OBS (#14) et le temps réel (#8) dont il dépend. Le coût d'une image est mesuré au poste de travail — la conversion YUV→RGB est évitable en entier, les deux chemins rendant la même empreinte à zéro bit près — mais **les durées sur appareil restent dues** : l'APK de mesure est prêt, il attend que le débogage sans fil soit rallumé.

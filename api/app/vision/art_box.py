@@ -34,10 +34,24 @@ class ArtBox(NamedTuple):
 #: sinon une ligne entière de la grille d'empreinte.
 RIFTBOUND_PORTRAIT = ArtBox(0.065, 0.047, 0.934, 0.517)
 
-#: Cartes Riftbound horizontales : les 71 champs de bataille. Leur nom est
+#: Cartes Riftbound couchées : les 64 champs de bataille. Leur nom est
 #: incrusté dans l'illustration et est haché avec elle — sans conséquence,
 #: puisqu'il est constant pour une carte donnée.
+#:
+#: Mesuré sur le catalogue, une carte couchée fait 1039 × 744, soit un rapport
+#: de 1,397 — exactement l'inverse de 0,716. Ce n'est pas un autre format, c'est
+#: la même carte tournée d'un quart de tour.
 RIFTBOUND_LANDSCAPE = ArtBox(0.041, 0.199, 0.962, 0.777)
+
+#: Jeux dont certaines cartes se posent en travers.
+#:
+#: **C'est la détection qui en a besoin, pas le découpage.** `find_card` rejette
+#: tout quadrilatère dont le rapport s'écarte de celui d'une carte debout ; une
+#: carte couchée s'en écarte de 0,68 pour une tolérance de 0,30, et était donc
+#: introuvable. Ouvrir l'orientation couchée à tous les jeux reviendrait à
+#: accepter n'importe quel rectangle en Magic, où toutes les cartes sont debout.
+#: Jumeau de `CardFrame.landscape`.
+GAMES_WITH_LANDSCAPE = frozenset({"riftbound"})
 
 
 def box_for(game: str, layout: str | None) -> ArtBox | None:

@@ -579,7 +579,7 @@ class ScanService {
     // reconnue à partir d'un cadrage ordinaire. La détection ramène ce chiffre à
     // 37 sur 40 — et quand elle renonce, on retombe exactement sur l'ancien
     // comportement, jamais sur pire.
-    final quad = findCard(decoded);
+    final quad = findCard(decoded, game: game.id);
     final candidates = quad == null
         ? artHashCandidates(cropToCardFrame(decoded), game: game.id)
         : artHashCandidatesInQuad(decoded, quad, game: game.id);

@@ -41,14 +41,21 @@ propre à ce jeu — c'est un seuillage global sur une scène à éclairage iné
 détaillé dans [`architecture.md`](./architecture.md) § « Ce que ce banc ne
 voyait pas ».
 
-**Le second gabarit ne peut pas encore servir sur une photo.** `findCard` ne
-retient un quadrilatère que si son rapport approche celui d'une carte verticale
-à 0,30 près ; un champ de bataille, en paysage, s'en écarte de 0,68 et est
-rejeté. La reconnaissance retombe alors sur le cadrage centré, qui découpe un
-rectangle vertical — de travers sur une carte couchée. Les 64 champs de bataille
-sont donc hors de portée du scan tant que la détection ne connaît pas les deux
-orientations. L'index, lui, est correct : `art_box.py` hache bien ces cartes au
-gabarit paysage d'après `cards.layout`.
+**Le second gabarit sert enfin.** `findCard` ne retenait un quadrilatère que si
+son rapport approchait celui d'une carte verticale à 0,30 près ; un champ de
+bataille s'en écarte de 0,68 et était rejeté, la reconnaissance retombant sur un
+découpage vertical pris de travers. Mesuré sur le catalogue, une carte couchée
+fait 1039 × 744 — rapport 1,397, exactement l'inverse de 0,716 : ce n'est pas un
+autre format, c'est la même carte tournée d'un quart de tour.
+
+La détection accepte donc les deux orientations, **pour les seuls jeux qui en
+ont une** — l'ouvrir à Magic reviendrait à accepter n'importe quel rectangle.
+Mesuré au banc sur un tirage de cartes couchées, huit régimes : **96 photos
+reconnues sur 96**, médianes de 1 à 3 bits et aucun abandon, contre **0 sur 96**
+et 96 abandons auparavant. Magic est inchangé, au bit près.
+
+Reste à l'éprouver sur du carton : aucun champ de bataille physique n'a encore
+été photographié.
 
 **L'index d'empreintes est construit** : 1 193 empreintes pour 1 035 cartes,
 aucun échec de téléchargement, et **aucune carte sans empreinte**. Les 17 cartes

@@ -63,26 +63,41 @@ enum CardFrame {
     bottom: 0.517,
   ), 'riftbound'),
 
-  /// Riftbound, cartes horizontales : les 64 champs de bataille.
+  /// Riftbound, cartes couchées : les 64 champs de bataille.
   ///
   /// Leur nom est incrusté *dans* l'illustration et ne peut en être retiré ;
   /// il est donc haché avec elle, ce qui est sans conséquence puisqu'il est
   /// constant pour une carte donnée.
   ///
-  /// **Ce cadre n'est pas encore atteignable depuis une photo.** `findCard`
-  /// rejette les quadrilatères couchés — leur rapport s'écarte trop de celui
-  /// d'une carte verticale — et le repli découpe un rectangle vertical. Le
-  /// gabarit reste juste : c'est celui que l'index applique côté serveur.
+  /// **La carte est posée en travers**, d'où [landscape] : mesuré sur le
+  /// catalogue, une carte couchée fait 1039 × 744, soit un rapport de 1,397 —
+  /// exactement l'inverse de 0,716. Ce n'est pas un autre format, c'est la
+  /// même carte tournée d'un quart de tour.
   riftboundWide((
     left: 0.041,
     top: 0.199,
     right: 0.962,
     bottom: 0.777,
-  ), 'riftbound');
+  ), 'riftbound', landscape: true);
 
-  const CardFrame(this.box, this.game);
+  const CardFrame(this.box, this.game, {this.landscape = false});
 
   final ArtBox box;
+
+  /// Vrai lorsque la carte se pose en travers.
+  ///
+  /// **C'est la détection qui en a besoin, pas le découpage.** Le gabarit,
+  /// lui, s'exprime déjà en proportions de la carte telle qu'elle est posée.
+  /// Mais `findCard` rejette tout quadrilatère dont le rapport s'écarte de
+  /// celui d'une carte debout, et une carte couchée s'en écarte de 0,68 pour
+  /// une tolérance de 0,30 : elle était donc introuvable, et ce cadre — mesuré,
+  /// juste, documenté — n'a jamais pu servir.
+  ///
+  /// Cette propriété n'ouvre l'orientation couchée qu'aux jeux qui en ont une.
+  /// L'élargir à tous reviendrait à accepter n'importe quel rectangle en Magic,
+  /// où toutes les cartes sont debout — et le mode de défaillance connu est
+  /// précisément là : un quadrilatère faux qui passe le contrôle d'aspect.
+  final bool landscape;
 
   /// Jeu auquel ce cadre appartient.
   ///

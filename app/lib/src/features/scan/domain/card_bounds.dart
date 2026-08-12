@@ -152,7 +152,7 @@ class CardQuad {
 /// Rend `null` plutôt qu'un quadrilatère douteux : l'appelant retombe alors sur
 /// le cadrage centré, c'est-à-dire sur le comportement d'avant. **Une détection
 /// qui échoue ne doit jamais faire moins bien que son absence.**
-CardQuad? findCard(img.Image photo) {
+CardQuad? findCard(img.Image photo, {String game = 'magic'}) {
   if (photo.width < 8 || photo.height < 8) return null;
 
   final scale = photo.width > analysisWidth ? photo.width / analysisWidth : 1.0;
@@ -178,9 +178,30 @@ CardQuad? findCard(img.Image photo) {
 
   final quad = _cornersOf(shape, small.width, small.height);
   if (quad == null) return null;
-  if ((quad.aspect - cardAspect).abs() > aspectTolerance) return null;
+  if (!_hasCardAspect(quad.aspect, game)) return null;
 
   return quad.scaled(scale);
+}
+
+/// Ce rapport est-il celui d'une carte de ce jeu, dans l'une de ses
+/// orientations ?
+///
+/// **Une carte couchée a le rapport inverse d'une carte debout**, et rien de
+/// plus : mesuré sur le catalogue, 1039 × 744 contre 744 × 1039, soit 1,397
+/// contre 0,716. Les 64 champs de bataille Riftbound étaient donc rejetés à
+/// 0,68 du rapport attendu, pour une tolérance de 0,30 — et leur gabarit,
+/// mesuré de longue date, n'avait jamais pu servir.
+///
+/// **L'orientation couchée n'est ouverte qu'aux jeux qui en ont une.** En
+/// Magic, toutes les cartes sont debout : y accepter les deux reviendrait à
+/// laisser passer n'importe quel rectangle, alors que le mode de défaillance
+/// connu de ce module est justement le quadrilatère faux qui franchit le
+/// contrôle d'aspect — une photo de téléphone en portrait vaut 0,750, à 0,034
+/// seulement d'une carte.
+bool _hasCardAspect(double aspect, String game) {
+  if ((aspect - cardAspect).abs() <= aspectTolerance) return true;
+  final couche = CardFrame.values.any((f) => f.game == game && f.landscape);
+  return couche && (aspect - 1 / cardAspect).abs() <= aspectTolerance;
 }
 
 /// Proportions d'une carte Magic, 63 × 88 mm.

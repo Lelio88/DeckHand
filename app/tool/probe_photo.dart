@@ -83,7 +83,7 @@ void main(List<String> args) {
 
   // Exactement ce que fait `ScanService._byArt` : les coins d'abord, le cadre
   // centré à défaut.
-  final quad = findCard(photo);
+  final quad = findCard(photo, game: game);
   if (quad == null) {
     stdout.writeln('coins   non détectés — repli sur le cadrage centré');
   } else {

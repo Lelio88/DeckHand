@@ -253,4 +253,47 @@ void main() {
       expect(art.height, 8);
     });
   });
+
+  group('les cartes posées en travers', () {
+    // Mesuré sur le catalogue Riftbound : une carte couchée fait 1039 × 744,
+    // soit le rapport inverse d'une carte debout. Ce n'est pas un autre format,
+    // c'est la même carte tournée d'un quart de tour — la figure reprend donc
+    // celle des autres tests, largeur et hauteur échangées.
+    img.Image photoCouchee() {
+      final canvas = img.Image(width: 400, height: 300);
+      img.fill(canvas, color: img.ColorRgb8(170, 152, 126));
+      final card = img.Image(width: 176, height: 126);
+      img.fill(card, color: img.ColorRgb8(18, 16, 20));
+      final art = img.Image(width: 74, height: 100);
+      img.fill(art, color: img.ColorRgb8(200, 60, 40));
+      img.compositeImage(card, art, dstX: 21, dstY: 10);
+      img.compositeImage(canvas, card, dstX: 90, dstY: 70);
+      return canvas;
+    }
+
+    test("un jeu sans carte couchée la refuse", () {
+      // Toutes les cartes Magic sont debout. Y accepter les deux orientations
+      // reviendrait à laisser passer n'importe quel rectangle — et le mode de
+      // défaillance connu de ce module est justement le quadrilatère faux qui
+      // franchit le contrôle d'aspect.
+      expect(findCard(photoCouchee(), game: 'magic'), isNull);
+    });
+
+    test("un jeu qui en a la trouve", () {
+      final quad = findCard(photoCouchee(), game: 'riftbound');
+
+      expect(quad, isNotNull);
+      expect(quad!.topLeft.x.round(), 90);
+      expect(quad.topLeft.y.round(), 70);
+      expect(quad.aspect, closeTo(1 / cardAspect, 0.02));
+    });
+
+    test('ouvrir le travers ne retire rien au debout', () {
+      // Les 971 cartes Riftbound verticales passent par le même chemin.
+      final quad = findCard(_photo(), game: 'riftbound');
+
+      expect(quad, isNotNull);
+      expect(quad!.topLeft.x.round(), 70);
+    });
+  });
 }

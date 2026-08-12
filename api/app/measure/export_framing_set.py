@@ -32,24 +32,42 @@ from app.config import SupabaseConfig
 from app.vision.dhash import from_signed_64
 
 
-def export(cards: int, salt: str = "cadrage") -> list[dict[str, object]]:
-    """Le tirage, avec pour chaque carte son image et son empreinte attendue."""
+def export(
+    cards: int,
+    game: str = "magic",
+    layout: str = "normal",
+    salt: str = "cadrage",
+) -> list[dict[str, object]]:
+    """Le tirage, avec pour chaque carte son image et son empreinte attendue.
+
+    [layout] sélectionne la disposition : `normal` pour les cartes Magic,
+    `portrait` ou `landscape` pour Riftbound. C'est lui qui permet de tirer un
+    lot de **cartes couchées**, que le banc ne savait pas mesurer — et donc de
+    chiffrer un défaut qui, faute de tirage, restait une affirmation.
+    """
     config = SupabaseConfig.load()
-    query = """
-        SELECT p.scryfall_id::text, p.art_crop_url, a.dhash
+    # Le filtre de langue et de date ne vaut que pour Magic : Riftbound n'a
+    # qu'une langue au catalogue et une seule année d'impressions, et les
+    # appliquer viderait le tirage sans le dire.
+    magic_only = (
+        "AND p.lang = 'en' AND p.released_at >= '2004-01-01'"
+        if game == "magic"
+        else ""
+    )
+    query = f"""
+        SELECT p.scryfall_id::text, p.art_crop_url, a.dhash, c.layout
         FROM public.card_prints p
         JOIN public.art_hashes a ON a.scryfall_id = p.scryfall_id
         JOIN public.cards c ON c.oracle_id = p.oracle_id
-        WHERE c.game = 'magic'
-          AND c.layout = 'normal'
-          AND p.lang = 'en'
-          AND p.released_at >= '2004-01-01'
+        WHERE c.game = %s
+          AND c.layout = %s
+          {magic_only}
         ORDER BY md5(p.scryfall_id::text || %s)
         LIMIT %s
     """
     with psycopg.connect(config.db_url, connect_timeout=30) as conn:
         with conn.cursor() as cur:
-            cur.execute(query, (salt, cards))
+            cur.execute(query, (game, layout, salt, cards))
             rows = cur.fetchall()
 
     return [
@@ -57,23 +75,39 @@ def export(cards: int, salt: str = "cadrage") -> list[dict[str, object]]:
             "id": sid,
             # L'image de la carte entière, pas de l'illustration seule : le banc
             # compose une photo, il lui faut la carte telle qu'on la pose.
+            #
+            # Scryfall sert la même image sous plusieurs tailles au même chemin,
+            # d'où la substitution. Riftcodex, lui, ne publie que la carte
+            # entière : son URL est déjà la bonne et ne contient pas ce segment,
+            # le remplacement y est donc sans effet.
             "url": url.replace("/art_crop/", "/normal/"),
             # Les 64 bits en hexadécimal, la forme que lit `ArtHash.fromHex`.
             # Le passage par le non-signé est indispensable : Postgres stocke
             # un `bigint` signé, et Dart lirait autre chose sans ce repli.
             "hash": f"{from_signed_64(dhash) & 0xFFFFFFFFFFFFFFFF:016x}",
+            # Le tirage décrit ce qu'il contient : le banc en déduit le gabarit
+            # à appliquer et l'orientation dans laquelle poser la carte, au lieu
+            # de les supposer.
+            "game": game,
+            "layout": card_layout,
         }
-        for sid, url, dhash in rows
+        for sid, url, dhash, card_layout in rows
     ]
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cards", type=int, default=40)
+    parser.add_argument("--game", default="magic")
+    parser.add_argument(
+        "--layout",
+        default="normal",
+        help="normal (Magic), portrait ou landscape (Riftbound)",
+    )
     parser.add_argument("--out", default="../app/tool/framing_set.json")
     args = parser.parse_args()
 
-    entries = export(args.cards)
+    entries = export(args.cards, game=args.game, layout=args.layout)
     path = Path(args.out)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(entries, indent=1), encoding="utf-8")

@@ -43,6 +43,8 @@ from dataclasses import dataclass
 import numpy as np
 from PIL import Image
 
+from app.vision.art_box import GAMES_WITH_LANDSCAPE
+
 #: Largeur à laquelle l'analyse travaille. La carte reste largement assez grande
 #: pour que ses bords soient nets, et le coût du parcours de composantes — le
 #: seul point coûteux — est divisé par quatre par rapport à une photo entière.
@@ -116,6 +118,31 @@ class Quad:
 
 def _distance(a: tuple[float, float], b: tuple[float, float]) -> float:
     return float(np.hypot(a[0] - b[0], a[1] - b[1]))
+
+
+def _has_card_aspect(aspect: float, game: str) -> bool:
+    """Ce rapport est-il celui d'une carte de ce jeu, dans l'une de ses
+    orientations ?
+
+    **Une carte couchée a le rapport inverse d'une carte debout**, et rien de
+    plus : mesuré sur le catalogue, 1039 × 744 contre 744 × 1039, soit 1,397
+    contre 0,716. Les 64 champs de bataille Riftbound étaient donc rejetés à
+    0,68 du rapport attendu, pour une tolérance de 0,30 — et leur gabarit,
+    mesuré de longue date, n'avait jamais pu servir.
+
+    **L'orientation couchée n'est ouverte qu'aux jeux qui en ont une.** En
+    Magic, toutes les cartes sont debout : y accepter les deux reviendrait à
+    laisser passer n'importe quel rectangle, alors que le mode de défaillance
+    connu de ce module est justement le quadrilatère faux qui franchit le
+    contrôle d'aspect.
+
+    Jumeau de `_hasCardAspect`.
+    """
+    if abs(aspect - CARD_ASPECT) <= ASPECT_TOLERANCE:
+        return True
+    if game not in GAMES_WITH_LANDSCAPE:
+        return False
+    return abs(aspect - 1 / CARD_ASPECT) <= ASPECT_TOLERANCE
 
 
 def _box_mean(source: np.ndarray, radius: int) -> np.ndarray:
@@ -316,7 +343,7 @@ def corners_of(shape: np.ndarray) -> Quad:
     )
 
 
-def find_card(photo: Image.Image) -> Quad | None:
+def find_card(photo: Image.Image, game: str = "magic") -> Quad | None:
     """Coins de la carte, en pixels de la photo d'origine.
 
     Rend `None` plutôt qu'un quadrilatère douteux : l'appelant retombe alors sur
@@ -344,7 +371,7 @@ def find_card(photo: Image.Image) -> Quad | None:
         return None
 
     quad = corners_of(shape)
-    if abs(quad.aspect - CARD_ASPECT) > ASPECT_TOLERANCE:
+    if not _has_card_aspect(quad.aspect, game):
         return None
 
     return quad.scaled(scale)
