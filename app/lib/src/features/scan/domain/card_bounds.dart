@@ -131,6 +131,42 @@ class CardQuad {
     bottomLeft: (x: bottomLeft.x * factor, y: bottomLeft.y * factor),
   );
 
+  /// Le même quadrilatère, lu comme si la carte était tournée de [turns] quarts
+  /// de tour.
+  ///
+  /// **Aucun pixel ne bouge** : seuls les coins changent de rôle. Lire la carte
+  /// dans l'autre sens revient à décider quel côté est le haut, et c'est
+  /// exactement ce qui manquait à une carte couchée photographiée droite — le
+  /// gabarit était bon, la zone était bonne, mais elle était parcourue de
+  /// travers.
+  ///
+  /// [turns] compte les quarts de tour dans le sens horaire. Les quatre valeurs
+  /// sont acceptées ; 2 est le demi-tour, dont on a besoin parce qu'une
+  /// empreinte n'y est pas invariante : mesuré sur une carte réelle, la même
+  /// photo tournée d'un quart dans un sens sort au rang 1, et au rang 466 dans
+  /// l'autre.
+  CardQuad quarterTurned(int turns) => switch (turns % 4) {
+    1 => CardQuad(
+      topLeft: bottomLeft,
+      topRight: topLeft,
+      bottomRight: topRight,
+      bottomLeft: bottomRight,
+    ),
+    2 => CardQuad(
+      topLeft: bottomRight,
+      topRight: bottomLeft,
+      bottomRight: topLeft,
+      bottomLeft: topRight,
+    ),
+    3 => CardQuad(
+      topLeft: topRight,
+      topRight: bottomRight,
+      bottomRight: bottomLeft,
+      bottomLeft: topLeft,
+    ),
+    _ => this,
+  };
+
   /// Largeur sur hauteur, moyennée sur les deux paires de côtés.
   double get aspect {
     final top = _distance(topLeft, topRight);

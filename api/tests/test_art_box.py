@@ -43,8 +43,16 @@ DECOUPES = {
     "yugioh": {YUGIOH, YUGIOH_PENDULUM},
 }
 
+#: Le motif tolère les espaces et les sauts de ligne partout où `dart format`
+#: peut en insérer — en particulier **entre le nom du cadre et sa parenthèse
+#: d'enregistrement**. Il les exigeait collés, et la déclaration s'écrivait bien
+#: ainsi jusqu'au jour où un cadre a gagné un argument nommé : le formateur a
+#: alors passé chaque argument à la ligne, `riftboundWide` a cessé d'être lu, et
+#: la parité n'était plus vérifiée que sur les cadres restants. Le test a bien
+#: signalé la disparition — mais une regex qui dépend de la mise en page
+#: surveille autant le formateur que les valeurs.
 _CADRE = re.compile(
-    r"(\w+)\(\(\s*left:\s*([\d.]+),\s*top:\s*([\d.]+),"
+    r"(\w+)\(\s*\(\s*left:\s*([\d.]+),\s*top:\s*([\d.]+),"
     r"\s*right:\s*([\d.]+),\s*bottom:\s*([\d.]+),?\s*\)\s*,\s*'(\w+)'",
     re.S,
 )

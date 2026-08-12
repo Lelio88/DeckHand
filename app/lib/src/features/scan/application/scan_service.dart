@@ -601,7 +601,7 @@ class ScanService {
           .map((c) => c.oracleId)
           .toList(growable: false),
       isConfident: outcome.result.isConfident,
-      frame: outcome.source,
+      frame: outcome.source?.frame,
     );
   }
 
@@ -623,16 +623,19 @@ class ScanService {
   /// cherche dans le catalogue de l'autre jeu, ce qu'aucune des autres valeurs
   /// ne révélerait.
   void _diagnoseArt(
-    ({HashSearchResult result, CardFrame? source}) outcome, {
+    ({HashSearchResult result, ArtHypothesis? source}) outcome, {
     required bool framed,
-    required Map<CardFrame, ArtHash> candidates,
+    required Map<ArtHypothesis, ArtHash> candidates,
   }) {
     if (!diagnosticsEnabled) return;
     final best = outcome.result.best;
     diagnose('art_match', {
       'game': game.id,
       'framed': framed,
-      'frame': outcome.source?.name,
+      'frame': outcome.source?.frame.name,
+      // Le quart de tour vainqueur : c'est lui qui dit si la carte était
+      // couchée, ce qu'aucune autre valeur du journal ne révèle.
+      'turns': outcome.source?.quarterTurns,
       'oracle_id': best?.oracleId,
       'distance': best?.distance,
       'margin': outcome.result.margin,
@@ -648,7 +651,8 @@ class ScanService {
     // révèle.
     for (final entry in candidates.entries) {
       diagnose('art_hash', {
-        'frame': entry.key.name,
+        'frame': entry.key.frame.name,
+        'turns': entry.key.quarterTurns,
         'hash': entry.value.toHex(),
       });
     }

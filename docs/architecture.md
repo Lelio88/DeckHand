@@ -146,6 +146,40 @@ la source ne publie aucun recadrage, a demandé trois méthodes dont deux ont
 valeurs, plutôt que d'en garder une copie qui divergerait avec ce qu'elle
 surveille.
 
+#### L'orientation est une hypothèse, au même titre que le cadre
+
+Un cadre couché cherché dans un quadrilatère **droit** est lu tourné, dans les
+deux sens — jamais tel quel. Une carte couchée glissée dans une pochette
+verticale se laisse en effet détecter comme une carte debout : ce sont les bords
+de la pochette que la détection trouve, et son rapport est celui d'une carte
+(0,727 mesuré, pour 0,716 attendu). Le gabarit couché s'appliquait alors à une
+zone parcourue de travers.
+
+Mesuré sur du carton — un champ de bataille photographié sous pochette :
+
+| | Rang de la bonne carte | Distance | Verdict |
+|---|---|---|---|
+| Sans rotation | 590 / 1 035 | 33 bits | rejetée |
+| Quart de tour, mauvais sens | 185 / 1 035 | 26 bits | rejetée |
+| **Quart de tour, bon sens** | **1 / 1 035** | **7 bits**, marge 10 | **annoncée avec assurance** |
+
+Les deux sens sont donc essayés : une empreinte ne survit pas au demi-tour, et
+rien dans la photo ne dit de quel côté la carte a été glissée.
+
+**La réciproque n'est pas faite, et c'est un choix mesuré.** Un cadre droit
+cherché dans un quadrilatère couché reste lu tel quel. Une carte debout ne se
+présente pas couchée : un quadrilatère couché autour d'une carte debout signifie
+que la détection s'est trompée, et on n'échafaude pas d'hypothèse sur une
+détection fausse. Essayée, cette réciproque annonçait « Mirror Image » à 12 bits
+avec la marge requise sur une photo au masque faux — une carte inventée, sur le
+seul résultat que ce pipeline protège.
+
+Le prix est **un tirage de plus** dans l'index pour toute carte droite d'un jeu
+qui a des cartes couchées (trois hypothèses au lieu de deux, Riftbound seul
+concerné). Mesuré sur les quatorze reconnaissances du lot carton : aucun faux
+positif introduit, une carte gagnée, et un classement dégradé sur une carte déjà
+rejetée — la bonne carte y perd sa place en tête sans changer de verdict.
+
 ### Choix de l'algorithme — dHash 64 bits
 
 **dHash plutôt que pHash** parce que l'algorithme devra être réimplémenté à
@@ -354,6 +388,7 @@ L'illustration est **identique en français et en anglais** ; seul le cadre de t
 | Cartes empilées | Optique, non algorithmique | Seule la carte du dessus est visible. D'où les deux modes retenus : étalement et feuilletage. |
 | Catalogue Riftbound anglais seulement | Contractuelle, non algorithmique | Une carte française n'est pas retrouvable par son nom, quel que soit le soin de la lecture. L'empreinte est la voie principale de ce jeu, et le mode étalement — qui ne lit que les noms — ne peut pas le servir. |
 | Carte absente de l'index interrogé | Structurelle : tout point a un plus proche voisin | Environ **1 %** des cartes étrangères passent les deux garde-fous et sont annoncées avec assurance (mesuré, `art_collisions.py`). Le cloisonnement par jeu écarte le mélange des catalogues, pas le choix du mauvais jeu par l'utilisateur. |
+| Masque de seuillage faux (fond clair, tissu) | Le quadrilatère englobe le décor | La tolérance d'aspect ne le rattrape pas, et c'est assumé — `aspectTolerance` est large pour encaisser la perspective. Mesuré sur carton : la carte reste introuvable, mais **aucune fausse carte n'est annoncée**, le meilleur candidat restant au-delà du seuil. |
 | 24 groupes de cartes Riftbound dédoublées | Catalogue, non algorithmique | « Ambessa - Matriarch of War » et « Matriarch of War » sont une seule carte sous deux noms, souvent sur les mêmes impressions. Aucune empreinte ne peut les départager, et la collection les compterait deux fois. Se corrige dans l'identité dérivée par `riftcodex_ingest`, pas dans la reconnaissance. |
 
 ### Ce qu'un échec doit dire

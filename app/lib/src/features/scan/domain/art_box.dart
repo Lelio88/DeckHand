@@ -73,12 +73,11 @@ enum CardFrame {
   /// catalogue, une carte couchée fait 1039 × 744, soit un rapport de 1,397 —
   /// exactement l'inverse de 0,716. Ce n'est pas un autre format, c'est la
   /// même carte tournée d'un quart de tour.
-  riftboundWide((
-    left: 0.041,
-    top: 0.199,
-    right: 0.962,
-    bottom: 0.777,
-  ), 'riftbound', landscape: true),
+  riftboundWide(
+    (left: 0.041, top: 0.199, right: 0.962, bottom: 0.777),
+    'riftbound',
+    landscape: true,
+  ),
 
   /// Yu-Gi-Oh, cadre ordinaire — 14 101 cartes sur 14 491.
   ///
@@ -92,12 +91,7 @@ enum CardFrame {
   ///
   /// Riftbound avait demandé trois méthodes et deux échecs pour un seul
   /// gabarit ; ici la source répond elle-même à la question.
-  yugioh((
-    left: 0.1181,
-    top: 0.1823,
-    right: 0.8807,
-    bottom: 0.7055,
-  ), 'yugioh'),
+  yugioh((left: 0.1181, top: 0.1823, right: 0.8807, bottom: 0.7055), 'yugioh'),
 
   /// Yu-Gi-Oh, cartes Pendulum — 390 cartes, soit 2,7 %.
   ///
@@ -169,6 +163,14 @@ img.Image cropArt(img.Image card, CardFrame frame) {
   );
 }
 
+/// Une manière de lire la carte : un cadre, et l'orientation sous laquelle on
+/// le cherche.
+///
+/// **L'orientation est une hypothèse comme le cadre.** On ignore autant l'un que
+/// l'autre au moment de photographier ; la recherche tranche en retenant celle
+/// qui trouve la meilleure correspondance.
+typedef ArtHypothesis = ({CardFrame frame, int quarterTurns});
+
 /// Empreintes candidates d'une carte photographiée, une par cadre du jeu.
 ///
 /// On ne sait pas d'avance à quel cadre appartient la carte — c'est précisément
@@ -178,12 +180,18 @@ img.Image cropArt(img.Image card, CardFrame frame) {
 ///
 /// [game] restreint les hypothèses : on sait toujours quel jeu on est en train
 /// de saisir, et les cadres d'un autre jeu n'apporteraient que du bruit.
-Map<CardFrame, ArtHash> artHashCandidates(
+///
+/// **Aucune rotation ici**, contrairement à [artHashCandidatesInQuad] : ce
+/// chemin est le repli, et il reçoit une image déjà découpée aux proportions
+/// d'une carte debout. Tourner ce découpage ne montrerait pas la carte sous un
+/// autre angle, seulement le même rectangle mal cadré.
+Map<ArtHypothesis, ArtHash> artHashCandidates(
   img.Image card, {
   String game = 'magic',
 }) => {
   for (final frame in CardFrame.values)
-    if (frame.game == game) frame: computeArtHash(cropArt(card, frame)),
+    if (frame.game == game)
+      (frame: frame, quarterTurns: 0): computeArtHash(cropArt(card, frame)),
 };
 
 /// Empreintes lues dans le quadrilatère d'une carte détectée dans la photo.
@@ -192,12 +200,43 @@ Map<CardFrame, ArtHash> artHashCandidates(
 /// l'image : la zone est lue en interpolant les quatre coins. C'est ce qui rend
 /// le scan indifférent au cadrage — mesuré, la reconnaissance passe de 0 à 37
 /// sur 40 dès qu'une photo s'écarte de 8 % du cadre idéal.
-Map<CardFrame, ArtHash> artHashCandidatesInQuad(
+///
+/// **Un cadre couché cherché dans un quadrilatère droit est tourné, jamais lu
+/// tel quel.** Une carte couchée glissée dans une pochette verticale se laisse
+/// détecter comme une carte debout : ce sont les bords de la pochette que la
+/// détection trouve, et son rapport est celui d'une carte. Le gabarit couché
+/// s'appliquait alors à une zone parcourue de travers — mesuré sur du carton,
+/// « Altar of Blood » ressortait au rang 590 sur 1 035, quand le quart de tour
+/// la ramène **au rang 1, à 7 bits, avec une marge de 10**.
+///
+/// Les deux sens sont essayés parce qu'une empreinte ne survit pas au demi-tour :
+/// la même carte lue dans le mauvais sens retombe au rang 185.
+///
+/// **La réciproque n'est pas faite, et c'est délibéré.** Un cadre droit cherché
+/// dans un quadrilatère couché resterait lu tel quel : une carte debout ne se
+/// présente pas couchée, et un quadrilatère couché autour d'une carte debout
+/// signifie que la détection s'est trompée. Or chaque hypothèse est un tirage de
+/// plus dans l'index, et un tirage sur du bruit a environ une chance sur cent de
+/// passer les deux garde-fous (mesuré, `app.measure.art_collisions`). Essayé sur
+/// une photo au masque faux, ce tirage-là annonçait « Mirror Image » à 12 bits
+/// avec la marge requise — une carte inventée, sur le seul résultat que ce
+/// pipeline protège. On n'échafaude pas d'hypothèse sur une détection fausse.
+Map<ArtHypothesis, ArtHash> artHashCandidatesInQuad(
   img.Image photo,
   CardQuad quad, {
   String game = 'magic',
-}) => {
-  for (final frame in CardFrame.values)
-    if (frame.game == game)
-      frame: computeArtHash(sampleArt(photo, quad, frame.box)),
-};
+}) {
+  final quadIsUpright = quad.aspect <= 1;
+  final candidates = <ArtHypothesis, ArtHash>{};
+
+  for (final frame in CardFrame.values) {
+    if (frame.game != game) continue;
+    final turns = frame.landscape && quadIsUpright ? const [1, 3] : const [0];
+    for (final t in turns) {
+      candidates[(frame: frame, quarterTurns: t)] = computeArtHash(
+        sampleArt(photo, quad.quarterTurned(t), frame.box),
+      );
+    }
+  }
+  return candidates;
+}

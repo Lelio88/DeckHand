@@ -103,18 +103,25 @@ void main(List<String> args) {
       ? artHashCandidates(base, game: game)
       : artHashCandidatesInQuad(photo, quad, game: game);
 
-  stdout.writeln('\nempreintes par gabarit :');
+  stdout.writeln('\nempreintes par hypothèse :');
   for (final entry in candidates.entries) {
-    stdout.writeln('  ${entry.key.name.padRight(15)} ${entry.value.toHex()}');
+    // Le quart de tour fait partie de l'hypothèse : une carte couchée dans une
+    // pochette droite ne se lit qu'ainsi, et c'est le seul endroit où on peut
+    // voir laquelle des orientations a été essayée.
+    final turns = entry.key.quarterTurns;
+    final label = turns == 0
+        ? entry.key.frame.name
+        : '${entry.key.frame.name}+$turns';
+    stdout.writeln('  ${label.padRight(18)} ${entry.value.toHex()}');
 
     // La zone réellement hachée, écrite pour être regardée. C'est le seul
     // moyen de voir un décalage de gabarit ; aucun chiffre ne le révèle.
     final crop = quad == null
-        ? cropArt(base, entry.key)
-        : sampleArt(photo, quad, entry.key.box);
-    final file = File('$out/decoupe_${entry.key.name}.png')
+        ? cropArt(base, entry.key.frame)
+        : sampleArt(photo, quad.quarterTurned(turns), entry.key.frame.box);
+    final file = File('$out/decoupe_$label.png')
       ..writeAsBytesSync(img.encodePng(crop));
-    stdout.writeln('  ${' '.padRight(15)} ${file.path}');
+    stdout.writeln('  ${' '.padRight(18)} ${file.path}');
   }
 }
 
