@@ -78,7 +78,50 @@ enum CardFrame {
     top: 0.199,
     right: 0.962,
     bottom: 0.777,
-  ), 'riftbound', landscape: true);
+  ), 'riftbound', landscape: true),
+
+  /// Yu-Gi-Oh, cadre ordinaire — 14 101 cartes sur 14 491.
+  ///
+  /// **Mesuré par recoupement, non par une heuristique.** La source publie la
+  /// carte entière *et* son illustration détourée : la fenêtre se retrouve donc
+  /// en cherchant, dans la première, la région qui reproduit la seconde. C'est
+  /// la méthode des deux cadres Magic, et elle rend ici un résultat sans
+  /// équivalent — sur 20 cartes tirées dans dix familles de cadre (effet, magie,
+  /// piège, normale, XYZ, fusion, lien, synchro, rituel, jeton), **la même
+  /// fenêtre à 0,001 près**, pour un écart résiduel de 1 niveau de gris sur 255.
+  ///
+  /// Riftbound avait demandé trois méthodes et deux échecs pour un seul
+  /// gabarit ; ici la source répond elle-même à la question.
+  yugioh((
+    left: 0.1181,
+    top: 0.1823,
+    right: 0.8807,
+    bottom: 0.7055,
+  ), 'yugioh'),
+
+  /// Yu-Gi-Oh, cartes Pendulum — 390 cartes, soit 2,7 %.
+  ///
+  /// Leur illustration déborde sous le cadre ordinaire pour laisser place aux
+  /// deux échelles latérales : plus large (0,062 → 0,936 contre 0,118 → 0,881)
+  /// et un peu moins haute. Mesurée sur 18 cartes des six sous-familles
+  /// Pendulum, la fenêtre est stable à 0,001 près.
+  ///
+  /// **Le discriminant est un contrat, pas une devinette.** `frameType` porte
+  /// « pendulum » pour ces cartes et pour elles seules — là où Pokémon n'offre
+  /// que la rareté, dont le vocabulaire compte quarante valeurs qui ont changé
+  /// plusieurs fois en vingt-sept ans (#28).
+  ///
+  /// **L'illustration détourée de la source ne sert pas ici** : pour une
+  /// Pendulum, elle englobe le pavé de texte en plus de l'illustration. C'est
+  /// ce qui a fait échouer la première mesure, et c'est pourquoi l'index
+  /// découpe lui-même la carte entière plutôt que de faire confiance au
+  /// recadrage publié.
+  yugiohPendulum((
+    left: 0.0615,
+    top: 0.1789,
+    right: 0.9360,
+    bottom: 0.6238,
+  ), 'yugioh');
 
   const CardFrame(this.box, this.game, {this.landscape = false});
 

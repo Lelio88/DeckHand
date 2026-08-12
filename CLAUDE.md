@@ -29,7 +29,7 @@ Topologie rapide :
 - **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `camera` (flux temps réel), `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg`
 - **`api/`** : Python 3.11+, httpx, psycopg, Pillow, numpy — **chaque contrainte porte un plafond de majeure** : `numpy` et `Pillow` sont le seul chemin par lequel une bibliothèque peut dégrader la reconnaissance en silence, une empreinte au calcul modifié restant valide mais devenant incomparable au jumeau Dart
 - **Données** : Supabase — Postgres, Auth, Storage. Cloud uniquement, rien à déployer
-- **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks des deux jeux), MTGJSON (précons), Riftcodex (catalogue Riftbound), TCGCSV (prix Riftbound), BCE (taux de change)
+- **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks), MTGJSON (précons), Riftcodex (catalogue Riftbound), TCGCSV (prix Riftbound), BCE (taux de change), YGOPRODeck (catalogue Yu-Gi-Oh)
 
 ## IV. Garde-Fous non négociables
 
@@ -41,7 +41,7 @@ Topologie rapide :
 6. **Un connecteur isolé par source de decks.** Aucune dépendance à une source ne remonte dans le cœur du produit.
 7. **Secrets hors dépôt**, dans `../.deckhand-secrets/`. Les clés de publication viennent des secrets d'actions, jamais du dépôt.
 8. **Toute carte identifiée passe par une confirmation utilisateur.** L'**édition**, elle, est déduite sans geste quand rien ne reste à choisir — désigner l'unique candidat n'apporte aucune information que la carte ne porte déjà. Dès que deux cases subsistent, l'utilisateur choisit.
-9. **Une source sans conditions publiées reçoit celles de Scryfall** — `User-Agent` descriptif, débit bas, attribution visible. Vaut pour Riftcodex et TCGCSV. Ne jamais réhéberger d'illustration.
+9. **Une source sans conditions publiées reçoit celles de Scryfall** — `User-Agent` descriptif, débit bas, attribution visible. Vaut pour Riftcodex, TCGCSV et YGOPRODeck — dont le guide d'API tient lieu de conditions et **demande** le stockage local. Ne jamais réhéberger d'illustration.
 10. **Le dépôt est public** : aucune donnée de source n'est commitée (dumps, decklists, index d'empreintes sont des artefacts générés) ; les attributions figurent dans le `README.md` ; le `.gitignore` couvre tous les caches.
 11. **Une migration jouée n'est jamais modifiée.** Pour corriger, en ajouter une nouvelle : un fichier édité n'est pas rejoué, et les environnements divergeraient en silence.
 
@@ -61,13 +61,14 @@ Topologie rapide :
 # App — les --dart-define sont OBLIGATOIRES (valeurs dans ../.deckhand-secrets/supabase.env)
 cd app && flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=...
 
-cd app && flutter analyze && flutter test    # 444 tests
-cd api && .venv/Scripts/python -m pytest     # 124 tests
+cd app && flutter analyze && flutter test    # 453 tests
+cd api && .venv/Scripts/python -m pytest     # 145 tests
 
 # Ingestion — idempotente, saute ce qui n'a pas changé
 cd api && .venv/Scripts/python -m app.ingestion.refresh            # Magic (--force, --skip-decks)
 cd api && .venv/Scripts/python -m app.ingestion.riftcodex_ingest   # catalogue Riftbound
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_prices      # prix Riftbound (--force)
+cd api && .venv/Scripts/python -m app.ingestion.ygoprodeck_ingest  # catalogue Yu-Gi-Oh (--force)
 cd api && .venv/Scripts/python -m app.ingestion.topdeck_ingest --riftbound
 
 # Bot Twitch en lecture — tourne le temps d'un direct, rien à déployer
@@ -104,5 +105,6 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 ## VIII. Contexte de Session
 
 - **État** : 33 953 cartes Magic et 167 000 impressions cotées ; 1 035 cartes Riftbound, cotées et adossées à 2 500 decks. Les deux jeux bouclent la même promesse. Collection réelle : 343 lignes, 451 exemplaires, aucune sans édition. Compte `buton1@live.fr`, mot de passe dans `../.deckhand-secrets/supabase.env`.
-- **Troisième jeu** : #22 relève les sources d'autres TCG, conditions en main — Yu-Gi-Oh est le seul dont les quatre pièces (catalogue, prix, decks, illustrations détourées) s'obtiennent sans invention, Pokémon paie un gabarit qui a au moins quatre positions, Wankul est **refusé** faute d'autorisation écrite. Le chantier est découpé en cinq sous-issues, #24 à #28. La première est faite : le format d'une carte était écrit en dur **neuf fois** et est désormais une propriété du jeu (`card_geometry.dart` et son jumeau Python, parité verrouillée par un test qui relit le fichier Dart). Ce qui cédait n'était pas le contrôle d'aspect mais le **cadrage de repli** et le **cadre imposé à l'utilisateur** — les deux endroits sans tolérance. Magic vérifié inchangé au banc, au chiffre près.
+- **Troisième jeu** : #22 relève les sources d'autres TCG, conditions en main — Pokémon paie un gabarit qui a au moins quatre positions (#28), Wankul est **refusé** faute d'autorisation écrite. Découpé en cinq sous-issues, #24 à #28. **Deux sont faites.** #24 : le format d'une carte était écrit en dur **neuf fois**, il est désormais une propriété du jeu — ce qui cédait n'était pas le contrôle d'aspect mais le cadrage de repli et le cadre imposé à l'utilisateur, les deux endroits sans tolérance. #25 : **le catalogue Yu-Gi-Oh est en base** — 13 866 cartes sur carton, 44 139 impressions, 11 504 noms français, en 29 secondes. Ce jeu a coûté moins cher que Riftbound sur chaque poste : identité donnée (le passcode imprimé sur la carte), **zéro homonyme**, français servi, et deux gabarits mesurés par recoupement à 0,001 près dont le choix repose sur un contrat de la source et non sur une heuristique. Il est aussi le premier à n'imprimer pas en 63 × 88, ce qui rend le paramétrage de #24 éprouvé plutôt que théorique.
+- **Ce qui reste dû sur Yu-Gi-Oh** : les prix (#26 — et la source les sert déjà en euros, ce qui pourrait dispenser de TCGCSV et de la conversion BCE), le corpus de decks (#27), l'index d'empreintes, et une carte de papier — aucune n'a encore été photographiée.
 - **Focus immédiat** : la reconnaissance a rencontré sa première carte de papier Riftbound, et quatre défauts y sont tombés — le jeu saisi n'atteignait ni les gabarits ni le catalogue, trois messages d'échec accusaient la lecture de ce qu'elle avait réussi, et la détection de bords cédait sous un éclairage latéral. Cette carte se reconnaît désormais par son nom **et** par son illustration (rang 1 sur 1 035, 7 bits). Ce qui reste dû : le **lot** que #5 réclame — cartes trouvées sur cartes réelles, et surtout fausses cartes annoncées avec assurance. Les 64 champs de bataille couchés sont désormais détectables : mesuré au banc, 96 photos sur 96 contre aucune avant, médianes de 1 à 3 bits — reste à l'éprouver sur du carton. Côté Twitch, la lecture publique et le bot `!card` sont en place ; restent l'overlay OBS (#14) et le temps réel (#8) dont il dépend. Le coût d'une image est mesuré au poste de travail — la conversion YUV→RGB est évitable en entier, les deux chemins rendant la même empreinte à zéro bit près — mais **les durées sur appareil restent dues** : l'APK de mesure est prêt, il attend que le débogage sans fil soit rallumé.

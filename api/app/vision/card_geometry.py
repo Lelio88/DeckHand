@@ -41,6 +41,11 @@ CARD_ASPECTS: dict[str, float] = {
     # debout fait 744 × 1039 et une couchée 1039 × 744 — ce n'est pas un autre
     # format, c'est la même carte tournée d'un quart de tour.
     "riftbound": 63 / 88,
+    # Yu-Gi-Oh : 59 × 86 mm, le premier jeu couvert qui n'imprime pas au format
+    # des deux autres. **Le rendu de la source s'aligne sur le carton**, ce que
+    # rien ne garantissait : mesuré sur 20 cartes de dix cadres différents,
+    # 813 × 1185 soit 0,6861, contre 0,68605 pour 59 × 86.
+    "yugioh": 59 / 86,
 }
 
 #: Ce sur quoi retombe un jeu absent de `CARD_ASPECTS`.

@@ -13,6 +13,7 @@
 /// dire.
 library;
 
+import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/card_search/domain/card_type.dart';
 import 'package:deckhand/src/features/card_search/presentation/card_search_screen.dart';
 import 'package:flutter/material.dart';
@@ -51,6 +52,29 @@ Future<Set<String>?> pumpFilter(
 }
 
 void main() {
+  test('chaque jeu propose des types cherchables', () {
+    // Un jeu sans type n'afficherait qu'un menu vide, et le filtre — la coupe la
+    // plus économique offerte à la saisie — disparaîtrait sans un mot.
+    for (final game in Game.values) {
+      expect(
+        cardTypesFor(game),
+        isNotEmpty,
+        reason: 'le jeu « ${game.id} » ne propose aucun type',
+      );
+    }
+  });
+
+  test('un type Yu-Gi-Oh ne se confond pas avec une famille de monstres', () {
+    // **Le filtre est un `ILIKE` sur la ligne de type entière.** « Spell »
+    // attraperait les quelque sept cents monstres *Spellcaster* en plus des
+    // magies ; le vocabulaire officiel dit « Spell Card », et c'est lui qui est
+    // déclaré. Le même piège vise « Trap ».
+    final kinds = cardTypesFor(Game.yugioh).map((t) => t.kind);
+    expect(kinds, contains('Spell Card'));
+    expect(kinds, contains('Trap Card'));
+    expect(kinds, isNot(contains('Spell')));
+  });
+
   testWidgets('cocher un type le transmet', (tester) async {
     expect(await pumpFilter(tester, tap: 'Créature'), {'Creature'});
   });

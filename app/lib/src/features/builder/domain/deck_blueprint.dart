@@ -105,7 +105,10 @@ class DeckBlueprint {
     DeckFormat.commander => commander,
     DeckFormat.pauper => pauper,
     DeckFormat.modern => modern,
-    DeckFormat.constructed => null,
+    // Yu-Gi-Oh partage la raison de Riftbound, et une autre encore : ses
+    // proportions se mesureraient sur un corpus qui n'est pas encore importé
+    // (#27), et ses notions — Main, Extra, Side — n'ont pas de pendant Magic.
+    DeckFormat.constructed || DeckFormat.advanced => null,
   };
 
   /// Mesuré sur 190 précons. Le format le plus régulier du corpus.

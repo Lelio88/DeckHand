@@ -49,6 +49,22 @@ const _credits = <({String name, String url, String role})>[
     url: 'tcgcsv.com',
     role: 'Prix de marché des cartes Riftbound',
   ),
+  // Le guide de l'API YGOPRODeck tient lieu de conditions, faute de CGU
+  // publiées, et il demande explicitement le stockage local des données. Le
+  // garde-fou §IV.9 s'applique : à défaut de règles écrites, celles de Scryfall,
+  // dont l'attribution visible fait partie.
+  (
+    name: 'YGOPRODeck',
+    url: 'ygoprodeck.com',
+    role: 'Catalogue des cartes Yu-Gi-Oh, noms français et illustrations',
+  ),
+  // Konami est à Yu-Gi-Oh ce que Riot est à Riftbound : la source n'est pas
+  // l'éditeur, mais les cartes et leurs illustrations lui appartiennent.
+  (
+    name: 'Konami',
+    url: 'konami.com',
+    role: 'Yu-Gi-Oh!, ses cartes et leurs illustrations',
+  ),
   // **La conversion est une source comme une autre.** Les prix Riftbound sont
   // relevés en dollars ; l'euro affiché est une conversion au taux de référence
   // de la BCE, pas un prix de marché européen. Le taire ferait passer un chiffre

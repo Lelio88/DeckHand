@@ -22,7 +22,8 @@ import '../features/scan/domain/card_geometry.dart';
 /// les appels au serveur, sans table de correspondance à maintenir.
 enum Game {
   magic('magic', 'Magic: The Gathering'),
-  riftbound('riftbound', 'Riftbound');
+  riftbound('riftbound', 'Riftbound'),
+  yugioh('yugioh', 'Yu-Gi-Oh!');
 
   const Game(this.id, this.label);
 

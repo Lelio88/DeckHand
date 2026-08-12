@@ -57,6 +57,20 @@ void main() {
       DeckFormat.commander,
     ]);
     expect(deckFormatsFor(Game.riftbound), [DeckFormat.constructed]);
+    expect(deckFormatsFor(Game.yugioh), [DeckFormat.advanced]);
+  });
+
+  test('chaque jeu propose au moins un format', () {
+    // `SelectedFormat.build()` et l'écran font tous deux `formats.first` : une
+    // liste vide ne rendrait pas un écran vide, elle lèverait. Ajouter un jeu
+    // sans format le ferait planter au premier affichage des decks.
+    for (final game in Game.values) {
+      expect(
+        deckFormatsFor(game),
+        isNotEmpty,
+        reason: 'le jeu « ${game.id} » ne propose aucun format',
+      );
+    }
   });
 
   test('la demande part avec le jeu sélectionné', () async {

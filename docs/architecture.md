@@ -7,7 +7,7 @@ et le moteur de suggestion.
 | Annexe | Ce qu'elle couvre |
 |---|---|
 | [`collection-architecture.md`](./collection-architecture.md) | Classeurs, journal des mouvements, lecture publique et hébergement |
-| [`multi-game.md`](./multi-game.md) | Tout ce qui est propre à Riftbound : catalogue, prix, corpus de decks |
+| [`multi-game.md`](./multi-game.md) | Ce que chaque jeu autre que Magic a demandé : catalogues, prix, corpus de decks, gabarits |
 | [`spread-detection.md`](./spread-detection.md) | Détection multi-cartes sur une photo, et les impasses mesurées |
 
 ---
@@ -122,6 +122,29 @@ produit une empreinte éloignée de tout : il ne peut pas l'emporter par hasard.
 Les mises en page spéciales — `saga` (illustration verticale), `transform`,
 cartes pleine page — échappent aux deux gabarits. Elles relèveront de l'OCR du
 nom, prévu en appoint.
+
+**Les autres jeux ont les leurs**, mesurés de la même façon et cloisonnés par
+`CardFrame.game` — essayer le cadre d'un autre jeu coûterait deux fois, le calcul
+et le risque de correspondance fortuite. Le détail de chaque mesure est dans
+[`multi-game.md`](./multi-game.md) ; en bref :
+
+| Jeu | Cadre | gauche | haut | droite | bas |
+|---|---|---|---|---|---|
+| Riftbound | vertical | 0,065 | 0,047 | 0,934 | 0,517 |
+| Riftbound | couché (64 champs de bataille) | 0,041 | 0,199 | 0,962 | 0,777 |
+| Yu-Gi-Oh | ordinaire | 0,1181 | 0,1823 | 0,8807 | 0,7055 |
+| Yu-Gi-Oh | Pendulum (390 cartes) | 0,0615 | 0,1789 | 0,9360 | 0,6238 |
+
+Yu-Gi-Oh se mesure comme Magic — par recoupement, la source publiant carte
+entière et illustration détourée — et le résultat est plus net encore : la même
+fenêtre à 0,001 près sur vingt cartes de dix familles de cadre. Riftbound, dont
+la source ne publie aucun recadrage, a demandé trois méthodes dont deux ont
+échoué.
+
+**La parité de ces gabarits avec le Python est verrouillée mécaniquement** :
+`api/tests/test_art_box.py` relit `art_box.dart` et compare les deux jeux de
+valeurs, plutôt que d'en garder une copie qui divergerait avec ce qu'elle
+surveille.
 
 ### Choix de l'algorithme — dHash 64 bits
 
@@ -316,6 +339,7 @@ Rôle **secondaire** : désambiguïsation quand plusieurs empreintes sont proche
 | **EDHREC** | — | **Interdit** | Les conditions prohibent explicitement les requêtes automatisées et la republication. |
 | **Riftcodex** | Catalogue Riftbound — noms, types, domaines, raretés, extensions, illustrations | Public, sans clé, paginé à 100 | **Conditions non publiées.** Projet de fans non affilié à Riot. À défaut de règles explicites, on lui applique celles de Scryfall : `User-Agent` descriptif, débit bas, attribution visible. Les illustrations qu'il référence sont servies par le CDN officiel de Riot, jamais réhébergées. |
 | **API Riot (Riftbound)** | Source officielle visée pour Riftbound | **Fermée** aux clés de développement | Mesuré : une clé valide obtient 403 sur les quatre routes régionales tout en répondant 200 ailleurs. L'ouverture demande une approbation nommée avec prototype. Attribution imposée, texte officiel obligatoire, pas d'assets externes. |
+| **YGOPRODeck** | Catalogue Yu-Gi-Oh — noms EN et FR, types, niveaux, attributs, impressions, illustrations | Public, sans clé, **catalogue entier en un appel** (21 Mo, 14 491 cartes) | **Pas de CGU publiées** ; le guide d'API fait foi et **demande** le stockage local (« please download and store all data locally »). Débit annoncé : 20 req/s — ce connecteur en fait deux en tout. Garde-fou §IV.9 : on lui applique les règles de Scryfall. Illustrations jamais réhébergées. |
 
 ### Volumes et formats réellement disponibles
 

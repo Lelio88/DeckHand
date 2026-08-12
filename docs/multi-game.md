@@ -1,7 +1,121 @@
-# Multi-jeu — accueil de Riftbound
+# Multi-jeu — accueil des jeux qui ne sont pas Magic
 
-Annexe de [`architecture.md`](./architecture.md). Riftbound, le jeu de cartes
-physique League of Legends de Riot, partage la base de DeckHand avec Magic.
+Annexe de [`architecture.md`](./architecture.md). Trois jeux partagent
+aujourd'hui la base de DeckHand : **Magic**, **Riftbound** (le TCG League of
+Legends de Riot) et **Yu-Gi-Oh**. Ce document dit ce que chacun a demandé, et ce
+que le modèle a absorbé sans se déformer.
+
+---
+
+## 0. Yu-Gi-Oh — 13 866 cartes, et presque rien à inventer
+
+**Ce jeu a coûté moins cher que Riftbound**, et l'écart tient entièrement à la
+source. Tout ce qui suit est relevé sur les données, pas repris d'une
+documentation.
+
+| | Riftbound | Yu-Gi-Oh |
+|---|---|---|
+| Catalogue | 15 requêtes paginées | **un seul appel**, 21 Mo, 14 491 cartes |
+| Identité | UUIDv5 dérivés du triplet nom + type + texte | **le passcode imprimé sur la carte**, unique sur 14 491 |
+| Homonymes | 80 noms pour 161 cartes | **aucun** |
+| Langues | anglais seul | **anglais et français**, liés par `name_en` |
+| Gabarit d'illustration | 3 méthodes, 2 échecs | **recoupement exact**, la source publiant carte entière *et* illustration détourée |
+
+**Le nom redevient la voie principale.** Riftbound doit passer par
+l'illustration : ses 80 homonymes ont des lignes de type identiques, le nom ne
+peut pas les départager, et Riot ne sert que l'anglais alors que la
+reconnaissance lit un carton français. Yu-Gi-Oh n'a ni l'un ni l'autre problème
+— zéro homonyme, et 11 504 noms français sur 13 866. Il rejoint donc Magic : le
+nom d'abord, l'illustration en appoint.
+
+### Deux gabarits, et le discriminant est un contrat
+
+Mesurés par recoupement — chercher, dans la carte entière, la région qui
+reproduit l'illustration détourée que la même source publie :
+
+- **cadre ordinaire** (0,1181 · 0,1823 · 0,8807 · 0,7055), sur 20 cartes tirées
+  dans dix familles : **la même fenêtre à 0,001 près**, écart résiduel de
+  1 niveau de gris sur 255 ;
+- **cartes Pendulum** (0,0615 · 0,1789 · 0,9360 · 0,6238), 390 cartes soit
+  2,7 % : leur illustration déborde pour laisser place aux deux échelles
+  latérales. Mesuré sur 18 cartes des six sous-familles, stable à 0,001 près.
+
+**Le choix entre les deux ne se devine pas** : `frameType` porte « pendulum »
+pour ces cartes et pour elles seules. C'est ce qui sépare ce jeu de Pokémon
+(#28), dont le seul discriminant disponible est la rareté — quarante valeurs qui
+ont changé plusieurs fois en vingt-sept ans.
+
+**La première mesure a échoué, et son échec instruit.** Elle cherchait un carré,
+parce que l'illustration détourée des cartes ordinaires en est un (624 × 624).
+Pour une Pendulum, la source publie 712 × 908 : non pas l'illustration, mais
+l'illustration **plus le pavé de texte**. Chercher un carré ne pouvait rien
+trouver, et les écarts sont passés de 1 à 50. C'est pourquoi l'index découpe
+lui-même la carte entière au lieu de faire confiance au recadrage publié — un
+seul chemin, exactement celui que l'application suivra sur une photo.
+
+### Le format du carton, enfin éprouvé
+
+Yu-Gi-Oh est le **premier jeu couvert qui n'imprime pas en 63 × 88 mm** : son
+carton fait 59 × 86, et le paramétrage introduit par #24 cesse donc d'être
+théorique. La question que ce chantier laissait ouverte — un rendu de source
+s'aligne-t-il sur le carton ? — est tranchée : **813 × 1185, soit 0,6861**,
+contre 0,68605 pour 59 × 86. À un dix-millième près.
+
+### Ce qui n'entre pas au catalogue
+
+- les **124 *Skill Cards***, qui appartiennent au jeu vidéo Duel Links — la
+  source rend d'ailleurs 404 sur leur illustration détourée ;
+- les **501 cartes sans aucune impression**, jamais parues hors de l'anime.
+
+Les deux ensembles se recoupent : 13 866 cartes sur 14 491 sont retenues. Les
+garder ferait espérer des cartes qu'aucune boutique ne vend et qu'aucun classeur
+ne rangera.
+
+### Trois pièges relevés sur les données
+
+**La rareté fait partie de l'identité d'une impression.** 44 287 impressions pour
+38 297 codes distincts : une même carte paraît dans une même extension sous
+plusieurs raretés. Sans la rareté dans la clé, la Starlight Rare et la Super Rare
+de « Justice Hunters » s'écraseraient l'une l'autre, et la collection perdrait la
+version réellement possédée — celle qui porte la valeur.
+
+**« Spell » attrape 700 monstres.** Le filtre de recherche est un `ILIKE` sur la
+ligne de type entière, et la famille *Spellcaster* le contient. Le type déclaré
+est donc « Spell Card », qui est aussi le vocabulaire officiel du jeu. Mesuré
+après correction : 2 801 résultats, soit exactement le nombre de magies.
+
+**Les impressions listées sont anglaises** — 38 590 codes `XXXX-EN###` contre
+456 `PT` et 4 `SE`. Les éditions françaises existent en carton mais ne figurent
+pas au catalogue : `card_prints` porte les impressions anglaises, et le français
+vit dans `card_search_names`, qui est fait pour ça.
+
+### Le volume a changé une manière de faire
+
+C'est le seul endroit où ce jeu a demandé autre chose. Riftbound écrit ses 1 451
+impressions une par une sans que cela se remarque ; à **44 139**, un aller-retour
+par ligne vers une base distante porte l'ingestion à plusieurs dizaines de
+minutes. `executemany` les regroupe : **29 secondes** pour le catalogue entier,
+impressions et noms des deux langues compris.
+
+### Vérifié sous le rôle qui subira les règles
+
+Dans une transaction annulée, sous `authenticated` : `search_cards('dark
+magician', 'yugioh')` rend les cinq Magiciens Sombres avec leurs lignes de type ;
+`search_cards('magicien sombre', 'yugioh')` rend les mêmes cartes par leur nom
+français ; le filtre « Spell Card » sur « dragon » ne rend que des magies ; et la
+même requête en Magic ne rend aucune carte Yu-Gi-Oh — le cloisonnement tient.
+
+**Ce qui reste dû** : les prix (#26), le corpus de decks (#27), et l'index
+d'empreintes, sans lequel la reconnaissance par illustration n'a rien à
+interroger. Aucune carte Yu-Gi-Oh de papier n'a encore été photographiée — c'est
+le même verrou que Riftbound a mis longtemps à lever.
+
+---
+
+## Riftbound
+
+Riftbound, le jeu de cartes physique League of Legends de Riot, partage la base
+de DeckHand avec Magic.
 
 **Ce qui est en place** : le catalogue est ingéré — 1 234 cartes distinctes,
 1 451 impressions, 1 234 noms indexés — et cloisonné par `cards.game`. La

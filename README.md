@@ -98,6 +98,12 @@ DeckHand n'existe que grâce à ces services, qui ouvrent leurs données.
   Ce sont donc des prix convertis, non relevés sur un marché européen, et l'application le dit.
 - **[Riot Games](https://riotgames.com)** — Riftbound, ses cartes et leurs illustrations.
   DeckHand n'est ni approuvé ni sponsorisé par Riot Games.
+- **[YGOPRODeck](https://ygoprodeck.com)** — catalogue des cartes Yu-Gi-Oh, noms français et
+  illustrations. Base communautaire qui ne publie pas de CGU : son
+  [guide d'API](https://ygoprodeck.com/api-guide/) fait foi, il demande le stockage local des
+  données, et DeckHand lui applique pour le reste les mêmes égards qu'à Scryfall.
+- **[Konami](https://www.konami.com)** — Yu-Gi-Oh!, ses cartes et leurs illustrations.
+  DeckHand n'est ni approuvé ni sponsorisé par Konami.
 
 Aucune donnée issue de ces sources n'est versionnée ici : tout est téléchargé à l'exécution,
 dans le respect des conditions de chaque fournisseur.

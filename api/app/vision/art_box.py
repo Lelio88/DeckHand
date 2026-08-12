@@ -53,13 +53,42 @@ RIFTBOUND_LANDSCAPE = ArtBox(0.041, 0.199, 0.962, 0.777)
 #: Jumeau de `CardFrame.landscape`.
 GAMES_WITH_LANDSCAPE = frozenset({"riftbound"})
 
+#: Yu-Gi-Oh, cadre ordinaire — 14 101 cartes sur 14 491.
+#:
+#: **Mesuré par recoupement, non par une heuristique.** La source publie la carte
+#: entière *et* son illustration détourée : la fenêtre se retrouve en cherchant,
+#: dans la première, la région qui reproduit la seconde. Sur 20 cartes tirées
+#: dans dix familles de cadre, la même fenêtre à 0,001 près, pour un écart
+#: résiduel de 1 niveau de gris sur 255. Jumeau de `CardFrame.yugioh`.
+YUGIOH = ArtBox(0.1181, 0.1823, 0.8807, 0.7055)
+
+#: Yu-Gi-Oh, cartes Pendulum — 390 cartes, soit 2,7 %.
+#:
+#: Leur illustration déborde sous le cadre ordinaire pour laisser place aux deux
+#: échelles latérales. Mesurée sur 18 cartes des six sous-familles Pendulum,
+#: stable à 0,001 près. Jumeau de `CardFrame.yugiohPendulum`.
+YUGIOH_PENDULUM = ArtBox(0.0615, 0.1789, 0.9360, 0.6238)
+
 
 def box_for(game: str, layout: str | None) -> ArtBox | None:
     """Gabarit à appliquer, ou `None` si l'image est déjà découpée.
 
     Magic renvoie `None` : ses illustrations arrivent déjà recadrées de
     Scryfall, et les redécouper les amputerait.
+
+    **Yu-Gi-Oh découpe malgré une illustration détourée disponible.** La source
+    en publie une, et elle conviendrait pour les cartes ordinaires — mais pour
+    une Pendulum elle englobe le pavé de texte en plus de l'illustration. Plutôt
+    que deux chemins selon le cadre, l'index part de la carte entière dans les
+    deux cas : c'est exactement ce que l'application fera sur une photo, et
+    c'est la seule façon d'être sûr que les deux empreintes se rencontrent.
+
+    [layout] porte ici le `frameType` de la source, comme il porte l'orientation
+    pour Riftbound : dans les deux cas, c'est la donnée qui dit quel gabarit
+    appliquer.
     """
+    if game == "yugioh":
+        return YUGIOH_PENDULUM if layout and "pendulum" in layout else YUGIOH
     if game != "riftbound":
         return None
     return RIFTBOUND_LANDSCAPE if layout == "landscape" else RIFTBOUND_PORTRAIT

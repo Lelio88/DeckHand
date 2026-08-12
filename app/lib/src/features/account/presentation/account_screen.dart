@@ -172,15 +172,26 @@ class _GamePicker extends ConsumerWidget {
               Game.magic => '32 918 cartes, 1 028 decks',
               Game.riftbound =>
                 'le TCG League of Legends — 1 035 cartes, 2 500 decks',
+              Game.yugioh => '14 491 cartes, aucun deck pour l\'instant',
             },
             // **Les prix Riftbound sont convertis, et ça se dit ici.** Ils sont
             // relevés en dollars chez TCGplayer ; l'euro affiché passe par le
             // taux de la BCE et n'est donc pas un prix de marché européen. Le
             // chiffre est bon, sa provenance mérite d'être connue avant qu'on
             // décide d'acheter sur sa foi.
-            note: game == Game.riftbound
-                ? 'Prix convertis du dollar au taux de la BCE'
-                : null,
+            note: switch (game) {
+              // **Les prix Riftbound sont convertis, et ça se dit ici.** Ils
+              // sont relevés en dollars chez TCGplayer ; l'euro affiché passe
+              // par le taux de la BCE et n'est donc pas un prix de marché
+              // européen. Le chiffre est bon, sa provenance mérite d'être
+              // connue avant qu'on décide d'acheter sur sa foi.
+              Game.riftbound => 'Prix convertis du dollar au taux de la BCE',
+              // Le catalogue est là, le corpus de decks pas encore : mieux vaut
+              // le dire sur la tuile que de laisser l'écran des decks paraître
+              // en panne.
+              Game.yugioh => 'Catalogue seul — decks et prix à venir',
+              Game.magic => null,
+            },
             selected: game == selected,
             onTap: game == selected
                 ? null

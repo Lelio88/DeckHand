@@ -12,7 +12,8 @@ enum DeckFormat {
   pauper('pauper', 'Pauper'),
   modern('modern', 'Modern'),
   commander('commander', 'Commander'),
-  constructed('constructed', 'Construit');
+  constructed('constructed', 'Construit'),
+  advanced('advanced', 'Advanced');
 
   const DeckFormat(this.id, this.label);
 
@@ -28,6 +29,17 @@ const _magicFormats = [
 
 const _riftboundFormats = [DeckFormat.constructed];
 
+/// **Un seul format, et il est relevé et non inventé** : `Advanced` est le
+/// format de tournoi courant du jeu, et c'est sous ce nom que TopDeck.gg le
+/// sert. Les six autres qu'il expose — Edison, Goat, HAT, REDU, Genesys,
+/// Domain — sont des formats rétro, dont l'intérêt pour une collection
+/// ordinaire est réel mais dont le volume de listes reste à mesurer avant d'en
+/// proposer un onglet.
+///
+/// Tant que le corpus n'est pas importé, cet onglet annonce « aucun deck ».
+/// C'est exact, et préférable à l'absence d'onglet : le jeu a bien un format.
+const _yugiohFormats = [DeckFormat.advanced];
+
 /// Formats proposés pour un jeu.
 ///
 /// **Un format n'appartient qu'à un jeu**, et proposer les trois formats Magic
@@ -37,6 +49,7 @@ const _riftboundFormats = [DeckFormat.constructed];
 List<DeckFormat> deckFormatsFor(Game game) => switch (game) {
   Game.magic => _magicFormats,
   Game.riftbound => _riftboundFormats,
+  Game.yugioh => _yugiohFormats,
 };
 
 class DeckSuggestion {

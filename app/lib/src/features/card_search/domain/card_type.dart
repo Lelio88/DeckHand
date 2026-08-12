@@ -55,7 +55,33 @@ const _riftboundTypes = <CardType>[
   CardType('Rune', 'Rune'),
 ];
 
+/// Types Yu-Gi-Oh, dans l'ordre où ils peuplent le catalogue : 9 318 monstres,
+/// 2 867 magies, 2 076 pièges — relevé, pas supposé.
+///
+/// **Les familles de monstres viennent après les trois grandes coupes.** Un
+/// catalogue de 14 491 cartes se scinde d'abord en monstre / magie / piège ;
+/// c'est ce que l'œil vérifie en premier. Les quatre familles d'Extra Deck sont
+/// proposées ensuite parce qu'elles répondent à une autre question — « qu'est-ce
+/// que je peux mettre dans mon Extra ? » — et qu'elles pèsent chacune quelques
+/// centaines de cartes.
+const _yugiohTypes = <CardType>[
+  CardType('Monster', 'Monstre'),
+  // **« Spell Card » et non « Spell »**, parce que le filtre est un `ILIKE` sur
+  // la ligne de type entière : « Spell » seul attrape les quelque sept cents
+  // monstres de la famille *Spellcaster*, mesuré. Le vocabulaire officiel du
+  // jeu dit d'ailleurs « Spell Card », et il est repris tel quel par la source.
+  CardType('Spell Card', 'Magie'),
+  CardType('Trap Card', 'Piège'),
+  CardType('XYZ', 'XYZ'),
+  CardType('Fusion', 'Fusion'),
+  CardType('Synchro', 'Synchro'),
+  CardType('Link', 'Lien'),
+  CardType('Pendulum', 'Pendule'),
+  CardType('Ritual', 'Rituel'),
+];
+
 List<CardType> cardTypesFor(Game game) => switch (game) {
   Game.magic => _magicTypes,
   Game.riftbound => _riftboundTypes,
+  Game.yugioh => _yugiohTypes,
 };
