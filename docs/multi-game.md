@@ -25,6 +25,25 @@ qu'on ne cherche pas dans l'index d'un jeu une empreinte découpée au cadre de
 l'autre — une carte reste alors introuvable pour une raison qui n'a rien à voir
 avec la qualité du gabarit, ce qui est le pire des diagnostics.
 
+**Le gabarit vertical est éprouvé sur une carte de papier.** C'est ce que #4 et
+#5 attendaient, et la réponse est bonne : photographiée puis recadrée sur ses
+bords, une carte française (*Archer du Val gelé*, UNL 65) place son homologue du
+catalogue (*Icevale Archer*) **au rang 1 sur 1 035, à 14 bits**, avec une marge
+de 4 sur le suivant. Les proportions mesurées sur des rendus numériques
+survivent donc à une photo à main levée — le précédent Magic laissait craindre
+l'inverse.
+
+La même photo **non recadrée** place cette carte au rang 146, à 28 bits, soit du
+bruit. L'écart ne vient ni du gabarit ni de l'empreinte mais de `findCard`, qui
+rend alors un quadrilatère couvrant 99,5 % de la photo quand la carte n'en
+occupe que 50 %. Le rapport de ce faux quadrilatère vaut 0,751 — celui du
+capteur — et passe la tolérance de 0,30 sans difficulté : **une photo de
+téléphone en portrait (3:4 = 0,750) et une carte (63:88 = 0,716) ont presque le
+même rapport**, si bien que le garde-fou d'aspect est structurellement aveugle à
+ce cas. Le remède immédiat est le cadrage, que l'écran demande déjà ; la
+correction de la détection demande un lot de photos pour être calibrée plutôt
+que devinée.
+
 **Le second gabarit ne peut pas encore servir sur une photo.** `findCard` ne
 retient un quadrilatère que si son rapport approche celui d'une carte verticale
 à 0,30 près ; un champ de bataille, en paysage, s'en écarte de 0,68 et est
