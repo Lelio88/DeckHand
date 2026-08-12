@@ -54,6 +54,33 @@ void main(List<String> args) {
 
   stdout.writeln('photo   ${photo.width} x ${photo.height}');
 
+  // Ce que la détection voit avant de conclure. C'est lui qui décide de tout ;
+  // le regarder est le seul moyen de comprendre un échec.
+  final seen = debugDetection(photo);
+  final view = img.Image(width: seen.width, height: seen.height);
+  var on = 0;
+  for (var i = 0; i < seen.mask.length; i++) {
+    if (seen.mask[i]) on++;
+    // Trois niveaux : la forme retenue en blanc, le reste du masque en gris,
+    // le fond en noir. La différence entre les deux premiers est précisément
+    // ce que la recherche de composante a décidé de garder.
+    final kept = seen.shape?[i] ?? false;
+    final v = kept ? 255 : (seen.mask[i] ? 110 : 0);
+    view.setPixelRgb(i % seen.width, i ~/ seen.width, v, v, v);
+  }
+  File('$out/masque.png').writeAsBytesSync(img.encodePng(view));
+  stdout.writeln(
+    'masque  ${(on / seen.mask.length * 100).toStringAsFixed(1)} % de l\'image '
+    'tenu pour du carton  ->  $out/masque.png',
+  );
+  // **Le discriminant qui manque à la détection.** Une carte est un rectangle
+  // plein : sa forme remplit sa boîte englobante. Une forme qui déborde sur le
+  // décor garde la boîte de l'image entière tout en la remplissant mal.
+  stdout.writeln(
+    'forme   remplit ${(seen.fill * 100).toStringAsFixed(1)} % '
+    'de sa boîte englobante',
+  );
+
   // Exactement ce que fait `ScanService._byArt` : les coins d'abord, le cadre
   // centré à défaut.
   final quad = findCard(photo);

@@ -130,6 +130,56 @@ CardQuad? findCard(img.Image photo) {
 /// Proportions d'une carte Magic, 63 × 88 mm.
 const double cardAspect = 63 / 88;
 
+/// Ce que la détection voit, avant qu'elle ne conclue.
+///
+/// **Exposé au seul usage du diagnostic.** Quand `findCard` rend un
+/// quadrilatère faux, aucun chiffre ne dit pourquoi : c'est le masque qu'il
+/// faut voir. `tool/probe_photo.dart` l'écrit en image, et l'erreur saute alors
+/// aux yeux — une ombre qui relie la carte au bord, un fond pris pour du carton.
+/// Rien dans l'application n'appelle cette fonction.
+({List<bool> mask, List<bool>? shape, double fill, int width, int height})
+debugDetection(img.Image image) {
+  final scale = image.width > analysisWidth ? image.width / analysisWidth : 1.0;
+  final small = scale > 1
+      ? img.copyResize(
+          image,
+          width: analysisWidth,
+          height: (image.height / scale).round().clamp(1, image.height),
+          interpolation: img.Interpolation.linear,
+        )
+      : image;
+
+  final mask = _cardMask(small);
+  _fillHoles(mask, small.width, small.height);
+  final shape = _largestComponent(mask, small.width, small.height);
+
+  var fill = 0.0;
+  if (shape != null) {
+    var area = 0;
+    var minX = small.width, maxX = -1, minY = small.height, maxY = -1;
+    for (var i = 0; i < shape.length; i++) {
+      if (!shape[i]) continue;
+      area++;
+      final x = i % small.width;
+      final y = i ~/ small.width;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    final box = (maxX - minX + 1) * (maxY - minY + 1);
+    fill = box > 0 ? area / box : 0;
+  }
+
+  return (
+    mask: mask,
+    shape: shape,
+    fill: fill,
+    width: small.width,
+    height: small.height,
+  );
+}
+
 /// Ce qui est carte plutôt que table.
 ///
 /// Deux signatures, réunies : une carte porte une **bordure sombre** sur tout
