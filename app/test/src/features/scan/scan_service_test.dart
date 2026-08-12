@@ -9,6 +9,7 @@ library;
 
 import 'dart:typed_data';
 
+import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/scan/application/scan_service.dart';
 import 'package:deckhand/src/features/scan/domain/art_box.dart';
 import 'package:deckhand/src/features/scan/domain/art_hash.dart';
@@ -262,6 +263,65 @@ void main() {
         );
       },
     );
+  });
+
+  group('les gabarits sont ceux du jeu saisi', () {
+    // **Le cloisonnement existait sans jamais servir.** `art_box.dart` sait
+    // restreindre les cadres à un jeu, et un test le vérifiait — mais sur la
+    // fonction seule. Le service, lui, ne le lui avait jamais demandé : le
+    // défaut du paramètre (`magic`) s'appliquait donc toujours. Une carte
+    // Riftbound était découpée aux coordonnées d'un cadre Magic, puis cherchée
+    // dans l'index Riftbound. La voie principale de reconnaissance de ce jeu —
+    // faute de catalogue traduit, l'empreinte y est la voie principale et non
+    // le recours — était débranchée, et le test terrain aurait imputé l'échec
+    // aux gabarits.
+    test('une carte Riftbound est découpée au gabarit Riftbound', () async {
+      final card = fakeCard(CardFrame.riftbound, seed: 11);
+      final service = ScanService(
+        indexOf({'cible': card}, CardFrame.riftbound),
+        FakeCardTextReader(),
+        FakeCardRepository(),
+        game: Game.riftbound,
+      );
+
+      final outcome = await service.recognise(photoOf(card));
+
+      expect(outcome.oracleIds.first, 'cible');
+      expect(outcome.frame, CardFrame.riftbound);
+      expect(outcome.isConfident, isTrue);
+    });
+
+    test("aucun cadre d'un autre jeu n'est essayé", () async {
+      // Contre-épreuve du même câblage : le cadre retenu doit appartenir au jeu
+      // saisi quoi qu'on photographie. C'est ce qui protège le zéro faux
+      // positif annoncé avec assurance — un découpage étranger produit une
+      // empreinte qui ne veut rien dire mais peut rencontrer une entrée par
+      // hasard.
+      final magic = fakeCard(CardFrame.modern, seed: 12);
+      final service = ScanService(
+        indexOf({'magic': magic}, CardFrame.modern),
+        FakeCardTextReader(),
+        FakeCardRepository(),
+        game: Game.riftbound,
+      );
+
+      final outcome = await service.recognise(photoOf(magic));
+
+      expect(outcome.frame?.game, 'riftbound');
+    });
+
+    test('Magic reste le jeu par défaut', () async {
+      final card = fakeCard(CardFrame.modern, seed: 13);
+      final service = ScanService(
+        indexOf({'cible': card}, CardFrame.modern),
+        FakeCardTextReader(),
+        FakeCardRepository(),
+      );
+
+      final outcome = await service.recognise(photoOf(card));
+
+      expect(outcome.frame, CardFrame.modern);
+    });
   });
 
   group("l'étalement interroge le catalogue en un seul aller-retour", () {

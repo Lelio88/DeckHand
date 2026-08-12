@@ -27,6 +27,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 
+import '../../../config/selected_game.dart';
 import '../../../diagnostics/diagnostics.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
@@ -136,11 +137,27 @@ class SpreadFind {
 const double _decisiveScore = 0.9;
 
 class ScanService {
-  const ScanService(this._index, this._reader, this._cards);
+  const ScanService(
+    this._index,
+    this._reader,
+    this._cards, {
+    this.game = Game.magic,
+  });
 
   final ArtHashIndex _index;
   final CardTextReader _reader;
   final CardRepository _cards;
+
+  /// Jeu saisi, qui décide des gabarits d'illustration essayés.
+  ///
+  /// **Sans lui, le cloisonnement de `art_box.dart` ne servait à rien.** Les
+  /// cadres y sont marqués par jeu et la fonction sait les filtrer, mais le
+  /// service ne le lui demandait pas : le défaut du paramètre (`magic`)
+  /// s'appliquait quel que soit le jeu réellement saisi. Une carte Riftbound
+  /// était donc découpée aux coordonnées d'un cadre Magic — or l'empreinte est
+  /// la voie **principale** pour ce jeu, faute de catalogue traduit, et non le
+  /// recours qu'elle est en Magic.
+  final Game game;
 
   /// Reconnaît la carte photographiée.
   ///
@@ -483,9 +500,10 @@ class ScanService {
     // comportement, jamais sur pire.
     final quad = findCard(decoded);
     final candidates = quad == null
-        ? artHashCandidates(cropToCardFrame(decoded))
-        : artHashCandidatesInQuad(decoded, quad);
+        ? artHashCandidates(cropToCardFrame(decoded), game: game.id)
+        : artHashCandidatesInQuad(decoded, quad, game: game.id);
     final outcome = _index.searchAny(candidates, limit: limit);
+    _diagnoseArt(outcome, framed: quad != null);
 
     return ScanOutcome(
       oracleIds: outcome.result.candidates
@@ -494,6 +512,41 @@ class ScanService {
       isConfident: outcome.result.isConfident,
       frame: outcome.source,
     );
+  }
+
+  /// Consigne ce que l'illustration a donné, et pourquoi.
+  ///
+  /// **Un échec d'empreinte est muet par nature.** « Aucune carte trouvée » ne
+  /// dit ni où l'illustration a été prélevée, ni à quelle distance est tombé le
+  /// plus proche voisin — c'est-à-dire précisément ce qui sépare un mauvais
+  /// gabarit d'un mauvais cadrage, ou d'une carte réellement absente de
+  /// l'index. Les quatre valeurs ci-dessous suffisent à trancher :
+  ///
+  /// - `framed` dit si les coins de la carte ont été trouvés ; à défaut on
+  ///   retombe sur un cadre centré, qui suppose que la carte remplit l'image ;
+  /// - `frame` nomme le gabarit vainqueur, et son jeu vérifie le cloisonnement ;
+  /// - `distance` situe la correspondance vis-à-vis de [maxTrustedDistance] ;
+  /// - `margin` dit si un second candidat la talonne.
+  ///
+  /// `index` accompagne le tout : un index de la mauvaise taille signale qu'on
+  /// cherche dans le catalogue de l'autre jeu, ce qu'aucune des autres valeurs
+  /// ne révélerait.
+  void _diagnoseArt(
+    ({HashSearchResult result, CardFrame? source}) outcome, {
+    required bool framed,
+  }) {
+    if (!diagnosticsEnabled) return;
+    final best = outcome.result.best;
+    diagnose('art_match', {
+      'game': game.id,
+      'framed': framed,
+      'frame': outcome.source?.name,
+      'oracle_id': best?.oracleId,
+      'distance': best?.distance,
+      'margin': outcome.result.margin,
+      'confident': outcome.result.isConfident,
+      'index': _index.length,
+    });
   }
 
   /// Confronte les noms lus au catalogue.
@@ -538,11 +591,17 @@ class ScanService {
 }
 
 /// Service de reconnaissance, disponible dès que l'index est chargé.
+///
+/// **Le jeu suit l'index.** [artHashIndexProvider] observe déjà
+/// [selectedGameProvider] pour ne charger que les empreintes du jeu courant ;
+/// les gabarits doivent venir du même endroit, sous peine de découper une carte
+/// d'un jeu pour la chercher dans l'index de l'autre.
 final scanServiceProvider = FutureProvider<ScanService>((ref) async {
   final index = await ref.watch(artHashIndexProvider.future);
   return ScanService(
     index,
     ref.watch(cardTextReaderProvider),
     ref.watch(cardRepositoryProvider),
+    game: ref.watch(selectedGameProvider),
   );
 });

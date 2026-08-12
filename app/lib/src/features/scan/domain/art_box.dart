@@ -63,11 +63,16 @@ enum CardFrame {
     bottom: 0.517,
   ), 'riftbound'),
 
-  /// Riftbound, cartes horizontales : les 71 champs de bataille.
+  /// Riftbound, cartes horizontales : les 64 champs de bataille.
   ///
   /// Leur nom est incrusté *dans* l'illustration et ne peut en être retiré ;
   /// il est donc haché avec elle, ce qui est sans conséquence puisqu'il est
   /// constant pour une carte donnée.
+  ///
+  /// **Ce cadre n'est pas encore atteignable depuis une photo.** `findCard`
+  /// rejette les quadrilatères couchés — leur rapport s'écarte trop de celui
+  /// d'une carte verticale — et le repli découpe un rectangle vertical. Le
+  /// gabarit reste juste : c'est celui que l'index applique côté serveur.
   riftboundWide((
     left: 0.041,
     top: 0.199,

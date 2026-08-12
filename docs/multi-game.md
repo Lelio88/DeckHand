@@ -8,13 +8,31 @@ physique League of Legends de Riot, partage la base de DeckHand avec Magic.
 recherche ne mêle jamais les deux jeux.
 
 **Les gabarits d'illustration sont mesurés** : (0,065 · 0,047 · 0,934 · 0,517)
-pour les cartes verticales, (0,041 · 0,199 · 0,962 · 0,777) pour les 71 champs
+pour les cartes verticales, (0,041 · 0,199 · 0,962 · 0,777) pour les 64 champs
 de bataille horizontaux. Deux méthodes fondées sur la variance ont échoué avant
 qu'une troisième, fondée sur la luminosité de l'image moyenne, n'aboutisse : le
 cadre y est sombre, l'illustration en tons moyens, les pavés de texte quasi
 blancs. Les
 gabarits sont cloisonnés par jeu — essayer un cadre Magic sur une carte
 Riftbound doublerait le calcul et le risque de correspondance fortuite.
+
+**Le jeu saisi décide des gabarits, du sélecteur jusqu'au découpage.** Marquer
+les cadres par jeu ne suffit pas : encore faut-il que la reconnaissance demande
+ce filtrage. `ScanService` porte donc le jeu et le transmet à `artHashCandidates`,
+au même titre que `artHashIndexProvider` le transmet au téléchargement de
+l'index. Les deux viennent de `selectedGameProvider`, et c'est ce qui garantit
+qu'on ne cherche pas dans l'index d'un jeu une empreinte découpée au cadre de
+l'autre — une carte reste alors introuvable pour une raison qui n'a rien à voir
+avec la qualité du gabarit, ce qui est le pire des diagnostics.
+
+**Le second gabarit ne peut pas encore servir sur une photo.** `findCard` ne
+retient un quadrilatère que si son rapport approche celui d'une carte verticale
+à 0,30 près ; un champ de bataille, en paysage, s'en écarte de 0,68 et est
+rejeté. La reconnaissance retombe alors sur le cadrage centré, qui découpe un
+rectangle vertical — de travers sur une carte couchée. Les 64 champs de bataille
+sont donc hors de portée du scan tant que la détection ne connaît pas les deux
+orientations. L'index, lui, est correct : `art_box.py` hache bien ces cartes au
+gabarit paysage d'après `cards.layout`.
 
 **L'index d'empreintes est construit** : 1 193 empreintes pour 1 035 cartes,
 aucun échec de téléchargement, et **aucune carte sans empreinte**. Les 17 cartes
