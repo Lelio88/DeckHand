@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../config/selected_game.dart';
 import '../../../diagnostics/diagnostics.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
@@ -70,6 +71,13 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
   /// La photo n'a rien donné — le seul cas où il n'y a rien d'autre à montrer.
   String? _error;
 
+  /// Des noms ont été lus, aucun ne correspond au catalogue.
+  ///
+  /// Distingue le seul cas où « rapprochez-vous » est un mauvais conseil : la
+  /// lecture a fonctionné, c'est le catalogue interrogé qui ne contient pas ces
+  /// cartes. Le geste utile est alors de vérifier le jeu saisi, pas la photo.
+  bool _readButUnmatched = false;
+
   /// L'enregistrement a échoué, alors que la liste, elle, est intacte.
   ///
   /// **Deux pannes, deux champs.** Elles partageaient `_error`, si bien qu'une
@@ -112,7 +120,8 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       setState(() {
         _spotted
           ..clear()
-          ..addAll(found.map(_Spotted.new));
+          ..addAll(found.cards.map(_Spotted.new));
+        _readButUnmatched = found.readButUnmatched;
         _scanned = true;
       });
       await _fillSoleEditions();
@@ -270,6 +279,21 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       );
     }
     if (_spotted.isEmpty) {
+      // **Deux causes opposées, deux gestes opposés.** Confondre les deux
+      // envoyait nettoyer des protège-cartes quand la lecture était parfaite.
+      if (_readButUnmatched) {
+        final game = ref.watch(selectedGameProvider);
+        return _Note(
+          icon: Icons.translate,
+          text: game == Game.riftbound
+              ? 'Des noms ont bien été lus, mais aucun ne figure au catalogue '
+                    'Riftbound — qui n\'existe qu\'en anglais. Une carte '
+                    'française ne peut pas être reconnue par son nom : '
+                    'photographiez-la seule, son illustration la trahira.'
+              : 'Des noms ont bien été lus, mais aucun ne correspond au '
+                    'catalogue ${game.label}. Vérifiez le jeu sélectionné.',
+        );
+      }
       return const _Note(
         icon: Icons.search_off,
         text:

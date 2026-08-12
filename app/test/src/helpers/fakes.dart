@@ -140,6 +140,7 @@ class FakeCardRepository implements CardRepository {
     lastQuery = query;
     lastGame = game;
     lastTypes = types.toList(growable: false);
+    if (searchError != null) throw searchError!;
     return query.trim().isEmpty ? const [] : results;
   }
 

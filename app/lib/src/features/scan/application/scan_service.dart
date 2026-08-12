@@ -63,6 +63,7 @@ class ScanOutcome {
     this.readLines = const [],
     this.frame,
     this.error,
+    this.catalogueUnreachable = false,
   });
 
   /// Cartes proposées, la plus probable en tête.
@@ -93,7 +94,45 @@ class ScanOutcome {
 
   final String? error;
 
+  /// Le catalogue n'a pas pu être interrogé — réseau coupé, serveur muet.
+  ///
+  /// **Une panne ne doit pas passer pour une carte inconnue.** L'étalement a
+  /// été corrigé de ce piège : il laisse remonter la panne au lieu de rendre
+  /// « aucune carte trouvée ». Le scan à l'unité, lui, avalait toujours
+  /// l'erreur — et quand l'illustration ne trouvait rien non plus, l'écran
+  /// annonçait un nom illisible et proposait de recadrer. Recadrer une photo
+  /// irréprochable ne rétablit pas une connexion.
+  final bool catalogueUnreachable;
+
   bool get isEmpty => oracleIds.isEmpty;
+
+  /// Le même résultat, portant le nom qui a été lu sans être retrouvé.
+  ///
+  /// Sert le seul cas où [readName] a une valeur diagnostique : la lecture a
+  /// réussi, la confrontation au catalogue a échoué. Sans lui, l'écran ne peut
+  /// pas distinguer ce cas d'une photo illisible.
+  ScanOutcome named(String name) => ScanOutcome(
+    oracleIds: oracleIds,
+    isConfident: isConfident,
+    method: method,
+    readName: name,
+    readLines: readLines,
+    frame: frame,
+    error: error,
+    catalogueUnreachable: catalogueUnreachable,
+  );
+
+  /// Le même résultat, sachant que le catalogue est resté injoignable.
+  ScanOutcome unreachable() => ScanOutcome(
+    oracleIds: oracleIds,
+    isConfident: isConfident,
+    method: method,
+    readName: readName,
+    readLines: readLines,
+    frame: frame,
+    error: error,
+    catalogueUnreachable: true,
+  );
 
   /// Le même résultat, augmenté du texte lu sur la photo.
   ScanOutcome withLines(List<ReadLine> lines) => ScanOutcome(
@@ -108,6 +147,36 @@ class ScanOutcome {
 
   factory ScanOutcome.failure(String message) =>
       ScanOutcome(oracleIds: const [], isConfident: false, error: message);
+}
+
+/// Ce qu'un étalement a donné, et de quoi expliquer un résultat vide.
+///
+/// **Un étalement sans carte a deux causes opposées, que rien ne distinguait.**
+/// Ou bien aucun nom n'a pu être lu — photo floue, reflet, cadrage trop loin —,
+/// ou bien des noms ont été parfaitement lus sans qu'aucun ne corresponde au
+/// catalogue. Le geste à faire n'est pas le même : se rapprocher dans le
+/// premier cas, changer de jeu ou de mode dans le second.
+///
+/// L'écran annonçait le premier dans les deux cas. Mesuré sur une carte
+/// Riftbound française, il conseillait d'éviter les reflets sur les
+/// protège-cartes alors que l'appareil venait de lire « Archer du Val gelé »
+/// sans la moindre faute — le catalogue de ce jeu n'existant qu'en anglais.
+class SpreadOutcome {
+  const SpreadOutcome(this.cards, {this.namesRead = 0});
+
+  /// Cartes retenues, dans l'ordre de lecture.
+  final List<SpreadFind> cards;
+
+  /// Nombre de noms candidats effectivement confrontés au catalogue.
+  ///
+  /// Zéro désigne un échec de lecture ; un nombre non nul accompagné d'une
+  /// liste vide désigne un échec de correspondance. C'est toute la distinction.
+  final int namesRead;
+
+  bool get isEmpty => cards.isEmpty;
+
+  /// Vrai quand des noms ont été lus sans qu'aucun ne soit retrouvé.
+  bool get readButUnmatched => cards.isEmpty && namesRead > 0;
 }
 
 /// Une carte repérée sur un étalement, et en combien d'exemplaires.
@@ -187,8 +256,18 @@ class ScanService {
 
     if (names.isEmpty) return byArt;
 
-    final found = await _searchNames(names, limit: limit);
-    if (found.isEmpty) return byArt;
+    final search = await _searchNames(names, limit: limit);
+    final found = search.ids;
+    // **Le nom lu survit à l'échec de la recherche.** `readName` est documenté
+    // comme « affiché tel quel : quand la lecture se trompe, le voir explique
+    // l'erreur au lieu de la rendre incompréhensible » — mais il restait nul
+    // dans le cas où il sert le plus, celui d'un nom net qui ne rencontre
+    // aucune carte. L'écran annonçait alors un nom illisible, et envoyait
+    // recadrer une photo irréprochable.
+    if (found.isEmpty) {
+      final named = byArt.named(names.first);
+      return search.unreachable ? named.unreachable() : named;
+    }
 
     // Les deux voies concordent : le doute est levé, quelle que soit la
     // distance d'empreinte — c'est la confirmation croisée qui fait foi.
@@ -222,14 +301,14 @@ class ScanService {
   /// manquer (nom masqué, reflet) ; c'est assumé, l'utilisateur voit son
   /// étalement et complétera. L'inverse — inventer une carte qu'il validerait
   /// sans y penser — fausserait durablement ses suggestions de decks.
-  Future<List<SpreadFind>> recogniseSpread(
+  Future<SpreadOutcome> recogniseSpread(
     String photoPath, {
     Uint8List? photoBytes,
   }) async {
     final lines = await _reader.readLines(photoPath);
     final candidates = spreadNameCandidates(lines);
     _diagnoseRead(lines, candidates);
-    if (candidates.isEmpty) return const [];
+    if (candidates.isEmpty) return const SpreadOutcome([]);
 
     // **Un seul aller-retour pour toutes les lignes.** Voir
     // `CardRepository.searchMany` : une requête par ligne coûtait 77 secondes
@@ -282,11 +361,11 @@ class ScanService {
     }
 
     final rejected = _citationsAmong(places, photoBytes, found);
-    return [
+    return SpreadOutcome([
       for (final entry in found.entries)
         if (!rejected.contains(entry.key))
           SpreadFind(entry.value, copies: _countCopies(places[entry.key]!)),
-    ];
+    ], namesRead: candidates.length);
   }
 
   /// Identifie les correspondances qui sont des **citations**, non des noms.
@@ -562,7 +641,7 @@ class ScanService {
   ///
   /// Les lignes suivantes ne servent donc que de repli, quand la première n'a
   /// rien donné — le cas d'un nom mal lu.
-  Future<List<String>> _searchNames(
+  Future<({List<String> ids, bool unreachable})> _searchNames(
     List<String> names, {
     required int limit,
   }) async {
@@ -572,7 +651,9 @@ class ScanService {
         hits = await _cards.search(name, limit: limit, game: game);
       } catch (_) {
         // Sans réseau, la lecture ne sert à rien : l'empreinte prend le relais.
-        return const [];
+        // **Mais la panne se dit.** Avalée, elle se confondait avec une carte
+        // absente du catalogue, et l'écran conseillait de recadrer.
+        return (ids: const <String>[], unreachable: true);
       }
       if (hits.isEmpty) continue;
 
@@ -583,11 +664,14 @@ class ScanService {
       // net donne l'impression que l'app hésite alors qu'elle sait.
       final best = hits.first;
       if (best.score >= _decisiveScore) {
-        return [best.oracleId];
+        return (ids: [best.oracleId], unreachable: false);
       }
-      return hits.map((h) => h.oracleId).toList(growable: false);
+      return (
+        ids: hits.map((h) => h.oracleId).toList(growable: false),
+        unreachable: false,
+      );
     }
-    return const [];
+    return (ids: const <String>[], unreachable: false);
   }
 }
 

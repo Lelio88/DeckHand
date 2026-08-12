@@ -99,7 +99,9 @@ void main() {
     final decks = FakeDeckRepository();
     final container = await containerWith(decks);
 
-    container.read(selectedFormatProvider.notifier).select(DeckFormat.commander);
+    container
+        .read(selectedFormatProvider.notifier)
+        .select(DeckFormat.commander);
     await container.read(deckSuggestionsProvider.future);
 
     expect(decks.lastFormat, DeckFormat.commander);

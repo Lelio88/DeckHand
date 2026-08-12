@@ -390,7 +390,7 @@ void main() {
         ReadLine('Anneau solaire', 0.50, 0.03),
       ], cards);
 
-      final found = await service.recogniseSpread('etalement.jpg');
+      final found = (await service.recogniseSpread('etalement.jpg')).cards;
 
       expect(found.map((f) => f.card.name), ['Foudre', 'Anneau solaire']);
       expect(
@@ -442,7 +442,7 @@ void main() {
         ReadLine('Dino', 0.60, 0.010, 0.45, 0.15),
       ], cards);
 
-      final found = await service.recogniseSpread('etalement.jpg');
+      final found = (await service.recogniseSpread('etalement.jpg')).cards;
 
       expect(found.length, 1, reason: 'une seule identité de carte');
       expect(found.single.copies, 4);
@@ -461,7 +461,7 @@ void main() {
         ReadLine('Foudre', 0.20, 0.010, 0.10, 0.15),
       ], cards);
 
-      final found = await service.recogniseSpread('etalement.jpg');
+      final found = (await service.recogniseSpread('etalement.jpg')).cards;
 
       expect(found.single.copies, 1);
     });
@@ -486,7 +486,7 @@ void main() {
           ReadLine('Savage Land Dino', 0.60, 0.010, 0.45, 0.15),
         ], cards);
 
-        final found = await service.recogniseSpread('etalement.jpg');
+        final found = (await service.recogniseSpread('etalement.jpg')).cards;
 
         expect(found.length, 1, reason: 'même identité, deux langues');
         expect(found.single.copies, 2);
@@ -506,7 +506,7 @@ void main() {
         ReadLine('Foudre', 0.212, 0.010, 0.10, 0.15),
       ], cards);
 
-      final found = await service.recogniseSpread('etalement.jpg');
+      final found = (await service.recogniseSpread('etalement.jpg')).cards;
 
       expect(found.single.copies, 1);
     });
@@ -525,7 +525,7 @@ void main() {
         ReadLine('Anneau', 0.60, 0.010, 0.55, 0.15),
       ], cards);
 
-      final found = await service.recogniseSpread('etalement.jpg');
+      final found = (await service.recogniseSpread('etalement.jpg')).cards;
 
       expect(found.length, 2);
     });
@@ -543,10 +543,10 @@ void main() {
         ReadLine('Anneau', 0.60, 0.010, 0.55, 0.15),
       ], cards);
 
-      final found = await service.recogniseSpread(
+      final found = (await service.recogniseSpread(
         'etalement.jpg',
         photoBytes: Uint8List.fromList(const [1, 2, 3, 4]),
-      );
+      )).cards;
 
       expect(found.length, 2);
     });
@@ -559,9 +559,109 @@ void main() {
         ReadLine('© 2026 Wizards of the Coast', 0.96, 0.02),
       ], cards);
 
-      expect(await service.recogniseSpread('etalement.jpg'), isEmpty);
+      expect((await service.recogniseSpread('etalement.jpg')).isEmpty, isTrue);
       expect(cards.lastBulkQuery, isNull);
     });
+  });
+
+  group('un étalement vide dit laquelle des deux causes', () {
+    // **Le geste à faire n'est pas le même**, et l'écran donnait toujours le
+    // premier conseil. Mesuré sur une carte Riftbound française : « Archer du
+    // Val gelé » lu sans une faute, et l'application répondait « aucun nom n'a
+    // pu être lu, évitez les reflets sur les protège-cartes ».
+    test('aucun nom lu : la lecture est en cause', () async {
+      final service = ScanService(
+        ArtHashIndex.fromEntries([]),
+        FakeCardTextReader()
+          ..lines = [const ReadLine('© 2026 Wizards of the Coast', 0.96, 0.02)],
+        FakeCardRepository(),
+      );
+
+      final found = await service.recogniseSpread('etalement.jpg');
+
+      expect(found.isEmpty, isTrue);
+      expect(found.namesRead, 0);
+      expect(found.readButUnmatched, isFalse);
+    });
+
+    test(
+      'des noms lus, aucun au catalogue : la lecture est hors de cause',
+      () async {
+        final service = ScanService(
+          ArtHashIndex.fromEntries([]),
+          FakeCardTextReader()
+            ..lines = [const ReadLine('Archer du Val gelé', 0.10, 0.03)],
+          FakeCardRepository(), // catalogue muet, comme le Riftbound anglais
+        );
+
+        final found = await service.recogniseSpread('etalement.jpg');
+
+        expect(found.isEmpty, isTrue);
+        expect(found.namesRead, greaterThan(0));
+        expect(found.readButUnmatched, isTrue);
+      },
+    );
+  });
+
+  test('une panne du catalogue ne passe pas pour une carte inconnue', () async {
+    // L'étalement a été corrigé de ce piège — il laisse remonter la panne ; le
+    // scan à l'unité, jamais. Une coupure réseau y ressemblait trait pour trait
+    // à une carte absente, et l'écran proposait de recadrer : recadrer une
+    // photo irréprochable ne rétablit pas une connexion.
+    final service = ScanService(
+      indexOf({'autre': fakeCard(CardFrame.modern, seed: 5)}, CardFrame.modern),
+      FakeCardTextReader()..lines = [const ReadLine('Foudre', 0.05, 0.04)],
+      FakeCardRepository()..searchError = Exception('connexion perdue'),
+    );
+
+    final outcome = await service.recognise(
+      photoOf(fakeCard(CardFrame.modern, seed: 8)),
+      photoPath: '/p.png',
+    );
+
+    expect(outcome.catalogueUnreachable, isTrue);
+    expect(outcome.readName, 'Foudre');
+  });
+
+  test(
+    'sans panne, rien ne prétend que le catalogue est injoignable',
+    () async {
+      final service = ScanService(
+        indexOf({
+          'autre': fakeCard(CardFrame.modern, seed: 6),
+        }, CardFrame.modern),
+        FakeCardTextReader()..lines = [const ReadLine('Foudre', 0.05, 0.04)],
+        FakeCardRepository(),
+      );
+
+      final outcome = await service.recognise(
+        photoOf(fakeCard(CardFrame.modern, seed: 9)),
+        photoPath: '/p.png',
+      );
+
+      expect(outcome.catalogueUnreachable, isFalse);
+    },
+  );
+
+  test('un nom lu sans correspondance reste affichable', () async {
+    // `readName` est documenté comme servant à expliquer une erreur de lecture,
+    // et restait nul précisément là où il sert le plus : un nom net qui ne
+    // rencontre aucune carte. L'écran annonçait alors un nom illisible.
+    final service = ScanService(
+      indexOf({
+        'autre': fakeCard(CardFrame.modern, seed: 42),
+      }, CardFrame.modern),
+      FakeCardTextReader()
+        ..lines = [const ReadLine('Archer du Val gelé', 0.05, 0.04)],
+      FakeCardRepository(), // aucune correspondance
+    );
+
+    final outcome = await service.recognise(
+      photoOf(fakeCard(CardFrame.modern, seed: 7)),
+      photoPath: '/p.png',
+    );
+
+    expect(outcome.readName, 'Archer du Val gelé');
   });
 }
 

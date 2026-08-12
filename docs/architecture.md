@@ -273,6 +273,28 @@ L'illustration est **identique en français et en anglais** ; seul le cadre de t
 | Rééditions partageant la même illustration | Indiscernables par empreinte seule | L'édition se choisit à la main dans le sélecteur, la reconnaissance n'ayant pas à trancher. Valorisation par défaut tant qu'elle n'est pas précisée : impression la moins chère. |
 | Cartes full-art, borderless, showcase | Géométrie non standard | Le découpage à position fixe échoue. Nécessite une détection de gabarit ou une empreinte de secours sur la carte entière. |
 | Cartes empilées | Optique, non algorithmique | Seule la carte du dessus est visible. D'où les deux modes retenus : étalement et feuilletage. |
+| Catalogue Riftbound anglais seulement | Contractuelle, non algorithmique | Une carte française n'est pas retrouvable par son nom, quel que soit le soin de la lecture. L'empreinte est la voie principale de ce jeu, et le mode étalement — qui ne lit que les noms — ne peut pas le servir. |
+
+### Ce qu'un échec doit dire
+
+**Un message d'échec ne doit jamais affirmer une cause qu'il ne connaît pas.**
+Trois causes se ressemblent à l'écran et appellent trois gestes opposés :
+
+| Cause | Ce que l'utilisateur doit faire |
+|---|---|
+| Rien n'a pu être lu | Se rapprocher, éviter les reflets |
+| Un nom a été lu, aucune carte ne le porte | Vérifier le jeu saisi ; en Riftbound, photographier la carte seule |
+| Le catalogue n'a pas répondu | Vérifier la connexion — recadrer n'y changera rien |
+
+Les trois se distinguent dans le **résultat de la reconnaissance**, pas dans
+l'écran : `SpreadOutcome.readButUnmatched`, `ScanOutcome.readName` et
+`ScanOutcome.catalogueUnreachable`. L'écran ne devine pas, il lit.
+
+C'est une leçon payée deux fois. `recogniseSpread` a cessé d'avaler les pannes
+réseau après qu'une coupure eut ressemblé trait pour trait à un étalement
+illisible ; le scan à l'unité, lui, a gardé le défaut jusqu'à ce qu'une carte
+Riftbound française se voie conseiller d'éviter les reflets sur ses
+protège-cartes, alors que son nom venait d'être lu sans une faute.
 
 ### OCR
 

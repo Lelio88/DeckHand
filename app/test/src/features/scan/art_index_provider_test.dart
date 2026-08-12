@@ -237,9 +237,9 @@ void main() {
       expect((await container.read(artHashIndexProvider.future)).length, 2);
       expect(repository.downloads, [Game.magic]);
 
-      await container.read(selectedGameProvider.notifier).select(
-        Game.riftbound,
-      );
+      await container
+          .read(selectedGameProvider.notifier)
+          .select(Game.riftbound);
 
       expect(
         (await container.read(artHashIndexProvider.future)).length,
@@ -285,12 +285,14 @@ void main() {
       final cache = FakeIndexCache()
         ..stored[Game.riftbound] = (index: indexOf(['vi']), count: 1);
       final repository = FakeIndexRepository()
-        ..byGame = {Game.riftbound: indexOf(['vi'])};
+        ..byGame = {
+          Game.riftbound: indexOf(['vi']),
+        };
       final container = containerWith(repository, cache);
 
-      await container.read(selectedGameProvider.notifier).select(
-        Game.riftbound,
-      );
+      await container
+          .read(selectedGameProvider.notifier)
+          .select(Game.riftbound);
       await container.read(artHashIndexProvider.future);
 
       expect(repository.counted, contains(Game.riftbound));

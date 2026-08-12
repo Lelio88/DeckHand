@@ -361,12 +361,31 @@ class _Result extends StatelessWidget {
       );
     }
     if (details.isEmpty) {
+      // **Un nom lu et non retrouvé n'est pas un nom illisible.** Annoncer le
+      // second quand c'est le premier fait recadrer une photo irréprochable —
+      // mesuré sur une carte Riftbound française, dont le nom se lit sans une
+      // faute et ne figure dans aucun catalogue.
+      // Une panne de réseau ne se répare pas en recadrant : le dire évite un
+      // geste inutile et une conclusion fausse sur la carte.
+      if (outcome!.catalogueUnreachable) {
+        return const _Message(
+          icon: Icons.cloud_off,
+          title: 'Catalogue injoignable',
+          detail:
+              "Le nom a été lu, mais la carte n'a pas pu être confrontée au "
+              "catalogue. Vérifiez la connexion, puis réessayez.",
+        );
+      }
+      final read = outcome!.readName;
       return _Message(
         icon: Icons.search_off,
         title: 'Carte non reconnue',
-        detail:
-            "Le nom n'a pas pu être lu. En cadrant la carte, "
-            "son illustration peut encore la trahir.",
+        detail: read == null
+            ? "Le nom n'a pas pu être lu. En cadrant la carte, "
+                  "son illustration peut encore la trahir."
+            : "« $read » a bien été lu, mais aucune carte de ce nom ne figure "
+                  "au catalogue. En cadrant la carte, son illustration peut "
+                  "encore la trahir.",
         actionLabel: 'Cadrer et réessayer',
         onAction: onCropRetry,
       );

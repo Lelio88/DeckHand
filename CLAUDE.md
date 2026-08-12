@@ -61,7 +61,7 @@ Topologie rapide :
 # App — les --dart-define sont OBLIGATOIRES (valeurs dans ../.deckhand-secrets/supabase.env)
 cd app && flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=...
 
-cd app && flutter analyze && flutter test    # 418 tests
+cd app && flutter analyze && flutter test    # 425 tests
 cd api && .venv/Scripts/python -m pytest     # 121 tests
 
 # Ingestion — idempotente, saute ce qui n'a pas changé

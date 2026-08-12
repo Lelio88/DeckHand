@@ -214,7 +214,8 @@ void main() {
       expect(
         collection.lastSharedSets,
         isEmpty,
-        reason: 'décocher « tous » ne partage plus rien, et ne fige aucune liste',
+        reason:
+            'décocher « tous » ne partage plus rien, et ne fige aucune liste',
       );
     });
 
