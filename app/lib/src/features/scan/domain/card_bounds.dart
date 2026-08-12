@@ -26,17 +26,17 @@
 /// coins : exact pour une carte photographiée de face, même tournée, et
 /// suffisant pour la perspective légère d'une photo à main levée.
 ///
-/// Ce module doit rester le jumeau de `api/app/vision/card_bounds.py`.
+/// Ce module doit rester le jumeau de `api/app/vision/card_bounds.py`, **et
+/// c'est lui qui fait foi** : le seuillage local a été conçu, balayé et retenu
+/// ici, sur le banc `tool/framing_bench.dart`, parce que c'est ce code qui
+/// tourne sur l'appareil. Une divergence se corrige donc en ramenant le Python
+/// vers ce fichier, jamais l'inverse — et elle ne se voit pas : elle produit
+/// des coins différents, donc une empreinte différente, et le scan échoue en
+/// silence.
 ///
-/// **Et il ne l'est plus.** [_cardMask] compare désormais chaque pixel à son
-/// voisinage ; le jumeau Python en est resté au seuil calé sur l'image entière.
-/// Les deux ne rendront donc pas les mêmes coins sur une photo à l'éclairage
-/// inégal — et, comme les coins commandent la zone lue, pas non plus la même
-/// empreinte. Ce qui reste vrai : le calcul de l'empreinte elle-même
-/// (`art_hash`) n'a pas bougé, donc rien de ce qui est déjà indexé n'est
-/// invalidé. Ce qui est faux tant que le portage n'est pas fait : le banc
-/// `api/app/measure/framing_bench.py` ne mesure plus le code qui tourne sur le
-/// téléphone. C'est `app/tool/framing_bench.dart` qui fait foi.
+/// Parité vérifiée sur une photo réelle : les deux implémentations rendent des
+/// empreintes distantes d'**un bit**, ce qui est l'ordre de grandeur imputable
+/// aux seuls décodeurs JPEG (mesuré ailleurs : 0 bit en médiane, 5 au maximum).
 library;
 
 import 'dart:math' as math;

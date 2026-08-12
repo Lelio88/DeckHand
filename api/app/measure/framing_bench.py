@@ -67,6 +67,14 @@ class Shot:
     offset: float
     #: Rotation, en degrés.
     rotation: float
+    #: Amplitude du dégradé d'éclairage sur la table, en niveaux de gris.
+    #:
+    #: **Ajouté parce que les cinq régimes d'origine ne voyaient pas le défaut
+    #: mesuré sur une carte de papier.** À ±18, la table reste partout plus
+    #: claire que le seuil qui la sépare du carton : la détection réussissait
+    #: cinq régimes sur cinq alors qu'elle échouait sur une vraie photo. Le banc
+    #: ne mesurait que le cadrage, jamais l'éclairage. Jumeau de `lighting`.
+    lighting: float = 18.0
 
     def label(self) -> str:
         return (
@@ -84,6 +92,9 @@ REGIMES: tuple[Shot, ...] = (
     Shot("ordinaire", 0.08, 0.03, 2.0),
     Shot("à la volée", 0.15, 0.06, 5.0),
     Shot("négligent", 0.25, 0.10, 9.0),
+    Shot("soigné + lampe", 0.03, 0.01, 0.5, lighting=60.0),
+    Shot("ordinaire + lampe", 0.08, 0.03, 2.0, lighting=60.0),
+    Shot("négligent + lampe", 0.25, 0.10, 9.0, lighting=60.0),
 )
 
 
@@ -133,7 +144,9 @@ def fetch_card_image(art_crop_url: str, client: httpx.Client) -> Image.Image | N
         return None
 
 
-def table_background(width: int, height: int, rng: random.Random) -> Image.Image:
+def table_background(
+    width: int, height: int, rng: random.Random, lighting: float = 18.0
+) -> Image.Image:
     """Fond de table texturé.
 
     Un aplat uni rendrait la détection triviale et le banc menteur : c'est la
@@ -145,7 +158,9 @@ def table_background(width: int, height: int, rng: random.Random) -> Image.Image
         rng.choices(range(-14, 15), k=height * width), dtype=np.int16
     ).reshape(height, width, 1)
     # Un dégradé diagonal imite un éclairage inégal, l'autre écueil connu.
-    gradient = np.linspace(-18, 18, width, dtype=np.int16).reshape(1, width, 1)
+    gradient = np.linspace(-lighting, lighting, width).astype(np.int16).reshape(
+        1, width, 1
+    )
     canvas = np.clip(base + grain + gradient, 0, 255).astype(np.uint8)
     return Image.fromarray(canvas, mode="RGB")
 
@@ -159,7 +174,7 @@ def compose(card: Image.Image, shot: Shot, rng: random.Random) -> Image.Image:
     margin = round(card_height * shot.margin)
     photo_width = card_width + 2 * margin
     photo_height = card_height + 2 * margin
-    photo = table_background(photo_width, photo_height, rng)
+    photo = table_background(photo_width, photo_height, rng, shot.lighting)
 
     if shot.rotation:
         # **En RGBA, sans quoi le banc mesure un artefact.** `rotate` remplit

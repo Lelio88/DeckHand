@@ -26,6 +26,14 @@ tournée, et suffisant pour la perspective légère d'une photo à main levée. 
 aussi ce qui rend le portage Dart tenable — une quinzaine de lignes.
 
 Ce module doit rester le jumeau de `app/lib/src/features/scan/domain/card_bounds.dart`.
+
+**Et c'est le Dart qui fait foi.** L'inversion est récente et volontaire : le
+seuillage local a été conçu, balayé et retenu côté Dart, sur le banc
+`app/tool/framing_bench.dart`, parce que c'est le code Dart qui tourne sur
+l'appareil. Ce module en est le portage. Toute divergence future se corrige
+donc en ramenant ce fichier vers le Dart, jamais l'inverse — et une divergence
+ne se voit pas : elle produit des coins différents, donc une empreinte
+différente, et le scan échoue en silence.
 """
 
 from __future__ import annotations
@@ -51,7 +59,27 @@ MIN_AREA = 0.10
 #: Écart toléré au rapport d'une carte. Large à dessein : une carte vue de
 #: biais s'écarte de ses proportions nominales, et rejeter trop strictement
 #: reviendrait à ne détecter que les photos déjà parfaites.
+#:
+#: **Ce garde-fou ne rattrape pas un masque faux.** Une photo de téléphone en
+#: portrait vaut 0,750 et une carte 63:88 vaut 0,716 : 0,034 d'écart, quand la
+#: tolérance en accepte 0,30. Un masque qui retient l'image entière passe donc
+#: le contrôle sans broncher. C'est au seuillage de ne pas produire ce
+#: masque-là — pas à cette constante de le rattraper.
 ASPECT_TOLERANCE = 0.30
+
+#: Fenêtre du seuillage local, en fraction du petit côté de l'image d'analyse.
+#: Balayée sur le banc de cadrage à 6, 12, 20, 30 et 45 %, elle donne 105, 105,
+#: 102, 91 puis 60 cartes reconnues sur les 120 régimes à lampe : plat en deçà
+#: de 20 %, puis la fenêtre devient trop large pour épouser l'éclairage. 12 %
+#: est pris au milieu du plateau. Jumeau de `localWindow`.
+LOCAL_WINDOW = 0.12
+
+#: Sous quelle fraction du niveau local de la table un pixel compte pour du
+#: carton. Balayée de 0,60 à 1,00, elle culmine nominalement à 0,88 — mais à ce
+#: plafond une table nue marque déjà 10 % de ses pixels comme du carton, contre
+#: aucun à 0,84 ; et sur un second tirage au grain doublé le classement
+#: s'inverse. 0,84 est le seul point haut des deux. Jumeau de `cardCeiling`.
+CARD_CEILING = 0.84
 
 
 @dataclass(frozen=True)
@@ -90,29 +118,108 @@ def _distance(a: tuple[float, float], b: tuple[float, float]) -> float:
     return float(np.hypot(a[0] - b[0], a[1] - b[1]))
 
 
+def _box_mean(source: np.ndarray, radius: int) -> np.ndarray:
+    """Moyenne sur la fenêtre carrée de rayon [radius], par image intégrale.
+
+    Quatre accès par pixel, quel que soit le rayon : le coût ne dépend plus de
+    la taille de la fenêtre.
+
+    **La fenêtre est écrêtée au cadre, et la moyenne divisée par ce qui reste.**
+    On y verrait volontiers un artefact de bord — un pixel proche du cadre voit
+    un voisinage tronqué, donc moins fiable. Mesuré, ce n'en est pas un : les
+    trois traitements possibles (écrêter, glisser la fenêtre vers l'intérieur,
+    prolonger en miroir) rendent des résultats identiques à la carte près sur
+    les huit régimes du banc.
+    """
+    height, width = source.shape
+    sums = np.zeros((height + 1, width + 1), dtype=np.float64)
+    sums[1:, 1:] = source.cumsum(axis=0).cumsum(axis=1)
+
+    rows = np.arange(height)
+    cols = np.arange(width)
+    y0 = np.maximum(rows - radius, 0)
+    y1 = np.minimum(rows + radius, height - 1)
+    x0 = np.maximum(cols - radius, 0)
+    x1 = np.minimum(cols + radius, width - 1)
+
+    top, bottom = y0[:, None], (y1 + 1)[:, None]
+    left, right = x0[None, :], (x1 + 1)[None, :]
+    total = (
+        sums[bottom, right] - sums[top, right] - sums[bottom, left] + sums[top, left]
+    )
+    area = (y1 - y0 + 1)[:, None] * (x1 - x0 + 1)[None, :]
+    return total / area
+
+
 def card_mask(rgb: np.ndarray) -> np.ndarray:
     """Ce qui est carte plutôt que table.
 
-    Deux signatures, réunies : une carte porte une **bordure sombre** sur tout
-    son pourtour, et son illustration est plus **saturée** qu'un plateau de bois
-    ou une nappe. L'une sans l'autre laisse passer les cartes claires ou les
-    tables colorées ; ensemble elles tiennent. Le seuil de table est pris sur la
-    moitié la plus lumineuse de l'image, pour qu'une carte sombre occupant la
-    moitié du cadre ne tire pas la référence vers le bas.
+    Une carte porte une **bordure sombre** sur tout son pourtour : c'est cet
+    anneau, et lui seul, que le masque cherche. L'intérieur est bouché ensuite
+    par `fill_holes`, ce qui rend le contenu de la carte sans importance — seul
+    compte que l'anneau ne cède nulle part.
+
+    **La référence est locale, et c'est tout le sujet.** Un seuil calé sur
+    l'image entière suppose un éclairage uniforme ; sous une lampe de côté, le
+    coin de table le plus sombre passe sous ce seuil, touche la carte, et la
+    recherche de forme réunit les deux — la boîte englobante devient l'image
+    entière. Mesuré sur une carte de papier : la bonne empreinte tombe au rang
+    146 sur 1 035, quand un cadrage exact la place au rang 1.
+
+    **Mais pas la moyenne locale.** Sur une carte à fond perdu, dont
+    l'illustration claire touche la table sans marche de clarté, la moyenne
+    n'oppose plus rien au fond : il s'engouffre, remplit l'intérieur, et la plus
+    grande composante n'est qu'un bas de carte. La référence retenue est la
+    clarté moyenne de la **seule moitié claire** du voisinage — le niveau local
+    de la table, estimé en écartant ce que la carte y met de sombre. Sur un
+    voisinage plat elle ne dépasse la moyenne que de 3 %, donc la règle reste
+    aussi stricte qu'avant et une table nue ne marque aucun pixel ; sur un
+    voisinage contrasté elle monte avec lui, et le corps de la carte sort plein.
+
+    Sur le banc : 181 cartes reconnues sur les 200 photos sans lampe (contre
+    179 à la référence globale et 175 à la moyenne locale), 110 sur les 120 à
+    lampe, abandons ramenés de 23 à 14.
+
+    **Ce qui a été retiré.** Un second critère faisait entrer tout pixel de
+    saturation supérieure à 0,38, au motif qu'une illustration est plus colorée
+    qu'un plateau de bois. C'est l'inverse qui se mesure : un bureau de bois
+    clair dépasse ce seuil sur la quasi-totalité de sa surface, et ce critère à
+    lui seul reconduit l'échec — 29 bits de la bonne carte en le gardant, 8 en
+    le retirant, à seuillage local identique.
+
+    **Limite assumée** : une carte à bordure *blanche*, ou à fond perdu dont
+    l'illustration claire touche le bord, n'a sur cette portion aucun pourtour
+    plus sombre que la table. C'est alors son cadre intérieur qui forme
+    l'anneau, et le quadrilatère rendu est légèrement plus petit que la carte.
     """
     grey = rgb.mean(axis=2)
-    high, low = rgb.max(axis=2), rgb.min(axis=2)
-    saturation = np.where(high > 0, (high - low) / np.maximum(high, 1), 0)
+    height, width = grey.shape
 
-    # Un fond parfaitement uniforme n'a aucun pixel *au-dessus* de son propre
-    # centile : la moitié lumineuse est alors vide et la médiane vaut NaN, ce
-    # qui rendait toute comparaison fausse et le masque désespérément vide. La
-    # médiane globale prend le relais — sur un fond uni, c'est la même valeur.
-    floor = np.percentile(grey, 40)
-    bright = grey[grey > floor]
-    table = np.median(bright) if bright.size else np.median(grey)
+    # Le petit côté fixe le rayon : sur une photo en portrait, se caler sur la
+    # largeur donnerait la même fenêtre, alors que se caler sur la hauteur la
+    # rendrait plus grossière sans rien apporter.
+    #
+    # `floor(x + 0.5)` et non `round(x)` : Python arrondit les demis vers le
+    # pair, Dart les éloigne de zéro. Sur un rayon, cet écart d'une unité
+    # suffirait à faire diverger les deux masques — et un jumeau qui diverge
+    # d'un pixel n'est plus un jumeau.
+    radius = max(1, int(np.floor(min(width, height) * LOCAL_WINDOW / 2 + 0.5)))
 
-    return (grey < table * 0.72) | (saturation > 0.38)
+    mean = _box_mean(grey, radius)
+
+    # Ne retenir que ce qui dépasse sa propre moyenne locale : sur la table, à
+    # peu près la moitié des pixels ; le long d'un bord de carte, la table
+    # seule.
+    is_lit = grey > mean
+    # Les deux moyennes portent sur la même fenêtre : leur quotient est donc
+    # exactement la moyenne des seuls pixels clairs, sans avoir à les compter à
+    # part. Une fenêtre qui n'en contient aucun — un aplat parfaitement uni —
+    # retombe sur la moyenne, qui y vaut la même chose.
+    lit_mean = _box_mean(np.where(is_lit, grey, 0.0), radius)
+    lit_share = _box_mean(is_lit.astype(np.float64), radius)
+
+    table = np.where(lit_share > 0, lit_mean / np.where(lit_share > 0, lit_share, 1), mean)
+    return grey < table * CARD_CEILING
 
 
 def fill_holes(mask: np.ndarray) -> np.ndarray:
