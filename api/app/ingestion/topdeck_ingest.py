@@ -223,7 +223,10 @@ def load_known_oracle_ids(conn: psycopg.Connection, game: str) -> set[str]:
 
 
 def build_passcode_aliases(
-    decks: list, known: set[str], names: dict[str, str]
+    decks: list,
+    known: set[str],
+    names: dict[str, str],
+    fetch=fetch_names_by_passcode,
 ) -> dict[str, str]:
     """Traduit les passcodes d'illustration alternative en `oracle_id`.
 
@@ -235,6 +238,9 @@ def build_passcode_aliases(
 
     Ce repli est délibérément borné aux seuls passcodes en échec : c'est une
     traduction d'identité, pas une seconde voie de résolution.
+
+    `fetch` est injecté pour que ce chemin — le plus exposé au deck enregistré
+    amputé — se vérifie sans réseau.
     """
     unknown: set[str] = set()
     for deck in decks:
@@ -250,7 +256,7 @@ def build_passcode_aliases(
         return {}
 
     aliases: dict[str, str] = {}
-    for code, name in fetch_names_by_passcode(sorted(unknown)).items():
+    for code, name in fetch(sorted(unknown)).items():
         oracle_id = names.get(normalize_name(name))
         if oracle_id:
             aliases[code] = oracle_id

@@ -1,11 +1,13 @@
 """Tests de l'import des decklists Yu-Gi-Oh depuis TopDeck.gg.
 
-**Ce qu'ils protègent, ce sont deux défauts qui ne lèvent rien.** Une zone de
+**Ce qu'ils protègent, ce sont trois défauts qui ne lèvent rien.** Une zone de
 deck saisie `#main` au lieu de `Deck` produit un pan principal vide : le deck est
 compté « écarté, trop de cartes inconnues » et le corpus paraît simplement plus
 petit — 305 decks sur 3 946 étaient dans ce cas. Un Extra Deck oublié produit
 l'inverse et c'est pire : une liste annoncée constructible alors que quinze
-cartes manquent.
+cartes manquent. Et une table de traduction des passcodes qui rendrait vide là
+où elle pouvait rendre une carte laisserait 93 decks enregistrés amputés, donc
+annoncés plus complets qu'ils ne sont.
 
 Aucun réseau : les réponses de la source sont figées en fixtures, réduites aux
 champs dont les modules se servent.
@@ -17,6 +19,8 @@ import uuid
 
 from app.ingestion.card_resolver import PasscodeResolver
 from app.ingestion.topdeck_client import normalise_yugioh_zone, yugioh_boards
+from app.ingestion.topdeck_ingest import build_passcode_aliases
+from app.ingestion.ygoprodeck_ingest import oracle_uuid
 
 # --- fixtures ---------------------------------------------------------------
 
@@ -190,3 +194,127 @@ def test_resout_un_deck_entier_et_compte_les_pertes():
         str(identite(28985331)): 2,
         str(identite(44508094)): 1,
     }
+
+
+# --- construction de la table de traduction --------------------------------
+#
+# C'est le chemin le plus exposé au deck enregistré amputé : s'il rend une table
+# vide là où une carte était traduisible, rien ne lève et 93 decks perdent une
+# carte en silence.
+
+
+class DeckFactice:
+    """Ce que `fetch_decks` rend, réduit à ce que la construction lit."""
+
+    def __init__(self, mainboard: dict[str, int], sideboard: dict[str, int]):
+        self.mainboard = mainboard
+        self.sideboard = sideboard
+
+
+def catalogue() -> tuple[set[str], dict[str, str]]:
+    """Un catalogue où Monster Reborn n'existe que sous son passcode principal.
+
+    **L'identité est ici celle du vrai catalogue** (`oracle_uuid`), et non le
+    double injecté plus haut : cette fonction-là dérive l'identité elle-même,
+    parce qu'elle appartient au connecteur d'un jeu précis. Un double la ferait
+    passer pour vraie tout en mesurant autre chose.
+    """
+    known = {str(oracle_uuid(83764719))}
+    names = {"monster reborn": str(oracle_uuid(83764719))}
+    return known, names
+
+
+def test_ne_demande_rien_quand_tout_se_resout():
+    """Aucun appel réseau si le calcul suffit — le repli n'est pas une routine."""
+    known, names = catalogue()
+    appels = []
+
+    def fetch(codes):
+        appels.append(codes)
+        return {}
+
+    aliases = build_passcode_aliases(
+        [DeckFactice({"83764719": 1}, {})], known, names, fetch
+    )
+    assert aliases == {}
+    assert appels == []
+
+
+def test_traduit_le_passcode_d_illustration_alternative():
+    known, names = catalogue()
+    aliases = build_passcode_aliases(
+        [DeckFactice({"83764718": 1}, {})],
+        known,
+        names,
+        lambda codes: {"83764718": "Monster Reborn"},
+    )
+    assert aliases == {"83764718": str(oracle_uuid(83764719))}
+
+
+def test_releve_aussi_les_passcodes_de_la_reserve():
+    """La réserve ne compte pas dans la complétion, mais ses cartes sont
+    enregistrées : les omettre ici les rendrait introuvables sans raison."""
+    known, names = catalogue()
+    demandes = []
+
+    def fetch(codes):
+        demandes.extend(codes)
+        return {}
+
+    build_passcode_aliases([DeckFactice({}, {"83764718": 1})], known, names, fetch)
+    assert demandes == ["83764718"]
+
+
+def test_ignore_un_nom_absent_du_catalogue():
+    """La source connaît des cartes que le catalogue écarte — celles qui n'ont
+    jamais paru sur carton. Les traduire vers rien vaut mieux que vers l'à-peu-près."""
+    known, names = catalogue()
+    aliases = build_passcode_aliases(
+        [DeckFactice({"11111111": 1}, {})],
+        known,
+        names,
+        lambda codes: {"11111111": "Carte du dessin animé"},
+    )
+    assert aliases == {}
+
+
+def test_une_source_muette_ne_casse_rien():
+    """Panne réseau, réponse illisible, ou aucun passcode reconnu : le repli
+    rend une table vide et l'import continue, sans traduction."""
+    known, names = catalogue()
+    aliases = build_passcode_aliases(
+        [DeckFactice({"83764718": 1}, {})], known, names, lambda codes: {}
+    )
+    assert aliases == {}
+
+
+def test_ne_demande_pas_ce_qui_n_est_pas_un_passcode():
+    """Une entrée sans identifiant numérique n'est pas une carte à traduire."""
+    known, names = catalogue()
+    demandes = []
+
+    def fetch(codes):
+        demandes.extend(codes)
+        return {}
+
+    build_passcode_aliases(
+        [DeckFactice({"Dark Magician": 1, "": 1}, {})], known, names, fetch
+    )
+    assert demandes == []
+
+
+def test_un_passcode_cite_par_plusieurs_decks_n_est_demande_qu_une_fois():
+    known, names = catalogue()
+    demandes = []
+
+    def fetch(codes):
+        demandes.extend(codes)
+        return {}
+
+    build_passcode_aliases(
+        [DeckFactice({"83764718": 1}, {}), DeckFactice({"83764718": 3}, {})],
+        known,
+        names,
+        fetch,
+    )
+    assert demandes == ["83764718"]

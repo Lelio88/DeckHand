@@ -215,7 +215,7 @@ l'Extra, et il porte quinze cartes en médiane — autant que la réserve. Le mo
 pan principal enregistré est donc **55 cartes** (40 + 15), sur 1 992 decks.
 
 `decks.format` accueille `edison`, `goat`, `redu` et `hat` (migration
-`20260812230000`). `DeckBlueprint.of` continue de rendre `null` : le corpus
+`20260816130000`). `DeckBlueprint.of` continue de rendre `null` : le corpus
 existe désormais, mais le gabarit reste à mesurer — le déclarer d'avance referait
 l'erreur que le choix du format a déjà coûtée à ce jeu.
 
@@ -470,7 +470,7 @@ dans l'application.
 | Élément | Nature du changement |
 |---|---|
 | `cards.oracle_id uuid PRIMARY KEY` | C'est l'identifiant **Scryfall**. Riftbound n'en a pas : des UUIDv5 déterministes sont dérivés du triplet nom + type + texte, de sorte qu'une réingestion retombe sur les mêmes clés |
-| `decks.format CHECK (…)` | **Élargie deux fois, jamais d'avance.** Elle n'a accueilli `constructed` (`20260815140000`) puis `edison`, `goat`, `redu`, `hat` (`20260812230000`) qu'une fois la donnée en main : chaque valeur vient d'un volume de decklists mesuré, non d'un nom de format lu quelque part |
+| `decks.format CHECK (…)` | **Élargie deux fois, jamais d'avance.** Elle n'a accueilli `constructed` (`20260815140000`) puis `edison`, `goat`, `redu`, `hat` (`20260816130000`) qu'une fois la donnée en main : chaque valeur vient d'un volume de decklists mesuré, non d'un nom de format lu quelque part. **L'horodatage d'une migration qui redéfinit une contrainte partagée doit suivre la dernière**, sinon une base rejouée depuis zéro voit le dernier fichier reprendre ce qu'un fichier antérieur avait ajouté — sans erreur |
 | `cards.legal_pauper / legal_modern / legal_commander` | Colonnes **générées**, donc figées dans la définition de table |
 | Les fonctions de lecture | `search_cards` prend un paramètre de jeu (`magic` par défaut). Les autres suivront quand l'application saura choisir un jeu |
 | L'application | **Reste à faire** : un choix de jeu, et sa propagation jusqu'aux écrans de collection et de decks |

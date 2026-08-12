@@ -62,7 +62,7 @@ Topologie rapide :
 cd app && flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=...
 
 cd app && flutter analyze && flutter test    # 454 tests
-cd api && .venv/Scripts/python -m pytest     # 171 tests
+cd api && .venv/Scripts/python -m pytest     # 178 tests
 
 # Ingestion — idempotente, saute ce qui n'a pas changé
 cd api && .venv/Scripts/python -m app.ingestion.refresh            # Magic (--force, --skip-decks)

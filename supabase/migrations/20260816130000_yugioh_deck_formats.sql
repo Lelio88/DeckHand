@@ -16,6 +16,14 @@
 --
 -- Une contrainte `CHECK` se remplace, elle ne s'altère pas : `DROP` puis `ADD`,
 -- dans la même transaction pour qu'aucune écriture ne passe entre les deux.
+--
+-- **L'horodatage suit la dernière migration, pas la date du jour.** Ce fichier a
+-- d'abord porté `20260812230000` — l'heure réelle de son écriture — qui le
+-- plaçait *avant* `20260815140000_constructed_format.sql`. Sur la base courante,
+-- jouée à la main, rien n'y paraissait ; sur une base rejouée depuis zéro dans
+-- l'ordre des noms, cette migration-là aurait redéfini la contrainte après
+-- celle-ci et **repris les quatre formats Yu-Gi-Oh** sans lever d'erreur. Une
+-- contrainte partagée impose que son dernier mot soit le dernier fichier.
 
 BEGIN;
 
