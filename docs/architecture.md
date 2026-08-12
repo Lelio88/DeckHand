@@ -223,6 +223,62 @@ aussi avec réserve.
 reste utile pour les mises en page hors gabarit (`saga`, `transform`, pleine
 page), que l'empreinte ne sait pas cadrer.
 
+### Ce que l'index annonce quand il ne devrait rien dire — trois jeux, 64 126 empreintes
+
+La mesure ci-dessus interroge l'index avec des cartes **qui s'y trouvent**. Elle
+ne dit donc rien du cas que l'utilisateur rencontrera pourtant : une carte
+**absente** — un jeton, une carte abîmée, une carte hors catalogue, ou
+simplement une carte d'un autre jeu photographiée sans avoir changé de
+sélecteur. Toute réponse y est fausse par construction, et la seule bonne
+conduite est le silence. `api/app/measure/art_collisions.py` mesure ce que les
+deux garde-fous laissent passer.
+
+**La densité s'est aggravée comme annoncé.** L'index Magic est passé de 31 634 à
+49 067 empreintes, et la part des cartes ayant une **autre carte** sous le seuil
+de 12 bits a doublé — de 18,7 % à 36,4 %.
+
+| Jeu | Empreintes | Une autre carte sous le seuil | Annoncée à tort **avec assurance** |
+|---|---|---|---|
+| Magic | 49 067 | 17 850 (36,4 %) | **740 (1,51 %)** |
+| Yu-Gi-Oh | 13 866 | 1 790 (12,9 %) | **183 (1,32 %)** |
+| Riftbound | 1 193 | 117 (9,8 %) | **75 (6,29 %)** |
+
+**La marge de confiance encaisse le choc.** Un tiers du catalogue Magic est
+confondable, mais 1,5 % seulement franchit les deux garde-fous : quand deux
+cartes sont serrées, la marge chute et le système hésite au lieu d'affirmer.
+C'est le design qui tient, pas la chance.
+
+**Riftbound fait exception, et ce n'est pas la reconnaissance qui est en cause.**
+Ses 6,29 % viennent de 24 groupes de cartes qui sont **la même carte enregistrée
+deux fois** sous deux orthographes du nom — « Ambessa - Matriarch of War » et
+« Matriarch of War », « Lux - Crownguard » et « Lux, Crownguard ». 48 cartes sur
+1 035, dont 19 partagent une illustration identique au bit près et 15 les mêmes
+impressions. Aucune empreinte ne peut départager ce que le catalogue a dédoublé ;
+la limite est en amont, dans l'identité dérivée du nom par `riftcodex_ingest`.
+
+**Les intrusions**, mesurées en interrogeant l'index d'un jeu avec les empreintes
+d'un autre — toutes absentes, donc toute réponse est fausse :
+
+| Empreintes | Index interrogé | Sous le seuil | **Annoncées avec assurance** | Plus proche |
+|---|---|---|---|---|
+| Riftbound | Magic | 379 / 1 193 | 16 (1,34 %) | 5 bits |
+| Yu-Gi-Oh | Magic | 774 / 3 000 | 29 (0,97 %) | 2 bits |
+| Magic | Yu-Gi-Oh | 471 / 3 000 | 46 (1,53 %) | 3 bits |
+| Riftbound | Yu-Gi-Oh | 114 / 1 193 | 17 (1,42 %) | 6 bits |
+| Magic | Riftbound | 85 / 3 000 | 22 (0,73 %) | 7 bits |
+| Yu-Gi-Oh | Riftbound | 59 / 3 000 | 12 (0,40 %) | 8 bits |
+
+**Environ une carte étrangère sur cent est annoncée avec assurance**, et la plus
+proche descend à 2 bits — soit moins que le bruit d'un décodeur JPEG. Le
+cloisonnement de l'index par jeu, décidé sur les 379 empreintes de la première
+ligne, supprime le mélange des catalogues mais **pas le choix du mauvais jeu par
+l'utilisateur** : celui-là reste à sa main. C'est le prix connu de la
+reconnaissance par empreinte seule, et il se paie en confirmations demandées, non
+en refonte.
+
+Le banc est à rejouer à chaque nouveau jeu : la densité ne se devine pas, elle se
+mesure — et elle empire à mesure que le catalogue grossit.
+
 ### Le coût d'une image, mesuré sur l'appareil
 
 Mesuré sur le téléphone de test, 1280 × 720, index de 32 000 entrées, 60 images
@@ -297,6 +353,8 @@ L'illustration est **identique en français et en anglais** ; seul le cadre de t
 | Cartes full-art, borderless, showcase | Géométrie non standard | Le découpage à position fixe échoue. Nécessite une détection de gabarit ou une empreinte de secours sur la carte entière. |
 | Cartes empilées | Optique, non algorithmique | Seule la carte du dessus est visible. D'où les deux modes retenus : étalement et feuilletage. |
 | Catalogue Riftbound anglais seulement | Contractuelle, non algorithmique | Une carte française n'est pas retrouvable par son nom, quel que soit le soin de la lecture. L'empreinte est la voie principale de ce jeu, et le mode étalement — qui ne lit que les noms — ne peut pas le servir. |
+| Carte absente de l'index interrogé | Structurelle : tout point a un plus proche voisin | Environ **1 %** des cartes étrangères passent les deux garde-fous et sont annoncées avec assurance (mesuré, `art_collisions.py`). Le cloisonnement par jeu écarte le mélange des catalogues, pas le choix du mauvais jeu par l'utilisateur. |
+| 24 groupes de cartes Riftbound dédoublées | Catalogue, non algorithmique | « Ambessa - Matriarch of War » et « Matriarch of War » sont une seule carte sous deux noms, souvent sur les mêmes impressions. Aucune empreinte ne peut les départager, et la collection les compterait deux fois. Se corrige dans l'identité dérivée par `riftcodex_ingest`, pas dans la reconnaissance. |
 
 ### Ce qu'un échec doit dire
 
