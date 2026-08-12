@@ -75,6 +75,8 @@ cd api && .venv/Scripts/python -m app.twitch                       # --game rift
 
 # Bancs de mesure : arithmétique de l'écran Decks, puis coût d'une image caméra
 cd api && .venv/Scripts/python -m app.measure.deck_math constructed riftbound
+# Où tombe, dans l'index réel, une empreinte relevée sur le terrain (`art_hash` du journal)
+cd api && .venv/Scripts/python -m app.measure.art_probe <hex> --game riftbound --expect "<carte>"
 cd app && dart run tool/frame_bench.dart   # durées réelles : --dart-define=DECKHAND_BENCH=true
 
 # Migrations — jouées par psycopg, le CLI Supabase exigeant un lien interactif

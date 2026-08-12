@@ -34,6 +34,7 @@ import '../../card_search/domain/card_hit.dart';
 import '../data/art_index_repository.dart';
 import '../data/card_text_reader.dart';
 import '../domain/art_box.dart';
+import '../domain/art_hash.dart';
 import '../domain/art_hash_index.dart';
 import '../domain/card_bounds.dart';
 import '../domain/card_framing.dart';
@@ -583,7 +584,7 @@ class ScanService {
         ? artHashCandidates(cropToCardFrame(decoded), game: game.id)
         : artHashCandidatesInQuad(decoded, quad, game: game.id);
     final outcome = _index.searchAny(candidates, limit: limit);
-    _diagnoseArt(outcome, framed: quad != null);
+    _diagnoseArt(outcome, framed: quad != null, candidates: candidates);
 
     return ScanOutcome(
       oracleIds: outcome.result.candidates
@@ -614,6 +615,7 @@ class ScanService {
   void _diagnoseArt(
     ({HashSearchResult result, CardFrame? source}) outcome, {
     required bool framed,
+    required Map<CardFrame, ArtHash> candidates,
   }) {
     if (!diagnosticsEnabled) return;
     final best = outcome.result.best;
@@ -627,6 +629,27 @@ class ScanService {
       'confident': outcome.result.isConfident,
       'index': _index.length,
     });
+    // **L'empreinte elle-même, en clair.** Sans elle, un échec ne se rejoue
+    // pas : la photo vit dans le cache interne de l'application, hors
+    // d'atteinte sur un build de production, et le journal ne disait que le
+    // verdict. Seize caractères par gabarit suffisent à recalculer au poste la
+    // distance à n'importe quelle carte du catalogue — donc à savoir si la
+    // bonne entrée était deuxième ou millième, ce qu'aucune autre valeur ne
+    // révèle.
+    for (final entry in candidates.entries) {
+      diagnose('art_hash', {
+        'frame': entry.key.name,
+        'hash': entry.value.toHex(),
+      });
+    }
+    // Les concurrents immédiats, pour lire la dispersion : un index où tout se
+    // tient à deux bits ne se règle pas comme un index où le second est loin.
+    for (final c in outcome.result.candidates) {
+      diagnose('art_candidate', {
+        'oracle_id': c.oracleId,
+        'distance': c.distance,
+      });
+    }
   }
 
   /// Confronte les noms lus au catalogue.
