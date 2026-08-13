@@ -1149,21 +1149,105 @@ coupe exactement.
   et effet sont identiques, là où Riftbound réécrivait ses champs d'affichage
   d'une extension à l'autre.
 
-### Ce qu'il resterait à faire, si un quatrième jeu se décidait
+### Le catalogue, en deux requêtes
 
-Le chantier de mesure est clos ; l'ingestion ne l'est pas et n'a pas été
-commencée. Resteraient :
+**20 964 cartes sur carton, 20 964 impressions, 37 402 noms dont 16 438 en
+français.** Le point GraphQL rend le tout en **8,95 Mio et 1,5 seconde**, là où
+l'API REST carte par carte en aurait demandé 21 000.
 
-- le **catalogue, les prix et les decks** — accessibles et documentés. TCGdex
-  publie d'ailleurs les cotes Cardmarket en euros et TCGplayer en dollars, ce
-  qui éviterait peut-être le détour par TCGCSV et la conversion BCE : à mesurer,
-  la leçon Yu-Gi-Oh étant qu'un prix servi par un catalogue peut n'être qu'un
-  plancher ;
-- une **carte de papier** — aucune n'a été photographiée, et c'est le carton qui
-  a livré les deux derniers défauts de Riftbound. À noter avant de s'engager :
-  le propriétaire de la collection n'a pas non plus de cartes Pokémon, si bien
-  que cette validation dépendrait d'un tiers, comme elle en a dépendu pour
-  Riftbound ;
+Trois pièges de la source, tous silencieux :
+
+- le GraphQL se sert **sans `pagination`**. L'argument existe et son resolveur
+  est cassé — `value.indexOf is not a function` — quel que soit le champ ;
+- il faut un **POST**. En GET, l'endpoint rend la page GraphiQL : 1,6 Mio de
+  HTML qui ressemble à une réponse jusqu'à ce qu'on la parse ;
+- **la langue ne passe pas par `Accept-Language`.** La première version l'a
+  essayé et a écrit zéro nom français **sans lever d'erreur**. Un catalogue
+  amputé de sa moitié française se lit exactement comme un catalogue complet.
+  C'est la route REST `/v2/fr/cards`.
+
+**L'identité est l'identifiant TCGdex, pas le nom** : 92 % des cartes de carton
+partagent leur nom avec une autre — 112 Pikachu, 69 Évoli. Les fusionner par le
+nom en ferait une seule. La source publie une clé stable, `<set>-<numéro>`, qui
+est exactement ce que les decklists citent. Conséquence assumée : deux
+impressions d'un même Dresseur, interchangeables en jeu, sont ici deux cartes,
+donc la complétion sera **sous-estimée** plutôt que surestimée — le bon sens de
+l'erreur pour un outil qui annonce un coût.
+
+Le gabarit mesuré plus haut est rangé dans `layout`. La ventilation obtenue
+confirme la mesure : `pokemon` 16 158, `trainer` 2 392, `full` 1 901, `energy`
+336, `special-energy` 177.
+
+### Les prix : le nom propose, les alias tranchent, la date dispose
+
+Le catalogue ne peut pas les servir. Le type GraphQL `Card` ne porte ni cote ni
+identifiant TCGplayer — introspection à l'appui, ses 29 champs sont connus. Les
+cotes n'existent que carte par carte : 21 000 appels, écarté. Ce sera donc
+TCGCSV, catégorie 3, comme Riftbound et Yu-Gi-Oh.
+
+Le rapprochement se joue à deux niveaux, et un seul est difficile. Dans une
+extension, la carte se retrouve **exactement** : TCGplayer publie le numéro
+d'impression (`001/102`) que le catalogue porte sous `localId` (`001`), et sur
+dix extensions échantillonnées d'un bout à l'autre de l'histoire du jeu, **zéro
+numéro en double**. C'est l'**extension** qui pose problème, les deux sources la
+nommant librement — « SWSH09: Brilliant Stars » contre « Brilliant Stars ».
+
+Le nom seul rapproche 46 % des extensions. En retirant le préfixe d'ère, 73 %.
+Mais ce chiffre était **faux dans le mauvais sens** : la normalisation supprimait
+les mots « base set », si bien que *Base Set* (1999) et *SM Base Set* (2017) se
+réduisaient tous deux à une clé **vide**, et s'appariaient. Le connecteur aurait
+écrit des prix de Soleil et Lune sur des cartes de la première édition. Un
+rapprochement de noms ne produit pas que des manques : il produit des **faux
+couples**, et le faux couple est le seul des deux qu'aucun écran ne détrompe.
+
+D'où trois temps, dans cet ordre :
+
+| Temps | Rôle | Effet mesuré |
+|---|---|---|
+| Le **nom** propose | préfixe d'ère retiré, plus un « Base Set » final que TCGplayer ajoute parfois | 143 / 203 |
+| Les **alias** tranchent | 26 entrées, toutes systématiques : les promos (« Wizards Black Star Promos » contre « WoTC Promo ») et les collections McDonald's | **170 / 203** |
+| La **date** dispose | un couple dont les sorties s'écartent de plus de 200 jours est refusé | 0 couple retenu au-delà de 120 j |
+
+Le troisième temps est un **veto, pas un critère**, et la distinction s'est payée
+en mesure : les neuf POP Series portent chez TCGplayer une date de publication
+égale au jour de la requête — un remplissage. Exiger la date les aurait toutes
+refusées. Une date invraisemblable est donc traitée comme une absence
+d'information. La tolérance est large à dessein — *Gym Heroes* sépare ses deux
+dates de deux mois — parce qu'elle garde contre dix-huit ans d'écart, pas contre
+huit semaines.
+
+**Les finitions, elles, sont celles de Magic.** TCGplayer n'en emploie que trois
+pour Pokémon — `Normal` (1 131 relevés), `Reverse Holofoil` (1 150), `Holofoil`
+(462) —, ce qui recouvre exactement la distinction ordinaire / brillante que le
+modèle porte déjà. C'est la différence avec Yu-Gi-Oh, où `1st Edition` et
+`Unlimited` sont des tirages et non des finitions, et où `price_eur_foil` reste
+donc vide.
+
+Résultat : **15 894 impressions valorisées sur 20 964 (75,8 %)**, dont 9 599 en
+ordinaire et 15 341 en brillant. Les huit plus chères sont les cartes de chasse
+connues — Lugia Cristal d'Aquapolis à 3 902 €, Pikachu ☆ d'EX Holon Phantoms à
+2 789 €, Umbreon VMAX alternatif à 1 959 € —, ce qui vaut vérification a
+posteriori des couples : une extension mal appariée aurait dispersé ces montants
+sur des cartes ordinaires.
+
+Les 33 extensions sans prix sont pour l'essentiel les **Trainer Kits**, que
+TCGdex découpe en deux demi-decks là où TCGplayer n'a qu'un groupe, et quelques
+sets d'énergies. Elles se comptent et s'impriment à chaque exécution : une
+couverture partielle doit se voir, un silence ne vaut pas un succès.
+
+### Ce qui reste dû
+
+- les **decks**. `play.limitlesstcg.com/api/tournaments` répond 200 en JSON sans
+  clé, et l'API est multi-jeux — la première entrée rendue est du One Piece —,
+  donc un filtre sera nécessaire. Rien de plus n'a été exploré : ni la forme des
+  decklists, ni les conditions d'utilisation ;
+- l'**index d'empreintes**, et c'est le mur : ~21 000 images, soit plusieurs
+  heures à débit nominal et une cinquantaine à celui qu'on mesure ici. À lancer
+  en tâche de fond, sur plusieurs sessions ;
+- une **carte de papier**. Aucune n'a été photographiée, et c'est le carton qui a
+  livré les deux derniers défauts de Riftbound. Le propriétaire de la collection
+  n'a pas de cartes Pokémon : cette validation dépendra d'un tiers ;
 - le gabarit de deck (`DeckBlueprint`), qui se mesure sur un corpus et ne se
-  déclare pas d'avance ;
+  déclare pas d'avance — l'erreur que Yu-Gi-Oh a payée en annonçant `Advanced`
+  sur la foi de son nom ;
 - le sort des cartes que la règle du numéro ne sait pas lire.
