@@ -316,8 +316,29 @@ pour presque toute liste — c'est la promesse du produit, pas un chiffre
 d'agrément.
 
 **Ce qui reste dû** : l'index d'empreintes est plein, les prix, les decks et les
-proportions de deck sont mesurés ; il manque **une carte de papier**. Aucune carte Yu-Gi-Oh n'a encore été
-photographiée — c'est le même verrou que Riftbound a mis longtemps à lever.
+proportions de deck sont mesurés. Reste **le carton**, et il faut dire pourquoi
+il ne viendra pas de la même façon que pour Riftbound : **le propriétaire de la
+collection n'a aucune carte Yu-Gi-Oh**. Ce n'est donc pas une tâche en attente
+mais une validation indisponible, et l'écrire comme un dû ferait espérer une
+preuve qui ne viendra pas d'ici. Le précédent Riftbound donne le seul substitut
+connu : ses huit cartes ont été photographiées par un **tiers**.
+
+**Ce que l'absence de carton coûte réellement est plus étroit qu'il n'y paraît.**
+Les deux défauts que le carton Riftbound a révélés étaient l'un générique et
+l'autre spécifique, et ils ne laissent pas le même trou :
+
+- la **réduction qui repliait une texture** en bruit lu comme du carton était
+  dans `_analysisImage` et `_boxReduceLuma`, partagés par tous les jeux sans
+  paramètre. Yu-Gi-Oh en bénéficie sans avoir eu à le payer ;
+- l'**orientation** d'une carte couchée glissée dans une pochette droite ne
+  concerne que les jeux qui impriment en travers, et Yu-Gi-Oh n'en a aucun.
+
+Ce qui reste non éprouvé lui est donc propre : que son gabarit d'illustration
+rencontre l'index sur une **photo** et non sur un rendu de catalogue. Le risque
+y est plus faible qu'il ne l'était pour Riftbound, dont le gabarit venait d'une
+heuristique sur seize cartes : celui de Yu-Gi-Oh a été obtenu par recoupement
+contre l'illustration détourée que la source publie elle-même, à 0,001 près sur
+vingt cartes de dix familles de cadre. Plus faible n'est pas nul.
 
 ---
 
@@ -1139,7 +1160,10 @@ commencée. Resteraient :
   la leçon Yu-Gi-Oh étant qu'un prix servi par un catalogue peut n'être qu'un
   plancher ;
 - une **carte de papier** — aucune n'a été photographiée, et c'est le carton qui
-  a livré les deux derniers défauts de Riftbound ;
+  a livré les deux derniers défauts de Riftbound. À noter avant de s'engager :
+  le propriétaire de la collection n'a pas non plus de cartes Pokémon, si bien
+  que cette validation dépendrait d'un tiers, comme elle en a dépendu pour
+  Riftbound ;
 - le gabarit de deck (`DeckBlueprint`), qui se mesure sur un corpus et ne se
   déclare pas d'avance ;
 - le sort des cartes que la règle du numéro ne sait pas lire.
