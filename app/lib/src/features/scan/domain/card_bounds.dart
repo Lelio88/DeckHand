@@ -37,6 +37,16 @@
 /// Parité vérifiée sur une photo réelle : les deux implémentations rendent des
 /// empreintes distantes d'**un bit**, ce qui est l'ordre de grandeur imputable
 /// aux seuls décodeurs JPEG (mesuré ailleurs : 0 bit en médiane, 5 au maximum).
+///
+/// **Et elle s'est rompue une fois, exactement comme annoncé.** Les deux
+/// fichiers ne réduisaient pas la photo de la même manière — voir
+/// [_analysisImage] —, et sur une carte photographiée sur un tissu le Dart
+/// rendait un quadrilatère couvrant 81 % de l'image quand le Python rendait la
+/// carte. Rien ne l'avait signalé : ni les tests, dont les figures sont trop
+/// petites pour être réduites, ni le banc, dont les facteurs s'arrêtent juste
+/// avant. Ce qui l'a révélée est d'avoir joué la **même photo** dans les deux
+/// implémentations et comparé les coins — c'est le seul contrôle qui l'aurait
+/// vue, et il ne coûte rien.
 library;
 
 import 'dart:math' as math;
@@ -192,15 +202,7 @@ class CardQuad {
 CardQuad? findCard(img.Image photo, {String game = 'magic'}) {
   if (photo.width < 8 || photo.height < 8) return null;
 
-  final scale = photo.width > analysisWidth ? photo.width / analysisWidth : 1.0;
-  final small = scale > 1
-      ? img.copyResize(
-          photo,
-          width: analysisWidth,
-          height: (photo.height / scale).round().clamp(1, photo.height),
-          interpolation: img.Interpolation.linear,
-        )
-      : photo;
+  final (:small, :scale) = _analysisImage(photo);
 
   final mask = _cardMask(small);
   _fillHoles(mask, small.width, small.height);
@@ -218,6 +220,127 @@ CardQuad? findCard(img.Image photo, {String game = 'magic'}) {
   if (!_hasCardAspect(quad.aspect, game)) return null;
 
   return quad.scaled(scale);
+}
+
+/// La photo ramenée à la taille d'analyse, et le facteur qui l'y a menée.
+///
+/// **La réduction moyenne le voisinage entier, elle ne l'interpole pas.**
+/// `Interpolation.linear` mélange les quatre pixels immédiats, quel que soit le
+/// facteur ; à 1/10 — une photo de téléphone de 4000 px ramenée à 400 — cela
+/// revient à n'en regarder que quatre sur cent, et à ignorer les autres. Une
+/// texture fine ne disparaît alors pas : elle **replie**. La trame d'un tissu, le grain
+/// d'un plateau de bois deviennent un bruit à l'échelle du pixel d'analyse, et
+/// le seuillage local, qui compare chaque pixel à la clarté de son voisinage,
+/// lit ce bruit comme du carton. `Interpolation.average` moyenne le bloc source
+/// entier : la texture s'éteint au lieu de se replier.
+///
+/// Mesuré sur une carte de papier posée sur un tissu, à seuillage identique :
+/// en interpolant, 82,5 % de l'image est tenue pour du carton et la détection
+/// rend un quadrilatère couvrant 81 % de l'aire, de rapport 1,258 — que la
+/// tolérance d'aspect laisse passer, puisqu'une carte couchée vaut 1,397. En
+/// moyennant, la carte ressort seule, à 38 % de l'image et au rapport 0,724.
+///
+/// **C'est le facteur qui décide, pas le tissu.** Rejouée sur la même photo
+/// pré-réduite à des tailles croissantes, l'interpolation tient jusqu'à un
+/// facteur de 2,7 et cède à partir de 3 : 38 % de l'image et rapport 0,746 d'un
+/// côté, 70 % et 1,276 de l'autre. Or le banc de cadrage compose des photos de
+/// 650 à 1100 px de large, soit des facteurs de 1,6 à **2,7** — il s'arrête
+/// exactement un cran avant le défaut, et ne pouvait donc pas le voir. Les tests
+/// unitaires non plus : leurs figures font 300 px de large, sous [analysisWidth],
+/// et ne sont jamais réduites.
+///
+/// **La leçon existait à côté depuis toujours.** `art_hash.dart` calcule sa
+/// réduction à la main, par un filtre de moyenne à bornes entières, précisément
+/// parce que deux bibliothèques ne rééchantillonnent pas pareil. Ce module ne
+/// l'avait pas appliquée — et son jumeau Python, lui, réduisait avec un filtre
+/// dont Pillow élargit le support à mesure que le facteur grandit. La parité
+/// était donc rompue **en silence**, dans le sens où le Python avait raison.
+///
+/// Le prix est une lecture de chaque pixel source, là où l'interpolation en
+/// lisait quatre par pixel de sortie : sur une photo de 12 Mpx, `findCard` passe
+/// de 26 à 53 ms — voir [_boxReduce], qui explique pourquoi ce n'est pas
+/// davantage.
+({img.Image small, double scale}) _analysisImage(img.Image photo) {
+  final scale = photo.width > analysisWidth ? photo.width / analysisWidth : 1.0;
+  if (scale <= 1) return (small: photo, scale: 1.0);
+  final height = (photo.height / scale).round().clamp(1, photo.height);
+  return (small: _boxReduce(photo, analysisWidth, height), scale: scale);
+}
+
+/// Moyenne de bloc, à bornes et divisions entières.
+///
+/// **Pourquoi à la main plutôt que `Interpolation.average`.** Le paquet `image`
+/// sait déjà moyenner, et rend le même résultat — mais il lit chaque pixel
+/// source par un accesseur qui recalcule son adresse. Sur une photo de
+/// 3072 × 4080, les trois mesurés en alternance pour annuler la dérive de la
+/// machine, `findCard` coûte **26 ms** en interpolant — le calcul faux —, **173 ms** avec
+/// `Interpolation.average`, et **53 ms** en lisant directement le tampon
+/// d'octets. Le calcul est le même que celui du paquet ; seul le chemin d'accès
+/// change, et il vaut un facteur trois.
+///
+/// La correction double donc le coût de la détection sur une photo pleine
+/// résolution. C'est le prix juste : c'est là, et là seulement, que le facteur
+/// de réduction est assez grand pour que l'interpolation mente.
+///
+/// **Et à bornes entières, comme `art_hash.dart`.** Ce n'est pas une commodité :
+/// c'est ce qui rend la réduction reproductible mot pour mot en Python, où
+/// `np.add.reduceat` découpe exactement sur les mêmes bornes. Deux filtres qui
+/// ne différeraient que par l'arrondi de leurs bords rendraient des coins
+/// différents, donc des empreintes incomparables — la panne silencieuse que
+/// l'en-tête de ce module décrit.
+///
+/// Le repli sur `copyResize` couvre ce que le tampon ne permet pas de lire à
+/// plat : une image en 16 bits, une palette, ou moins de trois canaux. Une photo
+/// de téléphone décodée depuis un JPEG n'est jamais dans ce cas ; le repli
+/// existe pour que le module reste juste hors de son terrain habituel, pas parce
+/// qu'on l'y attend.
+img.Image _boxReduce(img.Image photo, int width, int height) {
+  final data = photo.data;
+  if (data is! img.ImageDataUint8 || photo.hasPalette || data.numChannels < 3) {
+    return img.copyResize(
+      photo,
+      width: width,
+      height: height,
+      interpolation: img.Interpolation.average,
+    );
+  }
+
+  final bytes = data.toUint8List();
+  final channels = data.numChannels;
+  final stride = data.rowStride;
+  final dx = photo.width / width;
+  final dy = photo.height / height;
+
+  // **Le bloc s'arrête où commence le suivant, et le dernier va jusqu'au bord.**
+  // Écrire la borne haute `((y + 1) * dy).toInt()` reviendrait au même partout
+  // sauf sur le dernier bloc, où `height * dy` peut valoir 4079,999… au lieu de
+  // 4080 : le dernier rang de pixels serait alors ignoré côté Dart et pris côté
+  // Python. Un rang sur quatre mille ne change pas un masque, mais il suffit à
+  // décaler un coin — et un décalage de parité ne se voit pas.
+  final out = img.Image(width: width, height: height);
+  for (var y = 0; y < height; y++) {
+    final sy0 = (y * dy).toInt();
+    final sy1 = y + 1 < height ? ((y + 1) * dy).toInt() : photo.height;
+
+    for (var x = 0; x < width; x++) {
+      final sx0 = (x * dx).toInt();
+      final sx1 = x + 1 < width ? ((x + 1) * dx).toInt() : photo.width;
+
+      var r = 0, g = 0, b = 0;
+      for (var sy = sy0; sy < sy1; sy++) {
+        var i = sy * stride + sx0 * channels;
+        for (var sx = sx0; sx < sx1; sx++) {
+          r += bytes[i];
+          g += bytes[i + 1];
+          b += bytes[i + 2];
+          i += channels;
+        }
+      }
+      final n = (sy1 - sy0) * (sx1 - sx0);
+      out.setPixelRgb(x, y, r ~/ n, g ~/ n, b ~/ n);
+    }
+  }
+  return out;
 }
 
 /// Ce rapport est-il celui d'une carte de ce jeu, dans l'une de ses
@@ -254,15 +377,7 @@ bool _hasCardAspect(double aspect, String game) {
 /// Rien dans l'application n'appelle cette fonction.
 ({List<bool> mask, List<bool>? shape, double fill, int width, int height})
 debugDetection(img.Image image) {
-  final scale = image.width > analysisWidth ? image.width / analysisWidth : 1.0;
-  final small = scale > 1
-      ? img.copyResize(
-          image,
-          width: analysisWidth,
-          height: (image.height / scale).round().clamp(1, image.height),
-          interpolation: img.Interpolation.linear,
-        )
-      : image;
+  final (:small, scale: _) = _analysisImage(image);
 
   final mask = _cardMask(small);
   _fillHoles(mask, small.width, small.height);

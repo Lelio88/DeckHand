@@ -206,11 +206,11 @@ Map<ArtHypothesis, ArtHash> artHashCandidates(
 /// détecter comme une carte debout : ce sont les bords de la pochette que la
 /// détection trouve, et son rapport est celui d'une carte. Le gabarit couché
 /// s'appliquait alors à une zone parcourue de travers — mesuré sur du carton,
-/// « Altar of Blood » ressortait au rang 590 sur 1 035, quand le quart de tour
-/// la ramène **au rang 1, à 7 bits, avec une marge de 10**.
+/// « Altar of Blood » ressortait au rang 492 sur 1 035, quand le quart de tour
+/// la ramène **au rang 1, à 8 bits, avec une marge de 9**.
 ///
 /// Les deux sens sont essayés parce qu'une empreinte ne survit pas au demi-tour :
-/// la même carte lue dans le mauvais sens retombe au rang 185.
+/// la même carte lue dans le mauvais sens retombe au rang 197.
 ///
 /// **La réciproque n'est pas faite, et c'est délibéré.** Un cadre droit cherché
 /// dans un quadrilatère couché resterait lu tel quel : une carte debout ne se

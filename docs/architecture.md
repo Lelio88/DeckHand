@@ -159,9 +159,9 @@ Mesuré sur du carton — un champ de bataille photographié sous pochette :
 
 | | Rang de la bonne carte | Distance | Verdict |
 |---|---|---|---|
-| Sans rotation | 590 / 1 035 | 33 bits | rejetée |
-| Quart de tour, mauvais sens | 185 / 1 035 | 26 bits | rejetée |
-| **Quart de tour, bon sens** | **1 / 1 035** | **7 bits**, marge 10 | **annoncée avec assurance** |
+| Sans rotation | 492 / 1 035 | 32 bits | rejetée |
+| Quart de tour, mauvais sens | 197 / 1 035 | 26 bits | rejetée |
+| **Quart de tour, bon sens** | **1 / 1 035** | **8 bits**, marge 9 | **annoncée avec assurance** |
 
 Les deux sens sont donc essayés : une empreinte ne survit pas au demi-tour, et
 rien dans la photo ne dit de quel côté la carte a été glissée.
@@ -226,6 +226,26 @@ au décodeur vaut **0 bit en médiane, 0,7 en moyenne, 5 au maximum** — petit 
 la quinzaine de bits qui sépare deux cartes. `app/tool/verify_parity.dart` mesure
 cet écart et n'alerte qu'au-delà de 8 bits, seuil au-delà duquel la cause ne
 serait plus le décodeur mais l'algorithme.
+
+**La leçon du redimensionnement n'avait pas franchi la porte d'à côté.** Elle
+était appliquée à l'empreinte, jamais à la réduction qui amène la photo à la
+taille d'analyse de la détection de bords : celle-ci interpolait entre les quatre
+voisins immédiats côté Dart, quand Pillow, côté Python, élargit le support de son
+filtre à mesure que le facteur grandit. À faible facteur les deux coïncident ; à
+partir de **3**, le Dart sous-échantillonne — une texture fine ne s'éteint pas,
+elle replie en un bruit à l'échelle du pixel d'analyse, que le seuillage local
+lit comme du carton. Sur une carte photographiée sur un tissu, le Dart tenait
+**82,5 % de l'image** pour du carton et rendait un quadrilatère couvrant 81 % de
+l'aire, là où le Python rendait la carte. Les deux réduisent désormais par le
+même filtre de moyenne à bornes entières, et les coins coïncident au pixel près.
+
+**Rien ne pouvait le signaler, et c'est la vraie leçon.** Les tests unitaires
+travaillent sur des figures de 300 px, sous la taille d'analyse : elles ne sont
+jamais réduites. Le banc de cadrage compose des photos de 650 à 1100 px, soit des
+facteurs de 1,6 à **2,7** — il s'arrête un cran avant le défaut. Une photo de
+téléphone, elle, se réduit d'un facteur 10. Ce qui a révélé la panne est d'avoir
+joué **la même photo** dans les deux implémentations et comparé les coins ; c'est
+le seul contrôle qui l'aurait vue, et il ne coûte rien.
 
 ### Mesures sur l'index complet — 31 634 illustrations
 
@@ -770,13 +790,16 @@ Le remède est un **seuillage local** : chaque pixel se compare à la moyenne de
 son voisinage, calculée par image intégrale, au lieu d'une constante tirée de
 l'image entière. Le seuil suit alors l'éclairage au lieu de le subir. Vérifié
 sur la carte de papier qui avait servi à découvrir le défaut : rang 1 sur
-1 035, à 7 bits, avec 10 bits de marge sur le suivant.
+1 035, à 8 bits, avec 9 bits de marge sur le suivant.
 
 **Trois enseignements valent au-delà de ce cas.**
 
 Un banc ne mesure que ce qu'il fabrique. Celui-ci décrivait cinq façons de mal
 cadrer et aucune de mal éclairer ; il aurait donné son aval à n'importe quelle
-correction sans jamais voir le défaut.
+correction sans jamais voir le défaut. **Le même angle mort s'est reproduit sur
+ce même banc** : les photos qu'il compose font 650 à 1100 px de large, quand
+un téléphone en produit 4000, et le défaut de réduction décrit en §2 n'apparaît
+qu'au-delà d'un facteur 3. Ce qu'un banc ne fabrique pas, il l'absout.
 
 Une photo ne suffit pas à départager des corrections. Quatre approches ont été
 mesurées sur cette seule carte : celle qui y obtenait le **meilleur** score

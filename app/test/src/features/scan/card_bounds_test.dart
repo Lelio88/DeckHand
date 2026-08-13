@@ -111,6 +111,54 @@ img.Image _tableGrenue() {
   return photo;
 }
 
+/// Une table **finement texturée**, assez grande pour devoir être réduite.
+///
+/// Le grain vaut ±50 niveaux, contre ±14 pour [_tableGrenue] : ce n'est pas le
+/// grain lointain d'un plateau de bois, c'est la trame d'un tissu vue de près,
+/// telle qu'une photo de 12 Mpx la rend. Moyennée sur un bloc de 4 × 4, seize
+/// tirages indépendants, sa dispersion est divisée par quatre et elle ne marque
+/// plus rien ; échantillonnée, elle garde toute son amplitude et plus de la
+/// moitié du fond passe sous le seuil de carton.
+///
+/// La graine est fixée pour que le test ne dépende pas du tirage.
+img.Image _tableTexturee(int width, int height) {
+  final rng = math.Random(11);
+  final photo = img.Image(width: width, height: height);
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      final grain = rng.nextInt(101) - 50;
+      photo.setPixelRgb(
+        x,
+        y,
+        (170 + grain).clamp(0, 255),
+        (152 + grain).clamp(0, 255),
+        (126 + grain).clamp(0, 255),
+      );
+    }
+  }
+  return photo;
+}
+
+/// Une carte posée sur cette table-là, dans une photo de 1600 × 2133 — soit un
+/// facteur de réduction de 4, celui d'une photo de téléphone cadrée de loin.
+img.Image _carteSurTissu() {
+  final photo = _tableTexturee(1600, 2133);
+  const left = 400, top = 500;
+  final width = (900 * defaultCardAspect).round();
+
+  for (var y = 0; y < 900; y++) {
+    for (var x = 0; x < width; x++) {
+      photo.setPixelRgb(left + x, top + y, 18, 16, 20);
+    }
+  }
+  for (var y = 0; y < 380; y++) {
+    for (var x = 0; x < width - 100; x++) {
+      photo.setPixelRgb(left + 50 + x, top + 110 + y, 200, 60, 40);
+    }
+  }
+  return photo;
+}
+
 void main() {
   group('trouver la carte', () {
     test('les quatre coins épousent la carte', () {
@@ -200,6 +248,46 @@ void main() {
       // trop haut retient est l'image entière, de rapport 0,735, à 0,019 d'une
       // carte. C'est au seuillage de ne pas la produire.
       expect(findCard(_tableGrenue()), isNull);
+    });
+  });
+
+  group('une photo qu\'il faut réduire', () {
+    // **Le trou que ces tests bouchent.** Toutes les figures ci-dessus font
+    // 300 px de large, soit moins que `analysisWidth` : elles ne sont jamais
+    // réduites, et la réduction n'était donc couverte par rien. Le banc de
+    // cadrage ne la couvrait pas davantage — il compose des photos de 650 à
+    // 1100 px, soit des facteurs de 1,6 à 2,7, et le défaut n'apparaît qu'à
+    // partir de 3.
+    //
+    // Ce qui se joue : une réduction qui interpole entre les quatre voisins
+    // immédiats sous-échantillonne dès que le facteur dépasse 2, et une texture
+    // fine ne s'éteint pas — elle replie en un bruit à l'échelle du pixel
+    // d'analyse, que le seuillage local lit comme du carton. Mesuré sur une
+    // carte de papier posée sur un tissu : 82,5 % de l'image tenue pour du
+    // carton, et un quadrilatère couvrant 81 % de l'aire.
+
+    test('une table finement texturée ne devient pas du carton', () {
+      final vu = debugDetection(_tableTexturee(1600, 2133));
+      final marques = vu.mask.where((on) => on).length;
+
+      // En moyennant, le grain s'éteint et rien n'est marqué. En interpolant,
+      // **60,7 %** de cette figure passe pour du carton, et `findCard` n'y
+      // trouve plus rien : c'est la mesure qui donne sa valeur à ces deux
+      // tests, et non l'inverse.
+      expect(marques / (vu.width * vu.height), lessThan(0.01));
+    });
+
+    test('la carte se retrouve malgré la texture', () {
+      final quad = findCard(_carteSurTissu());
+
+      expect(quad, isNotNull);
+      // **Le rapport seul ne trancherait pas** : une forme qui aurait avalé le
+      // fond aurait celui de la photo, 0,750, à 0,034 seulement d'une carte —
+      // exactement le masque faux que ce module existe pour éviter. Ce sont les
+      // coins qui le disent.
+      expect(quad!.aspect, closeTo(cardAspectFor('magic'), 0.03));
+      expect(quad.topLeft.x, closeTo(400, 40));
+      expect(quad.topLeft.y, closeTo(500, 40));
     });
   });
 

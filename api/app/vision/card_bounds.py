@@ -181,6 +181,40 @@ def _box_mean(source: np.ndarray, radius: int) -> np.ndarray:
     return total / area
 
 
+def box_reduce(photo: Image.Image, width: int, height: int) -> np.ndarray:
+    """Moyenne de bloc, à bornes et divisions entières — jumeau de `_boxReduce`.
+
+    **Pourquoi pas `Image.resize`.** Pillow réduit très bien : son filtre élargit
+    son support à mesure que le facteur grandit, et c'est précisément ce qui a
+    masqué le défaut pendant tout ce temps. Le Dart, lui, interpolait entre les
+    quatre voisins immédiats — donc sous-échantillonnait à facteur élevé — et
+    lisait la trame d'un tissu comme du carton. Les deux implémentations ne
+    faisaient pas la même chose, **et c'est le Python qui avait raison** : la
+    parité était rompue en silence, exactement comme l'en-tête le redoutait.
+
+    Elle est refaite ici sur le filtre que le Dart calcule à la main, et non
+    l'inverse, parce que c'est le seul dont les bornes soient reproductibles mot
+    pour mot dans les deux langages. `Image.BOX` en serait proche mais pondère
+    les bords fractionnaires ; le nôtre tronque, comme le fait `~/` en Dart.
+
+    `np.add.reduceat` découpe sur exactement les mêmes bornes : le bloc `i` va de
+    `x0[i]` inclus à `x0[i+1]` exclu, le dernier jusqu'au bord — ce que le Dart
+    écrit `(x * dx).toInt()` et `((x + 1) * dx).toInt()`.
+    """
+    src = np.asarray(photo.convert("RGB"), dtype=np.uint32)
+    h0, w0 = src.shape[:2]
+    dx, dy = w0 / width, h0 / height
+
+    x0 = (np.arange(width) * dx).astype(int)
+    y0 = (np.arange(height) * dy).astype(int)
+    sommes = np.add.reduceat(np.add.reduceat(src, x0, axis=1), y0, axis=0)
+
+    largeurs = np.diff(np.append(x0, w0))
+    hauteurs = np.diff(np.append(y0, h0))
+    surfaces = (hauteurs[:, None] * largeurs[None, :])[..., None]
+    return (sommes // surfaces).astype(np.float32)
+
+
 def card_mask(rgb: np.ndarray) -> np.ndarray:
     """Ce qui est carte plutôt que table.
 
@@ -357,15 +391,11 @@ def find_card(photo: Image.Image, game: str = "magic") -> Quad | None:
         return None
 
     scale = photo.width / ANALYSIS_WIDTH if photo.width > ANALYSIS_WIDTH else 1.0
-    small = (
-        photo.resize(
-            (ANALYSIS_WIDTH, max(1, round(photo.height / scale))), Image.BILINEAR
-        )
-        if scale > 1
-        else photo
-    )
+    if scale > 1:
+        rgb = box_reduce(photo, ANALYSIS_WIDTH, max(1, round(photo.height / scale)))
+    else:
+        rgb = np.asarray(photo.convert("RGB"), dtype=np.float32)
 
-    rgb = np.asarray(small.convert("RGB"), dtype=np.float32)
     shape = largest_component(fill_holes(card_mask(rgb)))
     if shape is None:
         return None

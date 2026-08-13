@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from app.vision.card_bounds import find_card, sample_art
+from app.vision.card_bounds import box_reduce, find_card, sample_art
 from app.vision.card_geometry import card_aspect_for
 
 #: Le banc compose des cartes Magic ; le rapport attendu est donc le sien.
@@ -49,6 +49,58 @@ def test_une_photo_sans_carte_ne_rend_rien():
     # Renoncer est un résultat : l'appelant retombe sur le cadrage centré,
     # jamais sur pire.
     assert find_card(Image.new("RGB", (300, 400), (170, 152, 126))) is None
+
+
+def table_texturee(width: int, height: int) -> Image.Image:
+    """Une table finement texturée, assez grande pour devoir être réduite.
+
+    Le grain vaut ±50 niveaux : ce n'est pas le grain lointain d'un plateau de
+    bois, c'est la trame d'un tissu vue de près, telle qu'une photo de 12 Mpx la
+    rend. Moyennée sur un bloc de 4 × 4 elle ne marque plus rien ;
+    échantillonnée, elle garde toute son amplitude et la moitié du fond passe
+    sous le seuil de carton.
+    """
+    rng = np.random.default_rng(11)
+    grain = rng.integers(-50, 51, size=(height, width, 1))
+    fond = np.array([170, 152, 126])
+    return Image.fromarray(
+        np.clip(fond + grain, 0, 255).astype(np.uint8), mode="RGB"
+    )
+
+
+def test_la_reduction_moyenne_des_blocs_a_bornes_entieres():
+    # **Le contrat qui rend les deux implémentations comparables.** Le bloc `i`
+    # va de `(i * dx)` inclus à `((i + 1) * dx)` exclu, tronqués tous les deux,
+    # et la division est entière — ce que le Dart écrit `~/`. Ici dx vaut 2 : la
+    # sortie est la moyenne tronquée de chaque paire.
+    source = Image.fromarray(
+        np.array([[[10, 20, 30], [20, 30, 41], [200, 0, 0], [201, 1, 1]]], "uint8"),
+        mode="RGB",
+    )
+    reduite = box_reduce(source, 2, 1)
+    assert reduite.tolist() == [[[15, 25, 35], [200, 0, 0]]]
+
+
+def test_une_table_finement_texturee_ne_fait_pas_inventer_une_carte():
+    # Le pendant du test Dart — c'est là que la mesure a été faite, l'ancienne
+    # réduction y marquant 60,7 % de la figure comme du carton. Ici, Pillow
+    # moyennait déjà correctement : ce test ne rattrape rien, il empêche de
+    # revenir à un filtre qui sous-échantillonne.
+    assert find_card(table_texturee(1600, 2133)) is None
+
+
+def test_la_carte_se_retrouve_malgre_la_texture():
+    canvas = table_texturee(1600, 2133)
+    width = round(900 * CARD_ASPECT)
+    card = Image.new("RGB", (width, 900), (18, 16, 20))
+    card.paste(Image.new("RGB", (width - 100, 380), (200, 60, 40)), (50, 110))
+    canvas.paste(card, (400, 500))
+
+    quad = find_card(canvas)
+    assert quad is not None
+    assert quad.aspect == pytest.approx(CARD_ASPECT, abs=0.03)
+    assert quad.top_left[0] == pytest.approx(400, abs=40)
+    assert quad.top_left[1] == pytest.approx(500, abs=40)
 
 
 def test_un_fond_parfaitement_uniforme_ne_produit_pas_de_seuil_indefini():
