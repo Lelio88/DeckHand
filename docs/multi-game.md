@@ -221,9 +221,66 @@ l'Extra, et il porte quinze cartes en médiane — autant que la réserve. Le mo
 pan principal enregistré est donc **55 cartes** (40 + 15), sur 1 992 decks.
 
 `decks.format` accueille `edison`, `goat`, `redu` et `hat` (migration
-`20260816130000`). `DeckBlueprint.of` continue de rendre `null` : le corpus
-existe désormais, mais le gabarit reste à mesurer — le déclarer d'avance referait
-l'erreur que le choix du format a déjà coûtée à ce jeu.
+`20260816130000`). `DeckBlueprint.of` continue de rendre `null`, et la section
+suivante dit pourquoi — ce n'est plus faute d'avoir mesuré.
+
+### Le gabarit de deck : mesuré, et pourtant toujours nul
+
+Les proportions d'un deck Yu-Gi-Oh se lisent sur ses 3 935 listes
+(`python -m app.measure.deck_anatomy --game yugioh`). Ce sont **les plus nettes
+du projet** :
+
+| | edison (3 050) | goat (484) | redu (320) | hat (81) |
+|---|---|---|---|---|
+| Deck principal | 40 (écart 1) | 40 (écart 0) | 40 (écart 1) | 40 (écart 0) |
+| Extra Deck | 15 (écart 0) | 11 (écart 15) | 15 (écart 0) | 15 (écart 0) |
+| Monstres | 52,5 % (12,2) | 45,0 % (15,0) | 43,9 % (16,2) | 45,0 % (12,2) |
+| Magies | 21,4 % (9,8) | 30,0 % (10,0) | 27,5 % (15,8) | 26,8 % (24,0) |
+| Pièges | 24,4 % (16,6) | 22,5 % (12,5) | 27,5 % (16,6) | 25,0 % (20,0) |
+
+Trois faits en sortent :
+
+- **La taille est un contrat, pas une tendance.** 40 cartes, écart interquartile
+  de 0 à 1 sur les quatre formats. Aucun format Magic n'approche cette
+  régularité — la mesure la plus serrée y était les terrains de Commander, à
+  2 points.
+- **Trois exemplaires au maximum**, vérifié sur tout le corpus. Un seul deck HAT
+  en affiche 6, ce qui trahit une liste mal découpée plutôt qu'une infraction.
+- **La composition, elle, est dispersée** — 12 à 24 points d'écart sur les
+  monstres. Comme le Pauper et le Modern, ce format mêle des archétypes dont la
+  médiane décrit un deck qui n'existe nulle part.
+
+**Le corpus ne distingue pas l'Extra Deck, et il fallait le voir.** TopDeck.gg ne
+publie qu'un `main` et un `side` ; les quinze cartes de l'Extra arrivent donc
+mêlées au deck principal. Une taille lue naïvement sur ce board vaut **55** — un
+nombre qui ne correspond à aucune zone du jeu. Les séparer demande de reconnaître
+les types d'Extra (Fusion, Synchro, Xyz, Link), ce que le banc fait désormais.
+Sans cette séparation, le gabarit aurait déclaré des decks de 55 cartes avec
+l'assurance d'une mesure.
+
+**Et pourtant `DeckBlueprint.of` rend toujours `null`.** Ce n'est plus faute de
+mesure : c'est que le constructeur est bâti sur des notions que ce jeu n'a pas,
+et la mesure le chiffre.
+
+| Ce que le constructeur demande | Ce que Yu-Gi-Oh en offre |
+|---|---|
+| `isCreature` — cherche « Creature » | **aucune** carte sur 13 866 |
+| `isLand` | **aucune** |
+| `playableIn` — identité de couleur | le champ porte l'**Attribut**, qui n'impose aucune contrainte de construction |
+| `cmc` — coût de mana | le champ porte le **Niveau** |
+
+Deux quotas sur cinq seraient donc introuvables, et le filtrage par « couleur »
+écarterait **32 % du catalogue** sur une règle qui n'existe pas — rien n'interdit
+de mêler DARK et LIGHT. `cmc` et `color_identity` sont des analogues de forme,
+pas de sens : l'ingestion y range le Niveau et l'Attribut faute de champs
+dédiés, et s'en servir comme le fait Magic produirait un deck faux avec
+l'assurance d'un deck mesuré.
+
+Ce que ces nombres attendent n'est donc pas un réglage mais **un constructeur
+dont les axes soient ceux du jeu** : Monstre / Magie / Piège plutôt que
+créature / terrain, paliers de Niveau plutôt que courbe de mana, et deux zones à
+remplir plutôt qu'une. Le gabarit reste `null` jusque-là, et c'est désormais un
+choix mesuré et non une lacune.
 
 ### Vérifié sous le rôle qui subira les règles (decks)
 
@@ -237,8 +294,8 @@ decks portent un prix, soit **99,6 %**. Le coût de complétion est donc chiffra
 pour presque toute liste — c'est la promesse du produit, pas un chiffre
 d'agrément.
 
-**Ce qui reste dû** : l'index d'empreintes est plein, les prix et les decks sont
-en base ; il manque **une carte de papier**. Aucune carte Yu-Gi-Oh n'a encore été
+**Ce qui reste dû** : l'index d'empreintes est plein, les prix, les decks et les
+proportions de deck sont mesurés ; il manque **une carte de papier**. Aucune carte Yu-Gi-Oh n'a encore été
 photographiée — c'est le même verrou que Riftbound a mis longtemps à lever.
 
 ---

@@ -105,11 +105,27 @@ class DeckBlueprint {
     DeckFormat.commander => commander,
     DeckFormat.pauper => pauper,
     DeckFormat.modern => modern,
-    // Yu-Gi-Oh partage la raison de Riftbound : ses notions — Main, Extra,
-    // Side — n'ont pas de pendant Magic, et ses proportions se mesureraient sur
-    // son propre corpus. Celui-ci existe désormais (3 935 decks), mais le
-    // gabarit reste à mesurer : le déclarer d'avance referait l'erreur que le
-    // choix du format a déjà coûtée une fois à ce jeu.
+    // **Yu-Gi-Oh est mesuré, et reste pourtant nul.** Ses proportions ont été
+    // lues sur ses 3 935 decks (`deck_anatomy --game yugioh`), et elles sont
+    // les plus nettes du projet : deck principal de **40 cartes**, écart
+    // interquartile de 0 à 1 sur les quatre formats ; Extra Deck de 15 (11 en
+    // Goat) ; **3 exemplaires** au maximum, vérifié sur tout le corpus.
+    //
+    // Ce n'est donc pas le gabarit qui manque, c'est le **constructeur**. Il
+    // est bâti sur des notions que ce jeu n'a pas, et la mesure le chiffre :
+    // `isCreature` cherche « Creature » et n'en trouve **aucune** sur 13 866
+    // cartes, `isLand` non plus, si bien que deux quotas sur cinq seraient
+    // introuvables. Pire, `playableIn` filtrerait le pool par identité de
+    // couleur — or l'ingestion range l'**Attribut** (DARK, LIGHT, WATER…) dans
+    // ce champ, et l'attribut n'impose aucune contrainte de construction en
+    // Yu-Gi-Oh. Retenir les deux mieux fournis écarterait **32 % du catalogue**
+    // sur une règle qui n'existe pas. Même remarque pour `cmc`, qui porte ici
+    // le Niveau : un analogue de forme, pas de sens.
+    //
+    // Fournir un gabarit ouvrirait donc un constructeur qui rend un deck faux
+    // avec l'assurance d'un deck mesuré — précisément ce que ce `null` existe
+    // pour empêcher. Les nombres attendent un constructeur dont les axes soient
+    // ceux du jeu ; ils sont consignés dans `docs/multi-game.md` §0.
     DeckFormat.constructed ||
     DeckFormat.edison ||
     DeckFormat.goat ||
