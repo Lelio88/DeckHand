@@ -446,10 +446,34 @@ images réelles et pas seulement sur la figure de test. C'est ce que garantit le
 partage du corps de la détection : seule la mise à la taille d'analyse diffère,
 et ses bornes sont les mêmes des deux côtés.
 
-Il reste 33 ms à atteindre, et le poste suivant est identifié : l'empreinte
-coûte encore 13 ms par le chemin `img.Image`, quand `artHashFromLuma` la calcule
-en 1,0 ms à caméra fixe. Le même raccourci appliqué au découpage de
-l'illustration mettrait le total autour de 27 ms.
+**Le même raccourci une fois de plus, et le budget est tenu.** L'empreinte
+passait encore par un `img.Image` : `sampleArt` lit dans une image, donc il
+fallait la bâtir — ce que la détection venait justement d'éviter.
+`sampleArtFromLuma` échantillonne le quadrilatère directement dans le plan et
+rend un tampon serré, qu'`artHashFromLuma` hache sans rien reconstruire.
+L'empreinte est identique **bit à bit** aux deux chemins, ce qu'un test vérifie.
+
+Chronométrée d'un bloc — détecter, découper l'illustration dans le
+quadrilatère, hacher, chercher dans un index de 32 000 :
+
+| | p50 | p90 |
+|---|---|---|
+| `findCardInLuma` seul | 22,9 ms | — |
+| **Chaîne entière du flux libre** | **27,4 ms** | 29 à 34 ms |
+
+**Le flux libre tient dans les 33 ms.** Il était à 52 ms avant ces trois
+corrections ; 30 images par seconde est atteint au p50, et le p90 affleure le
+budget.
+
+Deux réserves, plutôt que de les taire. La chaîne n'est chronométrée que sur les
+images où la détection trouve une carte — 43 images sur les quatre exécutions —,
+donc sa médiane repose sur un échantillon plus mince que les autres postes. Et
+les totaux notés plus haut, qui additionnent des postes mesurés séparément,
+**surestiment** le flux libre : ils y comptent un hachage pris sur la fenêtre
+fixe, 333 000 pixels, quand le quadrilatère n'en fait échantillonner que 48 640.
+
+Ce qui reste n'est plus une affaire de performance mais de conception :
+détecter à chaque image ou suivre le quadrilatère entre deux détections.
 
 **Deux goulots trouvés là où on ne les attendait pas.** La recherche linéaire
 coûtait 8,4 ms sur l'appareil — non à cause du parcours, mais parce qu'elle

@@ -865,6 +865,76 @@ img.Image sampleArt(
   return out;
 }
 
+/// La même lecture, mais dans un plan de luminance, et rendue à plat.
+///
+/// **Le dernier `img.Image` du flux libre.** [sampleArt] lit dans une image ;
+/// pour une image de caméra, il faut donc la bâtir d'abord — c'est ce que
+/// [findCardInLuma] venait d'éviter, et que le hachage réintroduisait aussitôt.
+/// Cette variante lit les octets là où ils sont et écrit un tampon serré, que
+/// `artHashFromLuma` sait hacher sans rien reconstruire : `rowStride` y vaut la
+/// largeur et `pixelStride` vaut un.
+///
+/// **Elle ne change pas le calcul.** Mêmes coordonnées `(u, v)`, même
+/// interpolation des quatre coins, même interpolation bilinéaire des quatre
+/// pixels voisins. Un test vérifie l'égalité **bit à bit** de l'empreinte
+/// obtenue par les deux chemins ; s'il tombe, c'est celle-ci qui a tort.
+///
+/// Les trois canaux d'une image grise valant `Y`, l'interpolation rend `Y` :
+/// c'est ce qui autorise à n'en porter qu'un.
+Uint8List sampleArtFromLuma(
+  Uint8List luma, {
+  required int width,
+  required int height,
+  required int rowStride,
+  int pixelStride = 1,
+  required CardQuad quad,
+  required ArtBox box,
+  int outWidth = 256,
+  int outHeight = 190,
+}) {
+  final out = Uint8List(outWidth * outHeight);
+
+  for (var row = 0; row < outHeight; row++) {
+    final v = box.top + (box.bottom - box.top) * (row + 0.5) / outHeight;
+    for (var col = 0; col < outWidth; col++) {
+      final u = box.left + (box.right - box.left) * (col + 0.5) / outWidth;
+
+      final x =
+          (1 - u) * (1 - v) * quad.topLeft.x +
+          u * (1 - v) * quad.topRight.x +
+          u * v * quad.bottomRight.x +
+          (1 - u) * v * quad.bottomLeft.x;
+      final y =
+          (1 - u) * (1 - v) * quad.topLeft.y +
+          u * (1 - v) * quad.topRight.y +
+          u * v * quad.bottomRight.y +
+          (1 - u) * v * quad.bottomLeft.y;
+
+      final cx = x.clamp(0.0, (width - 1).toDouble());
+      final cy = y.clamp(0.0, (height - 1).toDouble());
+      final x0 = cx.floor();
+      final y0 = cy.floor();
+      final x1 = x0 + 1 < width ? x0 + 1 : x0;
+      final y1 = y0 + 1 < height ? y0 + 1 : y0;
+      final fx = cx - x0;
+      final fy = cy - y0;
+
+      int at(int px, int py) {
+        final offset = py * rowStride + px * pixelStride;
+        return offset < luma.length ? luma[offset] : 0;
+      }
+
+      final top = at(x0, y0) * (1 - fx) + at(x1, y0) * fx;
+      final bottom = at(x0, y1) * (1 - fx) + at(x1, y1) * fx;
+      // `setPixelRgb` tronque la valeur flottante qu'on lui passe ; on tronque
+      // donc aussi, sans quoi les deux chemins différeraient d'un niveau sur
+      // les pixels à mi-chemin — assez pour faire basculer un bit d'empreinte.
+      out[row * outWidth + col] = (top * (1 - fy) + bottom * fy).toInt();
+    }
+  }
+  return out;
+}
+
 /// Écrit dans [out] la couleur lue en `(x, y)` de [source], interpolée entre
 /// les quatre pixels voisins.
 void _writeBilinear(

@@ -121,6 +121,16 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
   final _findDirect = <int>[];
   int _sameQuad = 0;
 
+  /// La chaîne du flux libre **de bout en bout**, sans aucune image
+  /// intermédiaire : détecter, découper l'illustration dans le quadrilatère,
+  /// hacher, chercher.
+  ///
+  /// Les autres totaux additionnent des postes mesurés séparément, dont un
+  /// hachage pris sur la fenêtre fixe — 333 000 pixels, alors que le
+  /// quadrilatère n'en fait échantillonner que 48 640. Ils surestiment donc ce
+  /// que le flux libre coûte vraiment. Celui-ci est le seul honnête.
+  final _chain = <int>[];
+
   /// Écart entre l'empreinte lue sur la luminance et celle du chemin RGB.
   final _drift = <int>[];
   var _frames = 0;
@@ -322,12 +332,47 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
     );
     final tFindDirect = watch.elapsedMicroseconds;
 
+    // La chaîne entière, chronométrée d'un bloc. Quand la détection renonce, il
+    // n'y a rien à hacher : ces images-là ne sont pas comptées, sans quoi la
+    // médiane décrirait un travail qui n'a pas eu lieu.
+    var tChain = 0;
+    if (direct != null) {
+      watch.reset();
+      final quad2 = findCardInLuma(
+        planes[0].bytes,
+        width: width,
+        height: height,
+        rowStride: planes[0].bytesPerRow,
+        pixelStride: planes[0].bytesPerPixel ?? 1,
+      );
+      if (quad2 != null) {
+        index.search(
+          artHashFromLuma(
+            sampleArtFromLuma(
+              planes[0].bytes,
+              width: width,
+              height: height,
+              rowStride: planes[0].bytesPerRow,
+              pixelStride: planes[0].bytesPerPixel ?? 1,
+              quad: quad2,
+              box: art,
+            ),
+            width: 256,
+            height: 190,
+            rowStride: 256,
+          ),
+        );
+      }
+      tChain = watch.elapsedMicroseconds;
+    }
+
     _frames++;
     if (_frames <= benchWarmup) return;
 
     _frame.add(tFrame);
     _find.add(tFind);
     _findDirect.add(tFindDirect);
+    if (tChain > 0) _chain.add(tChain);
     if (quad != null) _found++;
     // **Les deux chemins doivent conclure pareil**, sur une vraie image et pas
     // seulement sur la figure de test. Un raccourci plus rapide qui trouverait
@@ -357,6 +402,8 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
         '+ détection ${_median(_find) ~/ 1000} ms\n'
         'sans image : ${_median(_findDirect) ~/ 1000} ms '
         '($_sameQuad/${_findDirect.length} identiques)\n'
+        'chaîne entière : ${_median(_chain) ~/ 1000} ms '
+        'sur ${_chain.length} images\n'
         'budget 33 ms à 30 img/s',
       );
       diagnose('bench_result', {
@@ -373,6 +420,8 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
             _median(_search),
         'total_libre_direct_us':
             _median(_findDirect) + _median(_hash) + _median(_search),
+        'chaine_us': _stats(_chain),
+        'chaine_n': _chain.length,
         'index': widget.indexSize,
         'n': _luma.length,
         'direct_us': _stats(_direct),

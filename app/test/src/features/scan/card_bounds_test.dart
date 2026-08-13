@@ -15,6 +15,7 @@ library;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:deckhand/src/features/scan/domain/art_hash.dart';
 import 'package:deckhand/src/features/scan/domain/camera_frame.dart';
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
 import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
@@ -354,6 +355,43 @@ void main() {
         findCardInLuma(Uint8List(16), width: 4, height: 4, rowStride: 4),
         isNull,
       );
+    });
+
+    test('l\'empreinte est la même par les deux chemins', () {
+      // **Bit à bit, et non « proche ».** L'index est calculé par le jumeau
+      // Python ; une empreinte qui différerait d'un bit resterait plausible et
+      // dégraderait la reconnaissance sans que rien ne le signale.
+      final luma = plan();
+      final quad = findCardInLuma(
+        luma,
+        width: width,
+        height: height,
+        rowStride: rowStride,
+      )!;
+      const box = (left: 0.08, top: 0.12, right: 0.92, bottom: 0.55);
+
+      final direct = artHashFromLuma(
+        sampleArtFromLuma(
+          luma,
+          width: width,
+          height: height,
+          rowStride: rowStride,
+          quad: quad,
+          box: box,
+        ),
+        width: 256,
+        height: 190,
+        rowStride: 256,
+      );
+      final parImage = computeArtHash(
+        sampleArt(
+          lumaImage(luma, width: width, height: height, rowStride: rowStride),
+          quad,
+          box,
+        ),
+      );
+
+      expect(direct.toHex(), parImage.toHex());
     });
   });
 
