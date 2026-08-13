@@ -26,6 +26,17 @@
 /// où l'on promène l'appareil, doit d'abord retrouver la carte — `frame` puis
 /// `find` mesurent ce que cela ajoute, et c'est de loin le poste dominant.
 ///
+/// **Et il mesure le suivi.** Une fois le budget tenu, la question restante
+/// n'était plus le coût d'une image mais celui d'une *séquence* : faut-il
+/// redétecter la carte à chaque image ? Le banc de poste de travail
+/// (`tool/stream_bench.dart`) a tranché ce qui se compte en bits — écarts
+/// d'empreinte, reconnaissances perdues, cartes annoncées à tort — mais il ne
+/// peut pas rendre de millisecondes, un cœur de bureau n'étant pas un cœur de
+/// téléphone. Le coût du suivi y restait donc **composé** à partir de durées
+/// mesurées ailleurs. Ce banc-ci exécute `QuadTracker` sur le flux réel, dans
+/// la même exécution que la chaîne qui redétecte tout, et rend enfin les deux
+/// côte à côte.
+///
 /// **Le banc compare aussi les empreintes**, pas seulement les durées. Un
 /// chemin deux fois plus rapide qui rendrait une empreinte différente serait
 /// inutilisable : l'index est calculé par le jumeau Python sur du RGB.
@@ -46,6 +57,7 @@ import '../domain/art_hash.dart';
 import '../domain/art_hash_index.dart';
 import '../domain/camera_frame.dart';
 import '../domain/card_bounds.dart';
+import '../domain/quad_tracker.dart';
 
 /// Images mesurées avant de rendre le bilan. Assez pour que les percentiles
 /// aient un sens, assez peu pour tenir dans un tampon de journal.
@@ -131,6 +143,30 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
   /// que le flux libre coûte vraiment. Celui-ci est le seul honnête.
   final _chain = <int>[];
 
+  /// La même chaîne, mais **en suivant le quadrilatère** au lieu de le refaire.
+  ///
+  /// C'est la seule mesure qui manquait à la décision de l'issue #8. Le banc de
+  /// poste de travail (`tool/stream_bench.dart`) a tranché ce qui se compte —
+  /// écarts d'empreinte, reconnaissances perdues, cartes annoncées à tort — mais
+  /// il ne peut pas donner de millisecondes : un cœur de bureau n'est pas un
+  /// cœur de téléphone. Le coût du suivi y était donc **composé** à partir de
+  /// deux durées mesurées ailleurs (22,9 ms pour détecter, 4,5 ms pour le
+  /// reste), et non chronométré. Ici il l'est.
+  ///
+  /// Mesuré **dans la même exécution** que `_chain`, sur les mêmes images :
+  /// c'est la seule façon de comparer sans que l'échauffement de l'appareil
+  /// s'en mêle, et le fichier applique déjà cette règle aux deux chemins de
+  /// détection.
+  final _tracked = <int>[];
+
+  /// Combien de fois la détection a réellement tourné sous le suivi, et sur
+  /// combien d'images. **Un compte, pas un booléen** : une image peut en
+  /// déclencher deux — une par âge, une par saut — et un oui/non les
+  /// confondrait, sous-estimant le coût sans que rien ne le dise.
+  int _trackedDetections = 0;
+  int _trackedFrames = 0;
+  final _tracker = QuadTracker();
+
   /// Écart entre l'empreinte lue sur la luminance et celle du chemin RGB.
   final _drift = <int>[];
   var _frames = 0;
@@ -208,6 +244,65 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
     } finally {
       _busy = false;
     }
+  }
+
+  /// Une image du flux, traitée **selon la politique de suivi**.
+  ///
+  /// C'est l'ordre exact que suivrait le mode temps réel : demander au suivi
+  /// s'il faut détecter, hacher avec le quadrilatère tenu, et ne redétecter que
+  /// si l'empreinte a sauté. Rend le nombre de détections effectuées.
+  ///
+  /// **Aucune logique n'est réécrite ici** : la décision appartient entière à
+  /// `QuadTracker`, et ce banc ne fait que l'exécuter. En porter une réplique
+  /// reviendrait à chronométrer un code que personne n'exécutera, et à laisser
+  /// les deux diverger en silence.
+  int _trackedStep(CameraImage image, ArtHashIndex index, ArtBox art) {
+    final plane = image.planes[0];
+    CardQuad? detect() => findCardInLuma(
+      plane.bytes,
+      width: image.width,
+      height: image.height,
+      rowStride: plane.bytesPerRow,
+      pixelStride: plane.bytesPerPixel ?? 1,
+    );
+    ArtHash hashWith(CardQuad quad) => artHashFromLuma(
+      sampleArtFromLuma(
+        plane.bytes,
+        width: image.width,
+        height: image.height,
+        rowStride: plane.bytesPerRow,
+        pixelStride: plane.bytesPerPixel ?? 1,
+        quad: quad,
+        box: art,
+      ),
+      width: 256,
+      height: 190,
+      rowStride: 256,
+    );
+
+    var detections = 0;
+    if (_tracker.needsDetection) {
+      _tracker.adopt(detect());
+      detections++;
+    }
+
+    var quad = _tracker.quad;
+    if (quad == null) return detections;
+
+    var fingerprint = hashWith(quad);
+    if (_tracker.jumped(fingerprint)) {
+      // La scène a changé sous le quadrilatère. On ne cherche pas à savoir
+      // quoi : la réponse est la même dans tous les cas, redétecter.
+      _tracker.adopt(detect());
+      detections++;
+      quad = _tracker.quad;
+      if (quad == null) return detections;
+      fingerprint = hashWith(quad);
+    }
+
+    _tracker.keep(fingerprint);
+    index.search(fingerprint);
+    return detections;
   }
 
   void _measure(CameraImage image) {
@@ -366,6 +461,15 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
       tChain = watch.elapsedMicroseconds;
     }
 
+    // La même chaîne sous suivi. **Le suivi tourne sur toutes les images**,
+    // y compris celles où rien n'est trouvé — sa machine à états a besoin de
+    // voir le flux entier —, mais la durée n'est retenue que sur les images
+    // comparables à `_chain`, sinon les deux médianes porteraient sur des
+    // sous-ensembles différents.
+    watch.reset();
+    final detections = _trackedStep(image, index, art);
+    final tTracked = watch.elapsedMicroseconds;
+
     _frames++;
     if (_frames <= benchWarmup) return;
 
@@ -373,6 +477,11 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
     _find.add(tFind);
     _findDirect.add(tFindDirect);
     if (tChain > 0) _chain.add(tChain);
+    if (direct != null) {
+      _tracked.add(tTracked);
+      _trackedDetections += detections;
+      _trackedFrames++;
+    }
     if (quad != null) _found++;
     // **Les deux chemins doivent conclure pareil**, sur une vraie image et pas
     // seulement sur la figure de test. Un raccourci plus rapide qui trouverait
@@ -404,6 +513,8 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
         '($_sameQuad/${_findDirect.length} identiques)\n'
         'chaîne entière : ${_median(_chain) ~/ 1000} ms '
         'sur ${_chain.length} images\n'
+        'suivi : ${_median(_tracked) ~/ 1000} ms '
+        '($_trackedDetections détections / $_trackedFrames images)\n'
         'budget 33 ms à 30 img/s',
       );
       diagnose('bench_result', {
@@ -422,6 +533,11 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
             _median(_findDirect) + _median(_hash) + _median(_search),
         'chaine_us': _stats(_chain),
         'chaine_n': _chain.length,
+        'suivi_us': _stats(_tracked),
+        'suivi_n': _trackedFrames,
+        'suivi_detections': _trackedDetections,
+        'suivi_saut_bits': _tracker.jumpBits,
+        'suivi_age_max': _tracker.maxAge,
         'index': widget.indexSize,
         'n': _luma.length,
         'direct_us': _stats(_direct),

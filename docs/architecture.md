@@ -585,12 +585,19 @@ mesure ce module plutôt qu'une réplique — mesurer une copie reviendrait à
 chronométrer un code que personne n'exécutera, et à laisser les deux diverger en
 silence.
 
-**Ce qui n'est pas encore fait, et ne doit pas l'être avant un flux réel.** Les
-valeurs par défaut — 12 bits et 5 images — sont tirées de séquences composées :
-elles disent qu'une fenêtre de réglage existe et qu'elle est large, pas où se
-place l'optimum d'un vrai capteur. Le suivi n'est pas non plus branché sur le
-chemin caméra : il attend le booster réel que l'issue #8 réclame, et qui reste le
-seul juge.
+**Le suivi tourne sur le flux réel**, dans le banc embarqué
+(`--dart-define=DECKHAND_BENCH=true`), et dans la **même exécution** que la
+chaîne qui redétecte tout : c'est la seule façon de les comparer sans que
+l'échauffement de l'appareil s'en mêle. Le banc y exécute `QuadTracker` lui-même
+plutôt qu'une réplique, et journalise `suivi_us` avec le nombre de détections
+réellement déclenchées — ce qui remplacera le coût *composé* de 12,3 ms par un
+coût mesuré. Aucun mode temps réel n'est écrit autour pour autant : l'app n'a
+pas encore de chemin caméra en flux hors de ce banc.
+
+**Ce que la mesure ne donne toujours pas.** Les valeurs par défaut — 12 bits et
+5 images — sont tirées de séquences composées : elles disent qu'une fenêtre de
+réglage existe et qu'elle est large, pas où se place l'optimum d'un vrai
+capteur. Le booster réel que l'issue #8 réclame reste le seul juge.
 
 ### Pourquoi hacher l'illustration et non la carte entière
 
