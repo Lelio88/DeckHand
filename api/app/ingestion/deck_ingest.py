@@ -121,6 +121,15 @@ def store_deck(
             ON CONFLICT (source_id, external_id) DO UPDATE SET
                 name = EXCLUDED.name,
                 recorded_at = EXCLUDED.recorded_at,
+                -- **L'identité du commandant doit suivre**, pour la raison qui
+                -- vaut déjà pour `card_prints.oracle_id` : quand la règle
+                -- d'identité d'un jeu change, un deck déjà connu resterait
+                -- accroché à une carte qui n'existe plus. Mesuré sur Riftbound :
+                -- les cartes citées par les decklists s'étaient repointées, mais
+                -- 48 anciennes cartes survivaient à la purge, retenues par cette
+                -- seule colonne — et par elle seule, aucune n'étant plus citée
+                -- par une decklist ni par une collection.
+                commander_oracle_id = EXCLUDED.commander_oracle_id,
                 -- Le jeu suit : une source qui couvre deux catalogues pourrait
                 -- réattribuer un identifiant externe, et un deck Riftbound resté
                 -- étiqueté « magic » polluerait les suggestions de l'autre jeu.

@@ -16,7 +16,7 @@ documentation.
 | | Riftbound | Yu-Gi-Oh |
 |---|---|---|
 | Catalogue | 15 requêtes paginées | **un seul appel**, 21 Mo, 14 491 cartes |
-| Identité | UUIDv5 dérivés du triplet nom + type + texte | **le passcode imprimé sur la carte**, unique sur 14 491 |
+| Identité | UUIDv5 dérivés du triplet titre + type + champion | **le passcode imprimé sur la carte**, unique sur 14 491 |
 | Homonymes | 80 noms pour 161 cartes | **aucun** |
 | Langues | anglais seul | **anglais et français**, liés par `name_en` |
 | Gabarit d'illustration | 3 méthodes, 2 échecs | **recoupement exact**, la source publiant carte entière *et* illustration détourée |
@@ -308,7 +308,7 @@ et 96 abandons auparavant. Magic est inchangé, au bit près.
 Reste à l'éprouver sur du carton : aucun champ de bataille physique n'a encore
 été photographié.
 
-**L'index d'empreintes est construit** : 1 193 empreintes pour 1 035 cartes,
+**L'index d'empreintes est construit** : 1 193 empreintes pour 929 cartes,
 aucun échec de téléchargement, et **aucune carte sans empreinte**. Les 17 cartes
 qui n'en avaient pas — leur illustration étant partagée avec une autre carte,
 qui l'avait hachée la première — en ont reçu une par `propagate_shared_art` :
@@ -352,6 +352,48 @@ collection pour un seul exemplaire et deux résultats identiques dans la
 recherche. Le suffixe est retiré de l'identité et conservé sur l'impression
 (`printed_name`), ce qui ramène 1 234 identités à 1 035 et fait tomber les
 empreintes ambiguës de 24 à 2.
+
+### Une identité ne se dérive pas d'un champ d'affichage
+
+Le triplet retenu était **nom + type + texte**. Les deux champs de texte y sont
+faits pour être lus par un joueur, pas pour identifier : la source les réécrit
+d'une extension à l'autre, et l'identité se dédoublait à chaque réécriture.
+
+Le *nom* varie de deux façons — le champion y est tantôt présent tantôt absent
+(« Ambessa - Matriarch of War » / « Matriarch of War »), et son séparateur change
+(« Lux - Crownguard » en OGS, « Lux, Crownguard » en VEN). Le *texte* varie
+davantage : l'extension VEN retire les rappels de règles entre parenthèses, la
+source écrit tantôt `''` tantôt `'[NO TEXT]'` pour une carte sans texte, mêle
+apostrophes droites et typographiques, entités HTML et flèches, et reformule au
+passage.
+
+**87 identités nouvelles en réunissent 192 anciennes** : 5 groupes s'expliquent
+par le seul nom, **63 par le seul texte**, 19 par les deux. L'issue #29 avait
+relevé les 24 groupes visibles au nom ; les trois quarts du défaut tenaient au
+texte, et aucune normalisation de nom ne les aurait touchés. Le catalogue passe
+de 1 035 à **929 cartes**.
+
+La règle est désormais **titre + type + champion**, où le titre est le nom privé
+de son préfixe et le champion vient des `tags`, pas du nom. Le champion est
+nécessaire : trois titres sont portés par deux champions différents, et ce sont
+deux cartes (« Rumble - Hotheaded » / « Vi - Hotheaded », « Vayne - Hunter » /
+« Warwick - Hunter », « Fiora - Victorious » / « Qiyana - Victorious »).
+
+**Trois pistes mesurées puis écartées.** `riftbound_id` (« ven-190-166 »)
+ressemble à un identifiant de carte : son dernier segment ne prend que **13
+valeurs** sur tout le catalogue et regroupe des centaines de cartes sans rapport
+— c'est un code de produit. Le titre seul fusionne les trois paires ci-dessus.
+L'ensemble des tags dédouble « Vayne - Hunter », dont le tag « Sentinel »
+n'apparaît qu'en VEN ; l'intersecter avec le vocabulaire des champions — les 100
+préfixes observés — ne garde que ce que la source dit de stable.
+
+**Changer une règle d'identité déplace tout ce qui s'y accroche.** Les
+impressions se repointent seules, mais les empreintes portent aussi
+`oracle_id` — sans recalage, la purge des anciennes cartes en aurait détruit
+1 193, à retélécharger chez une source qu'on s'est engagé à ménager. Les decks,
+eux, citent `oracle_id` sans cascade : la purge conserve ce qu'elle ne peut pas
+supprimer et le dit, le remède étant de rejouer l'ingestion des decks — qui
+résout par code d'impression, donc retombe sur les nouvelles identités.
 
 **Le jeu choisi traverse l'application.** Un sélecteur dans l'écran de compte,
 retenu d'une session à l'autre, propagé jusqu'aux appels : `search_cards`,
@@ -469,7 +511,7 @@ dans l'application.
 
 | Élément | Nature du changement |
 |---|---|
-| `cards.oracle_id uuid PRIMARY KEY` | C'est l'identifiant **Scryfall**. Riftbound n'en a pas : des UUIDv5 déterministes sont dérivés du triplet nom + type + texte, de sorte qu'une réingestion retombe sur les mêmes clés |
+| `cards.oracle_id uuid PRIMARY KEY` | C'est l'identifiant **Scryfall**. Riftbound n'en a pas : des UUIDv5 déterministes sont dérivés du triplet titre + type + champion, de sorte qu'une réingestion retombe sur les mêmes clés. Le triplet a changé une fois — voir « Une identité ne se dérive pas d'un champ d'affichage » |
 | `decks.format CHECK (…)` | **Élargie deux fois, jamais d'avance.** Elle n'a accueilli `constructed` (`20260815140000`) puis `edison`, `goat`, `redu`, `hat` (`20260816130000`) qu'une fois la donnée en main : chaque valeur vient d'un volume de decklists mesuré, non d'un nom de format lu quelque part. **L'horodatage d'une migration qui redéfinit une contrainte partagée doit suivre la dernière**, sinon une base rejouée depuis zéro voit le dernier fichier reprendre ce qu'un fichier antérieur avait ajouté — sans erreur |
 | `cards.legal_pauper / legal_modern / legal_commander` | Colonnes **générées**, donc figées dans la définition de table |
 | Les fonctions de lecture | `search_cards` prend un paramètre de jeu (`magic` par défaut). Les autres suivront quand l'application saura choisir un jeu |

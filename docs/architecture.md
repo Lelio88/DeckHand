@@ -302,13 +302,16 @@ confondable, mais 1,5 % seulement franchit les deux garde-fous : quand deux
 cartes sont serrées, la marge chute et le système hésite au lieu d'affirmer.
 C'est le design qui tient, pas la chance.
 
-**Riftbound fait exception, et ce n'est pas la reconnaissance qui est en cause.**
-Ses 6,29 % viennent de 24 groupes de cartes qui sont **la même carte enregistrée
-deux fois** sous deux orthographes du nom — « Ambessa - Matriarch of War » et
-« Matriarch of War », « Lux - Crownguard » et « Lux, Crownguard ». 48 cartes sur
-1 035, dont 19 partagent une illustration identique au bit près et 15 les mêmes
-impressions. Aucune empreinte ne peut départager ce que le catalogue a dédoublé ;
-la limite est en amont, dans l'identité dérivée du nom par `riftcodex_ingest`.
+**Riftbound faisait exception, et ce n'était pas la reconnaissance qui était en
+cause.** Ses 6,29 % venaient de cartes **enregistrées deux fois** par le
+catalogue, sous deux orthographes du nom ou deux rédactions du texte de règles —
+« Ambessa - Matriarch of War » et « Matriarch of War », « Lux - Crownguard » et
+« Lux, Crownguard ». Aucune empreinte ne peut départager ce qu'un catalogue a
+dédoublé : la limite était en amont, dans l'identité dérivée par
+`riftcodex_ingest`. Elle l'est toujours, mais le dédoublement est corrigé — 87
+identités en réunissaient 192, et le catalogue est passé de 1 035 à 929 cartes.
+Voir [`multi-game.md`](./multi-game.md), « Une identité ne se dérive pas d'un
+champ d'affichage ».
 
 **Les intrusions**, mesurées en interrogeant l'index d'un jeu avec les empreintes
 d'un autre — toutes absentes, donc toute réponse est fausse :
@@ -409,7 +412,7 @@ L'illustration est **identique en français et en anglais** ; seul le cadre de t
 | Catalogue Riftbound anglais seulement | Contractuelle, non algorithmique | Une carte française n'est pas retrouvable par son nom, quel que soit le soin de la lecture. L'empreinte est la voie principale de ce jeu, et le mode étalement — qui ne lit que les noms — ne peut pas le servir. |
 | Carte absente de l'index interrogé | Structurelle : tout point a un plus proche voisin | Environ **1 %** des cartes étrangères passent les deux garde-fous et sont annoncées avec assurance (mesuré, `art_collisions.py`). Le cloisonnement par jeu écarte le mélange des catalogues, pas le choix du mauvais jeu par l'utilisateur. |
 | Masque de seuillage faux (fond clair, tissu) | Le quadrilatère englobe le décor | La tolérance d'aspect ne le rattrape pas, et c'est assumé — `aspectTolerance` est large pour encaisser la perspective. Mesuré sur carton : la carte reste introuvable, mais **aucune fausse carte n'est annoncée**, le meilleur candidat restant au-delà du seuil. |
-| 24 groupes de cartes Riftbound dédoublées | Catalogue, non algorithmique | « Ambessa - Matriarch of War » et « Matriarch of War » sont une seule carte sous deux noms, souvent sur les mêmes impressions. Aucune empreinte ne peut les départager, et la collection les compterait deux fois. Se corrige dans l'identité dérivée par `riftcodex_ingest`, pas dans la reconnaissance. |
+| Un catalogue qui enregistre une carte deux fois | Catalogue, non algorithmique | Aucune empreinte ne peut départager ce qu'une source a dédoublé, et la collection compterait la carte deux fois. Rencontré sur Riftbound et **corrigé dans l'identité dérivée** par `riftcodex_ingest` — jamais dans la reconnaissance. La leçon vaut pour la prochaine source : une identité ne se dérive pas d'un champ d'affichage. |
 
 ### Ce qu'un échec doit dire
 

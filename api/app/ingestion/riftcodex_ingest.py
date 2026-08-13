@@ -79,22 +79,103 @@ def base_name(name: str) -> str:
     return _VARIANT_SUFFIX.sub("", name)
 
 
-def oracle_uuid(card: dict[str, Any]) -> uuid.UUID:
-    """Identité d'une carte, indépendante de son édition et de sa variante.
+#: Le nom porte souvent le champion en préfixe, mais pas toujours, et pas avec le
+#: même séparateur : « Ambessa - Matriarch of War », « Lux, Crownguard »,
+#: « Matriarch of War » tout court. Le tiret est essayé d'abord, sans quoi
+#: « Yordle, Kennen - Heart of the Tempest » se couperait après « Yordle ».
+_PREFIXE = re.compile(
+    r"^(?P<avant>.+?)\s+-\s+(?P<titre>.+)$|^(?P<avant2>[^,]+),\s+(?P<titre2>.+)$"
+)
 
-    La clé est le triplet nom + type + texte, et non le nom seul : 212 noms sont
-    portés par plusieurs entrées, dont 36 recouvrent des cartes réellement
-    différentes. Le nom seul les confondrait ; le triplet les sépare tout en
-    réunissant les vraies réimpressions.
+
+def _decoupe(name: str) -> tuple[str | None, str]:
+    """(préfixe, titre) si le nom en porte un, sinon (None, nom)."""
+    m = _PREFIXE.match(name)
+    if not m:
+        return None, name
+    if m.group("titre"):
+        return m.group("avant"), m.group("titre")
+    return m.group("avant2"), m.group("titre2")
+
+
+def champion_names(cards: list[dict[str, Any]]) -> frozenset[str]:
+    """Le vocabulaire des champions, déduit du catalogue lui-même.
+
+    Ce sont les jetons qui apparaissent en préfixe de nom, coupés sur les deux
+    séparateurs — « Yordle, Kennen - … » en fournit deux. Mesuré : 100 noms.
+
+    **Pourquoi un vocabulaire plutôt que les tags bruts.** Les tags mélangent
+    champions, régions et tribus (« Demacia », « Sentinel », « Yordle »), et ils
+    **varient d'une impression à l'autre** : « Vayne - Hunter » gagne un tag
+    « Sentinel » en VEN. Prendre l'ensemble des tags comme identité rendrait donc
+    la carte instable ; l'intersecter avec ce vocabulaire ne garde que ce que la
+    source dit de stable.
     """
-    key = "|".join(
-        (
-            base_name(card["name"]),
-            card["classification"]["type"] or "",
-            (card["text"] or {}).get("plain") or "",
-        )
-    )
+    noms: set[str] = set()
+    for card in cards:
+        prefixe = _decoupe(base_name(card["name"]))[0]
+        if prefixe:
+            noms |= {t.strip() for t in re.split(r",|\s-\s", prefixe) if t.strip()}
+    return frozenset(noms)
+
+
+def oracle_uuid(card: dict[str, Any], champions: frozenset[str]) -> uuid.UUID:
+    """Identité d'une carte : titre + type + champion.
+
+    **Le triplet nom + type + texte, employé jusqu'ici, reposait sur deux champs
+    d'affichage instables**, et enregistrait donc la même carte plusieurs fois.
+
+    Le *nom* varie de deux façons : le champion y est tantôt présent tantôt
+    absent (« Ambessa - Matriarch of War » / « Matriarch of War »), et son
+    séparateur change d'une extension à l'autre (« Lux - Crownguard » en OGS,
+    « Lux, Crownguard » en VEN). Le *texte* varie davantage encore : l'extension
+    VEN retire les rappels de règles entre parenthèses, la source écrit tantôt
+    `''` tantôt `'[NO TEXT]'` pour une carte sans texte, mêle apostrophes droites
+    et typographiques, entités HTML (`[&gt;]`) et flèches, et reformule au
+    passage (« Sand Soldiers you play have » → « Your Sand Soldiers have »).
+
+    Mesuré sur les 1 451 entrées du catalogue : **87 identités nouvelles en
+    réunissent 192 anciennes**, soit 105 cartes de trop. Le nom seul en explique
+    5, le **texte seul 63**, les deux ensemble 19. L'issue #29 n'avait relevé que
+    les 24 groupes visibles au nom : les trois quarts du défaut tenaient au
+    texte, et aucune normalisation de nom ne les aurait touchés.
+
+    **Le champion vient des tags, pas du nom** — voir [champion_names]. Il est
+    nécessaire : trois titres sont portés par deux champions différents, et ce
+    sont bien deux cartes (« Rumble - Hotheaded » et « Vi - Hotheaded »,
+    « Vayne - Hunter » et « Warwick - Hunter », « Fiora - Victorious » et
+    « Qiyana - Victorious »). Le titre seul les confondrait.
+
+    **Trois pistes mesurées puis écartées :**
+
+    - `riftbound_id` (« ven-190-166 ») ressemble à un identifiant de carte ; son
+      dernier segment ne prend que **13 valeurs** sur tout le catalogue et
+      regroupe des centaines de cartes sans rapport. C'est un code de produit.
+    - le titre seul fusionne les trois paires ci-dessus.
+    - l'ensemble des tags dédouble « Vayne - Hunter », dont le tag « Sentinel »
+      n'apparaît qu'en VEN.
+
+    Vérifié dans les deux sens : la règle réunit les dix groupes mesurés comme
+    une seule carte, sépare les trois paires dangereuses, et **aucune identité
+    n'y recouvre deux titres ou deux types**.
+    """
+    titre = _decoupe(base_name(card["name"]))[1]
+    champion = "+".join(sorted(set(card.get("tags") or []) & champions))
+    key = "|".join((titre, card["classification"]["type"] or "", champion))
     return uuid.uuid5(NAMESPACE, f"card:{key}")
+
+
+def display_name(names: list[str]) -> str:
+    """Le nom retenu pour une identité qui en porte plusieurs.
+
+    Le plus long, à égalité le premier dans l'ordre alphabétique : c'est celui
+    qui porte le champion, donc le plus informatif, et la règle est déterministe
+    là où « le dernier écrit gagne » dépendait de l'ordre de pagination.
+
+    Les autres orthographes ne sont pas perdues : `write_search_names` les indexe
+    toutes, et la carte reste trouvable sous chacune.
+    """
+    return min(names, key=lambda n: (-len(n), n))
 
 
 def print_uuid(card: dict[str, Any]) -> uuid.UUID:
@@ -143,7 +224,11 @@ def fetch_all() -> list[dict[str, Any]]:
     return cards
 
 
-def write_cards(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
+def write_cards(
+    conn: psycopg.Connection,
+    cards: list[dict[str, Any]],
+    champions: frozenset[str],
+) -> int:
     """Écrit l'identité des cartes. Idempotent."""
     statement = """
         INSERT INTO public.cards (oracle_id, name, mana_cost, cmc, type_line,
@@ -163,16 +248,25 @@ def write_cards(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
     """
 
     def rows() -> Iterator[tuple[Any, ...]]:
+        # Les noms de toute l'identité sont connus avant d'en écrire une seule
+        # ligne : c'est ce qui permet de choisir le plus informatif plutôt que
+        # de laisser gagner celui qui passe en dernier.
+        noms: dict[uuid.UUID, list[str]] = {}
+        for card in cards:
+            noms.setdefault(oracle_uuid(card, champions), []).append(
+                base_name(card["name"])
+            )
+
         seen: set[uuid.UUID] = set()
         for card in cards:
-            identity = oracle_uuid(card)
+            identity = oracle_uuid(card, champions)
             if identity in seen:
                 continue
             seen.add(identity)
             energy = (card.get("attributes") or {}).get("energy")
             yield (
                 str(identity),
-                base_name(card["name"]),
+                display_name(noms[identity]),
                 str(energy) if energy is not None else None,
                 float(energy) if energy is not None else 0,
                 type_line(card),
@@ -218,7 +312,11 @@ def tcgplayer_id(card: dict[str, Any]) -> int | None:
         return None
 
 
-def write_prints(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
+def write_prints(
+    conn: psycopg.Connection,
+    cards: list[dict[str, Any]],
+    champions: frozenset[str],
+) -> int:
     """Écrit chaque impression, avec l'URL de son visuel officiel."""
     statement = """
         INSERT INTO public.card_prints (scryfall_id, oracle_id, lang, printed_name,
@@ -254,7 +352,7 @@ def write_prints(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
                 statement,
                 (
                     str(print_uuid(card)),
-                    str(oracle_uuid(card)),
+                    str(oracle_uuid(card, champions)),
                     # Riot ne sert que l'anglais en bêta ; le jour où les
                     # traductions arriveront, elles s'ajouteront ici sans
                     # toucher au reste.
@@ -286,8 +384,18 @@ def write_prints(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
     return written
 
 
-def write_search_names(conn: psycopg.Connection, cards: list[dict[str, Any]]) -> int:
-    """Alimente l'index de saisie. Sans lui, aucune carte n'est trouvable."""
+def write_search_names(
+    conn: psycopg.Connection,
+    cards: list[dict[str, Any]],
+    champions: frozenset[str],
+) -> int:
+    """Alimente l'index de saisie. Sans lui, aucune carte n'est trouvable.
+
+    **Toutes les orthographes y entrent**, y compris celles que l'identité
+    réunit désormais : une carte enregistrée « Matriarch of War » dans une
+    extension et « Ambessa - Matriarch of War » dans une autre reste trouvable
+    sous les deux, et pointe la même carte.
+    """
     statement = """
         INSERT INTO public.card_search_names (oracle_id, name, normalized, lang)
         VALUES (%s, %s, %s, %s)
@@ -298,7 +406,7 @@ def write_search_names(conn: psycopg.Connection, cards: list[dict[str, Any]]) ->
     with conn.cursor() as cur:
         seen: set[tuple[str, str]] = set()
         for card in cards:
-            identity = str(oracle_uuid(card))
+            identity = str(oracle_uuid(card, champions))
             normalized = normalize_name(base_name(card["name"]))
             if (identity, normalized) in seen:
                 continue
@@ -309,19 +417,106 @@ def write_search_names(conn: psycopg.Connection, cards: list[dict[str, Any]]) ->
     return written
 
 
+def realign_art_hashes(conn: psycopg.Connection) -> int:
+    """Fait suivre l'identité aux empreintes déjà calculées.
+
+    `art_hashes` porte l'impression **et** la carte. L'impression ne bouge pas —
+    son identifiant vient de la source —, mais la carte, si : c'est tout l'objet
+    d'un changement de règle d'identité. Sans ce recalage, les empreintes
+    resteraient rattachées à l'ancienne carte et disparaîtraient avec elle en
+    cascade — 1 193 illustrations à retélécharger pour rien, chez une source
+    qu'on s'est engagé à ménager.
+
+    L'ordre compte : à jouer **après** `write_prints`, qui est ce qui repointe
+    les impressions.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE public.art_hashes h
+               SET oracle_id = p.oracle_id
+              FROM public.card_prints p
+             WHERE p.scryfall_id = h.scryfall_id
+               AND h.oracle_id IS DISTINCT FROM p.oracle_id
+            """
+        )
+        moved = cur.rowcount
+        conn.commit()
+    return moved
+
+
+def prune_orphans(conn: psycopg.Connection) -> tuple[int, int]:
+    """Supprime les cartes Riftbound qu'aucune impression ne porte plus.
+
+    **Une règle d'identité qui change laisse des cartes derrière elle.** Les
+    impressions se repointent d'elles-mêmes (`write_prints` réécrit leur
+    `oracle_id`), mais les anciennes identités restent en base, sans impression,
+    et continueraient d'apparaître en recherche.
+
+    La suppression est **conditionnelle, et c'est le point délicat** : les decks
+    et les collections référencent `oracle_id` sans cascade. Une orpheline encore
+    citée est donc conservée plutôt que de faire échouer l'ingestion — le remède
+    est de rejouer l'ingestion des decks, qui les repointera, puis de relancer.
+
+    Rend (supprimées, conservées faute de pouvoir l'être).
+    """
+    orpheline = """
+        SELECT c.oracle_id FROM public.cards c
+        WHERE c.game = %s
+          AND NOT EXISTS (SELECT 1 FROM public.card_prints p
+                          WHERE p.oracle_id = c.oracle_id)
+    """
+    citee = """
+        AND (EXISTS (SELECT 1 FROM public.deck_cards d WHERE d.oracle_id = c.oracle_id)
+          OR EXISTS (SELECT 1 FROM public.collection_items i WHERE i.oracle_id = c.oracle_id)
+          OR EXISTS (SELECT 1 FROM public.decks k
+                     WHERE k.commander_oracle_id = c.oracle_id))
+    """
+    with conn.cursor() as cur:
+        cur.execute(f"SELECT count(*) FROM ({orpheline} {citee}) t", (GAME,))
+        retenues = cur.fetchone()[0]
+        cur.execute(
+            f"DELETE FROM public.cards WHERE oracle_id IN "
+            f"(SELECT oracle_id FROM ({orpheline}) o "
+            f" WHERE NOT EXISTS (SELECT 1 FROM public.deck_cards d"
+            f"                   WHERE d.oracle_id = o.oracle_id)"
+            f"   AND NOT EXISTS (SELECT 1 FROM public.collection_items i"
+            f"                   WHERE i.oracle_id = o.oracle_id)"
+            f"   AND NOT EXISTS (SELECT 1 FROM public.decks k"
+            f"                   WHERE k.commander_oracle_id = o.oracle_id))",
+            (GAME,),
+        )
+        supprimees = cur.rowcount
+        conn.commit()
+    return supprimees, retenues
+
+
 def main() -> int:
     print("Rapatriement du catalogue Riftbound…")
     cards = fetch_all()
     print(f"  {len(cards)} cartes reçues")
+    champions = champion_names(cards)
+    print(f"  {len(champions)} champions au vocabulaire")
 
     config = SupabaseConfig.load()
     with psycopg.connect(config.db_url, connect_timeout=60) as conn:
-        identities = write_cards(conn, cards)
+        identities = write_cards(conn, cards, champions)
         print(f"  {identities} cartes distinctes écrites")
-        prints = write_prints(conn, cards)
+        prints = write_prints(conn, cards, champions)
         print(f"  {prints} impressions écrites")
-        names = write_search_names(conn, cards)
+        names = write_search_names(conn, cards, champions)
         print(f"  {names} noms indexés")
+        moved = realign_art_hashes(conn)
+        print(f"  {moved} empreintes recalées sur leur carte")
+        supprimees, retenues = prune_orphans(conn)
+        print(f"  {supprimees} cartes orphelines supprimées")
+        if retenues:
+            print(
+                f"  {retenues} orphelines conservées : encore citées par un deck "
+                f"ou une collection\n"
+                f"    rejouer « python -m app.ingestion.topdeck_ingest --riftbound » "
+                f"puis relancer cette ingestion"
+            )
 
     return 0
 
