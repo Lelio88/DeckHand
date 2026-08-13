@@ -472,8 +472,9 @@ les totaux notés plus haut, qui additionnent des postes mesurés séparément,
 **surestiment** le flux libre : ils y comptent un hachage pris sur la fenêtre
 fixe, 333 000 pixels, quand le quadrilatère n'en fait échantillonner que 48 640.
 
-Ce qui reste n'est plus une affaire de performance mais de conception :
-détecter à chaque image ou suivre le quadrilatère entre deux détections.
+Restait alors un choix de conception, et non de performance : détecter à
+chaque image, ou suivre le quadrilatère entre deux détections. Il est
+tranché ci-dessous, et la mesure a renversé deux attentes.
 
 **Deux goulots trouvés là où on ne les attendait pas.** La recherche linéaire
 coûtait 8,4 ms sur l'appareil — non à cause du parcours, mais parce qu'elle
@@ -503,6 +504,93 @@ calculé sur du RGB pleine plage. Le passage est affine et croissant, donc il
 préserve les comparaisons de voisins dont l'empreinte est faite ; vérifié en
 test de synthèse, il reste à l'éprouver devant un booster réel, comme le
 demande l'issue #8.
+
+#### Suivre le quadrilatère plutôt que le refaire — et pourquoi il faut deux garde-fous
+
+Le budget étant tenu, la question qui restait n'était plus une affaire de
+performance : *une carte posée ne bouge pas de 33 ms en 33 ms*, faut-il pour
+autant la redétecter à chaque image ? Mesuré par `app/tool/stream_bench.dart`,
+qui compose une séquence — carte posée, échangée sur place, qui dérive, retirée
+— et y rejoue onze stratégies.
+
+**Le premier résultat n'était pas celui qu'on cherchait.** Sur une carte
+immobile, l'empreinte bouge quand même, et pas pour la raison qu'on croit :
+
+| Sur une carte immobile | écart d'une image à la suivante |
+|---|---|
+| quadrilatère redétecté à chaque image | médiane 0, **max 11 bits** |
+| quadrilatère tenu (bruit du capteur seul) | médiane 0, **max 2 bits** |
+
+C'est **la détection elle-même qui tremble**. Redétecter à chaque image ne
+garantit donc pas la stabilité, elle la dégrade : le quadrilatère se replace
+légèrement ailleurs, et l'empreinte suit. Tenir le quadrilatère n'est pas
+seulement moins cher, c'est plus fidèle.
+
+**Le fossé qui rend un seuil possible.** Ce qui fait bouger une empreinte à
+quadrilatère tenu se compte en unités ; ce qui se produit quand la carte change
+se compte en dizaines :
+
+| Événement | écart médian | max |
+|---|---|---|
+| carte immobile | 0 | 2 bits |
+| dérive, d'une image à la suivante | 1 | 4 bits |
+| **échange de carte** | **35** | 44 bits |
+
+Le plancher ne bouge pas avec le bruit du capteur — de ±1 à ±12 niveaux de gris,
+il reste à 1 ou 2 bits, la grille d'empreinte moyennant de larges cellules. Un
+seuil de saut peut donc se poser n'importe où dans un fossé large de trente
+bits.
+
+**Et pourtant un seuil de saut ne suffit pas.** L'échange, qu'on croyait le cas
+dangereux, est vu **immédiatement** par toutes les stratégies — y compris celles
+qui ne redétectent jamais. La raison est que la géométrie, elle, n'a pas changé :
+l'empreinte prise à travers l'ancien quadrilatère est déjà celle de la nouvelle
+carte, et l'index la reconnaît sans qu'aucune détection n'ait eu lieu.
+
+Le vrai danger est la **dérive**, et il est structurel. Chaque image ne s'écarte
+de la précédente que de 1 à 4 bits — jamais assez pour franchir un seuil — mais
+les écarts s'accumulent : après une douzaine d'images, le quadrilatère tenu rend
+une empreinte à **35 bits** de ce qu'une détection fraîche aurait donné. Aucun
+seuil de saut, si bas soit-il, ne peut voir cela. D'où le second garde-fou, qui
+n'est pas une précaution mais l'autre moitié de la règle : un **âge maximal**.
+
+**Ce que la dérive coûte est un silence, pas une erreur.** Sur onze stratégies et
+deux régimes de prise de vue, **aucune n'annonce jamais une carte fausse** : une
+empreinte trop éloignée ne ressemble plus à rien, et l'index se tait — le
+comportement voulu. Le réglage arbitre donc entre du calcul et des cartes
+manquées, jamais entre du calcul et des cartes inventées.
+
+| Stratégie | détections / 156 | coût par image | dérive max | reconnaissances perdues | annoncées à tort |
+|---|---|---|---|---|---|
+| détecter à chaque image | 156 | 27,4 ms | — | 0 | 0 |
+| période 5 | 40 | 10,4 ms | 14 bits | 7 | 0 |
+| période 15 | 16 | 6,8 ms | 29 bits | 22 | 0 |
+| saut 12 seul | 31 | 9,1 ms | 35 bits | 25 | 0 |
+| saut 2 seul | 67 | 14,3 ms | 8 bits | 0 | 0 |
+| **saut 12 + âge 5** | **53** | **12,3 ms** | 13 bits | 3 | 0 |
+
+Le coût par image est **composé**, non chronométré : le banc tourne sur un poste
+de travail, dont les durées ne transfèrent pas. Ce qu'il mesure honnêtement est
+le *nombre* de détections ; les 22,9 ms d'une détection et les 4,5 ms du reste
+viennent de l'appareil.
+
+**Le suivi rattrape aussi ce que la détection perd.** Sous un éclairage latéral
+marqué — le régime qui met la détection en difficulté —, les stratégies de suivi
+annoncent **17 cartes justes que la détection à chaque image ne trouve pas** :
+un quadrilatère déjà établi continue de servir là où une nouvelle détection
+échoue. L'argument en faveur du suivi n'est donc pas seulement le coût.
+
+**La politique est dans `quad_tracker.dart`**, avec ses deux seuils, et le banc
+mesure ce module plutôt qu'une réplique — mesurer une copie reviendrait à
+chronométrer un code que personne n'exécutera, et à laisser les deux diverger en
+silence.
+
+**Ce qui n'est pas encore fait, et ne doit pas l'être avant un flux réel.** Les
+valeurs par défaut — 12 bits et 5 images — sont tirées de séquences composées :
+elles disent qu'une fenêtre de réglage existe et qu'elle est large, pas où se
+place l'optimum d'un vrai capteur. Le suivi n'est pas non plus branché sur le
+chemin caméra : il attend le booster réel que l'issue #8 réclame, et qui reste le
+seul juge.
 
 ### Pourquoi hacher l'illustration et non la carte entière
 

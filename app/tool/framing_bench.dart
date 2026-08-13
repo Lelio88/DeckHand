@@ -49,65 +49,12 @@ import 'package:deckhand/src/features/scan/domain/card_framing.dart';
 import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
 import 'package:image/image.dart' as img;
 
+import 'synthetic_photo.dart';
+
 /// Seuil de confiance du scan, en bits. Au-delà, la carte est « perdue » : ce
 /// n'est pas une erreur silencieuse — l'application dit son doute —, mais elle
 /// ne reconnaît rien.
 const int confidence = 12;
-
-/// Un régime de prise de vue, décrit par ce que la main fait de travers.
-class Shot {
-  const Shot(
-    this.name,
-    this.margin,
-    this.offset,
-    this.rotation, {
-    this.lighting = 18,
-  });
-
-  final String name;
-
-  /// Marge de table autour de la carte, en fraction de sa hauteur.
-  final double margin;
-
-  /// Décalage du centre, en fraction de la largeur de la carte.
-  final double offset;
-
-  /// Rotation, en degrés.
-  final double rotation;
-
-  /// Amplitude du dégradé d'éclairage sur la table, en niveaux de gris.
-  ///
-  /// **Ajouté parce que les cinq régimes d'origine ne reproduisaient pas le
-  /// défaut mesuré sur une carte de papier.** À ±18, la table reste partout
-  /// plus claire que le seuil qui la sépare du carton, et la détection réussit
-  /// cinq régimes sur cinq — alors qu'elle échoue sur une vraie photo. Le banc
-  /// ne mesurait donc que le cadrage, jamais l'éclairage, et aucune amélioration
-  /// de la détection n'y aurait été visible.
-  ///
-  /// Ce que ce paramètre reproduit est banal : une lampe de côté, une fenêtre à
-  /// gauche. Il fait passer une part de la table sous le seuil de carton, elle
-  /// touche la carte, la recherche de forme réunit les deux, et la boîte
-  /// englobante devient l'image entière — exactement la chaîne observée sur
-  /// la photo réelle.
-  final double lighting;
-}
-
-/// Du cadrage parfait — que personne n'atteint — au cadrage négligent.
-/// Valeurs identiques au banc Python, sans quoi les deux ne se compareraient
-/// pas. Les intermédiaires encadrent ce qu'une main produit réellement.
-/// Les trois derniers reprennent les cadrages courants sous un éclairage
-/// latéral marqué — le cas qu'une vraie photo a mis au jour, et que les cinq
-/// premiers ne couvrent pas.
-const List<Shot> regimes = [
-  Shot('parfait', 0.00, 0.00, 0.0),
-  Shot('soigné', 0.03, 0.01, 0.5),
-  Shot('ordinaire', 0.08, 0.03, 2.0),
-  Shot('à la volée', 0.15, 0.06, 5.0),
-  Shot('négligent', 0.25, 0.10, 9.0),
-  Shot('soigné + lampe', 0.03, 0.01, 0.5, lighting: 60),
-  Shot('ordinaire + lampe', 0.08, 0.03, 2.0, lighting: 60),
-  Shot('négligent + lampe', 0.25, 0.10, 9.0, lighting: 60),
-];
 
 Future<void> main(List<String> args) async {
   final centered = args.contains('--centered');
@@ -164,7 +111,7 @@ Future<void> main(List<String> args) async {
       // Une graine par (carte, régime) : le grain de la table et le tirage sont
       // ainsi identiques d'une exécution à l'autre, donc d'une approche à
       // l'autre. Sans cela, deux mesures différeraient par leur bruit.
-      final photo = _compose(
+      final photo = compose(
         card,
         shot,
         math.Random(20260810 + i * 17),
@@ -246,84 +193,6 @@ Future<img.Image?> _cardImage(
 /// met en difficulté les approches par région ; le dégradé diagonal imite
 /// l'éclairage inégal, qui est l'écueil mesuré sur une vraie photo — un coin de
 /// table plus sombre passe sous le seuil de carton et fusionne avec la carte.
-img.Image _tableBackground(
-  int width,
-  int height,
-  math.Random rng,
-  double lighting,
-) {
-  final canvas = img.Image(width: width, height: height);
-  for (var y = 0; y < height; y++) {
-    for (var x = 0; x < width; x++) {
-      final grain = rng.nextInt(29) - 14;
-      final gradient = (-lighting + 2 * lighting * x / (width - 1)).round();
-      canvas.setPixelRgb(
-        x,
-        y,
-        (168 + grain + gradient).clamp(0, 255),
-        (150 + grain + gradient).clamp(0, 255),
-        (124 + grain + gradient).clamp(0, 255),
-      );
-    }
-  }
-  return canvas;
-}
-
-/// Photo synthétique : la carte posée sur une table, vue de travers.
-img.Image _compose(
-  img.Image source,
-  Shot shot,
-  math.Random rng, {
-  bool couchee = false,
-  double aspect = defaultCardAspect,
-}) {
-  // Le grand côté fixe la taille, quelle que soit l'orientation : une carte
-  // couchée occupe la même surface qu'une carte debout, elle est seulement
-  // tournée d'un quart de tour.
-  const long = 900;
-  final court = (long * aspect).round();
-  final cardWidth = couchee ? long : court;
-  final cardHeight = couchee ? court : long;
-  var card = img.copyResize(
-    source,
-    width: cardWidth,
-    height: cardHeight,
-    interpolation: img.Interpolation.cubic,
-  );
-
-  final margin = (long * shot.margin).round();
-  final photoWidth = cardWidth + 2 * margin;
-  final photoHeight = cardHeight + 2 * margin;
-  final photo = _tableBackground(photoWidth, photoHeight, rng, shot.lighting);
-
-  if (shot.rotation != 0) {
-    // **Le fond de la rotation doit être transparent, sans quoi le banc mesure
-    // un artefact.** Une rotation sur fond opaque remplit les coins libérés
-    // d'une couleur unie ; ce losange ceignant la carte est exactement ce qu'un
-    // masque de carte cherche, et la détection trouve alors les coins du
-    // losange au lieu de ceux de la carte. Le banc Python a rencontré ce piège
-    // et le documente ; il se transpose tel quel.
-    card = img.copyRotate(
-      card.convert(numChannels: 4),
-      angle: shot.rotation,
-      interpolation: img.Interpolation.cubic,
-    );
-  }
-
-  final dx = (cardWidth * shot.offset).round();
-  final dy = (cardHeight * shot.offset * aspect).round();
-  img.compositeImage(
-    photo,
-    card,
-    dstX: (photoWidth - card.width) ~/ 2 + dx,
-    dstY: (photoHeight - card.height) ~/ 2 + dy,
-  );
-
-  // La compression est celle d'un téléphone, pas celle d'un scanner : elle fait
-  // partie de ce que la détection doit encaisser.
-  return img.decodeJpg(img.encodeJpg(photo, quality: 78))!;
-}
-
 void _report(Map<String, List<int>> distances, int gaveUp, int skipped) {
   stdout.writeln('\nSeuil de confiance : $confidence bits');
   if (gaveUp > 0) {
