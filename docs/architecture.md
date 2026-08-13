@@ -369,6 +369,43 @@ que sur l'illustration ; lire ses seuls octets rend le coût proportionnel à
 elle. Convertir toute l'image d'abord coûte 11 fois plus cher pour jeter ensuite
 les deux tiers des pixels.
 
+#### Le flux libre coûte vingt fois le flux à caméra fixe
+
+Les chiffres ci-dessus décrivent le mode à **caméra fixe** : la fenêtre
+d'illustration est découpée à une position convenue, donc la carte est supposée
+toujours au même endroit. Un flux **libre**, où l'on promène l'appareil, doit
+d'abord la retrouver. Mesuré sur le même téléphone, cinq tirages à froid
+cohérents à 3 % près :
+
+| Poste | 1280 × 720 | 720 × 480 |
+|---|---|---|
+| Matérialiser l'image entière | 10,4 ms | **3,9 ms** |
+| **Détection des bords (`findCard`)** | **26,9 ms** | **29,8 ms** |
+| Empreinte depuis l'`img.Image` découpé | 13,1 ms | 4,9 ms |
+| Recherche | 1,5 ms | 1,5 ms |
+| **Total capteur → identifiant** | **52 ms** | **40 ms** |
+| Rappel : caméra fixe | 2,5 ms | 1,9 ms |
+
+**Le flux libre ne tient pas dans les 33 ms d'un flux à 30 images par seconde.**
+Il en tient 19, et 25 à résolution réduite.
+
+**Baisser la résolution ne sauve pas la détection**, et c'est le résultat qui
+oriente la suite. Diviser l'aire du capteur par 2,7 divise bien tout ce qui lit
+les pixels source — l'image entière passe de 10,4 à 3,9 ms —, mais `findCard` ne
+bouge pas. Son coût n'est donc pas dans la lecture de l'entrée : il est payé à la
+**taille d'analyse**, fixe à 400 px de large, où le masque, le bouchage des trous
+et la recherche de composantes parcourent chacun les mêmes 90 000 pixels quelle
+que soit la photo d'origine.
+
+Trente millisecondes pour 90 000 pixels font 330 ns par pixel, ce qui est
+beaucoup. **Une piste, non vérifiée à ce jour** : dans `card_bounds.dart`, le
+masque et la forme retenue sont des `List<bool>` — une liste d'objets, donc un
+déréférencement par accès — quand tous les autres tampons du même fichier
+(`seen`, `stack`, `members`) sont déjà des tableaux typés. `_largestComponent`
+alloue de surcroît une `List<bool>` de la taille de l'image à chaque fois qu'il
+trouve une composante plus grande. C'est le même genre de trajet que celui qui
+faisait coûter 12,4 ms à une empreinte qui en vaut 0,7.
+
 **Deux goulots trouvés là où on ne les attendait pas.** La recherche linéaire
 coûtait 8,4 ms sur l'appareil — non à cause du parcours, mais parce qu'elle
 construisait trente-deux mille enregistrements pour les trier et en garder cinq.

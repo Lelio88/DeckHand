@@ -20,6 +20,12 @@
 /// embarqué, pour que le total soit celui d'une image *reconnue*, pas
 /// *convertie*.
 ///
+/// **Deux flux, et non un.** Les trois chemins ci-dessus découpent la fenêtre
+/// d'illustration à une position convenue : ils décrivent le mode à **caméra
+/// fixe**, où la carte se présente toujours au même endroit. Un flux **libre**,
+/// où l'on promène l'appareil, doit d'abord retrouver la carte — `frame` puis
+/// `find` mesurent ce que cela ajoute, et c'est de loin le poste dominant.
+///
 /// **Le banc compare aussi les empreintes**, pas seulement les durées. Un
 /// chemin deux fois plus rapide qui rendrait une empreinte différente serait
 /// inutilisable : l'index est calculé par le jumeau Python sur du RGB.
@@ -39,6 +45,7 @@ import '../domain/art_box.dart';
 import '../domain/art_hash.dart';
 import '../domain/art_hash_index.dart';
 import '../domain/camera_frame.dart';
+import '../domain/card_bounds.dart';
 
 /// Images mesurées avant de rendre le bilan. Assez pour que les percentiles
 /// aient un sens, assez peu pour tenir dans un tampon de journal.
@@ -47,6 +54,26 @@ const int benchFrames = 60;
 /// Les premières images sont plus lentes : allocation des tampons, montée en
 /// fréquence du processeur. Les compter fausserait la médiane vers le haut.
 const int benchWarmup = 10;
+
+/// Résolution du flux, réglable sans recompiler la logique.
+///
+/// **C'est le levier du flux libre.** Les deux postes dominants — matérialiser
+/// l'image, puis y chercher la carte — lisent chaque pixel source : leur coût
+/// suit l'aire du capteur, pas la taille d'analyse. Passer de `high` à `medium`
+/// divise cette aire par 2,7, et c'est la seule manière d'en juger.
+///
+/// `--dart-define=DECKHAND_BENCH_RES=medium`
+const String benchResolution = String.fromEnvironment(
+  'DECKHAND_BENCH_RES',
+  defaultValue: 'high',
+);
+
+ResolutionPreset get _preset => switch (benchResolution) {
+  'low' => ResolutionPreset.low,
+  'medium' => ResolutionPreset.medium,
+  'veryHigh' => ResolutionPreset.veryHigh,
+  _ => ResolutionPreset.high,
+};
 
 class FrameBenchScreen extends StatefulWidget {
   const FrameBenchScreen({super.key, this.indexSize = 32000});
@@ -70,6 +97,22 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
   final _hash = <int>[];
   final _search = <int>[];
   final _direct = <int>[];
+
+  /// Le flux **libre**, où l'appareil se promène et où la carte n'est pas au
+  /// même endroit d'une image à l'autre.
+  ///
+  /// Les autres mesures décrivent le flux à **caméra fixe** : elles découpent la
+  /// fenêtre d'illustration à une position convenue, donc supposent le problème
+  /// résolu. Un flux libre doit d'abord retrouver la carte, et ce coût-là n'a
+  /// jamais été mesuré sur un appareil — seulement au poste de travail, où les
+  /// rapports entre résolutions transfèrent mais pas les durées.
+  ///
+  /// Il se paie en deux temps, mesurés séparément parce qu'ils se réduisent par
+  /// des moyens opposés : matérialiser l'image entière (`frame`), puis y
+  /// chercher les quatre coins (`find`).
+  final _frame = <int>[];
+  final _find = <int>[];
+  int _found = 0;
 
   /// Écart entre l'empreinte lue sur la luminance et celle du chemin RGB.
   final _drift = <int>[];
@@ -117,7 +160,7 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
       back,
       // Ce que verrait un téléphone en potence : assez pour que l'illustration
       // porte du détail, pas au point de payer un capteur entier par image.
-      ResolutionPreset.high,
+      _preset,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420,
     );
@@ -246,8 +289,27 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
       tRgbFull = watch.elapsedMicroseconds;
     }
 
+    // Le flux libre : l'image entière, puis la recherche des quatre coins.
+    watch.reset();
+    final full = lumaImage(
+      planes[0].bytes,
+      width: width,
+      height: height,
+      rowStride: planes[0].bytesPerRow,
+      pixelStride: planes[0].bytesPerPixel ?? 1,
+    );
+    final tFrame = watch.elapsedMicroseconds;
+
+    watch.reset();
+    final quad = findCard(full);
+    final tFind = watch.elapsedMicroseconds;
+
     _frames++;
     if (_frames <= benchWarmup) return;
+
+    _frame.add(tFrame);
+    _find.add(tFind);
+    if (quad != null) _found++;
 
     _luma.add(tLuma);
     _direct.add(tDirect);
@@ -261,11 +323,22 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
       _done = true;
       unawaited(_controller?.stopImageStream());
       _report(
-        'terminé — $width×$height, '
-        'direct ${_median(_direct) ~/ 1000} ms, rgb ${_median(_rgb) ~/ 1000} ms',
+        'terminé — $width×$height\n'
+        'caméra fixe : ${_median(_direct) ~/ 1000} ms  (rgb ${_median(_rgb) ~/ 1000} ms)\n'
+        'flux libre : image ${_median(_frame) ~/ 1000} ms '
+        '+ détection ${_median(_find) ~/ 1000} ms\n'
+        'budget 33 ms à 30 img/s',
       );
       diagnose('bench_result', {
         'frame': '$width×$height',
+        'frame_us': _stats(_frame),
+        'find_us': _stats(_find),
+        'found': _found,
+        'total_libre_us':
+            _median(_frame) +
+            _median(_find) +
+            _median(_hash) +
+            _median(_search),
         'index': widget.indexSize,
         'n': _luma.length,
         'direct_us': _stats(_direct),
