@@ -29,7 +29,7 @@ Topologie rapide :
 - **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `camera` (flux temps réel), `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg`
 - **`api/`** : Python 3.11+, httpx, psycopg, Pillow, numpy — **chaque contrainte porte un plafond de majeure** : `numpy` et `Pillow` sont le seul chemin par lequel une bibliothèque peut dégrader la reconnaissance en silence, une empreinte au calcul modifié restant valide mais devenant incomparable au jumeau Dart
 - **Données** : Supabase — Postgres, Auth, Storage. Cloud uniquement, rien à déployer
-- **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks), MTGJSON (précons), Riftcodex (catalogue Riftbound), TCGCSV (prix Riftbound, Yu-Gi-Oh et Pokémon), BCE (taux de change), YGOPRODeck (catalogue Yu-Gi-Oh), TCGdex (catalogue Pokémon)
+- **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks), MTGJSON (précons), Riftcodex (catalogue Riftbound), TCGCSV (prix Riftbound, Yu-Gi-Oh et Pokémon), BCE (taux de change), YGOPRODeck (catalogue Yu-Gi-Oh), TCGdex (catalogue Pokémon), Limitless TCG (decks Pokémon)
 
 ## IV. Garde-Fous non négociables
 
@@ -41,7 +41,7 @@ Topologie rapide :
 6. **Un connecteur isolé par source de decks.** Aucune dépendance à une source ne remonte dans le cœur du produit.
 7. **Secrets hors dépôt**, dans `../.deckhand-secrets/`. Les clés de publication viennent des secrets d'actions, jamais du dépôt.
 8. **Toute carte identifiée passe par une confirmation utilisateur.** L'**édition**, elle, est déduite sans geste quand rien ne reste à choisir — désigner l'unique candidat n'apporte aucune information que la carte ne porte déjà. Dès que deux cases subsistent, l'utilisateur choisit.
-9. **Une source sans conditions publiées reçoit celles de Scryfall** — `User-Agent` descriptif, débit bas, attribution visible. Vaut pour Riftcodex, TCGCSV, YGOPRODeck — dont le guide d'API tient lieu de conditions et **demande** le stockage local — et TCGdex, dont le catalogue Pokémon est ingéré. Ne jamais réhéberger d'illustration.
+9. **Une source sans conditions publiées reçoit celles de Scryfall** — `User-Agent` descriptif, débit bas, attribution visible. Vaut pour Riftcodex, TCGCSV, YGOPRODeck — dont le guide d'API tient lieu de conditions et **demande** le stockage local — TCGdex, dont le catalogue Pokémon est ingéré, et Limitless TCG, qui ne publie aucune condition (404 sur `/terms`). Ne jamais réhéberger d'illustration.
 10. **Le dépôt est public** : aucune donnée de source n'est commitée (dumps, decklists, index d'empreintes sont des artefacts générés) ; les attributions figurent dans le `README.md` ; le `.gitignore` couvre tous les caches.
 11. **Une migration jouée n'est jamais modifiée.** Pour corriger, en ajouter une nouvelle : un fichier édité n'est pas rejoué, et les environnements divergeraient en silence.
 
@@ -62,7 +62,7 @@ Topologie rapide :
 cd app && flutter run -d chrome --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=...
 
 cd app && flutter analyze && flutter test    # 532 tests
-cd api && .venv/Scripts/python -m pytest     # 235 tests
+cd api && .venv/Scripts/python -m pytest     # 252 tests
 
 # Ingestion — idempotente, saute ce qui n'a pas changé
 cd api && .venv/Scripts/python -m app.ingestion.refresh            # Magic (--force, --skip-decks)
@@ -74,6 +74,7 @@ cd api && .venv/Scripts/python -m app.ingestion.tcgdex_ingest      # catalogue P
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_pokemon_prices # prix Pokémon (--force)
 cd api && .venv/Scripts/python -m app.ingestion.topdeck_ingest --riftbound
 cd api && .venv/Scripts/python -m app.ingestion.topdeck_ingest --yugioh   # decks Yu-Gi-Oh (4 formats rétro)
+cd api && .venv/Scripts/python -m app.ingestion.limitless_ingest   # decks Pokémon (--days N, défaut 90)
 
 # Bot Twitch en lecture — tourne le temps d'un direct, rien à déployer
 cd api && .venv/Scripts/python -m app.twitch                       # --game riftbound

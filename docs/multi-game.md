@@ -1235,19 +1235,101 @@ TCGdex découpe en deux demi-decks là où TCGplayer n'a qu'un groupe, et quelqu
 sets d'énergies. Elles se comptent et s'impriment à chaque exécution : une
 couverture partielle doit se voir, un silence ne vaut pas un succès.
 
+### Le corpus de decks : Limitless, et un sigle à trois gisements
+
+`play.limitlesstcg.com/api` répond sans clé. Le filtre `?game=PTCG` est
+nécessaire — sans lui l'API est multi-jeux (One Piece, VGC, Gundam, Digimon).
+Aucune condition d'utilisation n'est publiée (404 sur `/terms`) : le garde-fou
+§IV.9 lui applique donc celles de Scryfall, dont l'attribution visible.
+
+**Et le débit, lui, est limité sans être publié.** La première version du connecteur
+n'avait aucune pause : elle a tenu treize mille decks, puis reçu un **429 en
+pleine pagination**, et la fenêtre s'est arrêtée aux deux tiers. Rien ne
+l'annonçait — ni en-tête de quota, ni page de conditions — et c'est justement ce
+que §IV.9 prévoit : une source muette reçoit un débit bas par défaut, sans
+attendre qu'elle le réclame. Le connecteur pose donc 0,4 s entre deux requêtes et
+retente 429 et 5xx avec une attente doublée à chaque tour, en respectant le
+`Retry-After` du serveur quand il en donne un — borné à deux minutes, un délai
+d'une heure arrêtant l'import aussi sûrement qu'une exception. Le 404 reste
+terminal : une ressource absente ne le devient pas moins en insistant.
+
+**La decklist est structurée, pas du texte.** Trois zones, et chaque ligne porte
+un identifiant plutôt qu'un nom :
+
+```json
+{"count": 4, "set": "TWM", "number": "128", "name": "Dreepy"}
+```
+
+C'est le meilleur des trois cas rencontrés dans le projet. Mieux que Magic, qui
+se résout par le nom ; mieux que Yu-Gi-Oh, dont les libellés de zone sont saisis
+à la main et coûtaient 305 decks lus strictement. Et ici le nom aurait été
+inutilisable : **92 % des cartes Pokémon partagent le leur**.
+
+#### Les formats, choisis par volume et non par notoriété
+
+Relevé sur **6 000 tournois et 321 992 participations**, dix-neuf mois :
+
+| Format | Participations | Retenu |
+|---|---:|---|
+| `STANDARD` | 307 090 (95,4 %) | oui |
+| `CUSTOM` | 4 650 | **non** |
+| `GLC` | 3 948 | oui |
+| `EX` | 1 720 | oui |
+| `BASENEO` | 666 | non |
+| `BASEFOSSIL` | 504 | non |
+| `EXPANDED` | 362 | oui |
+
+C'est l'**exacte inverse de Yu-Gi-Oh**, où les formats rétro portaient 97 % du
+corpus et où le format courant n'avait que trois listes. Ici le format courant
+écrase tout. Cela dessert plutôt le produit — Standard tourne sur des extensions
+récentes, donc chères et peu probables dans une collection ordinaire — mais c'est
+ce que la source publie, et l'inventer serait pire.
+
+`CUSTOM` arrive deuxième en volume et n'est pas importé : c'est un fourre-tout de
+règles maison, sans légalité reproductible. Un deck ainsi étiqueté ne dit pas
+avec quelles cartes il peut être rejoué, ce qui est précisément ce que le calcul
+de complétion doit savoir. Les trente-huit autres libellés relevés pèsent moins
+de sept cents participations chacun.
+
+#### Le sigle d'extension : trois gisements, complémentaires
+
+Limitless écrit `TWM`, le catalogue range la carte sous `sv06`. Il faut une
+table, et **aucune source ne la donne en entier** :
+
+| Gisement | Sigles | Ce qu'il couvre |
+|---|---:|---|
+| `abbreviation` du groupe TCGplayer, atteint par le rapprochement déjà mesuré pour les prix | 153 | les extensions modernes (`TWM`, `MEG`, `ASC`) |
+| `Set.tcgOnline` du catalogue, le code PTCGO | 37 | l'ère PTCGO (`GRI`, `BUS`, `SUM`) |
+| l'identifiant d'extension lui-même | 190 | le reste (`MEE`, `SVE`) |
+
+La première piste essayée seule — `tcgOnline` — donne **0 %** : elle ne couvre
+que 113 des 218 extensions et ne connaît ni `TWM`, ni `JTG`, ni `TEF`. Le seul
+gisement TCGplayer donne **86,55 %**, et son manque est concentré : `MEE` pèse à
+lui seul 6 762 citations, « Mega Evolution Energy » n'ayant pas de groupe
+TCGplayer. **Les trois ensemble résolvent 99,88 %** — 204 cartes perdues sur
+~170 000, un reliquat très en deçà du seuil de tolérance par deck.
+
+Le premier gisement garde la clé : un identifiant d'extension générique ne doit
+pas déloger une abréviation officielle. Et le **veto par date** du rapprochement
+des prix protège aussi les decks — un couple faux ne transmet pas son sigle,
+ce qu'un test vérifie.
+
+#### Aucun deck partiel n'a été observé
+
+Sur **4 116 listes relevées, toutes font exactement 60 cartes**. Le seuil de
+taille (50) ne garde donc contre rien de constaté. Il est posé quand même : une
+liste enregistrée à moitié à la source franchirait sans peine le seuil de
+résolution — le peu qu'elle contient se résout parfaitement — et s'afficherait
+comme presque constructible, le pire défaut possible pour ce produit.
+
 ### Ce qui reste dû
 
-- les **decks**. `play.limitlesstcg.com/api/tournaments` répond 200 en JSON sans
-  clé, et l'API est multi-jeux — la première entrée rendue est du One Piece —,
-  donc un filtre sera nécessaire. Rien de plus n'a été exploré : ni la forme des
-  decklists, ni les conditions d'utilisation ;
 - l'**index d'empreintes**, et c'est le mur : ~21 000 images, soit plusieurs
   heures à débit nominal et une cinquantaine à celui qu'on mesure ici. À lancer
   en tâche de fond, sur plusieurs sessions ;
 - une **carte de papier**. Aucune n'a été photographiée, et c'est le carton qui a
   livré les deux derniers défauts de Riftbound. Le propriétaire de la collection
   n'a pas de cartes Pokémon : cette validation dépendra d'un tiers ;
-- le gabarit de deck (`DeckBlueprint`), qui se mesure sur un corpus et ne se
-  déclare pas d'avance — l'erreur que Yu-Gi-Oh a payée en annonçant `Advanced`
-  sur la foi de son nom ;
+- le gabarit de deck (`DeckBlueprint`), qui se mesure désormais sur un corpus
+  réel — la seule chose déjà sûre est la taille, invariablement 60 ;
 - le sort des cartes que la règle du numéro ne sait pas lire.
