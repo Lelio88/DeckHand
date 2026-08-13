@@ -203,7 +203,62 @@ CardQuad? findCard(img.Image photo, {String game = 'magic'}) {
   if (photo.width < 8 || photo.height < 8) return null;
 
   final (:small, :scale) = _analysisImage(photo);
+  return _findIn(small, scale, game);
+}
 
+/// Coins de la carte, lus **directement dans le plan de luminance** d'une image
+/// de caméra.
+///
+/// **Ce que cela évite.** [findCard] réclame un `img.Image` ; une image de
+/// caméra n'en est pas un, et la construire coûte une écriture de trois canaux
+/// par pixel pour un plan qui en porte déjà un seul, le bon. Mesuré sur
+/// l'appareil, 1280 × 720 : **10,4 ms** pour matérialiser l'image, avant même
+/// que la détection commence. Ce chemin-ci descend jusqu'à la taille d'analyse
+/// sans jamais bâtir l'image entière.
+///
+/// C'est le trajet qu'`artHashFromLuma` a déjà emprunté pour l'empreinte, où il
+/// avait fait passer 12,4 ms à 0,7.
+///
+/// **Le résultat est le même, et c'est vérifiable.** `_cardMask` ramène chaque
+/// pixel à la moyenne de ses trois canaux ; sur une image grise construite
+/// depuis `Y`, cette moyenne vaut `Y`. Les deux chemins produisent donc la même
+/// image d'analyse, au bit près — un test le vérifie sur une figure au pas de
+/// ligne irrégulier, le cas que seul un vrai capteur produit.
+///
+/// [rowStride] est le pas d'une ligne en octets, que le capteur choisit et qui
+/// dépasse souvent la largeur ; l'ignorer produirait une image cisaillée, pas
+/// une erreur.
+CardQuad? findCardInLuma(
+  Uint8List luma, {
+  required int width,
+  required int height,
+  required int rowStride,
+  int pixelStride = 1,
+  String game = 'magic',
+}) {
+  if (width < 8 || height < 8) return null;
+
+  final scale = width > analysisWidth ? width / analysisWidth : 1.0;
+  final target = scale > 1 ? analysisWidth : width;
+  final targetHeight = scale > 1
+      ? (height / scale).round().clamp(1, height)
+      : height;
+  final small = _boxReduceLuma(
+    luma,
+    width: width,
+    height: height,
+    rowStride: rowStride,
+    pixelStride: pixelStride,
+    outWidth: target,
+    outHeight: targetHeight,
+  );
+  return _findIn(small, scale, game);
+}
+
+/// Le corps commun aux deux entrées : tout ce qui suit la mise à la taille
+/// d'analyse. **Aucune des deux ne doit en diverger** — c'est ce qui garantit
+/// qu'elles rendent le même quadrilatère.
+CardQuad? _findIn(img.Image small, double scale, String game) {
   final mask = _cardMask(small);
   _fillHoles(mask, small.width, small.height);
   final shape = _largestComponent(mask, small.width, small.height);
@@ -294,6 +349,52 @@ CardQuad? findCard(img.Image photo, {String game = 'magic'}) {
 /// de téléphone décodée depuis un JPEG n'est jamais dans ce cas ; le repli
 /// existe pour que le module reste juste hors de son terrain habituel, pas parce
 /// qu'on l'y attend.
+/// La même moyenne de bloc, mais lue dans un plan de luminance.
+///
+/// **Les bornes sont celles de [_boxReduce], au caractère près** : c'est la
+/// seule chose qui garantit que les deux chemins rendent la même image
+/// d'analyse, donc les mêmes coins. Toute divergence ici se paierait en
+/// empreintes incomparables, sans qu'aucun test ne s'en aperçoive — la panne
+/// silencieuse que l'en-tête de ce module décrit.
+///
+/// Les trois canaux reçoivent la même valeur, comme le fait `lumaImage` : c'est
+/// ce qui rend `_cardMask` indifférent au chemin emprunté.
+img.Image _boxReduceLuma(
+  Uint8List luma, {
+  required int width,
+  required int height,
+  required int rowStride,
+  required int pixelStride,
+  required int outWidth,
+  required int outHeight,
+}) {
+  final dx = width / outWidth;
+  final dy = height / outHeight;
+  final out = img.Image(width: outWidth, height: outHeight);
+
+  for (var y = 0; y < outHeight; y++) {
+    final sy0 = (y * dy).toInt();
+    final sy1 = y + 1 < outHeight ? ((y + 1) * dy).toInt() : height;
+
+    for (var x = 0; x < outWidth; x++) {
+      final sx0 = (x * dx).toInt();
+      final sx1 = x + 1 < outWidth ? ((x + 1) * dx).toInt() : width;
+
+      var total = 0;
+      for (var sy = sy0; sy < sy1; sy++) {
+        var i = sy * rowStride + sx0 * pixelStride;
+        for (var sx = sx0; sx < sx1; sx++) {
+          total += i < luma.length ? luma[i] : 0;
+          i += pixelStride;
+        }
+      }
+      final mean = total ~/ ((sy1 - sy0) * (sx1 - sx0));
+      out.setPixelRgb(x, y, mean, mean, mean);
+    }
+  }
+  return out;
+}
+
 img.Image _boxReduce(img.Image photo, int width, int height) {
   final data = photo.data;
   if (data is! img.ImageDataUint8 || photo.hasPalette || data.numChannels < 3) {

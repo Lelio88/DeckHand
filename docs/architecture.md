@@ -424,6 +424,33 @@ plausible, non vérifiée, est que le banc s'auto-échauffe : une détection plu
 rapide lui fait traiter plus d'images par seconde. Le chemin réellement employé
 à caméra fixe, `artHashFromLuma`, ne bouge pas (0,98 ms dans les deux).
 
+**Le vrai levier était de ne pas construire l'image.** `findCard` réclame un
+`img.Image` ; une image de caméra n'en est pas un, et la bâtir coûte une écriture
+de trois canaux par pixel pour un plan qui en porte déjà un seul, le bon.
+`findCardInLuma` descend jusqu'à la taille d'analyse sans jamais matérialiser
+l'image entière — le trajet qu'`artHashFromLuma` avait déjà emprunté pour
+l'empreinte, où il faisait passer 12,4 ms à 0,7.
+
+Mesuré **dans la même exécution**, les deux chemins côte à côte sur quatre
+tirages, ce qui met l'échauffement hors de cause :
+
+| | p50 |
+|---|---|
+| Image entière (10,3 ms) puis `findCard` (24,2 ms) | 34,5 ms |
+| **`findCardInLuma`** | **23,0 ms** |
+| Total capteur → identifiant | **52 → 40 ms** |
+
+**Le flux libre passe de 19 à 25 images par seconde.** Les deux chemins
+concluent identiquement — **60 quadrilatères sur 60**, à chaque tirage, sur des
+images réelles et pas seulement sur la figure de test. C'est ce que garantit le
+partage du corps de la détection : seule la mise à la taille d'analyse diffère,
+et ses bornes sont les mêmes des deux côtés.
+
+Il reste 33 ms à atteindre, et le poste suivant est identifié : l'empreinte
+coûte encore 13 ms par le chemin `img.Image`, quand `artHashFromLuma` la calcule
+en 1,0 ms à caméra fixe. Le même raccourci appliqué au découpage de
+l'illustration mettrait le total autour de 27 ms.
+
 **Deux goulots trouvés là où on ne les attendait pas.** La recherche linéaire
 coûtait 8,4 ms sur l'appareil — non à cause du parcours, mais parce qu'elle
 construisait trente-deux mille enregistrements pour les trier et en garder cinq.

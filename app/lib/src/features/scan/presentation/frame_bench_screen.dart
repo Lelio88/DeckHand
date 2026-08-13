@@ -114,6 +114,13 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
   final _find = <int>[];
   int _found = 0;
 
+  /// Le même flux libre, mais sans matérialiser l'image : la détection lit le
+  /// plan de luminance là où il est. Mesuré dans la **même exécution** que le
+  /// chemin ci-dessus, seule façon de les comparer sans que l'échauffement de
+  /// l'appareil s'en mêle.
+  final _findDirect = <int>[];
+  int _sameQuad = 0;
+
   /// Écart entre l'empreinte lue sur la luminance et celle du chemin RGB.
   final _drift = <int>[];
   var _frames = 0;
@@ -304,12 +311,33 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
     final quad = findCard(full);
     final tFind = watch.elapsedMicroseconds;
 
+    // Le même travail, sans l'image intermédiaire.
+    watch.reset();
+    final direct = findCardInLuma(
+      planes[0].bytes,
+      width: width,
+      height: height,
+      rowStride: planes[0].bytesPerRow,
+      pixelStride: planes[0].bytesPerPixel ?? 1,
+    );
+    final tFindDirect = watch.elapsedMicroseconds;
+
     _frames++;
     if (_frames <= benchWarmup) return;
 
     _frame.add(tFrame);
     _find.add(tFind);
+    _findDirect.add(tFindDirect);
     if (quad != null) _found++;
+    // **Les deux chemins doivent conclure pareil**, sur une vraie image et pas
+    // seulement sur la figure de test. Un raccourci plus rapide qui trouverait
+    // ailleurs serait inutilisable.
+    if ((quad == null) == (direct == null) &&
+        (quad == null ||
+            (quad.topLeft == direct!.topLeft &&
+                quad.bottomRight == direct.bottomRight))) {
+      _sameQuad++;
+    }
 
     _luma.add(tLuma);
     _direct.add(tDirect);
@@ -327,18 +355,24 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
         'caméra fixe : ${_median(_direct) ~/ 1000} ms  (rgb ${_median(_rgb) ~/ 1000} ms)\n'
         'flux libre : image ${_median(_frame) ~/ 1000} ms '
         '+ détection ${_median(_find) ~/ 1000} ms\n'
+        'sans image : ${_median(_findDirect) ~/ 1000} ms '
+        '($_sameQuad/${_findDirect.length} identiques)\n'
         'budget 33 ms à 30 img/s',
       );
       diagnose('bench_result', {
         'frame': '$width×$height',
         'frame_us': _stats(_frame),
         'find_us': _stats(_find),
+        'find_direct_us': _stats(_findDirect),
         'found': _found,
+        'same_quad': _sameQuad,
         'total_libre_us':
             _median(_frame) +
             _median(_find) +
             _median(_hash) +
             _median(_search),
+        'total_libre_direct_us':
+            _median(_findDirect) + _median(_hash) + _median(_search),
         'index': widget.indexSize,
         'n': _luma.length,
         'direct_us': _stats(_direct),

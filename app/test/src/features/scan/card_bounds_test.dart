@@ -13,7 +13,9 @@
 library;
 
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:deckhand/src/features/scan/domain/camera_frame.dart';
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
 import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -288,6 +290,70 @@ void main() {
       expect(quad!.aspect, closeTo(cardAspectFor('magic'), 0.03));
       expect(quad.topLeft.x, closeTo(400, 40));
       expect(quad.topLeft.y, closeTo(500, 40));
+    });
+  });
+
+  group('lire les bords dans le plan de luminance', () {
+    // **Le pas de ligne dépasse la largeur**, comme sur un vrai capteur : c'est
+    // le seul détail qui distingue un plan de caméra d'un tableau de pixels, et
+    // l'ignorer produirait une image cisaillée plutôt qu'une erreur.
+    const width = 1280, height = 720, rowStride = 1408;
+
+    Uint8List plan() {
+      final luma = Uint8List(rowStride * height)
+        ..fillRange(0, rowStride * height, 170);
+      const left = 400, top = 100, w = 322, h = 450;
+      for (var y = top; y < top + h; y++) {
+        for (var x = left; x < left + w; x++) {
+          luma[y * rowStride + x] = 18;
+        }
+      }
+      return luma;
+    }
+
+    test('les deux chemins rendent le même quadrilatère', () {
+      final luma = plan();
+      final direct = findCardInLuma(
+        luma,
+        width: width,
+        height: height,
+        rowStride: rowStride,
+      );
+      final parImage = findCard(
+        lumaImage(luma, width: width, height: height, rowStride: rowStride),
+      );
+
+      expect(direct, isNotNull);
+      expect(parImage, isNotNull);
+      // Au pixel près, et non « à peu près » : les deux chemins descendent à la
+      // taille d'analyse par le même filtre, sur les mêmes bornes. Un écart
+      // signifierait que l'un des deux a divergé, et il ne se verrait nulle
+      // part ailleurs.
+      expect(direct!.topLeft, parImage!.topLeft);
+      expect(direct.topRight, parImage.topRight);
+      expect(direct.bottomRight, parImage.bottomRight);
+      expect(direct.bottomLeft, parImage.bottomLeft);
+    });
+
+    test('la carte est bien là où on l\'a posée', () {
+      final quad = findCardInLuma(
+        plan(),
+        width: width,
+        height: height,
+        rowStride: rowStride,
+      );
+
+      expect(quad!.aspect, closeTo(cardAspectFor('magic'), 0.03));
+      // Le facteur de réduction est de 3,2 : un pixel d'analyse en vaut trois.
+      expect(quad.topLeft.x, closeTo(400, 8));
+      expect(quad.topLeft.y, closeTo(100, 8));
+    });
+
+    test('une image trop petite ne fait rien échouer', () {
+      expect(
+        findCardInLuma(Uint8List(16), width: 4, height: 4, rowStride: 4),
+        isNull,
+      );
     });
   });
 
