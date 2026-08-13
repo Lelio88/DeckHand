@@ -30,6 +30,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../config/selected_game.dart';
+import '../../../diagnostics/diagnostics.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
@@ -38,6 +39,7 @@ import '../../printings/presentation/printing_picker.dart';
 import '../data/art_index_repository.dart';
 import '../domain/live_scanner.dart';
 import '../domain/scan_basket.dart';
+import '../domain/scan_tally.dart';
 
 class LiveScanScreen extends ConsumerStatefulWidget {
   const LiveScanScreen({super.key});
@@ -55,6 +57,14 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   /// retenue est affichée par son identifiant le temps que son nom arrive.
   final Map<String, CardHit> _known = {};
   final Map<String, PrintingChoice> _sole = {};
+
+  /// Ce que la passe a produit, ventilé par cause d'échec. **Lisible à
+  /// l'écran** : le journal passe par `adb logcat`, donc par un débogage sans
+  /// fil qui retombe régulièrement, et une passe de terrain qu'on ne peut pas
+  /// relire est une passe perdue.
+  final _tally = ScanTally();
+  DateTime _lastTallyPaint = DateTime.fromMillisecondsSinceEpoch(0);
+  FrameOutcome? _lastOutcome;
 
   String? _status = 'ouverture de la caméra…';
   String? _watching;
@@ -127,15 +137,41 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
         pixelStride: plane.bytesPerPixel ?? 1,
       );
 
+      _tally.record(seen);
+
       final accepted = seen.accepted;
       if (accepted != null) {
         _basket.add(accepted);
         unawaited(_resolve(accepted));
+        diagnose('live_accepted', {
+          'oracle_id': accepted,
+          'distance': seen.distance,
+          'marge': seen.margin,
+          'images': _tally.frames,
+        });
       }
+
+      // **Le journal ne consigne que les changements.** Une carte reste devant
+      // l'objectif des dizaines d'images ; en journaliser chacune rendrait le
+      // relevé illisible pour la raison même qui rend le mode utile.
+      if (seen.outcome != _lastOutcome) {
+        _lastOutcome = seen.outcome;
+        diagnose('live_frame', {
+          'issue': seen.outcome.name,
+          'candidat': seen.best,
+          'distance': seen.distance,
+          'marge': seen.margin,
+        });
+      }
+
       // L'écran ne se reconstruit que lorsque quelque chose a changé : à trente
       // images par seconde, un `setState` par image ferait tourner la mise en
-      // page plus souvent que la reconnaissance.
-      if (accepted != null || seen.watching != _watching) {
+      // page plus souvent que la reconnaissance. Le compteur, lui, se rafraîchit
+      // au rythme de la seconde — assez pour être lu, pas assez pour coûter.
+      final now = DateTime.now();
+      final refresh = now.difference(_lastTallyPaint) > const Duration(seconds: 1);
+      if (accepted != null || seen.watching != _watching || refresh) {
+        if (refresh) _lastTallyPaint = now;
         if (mounted) setState(() => _watching = seen.watching);
       }
     } finally {
@@ -173,6 +209,24 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       // Le nom manquera, la carte reste au panier sous son identifiant. Une
       // panne de catalogue ne doit pas faire perdre un booster déjà scanné.
     }
+  }
+
+  /// Repart de zéro pour la passe suivante, **panier compris**.
+  ///
+  /// Garder le panier ferait compter les cartes d'une passe dans la suivante ;
+  /// remettre le compteur sans le panier donnerait un relevé qui ne décrit pas
+  /// ce qu'on a sous les yeux. Les deux vont ensemble, et le suivi aussi — sans
+  /// quoi la première carte du lot suivant compterait comme la suite du
+  /// précédent.
+  void _resetTally() {
+    diagnose('live_passe', {'releve': _tally.describe()});
+    setState(() {
+      _tally.reset();
+      _basket.clear();
+      _scanner?.reset();
+      _watching = null;
+      _lastOutcome = null;
+    });
   }
 
   Future<void> _save() async {
@@ -270,6 +324,11 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
               ),
             ),
           if (_saveError != null) _Note(_saveError!),
+          // **Le diagnostic est sur place, pas dans un câble.** Trois pannes se
+          // cachent derrière « ça ne marche pas », et elles ne se corrigent pas
+          // au même endroit : recadrer, vérifier le jeu saisi, ou constater que
+          // la marge de confiance fait son travail.
+          if (_status == null) _TallyBar(tally: _tally, onReset: _resetTally),
           Expanded(
             child: _basket.isEmpty
                 ? Center(
@@ -313,6 +372,42 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
                         ),
                     ],
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Le relevé de la passe, et de quoi le remettre à zéro entre deux essais.
+class _TallyBar extends StatelessWidget {
+  const _TallyBar({required this.tally, required this.onReset});
+
+  final ScanTally tally;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      color: theme.colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              tally.describe(),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Repartir de zéro pour la passe suivante',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.restart_alt, size: 18),
+            onPressed: onReset,
           ),
         ],
       ),

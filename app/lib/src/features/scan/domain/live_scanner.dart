@@ -44,6 +44,31 @@ import 'card_tracker.dart';
 import 'camera_frame.dart';
 import 'quad_tracker.dart';
 
+/// Pourquoi une image n'a rien donné — ou ce qu'elle a donné.
+///
+/// **Trois échecs, trois remèdes, et rien ne les distinguait.** « Carte non
+/// reconnue » recouvrait jusqu'ici une détection qui n'a pas trouvé de
+/// quadrilatère, un index qui n'a rien de proche, et une correspondance
+/// refusée faute de marge. Le premier se corrige en recadrant, le deuxième dit
+/// que la carte est absente de l'index ou que l'illustration est mal prélevée,
+/// le troisième que deux cartes se ressemblent trop. Les confondre fait chercher
+/// au mauvais endroit.
+enum FrameOutcome {
+  /// Aucun quadrilatère : la détection de bords n'a pas trouvé de carte.
+  notFound,
+
+  /// Une carte est là, mais rien d'assez proche dans l'index.
+  silent,
+
+  /// Un candidat est assez proche, mais un second l'est presque autant :
+  /// l'index refuse de trancher, et c'est le comportement voulu.
+  unsure,
+
+  /// Reconnue sans réserve. N'entre au panier que si le suivi temporel juge
+  /// qu'il s'agit d'un nouveau passage.
+  confident,
+}
+
 /// Ce qu'une image du flux a donné.
 class LiveObservation {
   const LiveObservation({
@@ -53,7 +78,23 @@ class LiveObservation {
     this.detected = false,
     this.located = false,
     this.distance,
+    this.margin,
+    this.best,
+    this.outcome = FrameOutcome.notFound,
   });
+
+  /// Le meilleur candidat, **même quand il est refusé**.
+  ///
+  /// C'est la valeur qui manque le plus quand une carte n'est pas reconnue :
+  /// savoir *qui* l'index a failli dire, et à quelle distance, sépare une
+  /// illustration mal prélevée d'une carte réellement absente.
+  final String? best;
+
+  /// Écart entre le meilleur candidat et le suivant. `null` s'il est seul.
+  final int? margin;
+
+  /// Ce que cette image a produit, et pourquoi.
+  final FrameOutcome outcome;
 
   /// L'identifiant que le flux montre **en ce moment**, avant toute décision.
   ///
@@ -182,20 +223,34 @@ class LiveScanner {
     required bool detected,
   }) {
     final outcome = _index.searchAny(hypotheses);
+    final result = outcome.result;
     // **Le silence de l'index est une réponse, pas un échec.** Une empreinte
     // trop éloignée ou trop ambiguë ne désigne rien, et le suivi temporel doit
     // le voir comme une image muette — sans quoi une carte à moitié reconnue
     // accumulerait une série qu'elle n'a pas gagnée.
-    final id = outcome.result.isConfident ? outcome.result.best?.oracleId : null;
+    final confident = result.isConfident;
+    final id = confident ? result.best?.oracleId : null;
     final accepted = _cards.observe(id);
 
+    final best = result.best;
     return LiveObservation(
       watching: _cards.watching,
       streak: _cards.streak,
       accepted: accepted,
       detected: detected,
       located: true,
-      distance: outcome.result.best?.distance,
+      distance: best?.distance,
+      margin: result.margin,
+      best: best?.oracleId,
+      outcome: confident
+          ? FrameOutcome.confident
+          // Un candidat sous le seuil mais sans marge n'est pas la même panne
+          // qu'un index qui n'a rien de proche : le premier dit que deux cartes
+          // se ressemblent, le second que l'illustration prélevée ne ressemble
+          // à rien de connu.
+          : (best != null && best.distance <= maxTrustedDistance
+                ? FrameOutcome.unsure
+                : FrameOutcome.silent),
     );
   }
 
