@@ -54,6 +54,7 @@ import httpx
 import psycopg
 
 from app.config import SupabaseConfig
+from app.db import Session
 from app.ingestion.card_resolver import PrintCodeResolver
 from app.ingestion.deck_ingest import IngestReport, store_deck
 from app.ingestion.tcgcsv_pokemon_prices import (
@@ -303,8 +304,60 @@ def deck_name(entry: dict[str, Any], tournament: dict[str, Any]) -> str:
     return str(tournament.get("name") or "Deck Limitless")
 
 
-def ingest(
+def store_standings(
     conn: psycopg.Connection,
+    standings: Iterable[dict[str, Any]],
+    *,
+    tournament: dict[str, Any],
+    tournament_id: str,
+    db_format: str,
+    recorded_at: dt.datetime | None,
+    resolver: PrintCodeResolver,
+) -> tuple[int, int]:
+    """Enregistre les decks d'un tournoi, commite, et rend (gardés, écartés).
+
+    **C'est l'unité de reprise**, et elle est taillée pour l'être :
+
+    - *rejouable* — `store_deck` est idempotente, réimporter un deck remplace
+      ses cartes au lieu de les dupliquer ;
+    - *close par un commit* — ce qui n'est pas commité part avec la connexion
+      morte, donc la maille du commit doit être celle de la reprise ;
+    - *sans compteur muté* — les totaux sont **rendus** et non accumulés en
+      place. Un rejeu après coupure les compterait deux fois, et le rapport
+      annoncerait des decks qui n'existent pas.
+    """
+    inserted = skipped = 0
+    for entry in standings:
+        cards = deck_cards(entry.get("decklist"))
+        if not cards:
+            continue
+        stored = store_deck(
+            conn,
+            source_id=SOURCE_ID,
+            external_id=f"{tournament_id}-{entry.get('placing')}",
+            name=deck_name(entry, tournament),
+            fmt=db_format,
+            # Ce sont des listes de compétition : l'étiquette permet à
+            # l'interface de ne pas les confondre avec des decks accessibles.
+            tier="competitive",
+            mainboard=cards,
+            sideboard={},
+            resolver=resolver,
+            source_url=(f"https://play.limitlesstcg.com/tournament/{tournament_id}"),
+            recorded_at=recorded_at,
+            game=GAME,
+            min_main_cards=MIN_POKEMON_CARDS,
+        )
+        if stored:
+            inserted += 1
+        else:
+            skipped += 1
+    conn.commit()
+    return inserted, skipped
+
+
+def ingest(
+    session: Session,
     client: httpx.Client,
     index: dict[str, str],
     *,
@@ -334,40 +387,30 @@ def ingest(
             continue
 
         recorded_at = parse_date(tournament.get("date"))
-        for entry in standings:
-            cards = deck_cards(entry.get("decklist"))
-            if not cards:
-                continue
-            stored = store_deck(
+        # Le téléchargement reste dehors : une coupure de la base ne doit pas
+        # faire repayer les deux requêtes qui viennent d'aboutir.
+        inserted, skipped = session.run(
+            lambda conn: store_standings(
                 conn,
-                source_id=SOURCE_ID,
-                external_id=f"{tournament_id}-{entry.get('placing')}",
-                name=deck_name(entry, tournament),
-                fmt=db_format,
-                # Ce sont des listes de compétition : l'étiquette permet à
-                # l'interface de ne pas les confondre avec des decks accessibles.
-                tier="competitive",
-                mainboard=cards,
-                sideboard={},
-                resolver=resolver,
-                source_url=(
-                    f"https://play.limitlesstcg.com/tournament/{tournament_id}"
-                ),
+                standings,
+                tournament=tournament,
+                tournament_id=str(tournament_id),
+                db_format=db_format,
                 recorded_at=recorded_at,
-                game=GAME,
-                min_main_cards=MIN_POKEMON_CARDS,
+                resolver=resolver,
             )
-            if stored:
-                report.inserted += 1
-            else:
-                report.skipped_incomplete += 1
+        )
+        report.inserted += inserted
+        report.skipped_incomplete += skipped
 
         seen += 1
         if seen % 10 == 0:
-            conn.commit()
             print(f"  {seen} tournois, {report.inserted} decks", end="\r", flush=True)
 
-    conn.commit()
+    # Le décompte des non-résolus est cumulatif dans le résolveur : après une
+    # reprise, les codes du tournoi rejoué y comptent deux fois. C'est un
+    # diagnostic, pas une donnée du produit — d'où le nombre de coupures
+    # affiché à côté par `run`, qui dit s'il faut le lire de travers.
     report.unresolved_names = resolver.unresolved
     return report
 
@@ -375,7 +418,7 @@ def ingest(
 def run(days: int = 90) -> int:
     config = SupabaseConfig.load()
     with (
-        psycopg.connect(config.db_url, connect_timeout=60) as conn,
+        Session(config.db_url) as session,
         httpx.Client(
             headers={"User-Agent": USER_AGENT}, timeout=60.0, follow_redirects=True
         ) as client,
@@ -385,11 +428,16 @@ def run(days: int = 90) -> int:
         abbreviations = set_abbreviations(
             sets, groups, today=dt.datetime.now(dt.timezone.utc).date()
         )
-        index = load_code_index(conn, abbreviations)
+        index = session.run(lambda conn: load_code_index(conn, abbreviations))
         print(f"  {len(abbreviations)} sigles, {len(index)} codes d'impression")
 
-        report = ingest(conn, client, index, days=days)
+        report = ingest(session, client, index, days=days)
         print(report.summary())
+        if session.recoveries:
+            print(
+                f"coupures de connexion encaissées : {session.recoveries}"
+                " (le décompte des non-résolus est majoré d'autant de tournois)"
+            )
     return 0
 
 

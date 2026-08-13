@@ -658,6 +658,26 @@ Rôle **secondaire** : désambiguïsation quand plusieurs empreintes sont proche
 | **API Riot (Riftbound)** | Source officielle visée pour Riftbound | **Fermée** aux clés de développement | Mesuré : une clé valide obtient 403 sur les quatre routes régionales tout en répondant 200 ailleurs. L'ouverture demande une approbation nommée avec prototype. Attribution imposée, texte officiel obligatoire, pas d'assets externes. |
 | **YGOPRODeck** | Catalogue Yu-Gi-Oh — noms EN et FR, types, niveaux, attributs, impressions, illustrations | Public, sans clé, **catalogue entier en un appel** (21 Mo, 14 491 cartes) | **Pas de CGU publiées** ; le guide d'API fait foi et **demande** le stockage local (« please download and store all data locally »). Débit annoncé : 20 req/s — ce connecteur en fait deux en tout. Garde-fou §IV.9 : on lui applique les règles de Scryfall. Illustrations jamais réhébergées. |
 
+### Ce qui protège une longue course
+
+Une ingestion tient des minutes à des heures, et deux liens peuvent céder pendant : celui de la source, et celui de la base.
+
+**Le lien HTTP** est gardé depuis le début : six tentatives, attente doublée (2, 4, 8, 16, 32 s), 404 terminal — insister ne fera pas apparaître une ressource absente. Un `Retry-After` est respecté mais borné à 120 s, une heure d'attente demandée par le serveur arrêtant l'import aussi sûrement qu'une exception.
+
+**Le lien avec la base ne l'était pas**, et c'est lui qui a coûté le plus cher. Le 14 août à 00 h 10, Supabase a fermé les connexions ouvertes ; l'ingestion Pokémon en cours est morte à mi-fenêtre — vingt jours sur trente. Les vingt étaient acquis, les écritures commitées survivant à la coupure, mais la course était à refaire depuis le début : la pagination repart toujours du plus récent.
+
+`app/db.py` répond à cela. `Session.run` joue une *unité de travail* ; si la connexion cède, elle est fermée, une neuve est ouverte, l'unité est rejouée. Trois propriétés font que cela marche, et aucune n'est facultative :
+
+1. **L'unité est idempotente.** `store_deck` écrit en `ON CONFLICT DO UPDATE` : rejouer un tournoi remplace ses cartes au lieu de les dupliquer.
+2. **L'unité commite ce qu'elle veut garder**, et la maille du commit est celle de la reprise — un tournoi. Commiter tous les dix, comme auparavant, ferait perdre neuf tournois à chaque coupure sans que la reprise puisse les retrouver.
+3. **L'unité ne mute aucun compteur.** Elle *rend* ses totaux, que l'appelant additionne au retour. Un compteur incrémenté à l'intérieur compterait deux fois après un rejeu, et le rapport annoncerait des decks qui n'existent pas.
+
+Le téléchargement reste **hors** de l'unité : une coupure de la base ne doit pas faire repayer des requêtes qui viennent d'aboutir. Un test le vérifie en refusant toute requête excédentaire.
+
+Ce qui n'est **pas** rejoué est tout aussi délibéré : seules `OperationalError` et `InterfaceError` — « cette connexion n'existe plus » — déclenchent la reprise. Une `ProgrammingError` remonte au premier coup, sans quoi une faute de SQL serait répétée cinq fois puis maquillée en instabilité réseau.
+
+Reste une imprécision assumée : le décompte des codes non résolus est cumulatif dans le résolveur, donc majoré des tournois rejoués. C'est un diagnostic et non une donnée du produit — le nombre de coupures est affiché à côté, pour qu'on sache le lire de travers.
+
 ### Volumes et formats réellement disponibles
 
 Mesures relevées sur les 90 derniers jours, API en main.

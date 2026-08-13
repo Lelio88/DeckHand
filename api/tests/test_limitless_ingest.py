@@ -5,8 +5,10 @@ from __future__ import annotations
 import datetime as dt
 
 import httpx
+import psycopg
 import pytest
 
+from app.db import Session
 from app.ingestion import limitless_ingest
 from app.ingestion.limitless_ingest import (
     _get,
@@ -197,3 +199,108 @@ def test_le_retry_after_du_serveur_prime_mais_reste_borne():
     date = httpx.Response(429, headers={"Retry-After": "Wed, 13 Aug 2026 12:00:00 GMT"})
     assert _retry_after(date, 2.0) == 2.0
     assert _retry_after(httpx.Response(429), 2.0) == 2.0
+
+
+# --- la reprise quand c'est la base qui coupe ------------------------------
+
+
+class ConnexionFactice:
+    """Ce que l'unité reçoit. Elle ne lui fait rien écrire : `store_deck` et
+    `store_standings` sont remplacés là où le test porte sur l'autre."""
+
+    def __init__(self) -> None:
+        self.commits = 0
+
+    def commit(self) -> None:
+        self.commits += 1
+
+
+def _une_page_avec_un_tournoi(standings: list[dict]) -> list[httpx.Response]:
+    """Les quatre réponses d'une fenêtre à un seul tournoi, dans l'ordre.
+
+    La date est relative au jour du test : figée, elle sortirait de la fenêtre
+    de trente jours au bout d'un mois et ferait échouer le test sans qu'aucun
+    code n'ait bougé.
+    """
+    hier = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)
+    return [
+        httpx.Response(
+            200,
+            json=[
+                {
+                    "id": "T1",
+                    "date": hier.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                    "format": "STANDARD",
+                }
+            ],
+        ),
+        httpx.Response(200, json={"decklists": True}),
+        httpx.Response(200, json=standings),
+        httpx.Response(200, json=[]),  # page 2 vide : fin de la pagination
+    ]
+
+
+def test_un_tournoi_rejoue_apres_coupure_ne_compte_pas_ses_decks_deux_fois():
+    """**Le défaut que la reprise pourrait introduire.** Rejouer l'écriture est
+    sans danger — `store_deck` est idempotente — mais un compteur muté dans
+    l'unité, lui, compterait deux fois, et le rapport annoncerait des decks qui
+    n'existent pas."""
+    appels: list[str] = []
+
+    def faux_store(conn, standings, **kwargs):
+        appels.append(kwargs["tournament_id"])
+        if len(appels) == 1:
+            raise psycopg.OperationalError("server closed the connection unexpectedly")
+        return (2, 1)
+
+    session = Session(
+        "postgresql://factice",
+        connect=lambda: ConnexionFactice(),
+        sleep=lambda _s: None,
+    )
+    client = _client(_une_page_avec_un_tournoi([{"placing": 1, "decklist": {}}]))
+
+    original = limitless_ingest.store_standings
+    limitless_ingest.store_standings = faux_store
+    try:
+        report = limitless_ingest.ingest(session, client, {}, days=30)
+    finally:
+        limitless_ingest.store_standings = original
+
+    assert appels == ["T1", "T1"]  # rejoué une fois
+    assert report.inserted == 2  # et non 4
+    assert report.skipped_incomplete == 1
+    assert session.recoveries == 1
+    # `_client` lève « une requete de trop » si une requête est refaite : le
+    # téléchargement du tournoi reste donc bien hors de l'unité rejouée.
+
+
+def test_les_decks_dun_tournoi_sont_commites_avec_lui():
+    """La maille du commit doit être celle de la reprise : ce qui n'est pas
+    commité part avec la connexion morte et ne sera pas retrouvé."""
+    verdicts = iter([True, False, True])
+
+    original = limitless_ingest.store_deck
+    limitless_ingest.store_deck = lambda conn, **kw: next(verdicts)
+    conn = ConnexionFactice()
+    try:
+        inserted, skipped = limitless_ingest.store_standings(
+            conn,
+            [
+                {"placing": 1, "decklist": {"pokemon": [{"count": 4, "set": "TWM", "number": "1"}]}},
+                {"placing": 2, "decklist": {"pokemon": [{"count": 4, "set": "TWM", "number": "2"}]}},
+                {"placing": 3, "decklist": {"pokemon": [{"count": 4, "set": "TWM", "number": "3"}]}},
+                # Sans liste : ignorée, et ne compte comme rien du tout.
+                {"placing": 4, "decklist": None},
+            ],
+            tournament={"name": "Regional"},
+            tournament_id="T1",
+            db_format="standard",
+            recorded_at=None,
+            resolver=None,
+        )
+    finally:
+        limitless_ingest.store_deck = original
+
+    assert (inserted, skipped) == (2, 1)
+    assert conn.commits == 1
