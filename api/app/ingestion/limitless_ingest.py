@@ -238,11 +238,20 @@ def load_code_index(
     return index
 
 
-def tournaments(client: httpx.Client, *, days: int) -> Iterator[dict[str, Any]]:
+def tournaments(
+    client: httpx.Client, *, days: int, before: dt.datetime | None = None
+) -> Iterator[dict[str, Any]]:
     """Tournois du jeu, page par page, jusqu'à sortir de la fenêtre.
 
     L'API rend les tournois du plus récent au plus ancien ; la pagination
     s'arrête donc dès qu'une page entière est antérieure à la fenêtre.
+
+    `before` borne la fenêtre par le **haut** et sert à reprendre une course
+    interrompue. Sans lui, chaque relance repart du plus récent et repaie tout
+    ce qui est déjà acquis : le 14 août, quatorze minutes de réécriture avant
+    d'atteindre du neuf. Un tournoi daté `before` exactement est **gardé**, la
+    borne venant d'un deck observé et non d'un tournoi terminé — un tournoi à
+    moitié importé doit être refait, non sauté.
     """
     cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
     for page in range(1, MAX_PAGES + 1):
@@ -257,6 +266,11 @@ def tournaments(client: httpx.Client, *, days: int) -> Iterator[dict[str, Any]]:
         stale = True
         for row in rows:
             when = parse_date(row.get("date"))
+            if when is not None and before is not None and when > before:
+                # Déjà couvert : ni yieldé, ni comptabilisé comme hors fenêtre.
+                # Une page entière de déjà-vu ne doit pas arrêter la pagination.
+                stale = False
+                continue
             if when is None or when >= cutoff:
                 stale = False
                 yield row
@@ -362,12 +376,13 @@ def ingest(
     index: dict[str, str],
     *,
     days: int,
+    before: dt.datetime | None = None,
 ) -> IngestReport:
     resolver = PrintCodeResolver(index)
     report = IngestReport()
     seen = 0
 
-    for tournament in tournaments(client, days=days):
+    for tournament in tournaments(client, days=days, before=before):
         db_format = FORMATS.get(str(tournament.get("format") or "").upper())
         if db_format is None:
             continue
@@ -415,7 +430,7 @@ def ingest(
     return report
 
 
-def run(days: int = 90) -> int:
+def run(days: int = 90, before: dt.datetime | None = None) -> int:
     config = SupabaseConfig.load()
     with (
         Session(config.db_url) as session,
@@ -431,7 +446,9 @@ def run(days: int = 90) -> int:
         index = session.run(lambda conn: load_code_index(conn, abbreviations))
         print(f"  {len(abbreviations)} sigles, {len(index)} codes d'impression")
 
-        report = ingest(session, client, index, days=days)
+        if before is not None:
+            print(f"  reprise : rien au-dessus de {before.isoformat()}")
+        report = ingest(session, client, index, days=days, before=before)
         print(report.summary())
         if session.recoveries:
             print(
@@ -445,7 +462,23 @@ def main(argv: list[str]) -> int:
     days = 90
     if "--days" in argv:
         days = int(argv[argv.index("--days") + 1])
-    return run(days=days)
+    before = None
+    if "--before" in argv:
+        before = parse_before(argv[argv.index("--before") + 1])
+    return run(days=days, before=before)
+
+
+def parse_before(text: str) -> dt.datetime:
+    """`2026-08-08` ou `2026-08-08T17:00` -> datetime aware.
+
+    Une date nue est lue en UTC : les dates de la source y sont, et interpréter
+    la borne dans le fuseau du poste la décalerait de deux heures — assez pour
+    sauter les tournois d'une soirée sans que rien ne le signale.
+    """
+    moment = dt.datetime.fromisoformat(text)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment
 
 
 if __name__ == "__main__":

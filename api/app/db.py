@@ -58,11 +58,22 @@ T = TypeVar("T")
 #: est ce que psycopg lève quand on se sert d'une connexion déjà close.
 LOST_CONNECTION = (psycopg.OperationalError, psycopg.InterfaceError)
 
-#: Tours de reprise, attente doublée à chaque fois : 2, 4, 8, 16 s. Cinq tours
-#: couvrent une minute et demie — assez pour un redémarrage de pooler, trop peu
-#: pour qu'une base réellement éteinte immobilise la machine sans le dire.
-ATTEMPTS = 5
+#: Tours de reprise, attente doublée puis plafonnée : 2, 4, 8, 16, 32, 60, 60…
+#:
+#: **Le premier réglage — cinq tours, une minute et demie — était trop court, et
+#: c'est la panne suivante qui l'a dit.** Le 14 août à 00 h 49, le poste a perdu
+#: la résolution DNS (`getaddrinfo failed` sur l'hôte du pooler) ; la reprise a
+#: rouvert cinq fois, épuisé sa patience et rendu la main quatorze minutes après
+#: le départ. La coupure visée n'est donc pas seulement le pooler qui redémarre,
+#: c'est aussi le réseau de ce poste, connu pour vaciller plus longtemps.
+#:
+#: Neuf tours plafonnés à 60 s couvrent cinq minutes. Le plafond compte autant
+#: que le nombre : sans lui, doubler encore ferait attendre un quart d'heure sur
+#: le dernier tour, et une base réellement éteinte immobiliserait la machine
+#: sans jamais le dire.
+ATTEMPTS = 9
 FIRST_DELAY = 2.0
+MAX_DELAY = 60.0
 
 CONNECT_TIMEOUT = 60
 
@@ -80,6 +91,7 @@ class Session:
         *,
         attempts: int = ATTEMPTS,
         first_delay: float = FIRST_DELAY,
+        max_delay: float = MAX_DELAY,
         connect_timeout: int = CONNECT_TIMEOUT,
         connect: Callable[[], psycopg.Connection] | None = None,
         sleep: Callable[[float], None] = time.sleep,
@@ -89,6 +101,7 @@ class Session:
         )
         self._attempts = max(1, attempts)
         self._first_delay = first_delay
+        self._max_delay = max_delay
         self._sleep = sleep
         self._conn: psycopg.Connection | None = None
         #: Coupures encaissées depuis l'ouverture. Une ingestion qui n'en rend
@@ -119,7 +132,7 @@ class Session:
                     raise
                 self.recoveries += 1
                 self._sleep(delay)
-                delay *= 2
+                delay = min(delay * 2, self._max_delay)
         raise AssertionError("boucle de reprise sortie sans issue")  # pragma: no cover
 
     def close(self) -> None:

@@ -201,6 +201,80 @@ def test_le_retry_after_du_serveur_prime_mais_reste_borne():
     assert _retry_after(httpx.Response(429), 2.0) == 2.0
 
 
+# --- reprendre une course interrompue --------------------------------------
+
+
+def _t(id_: str, quand: dt.datetime) -> dict:
+    return {
+        "id": id_,
+        "date": quand.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "format": "STANDARD",
+    }
+
+
+def test_la_reprise_saute_ce_qui_est_deja_couvert():
+    maintenant = dt.datetime.now(dt.timezone.utc)
+    borne = maintenant - dt.timedelta(days=5)
+    client = _client([
+        httpx.Response(
+            200,
+            json=[
+                _t("recent", maintenant - dt.timedelta(days=1)),  # déjà acquis
+                _t("aussi", maintenant - dt.timedelta(days=3)),  # déjà acquis
+                _t("neuf", maintenant - dt.timedelta(days=8)),  # à faire
+            ],
+        ),
+        httpx.Response(200, json=[]),
+    ])
+
+    vus = [t["id"] for t in limitless_ingest.tournaments(client, days=30, before=borne)]
+
+    assert vus == ["neuf"]
+
+
+def test_le_tournoi_date_de_la_borne_est_refait():
+    """La borne vient d'un deck observé, pas d'un tournoi terminé : celui qui
+    porte cette date peut n'avoir été importé qu'à moitié."""
+    maintenant = dt.datetime.now(dt.timezone.utc)
+    borne = maintenant - dt.timedelta(days=5)
+    client = _client([
+        httpx.Response(200, json=[_t("pile_dessus", borne)]),
+        httpx.Response(200, json=[]),
+    ])
+
+    vus = [t["id"] for t in limitless_ingest.tournaments(client, days=30, before=borne)]
+
+    assert vus == ["pile_dessus"]
+
+
+def test_une_page_entiere_de_deja_vu_narrete_pas_la_pagination():
+    """**Le piège de la reprise.** Ces tournois ne sont pas « hors fenêtre » —
+    ils sont déjà faits. Les compter comme périmés arrêterait la pagination sur
+    la première page et la reprise ne traiterait jamais rien."""
+    maintenant = dt.datetime.now(dt.timezone.utc)
+    borne = maintenant - dt.timedelta(days=5)
+    client = _client([
+        httpx.Response(200, json=[_t("deja", maintenant - dt.timedelta(days=1))]),
+        httpx.Response(200, json=[_t("neuf", maintenant - dt.timedelta(days=8))]),
+        httpx.Response(200, json=[]),
+    ])
+
+    vus = [t["id"] for t in limitless_ingest.tournaments(client, days=30, before=borne)]
+
+    assert vus == ["neuf"]
+
+
+def test_une_borne_sans_fuseau_est_lue_en_utc():
+    """Lue dans le fuseau du poste, elle décalerait de deux heures — assez pour
+    sauter les tournois d'une soirée sans que rien ne le signale."""
+    assert limitless_ingest.parse_before("2026-08-08") == dt.datetime(
+        2026, 8, 8, tzinfo=dt.timezone.utc
+    )
+    assert limitless_ingest.parse_before("2026-08-08T17:00") == dt.datetime(
+        2026, 8, 8, 17, 0, tzinfo=dt.timezone.utc
+    )
+
+
 # --- la reprise quand c'est la base qui coupe ------------------------------
 
 

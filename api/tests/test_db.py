@@ -177,6 +177,22 @@ def test_les_tentatives_sont_bornees_et_la_coupure_finit_par_remonter():
     assert horloge.attentes == [2.0, 4.0]
 
 
+def test_lattente_est_plafonnee_pour_ne_pas_immobiliser_la_machine():
+    """Sans plafond, le neuvième tour attendrait plus de huit minutes : une base
+    éteinte immobiliserait la course sans jamais le dire."""
+    connector, horloge = FakeConnector(), Horloge()
+    session = _session(connector, horloge, attempts=9, max_delay=60.0)
+
+    def unite(conn: FakeConnection) -> None:
+        raise psycopg.OperationalError("coupure sans fin")
+
+    with pytest.raises(psycopg.OperationalError):
+        session.run(unite)
+
+    assert horloge.attentes == [2.0, 4.0, 8.0, 16.0, 32.0, 60.0, 60.0, 60.0]
+    assert sum(horloge.attentes) == 242.0  # quatre minutes, pas un quart d'heure
+
+
 def test_une_base_injoignable_est_reessayee_puis_remonte():
     """La coupure peut aussi frapper la réouverture ; elle compte comme un tour."""
     connector = FakeConnector(ouvertures_refusees=99)
