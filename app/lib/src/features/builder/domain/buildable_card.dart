@@ -21,6 +21,7 @@ class BuildableCard {
     required this.typeLine,
     required this.cmc,
     required this.colorIdentity,
+    this.game = 'magic',
     this.manaCost = '',
     this.printedName,
     this.oracleText = '',
@@ -29,6 +30,20 @@ class BuildableCard {
   });
 
   final String oracleId;
+
+  /// Le jeu dont cette carte relève, tel que `cards.game` le porte.
+  ///
+  /// **C'est lui qui décide comment lire le reste.** `typeLine`, `cmc` et
+  /// `colorIdentity` ne veulent pas la même chose d'un jeu à l'autre : chez
+  /// Yu-Gi-Oh, `cmc` porte le **Niveau** et `colorIdentity` l'**Attribut**, deux
+  /// analogues de forme sans le sens de leurs homologues Magic. Un constructeur
+  /// qui l'ignore écarte un tiers du catalogue sur une contrainte de couleur qui
+  /// n'existe pas.
+  ///
+  /// La valeur par défaut est Magic parce que c'est le jeu par défaut de
+  /// l'application ; elle n'est pas un repli silencieux mais l'écriture d'un
+  /// fait.
+  final String game;
 
   /// Nom oracle anglais — l'identité canonique de la carte.
   final String name;
@@ -79,6 +94,25 @@ class BuildableCard {
   /// La règle du Commander : l'identité d'une carte doit être **contenue** dans
   /// celle du général. Une carte incolore entre partout, ce qui en fait la
   /// monnaie d'échange de tous les decks.
+  ///
+  /// **N'a de sens que dans les jeux qui ont cette règle.** C'est
+  /// `DeckBlueprint.usesColorIdentity` qui décide de l'appeler ou non ; en
+  /// Yu-Gi-Oh, où ce champ porte l'Attribut, l'appeler écarterait 32 % du
+  /// catalogue au nom d'une contrainte que le jeu n'a pas.
   bool playableIn(ColorIdentity identity) =>
       colorIdentity.every(identity.contains);
+
+  /// Carte d'**Extra Deck** — Fusion, Synchro, Xyz, Link.
+  ///
+  /// Ces cartes ne se mêlent pas au deck principal : elles occupent une zone
+  /// séparée, plafonnée par les règles, et se posent depuis elle. Le corpus ne
+  /// les distingue pas — TopDeck.gg ne publie qu'un `main` et un `side` —, si
+  /// bien qu'une taille lue naïvement y vaut 55, un nombre qui ne correspond à
+  /// aucune zone du jeu. C'est ce type-ci qui les sépare, ici comme dans le banc
+  /// `deck_anatomy`.
+  bool get isExtraDeck =>
+      typeLine.contains('Fusion Monster') ||
+      typeLine.contains('Synchro Monster') ||
+      typeLine.contains('Xyz Monster') ||
+      typeLine.contains('Link Monster');
 }

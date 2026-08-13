@@ -224,7 +224,7 @@ pan principal enregistré est donc **55 cartes** (40 + 15), sur 1 992 decks.
 `20260816130000`). `DeckBlueprint.of` continue de rendre `null`, et la section
 suivante dit pourquoi — ce n'est plus faute d'avoir mesuré.
 
-### Le gabarit de deck : mesuré, et pourtant toujours nul
+### Le gabarit de deck, et un constructeur aux axes du jeu
 
 Les proportions d'un deck Yu-Gi-Oh se lisent sur ses 3 935 listes
 (`python -m app.measure.deck_anatomy --game yugioh`). Ce sont **les plus nettes
@@ -258,9 +258,9 @@ les types d'Extra (Fusion, Synchro, Xyz, Link), ce que le banc fait désormais.
 Sans cette séparation, le gabarit aurait déclaré des decks de 55 cartes avec
 l'assurance d'une mesure.
 
-**Et pourtant `DeckBlueprint.of` rend toujours `null`.** Ce n'est plus faute de
-mesure : c'est que le constructeur est bâti sur des notions que ce jeu n'a pas,
-et la mesure le chiffre.
+**Le constructeur a donc été refait sur les axes du jeu.** Le gabarit a
+longtemps rendu `null`, et ce n'était plus faute de mesure : le constructeur
+était bâti sur des notions que ce jeu n'a pas, et la mesure le chiffrait.
 
 | Ce que le constructeur demande | Ce que Yu-Gi-Oh en offre |
 |---|---|
@@ -269,18 +269,39 @@ et la mesure le chiffre.
 | `playableIn` — identité de couleur | le champ porte l'**Attribut**, qui n'impose aucune contrainte de construction |
 | `cmc` — coût de mana | le champ porte le **Niveau** |
 
-Deux quotas sur cinq seraient donc introuvables, et le filtrage par « couleur »
-écarterait **32 % du catalogue** sur une règle qui n'existe pas — rien n'interdit
+Deux quotas sur cinq étaient donc introuvables, et le filtrage par « couleur »
+écartait **32 % du catalogue** sur une règle qui n'existe pas — rien n'interdit
 de mêler DARK et LIGHT. `cmc` et `color_identity` sont des analogues de forme,
 pas de sens : l'ingestion y range le Niveau et l'Attribut faute de champs
-dédiés, et s'en servir comme le fait Magic produirait un deck faux avec
+dédiés, et s'en servir comme le fait Magic aurait produit un deck faux avec
 l'assurance d'un deck mesuré.
 
-Ce que ces nombres attendent n'est donc pas un réglage mais **un constructeur
-dont les axes soient ceux du jeu** : Monstre / Magie / Piège plutôt que
-créature / terrain, paliers de Niveau plutôt que courbe de mana, et deux zones à
-remplir plutôt qu'une. Le gabarit reste `null` jusque-là, et c'est désormais un
-choix mesuré et non une lacune.
+**Ce qui a changé, et où.** Ce qui dépend du jeu est devenu une propriété du
+jeu, comme le format d'une carte l'était devenu en #24 :
+
+| Notion | Magic | Yu-Gi-Oh |
+|---|---|---|
+| `BuildableCard.game` | `magic` | `yugioh` — c'est lui qui décide comment lire le reste |
+| Rôles (`rolesOf`) | créature, terrain, rampe, retrait, pioche — devinés au texte oracle | monstre, magie, piège, magie rapide, piège continu — **imprimés dans le type** |
+| Filtre du pool | identité de couleur | **aucun** (`usesColorIdentity: false`) |
+| Quota de terrains | mesuré | **`null`**, non pas zéro : il n'y a rien à manquer |
+| Paliers | coût de mana | **Niveau** — sans tribut jusqu'à 4, un tribut à 5-6, deux au-delà |
+| Zones | une, plus les terrains de base | **deux** : deck principal et Extra Deck |
+
+Le pool de l'Extra Deck est **disjoint** : ses cartes ne concourent pas pour les
+places du deck principal, et n'entrent pas dans ses quotas — les y compter
+fausserait la part des monstres de moitié. Aucun quota ne gouverne son contenu,
+et c'est un résultat de mesure : le corpus donne sa taille, jamais une
+composition stable à viser.
+
+Le jeu se lit mieux que Magic sur un point : **le rôle est imprimé**. Là où
+Magic doit chercher « Destroy target » dans un texte oracle — méthode grossière
+assumée —, Yu-Gi-Oh écrit « Quick-Play Spell » dans le type. Ce qui reste
+approximatif chez l'un est exact chez l'autre.
+
+**Ce que le constructeur ne promet toujours pas** : un deck optimal. Les
+proportions visées sont dispersées, et l'écran le dit — `BlueprintReliability
+.averaged` sur les quatre formats, comme pour le Pauper et le Modern.
 
 ### Vérifié sous le rôle qui subira les règles (decks)
 

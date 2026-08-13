@@ -37,7 +37,16 @@ class BuiltDeck {
     required this.lands,
     required this.basicLands,
     required this.diagnosis,
+    this.extra = const [],
   });
+
+  /// Seconde zone du deck — l'**Extra Deck** de Yu-Gi-Oh. Vide dans les jeux
+  /// qui n'en ont qu'une.
+  ///
+  /// Elle n'est pas une partie du deck principal mais une zone à part : ses
+  /// cartes ne comptent ni dans [size] ni dans les quotas, et se choisissent
+  /// dans un pool disjoint.
+  final List<BuildableCard> extra;
 
   /// Général du deck. Nul dans les formats qui n'en ont pas.
   final BuildableCard? commander;
@@ -63,7 +72,16 @@ class BuiltDeck {
 
 /// L'écart entre le deck obtenu et le gabarit visé.
 class DeckDiagnosis {
-  const DeckDiagnosis({required this.roleGaps, required this.short});
+  const DeckDiagnosis({
+    required this.roleGaps,
+    required this.short,
+    this.extraShort = 0,
+  });
+
+  /// Cartes qui manquent pour remplir la seconde zone. Zéro quand le format
+  /// n'en a pas — et zéro aussi quand elle est pleine, ce que le contexte
+  /// distingue puisque la zone n'apparaît alors pas du tout.
+  final int extraShort;
 
   /// Manque par rôle, en nombre de cartes. Positif = il en manque.
   final Map<CardRole, int> roleGaps;
@@ -149,25 +167,38 @@ class DeckBuilder {
   /// Sans général — Pauper, Modern — les couleurs se déduisent de la collection
   /// elle-même : voir [dominantColors].
   BuiltDeck build(List<BuildableCard> collection, [BuildableCard? commander]) {
-    final identity = commander?.colorIdentity ?? dominantColors(collection);
+    // **Le filtre de couleur ne s'applique qu'aux jeux qui ont cette règle.**
+    // En Yu-Gi-Oh, le champ porte l'Attribut, qui n'interdit aucun mélange :
+    // filtrer dessus écarterait un tiers du catalogue sans raison.
+    final identity = blueprint.usesColorIdentity
+        ? (commander?.colorIdentity ?? dominantColors(collection))
+        : const <String>{};
     final pool = collection
         .where(
           (c) =>
               c.oracleId != commander?.oracleId &&
               !c.isBasicLand &&
-              c.playableIn(identity),
+              (!blueprint.usesColorIdentity || c.playableIn(identity)),
         )
         .toList();
 
-    final landTarget = blueprint.lands.countFor(blueprint.size);
-    final specials = _expand(
-      pool.where((c) => c.isLand).toList(),
-    ).take(landTarget).toList();
+    // La seconde zone se sert d'abord, dans un pool disjoint : ses cartes ne
+    // peuvent pas figurer dans le deck principal, et les laisser concourir pour
+    // ses places les lui ferait voler.
+    final extra = _fillExtra(pool);
+    final main = blueprint.extraSize == null
+        ? pool
+        : pool.where((c) => !c.isExtraDeck).toList();
+
+    final landTarget = blueprint.lands?.countFor(blueprint.size) ?? 0;
+    final specials = blueprint.lands == null
+        ? const <BuildableCard>[]
+        : _expand(main.where((c) => c.isLand).toList()).take(landTarget).toList();
     final spellSlots =
         blueprint.size - (commander == null ? 0 : 1) - landTarget;
 
     final spells = _fillSpells(
-      _expand(pool.where((c) => !c.isLand).toList()),
+      _expand(main.where((c) => !c.isLand).toList()),
       spellSlots,
     );
 
@@ -184,8 +215,26 @@ class DeckBuilder {
       spells: spells,
       lands: specials,
       basicLands: basics,
-      diagnosis: _judge(spells, specials, commander, basics),
+      extra: extra,
+      diagnosis: _judge(spells, specials, commander, basics, extra),
     );
+  }
+
+  /// Remplit la seconde zone, quand le format en a une.
+  ///
+  /// **Aucun quota ne la gouverne**, et c'est un résultat de mesure : le corpus
+  /// donne sa taille — 15 cartes, 11 en Goat — mais pas de composition stable à
+  /// viser. On prend donc les cartes disponibles, les plus nombreuses d'abord,
+  /// ce qui privilégie ce que la collection possède en plusieurs exemplaires.
+  List<BuildableCard> _fillExtra(List<BuildableCard> pool) {
+    final target = blueprint.extraSize;
+    if (target == null) return const [];
+    final candidates = pool.where((c) => c.isExtraDeck).toList()
+      ..sort((a, b) {
+        final byCopies = b.quantity.compareTo(a.quantity);
+        return byCopies != 0 ? byCopies : a.displayName.compareTo(b.displayName);
+      });
+    return _expand(candidates).take(target).toList();
   }
 
   /// Déroule les exemplaires possédés en autant de candidats.
@@ -311,6 +360,7 @@ class DeckBuilder {
     List<BuildableCard> lands,
     BuildableCard? commander,
     Map<String, int> basics,
+    List<BuildableCard> extra,
   ) {
     final gaps = <CardRole, int>{};
     for (final entry in blueprint.roles.entries) {
@@ -329,9 +379,13 @@ class DeckBuilder {
         spells.length +
         lands.length +
         basics.values.fold(0, (s, n) => s + n);
+    final target = blueprint.extraSize;
     return DeckDiagnosis(
       roleGaps: gaps,
       short: (blueprint.size - size).clamp(0, blueprint.size).toInt(),
+      extraShort: target == null
+          ? 0
+          : (target - extra.length).clamp(0, target).toInt(),
     );
   }
 }

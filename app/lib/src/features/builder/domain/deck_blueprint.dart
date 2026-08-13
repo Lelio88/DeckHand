@@ -70,6 +70,9 @@ class DeckBlueprint {
     required this.roles,
     required this.curve,
     required this.reliability,
+    this.extraSize,
+    this.usesColorIdentity = true,
+    this.curveLabel = 'coût',
   });
 
   /// Cartes du deck, commandant compris quand il y en a un.
@@ -80,8 +83,29 @@ class DeckBlueprint {
 
   final bool needsCommander;
 
-  /// Terrains, toutes sortes confondues.
-  final Quota lands;
+  /// Terrains, toutes sortes confondues. **Nul dans les jeux qui n'en ont
+  /// pas** : Yu-Gi-Oh n'a aucune carte de ce type, et lui donner un quota de
+  /// zéro se lirait comme un manque plutôt que comme une absence de notion.
+  final Quota? lands;
+
+  /// Taille de la seconde zone — l'**Extra Deck** de Yu-Gi-Oh —, ou `null` pour
+  /// un jeu qui n'en a qu'une.
+  ///
+  /// Ce n'est pas une part du deck mais une zone à part, plafonnée par les
+  /// règles et remplie de cartes qui ne peuvent pas figurer dans la première.
+  final int? extraSize;
+
+  /// Le pool est-il restreint par l'identité de couleur ?
+  ///
+  /// **Faux ne veut pas dire « pas de couleurs », mais « pas cette règle ».**
+  /// Les cartes Yu-Gi-Oh portent un Attribut dans le même champ, et l'attribut
+  /// n'interdit aucun mélange : filtrer dessus écarterait 32 % du catalogue au
+  /// nom d'une contrainte que le jeu n'a pas.
+  final bool usesColorIdentity;
+
+  /// Ce que mesure la courbe, pour l'affichage. Magic y met un coût de mana,
+  /// Yu-Gi-Oh un Niveau — le champ est le même, la grandeur non.
+  final String curveLabel;
 
   /// Rôles à doser. Ils se recouvrent : une créature qui produit du mana compte
   /// dans les deux, exactement comme dans la mesure d'où viennent ces cibles.
@@ -122,15 +146,16 @@ class DeckBlueprint {
     // sur une règle qui n'existe pas. Même remarque pour `cmc`, qui porte ici
     // le Niveau : un analogue de forme, pas de sens.
     //
-    // Fournir un gabarit ouvrirait donc un constructeur qui rend un deck faux
-    // avec l'assurance d'un deck mesuré — précisément ce que ce `null` existe
-    // pour empêcher. Les nombres attendent un constructeur dont les axes soient
-    // ceux du jeu ; ils sont consignés dans `docs/multi-game.md` §0.
-    DeckFormat.constructed ||
-    DeckFormat.edison ||
-    DeckFormat.goat ||
-    DeckFormat.redu ||
-    DeckFormat.hat => null,
+    // Les quatre formats Yu-Gi-Oh ont désormais leurs axes — Monstre, Magie,
+    // Piège, paliers de Niveau, deux zones —, mesurés sur leurs propres decks.
+    DeckFormat.edison => edison,
+    DeckFormat.goat => goat,
+    DeckFormat.redu => redu,
+    DeckFormat.hat => hat,
+    // Le format construit de Riftbound n'en a toujours pas : ses notions —
+    // runes, champs de bataille — ne sont celles d'aucun des deux autres jeux,
+    // et son corpus n'a pas été mesuré sous cet angle.
+    DeckFormat.constructed => null,
   };
 
   /// Mesuré sur 190 précons. Le format le plus régulier du corpus.
@@ -201,6 +226,119 @@ class DeckBlueprint {
       CurveStep(4, 4, Quota(2, 7)),
       CurveStep(5, 6, Quota(3, 8)),
       CurveStep(7, 99, Quota(0, 7)),
+    ],
+    reliability: BlueprintReliability.averaged,
+  );
+
+  /// Les quatre formats Yu-Gi-Oh, mesurés sur leurs 3 935 decks
+  /// (`python -m app.measure.deck_anatomy --game yugioh`).
+  ///
+  /// **Leur taille est un contrat, pas une tendance** : 40 cartes, écart
+  /// interquartile de 0 à 1 sur les quatre formats. Aucun format Magic
+  /// n'approche cette régularité. Trois exemplaires au maximum, vérifié sur tout
+  /// le corpus.
+  ///
+  /// **Leur composition, elle, est dispersée** — 12 à 24 points d'écart sur les
+  /// monstres. Comme le Pauper et le Modern, ces formats mêlent des archétypes
+  /// dont la médiane décrit un deck jouable mais qui ne ressemble à aucun deck
+  /// réel. D'où [BlueprintReliability.averaged] partout.
+  ///
+  /// Les paliers portent le **Niveau** et non un coût de mana : on invoque sans
+  /// tribut jusqu'à 4, avec un tribut à 5 et 6, avec deux au-delà. C'est le seul
+  /// découpage qui décrive une contrainte réelle du jeu.
+  static const edison = DeckBlueprint(
+    size: 40,
+    extraSize: 15,
+    maxCopies: 3,
+    needsCommander: false,
+    lands: null,
+    usesColorIdentity: false,
+    curveLabel: 'niveau',
+    roles: {
+      CardRole.monster: Quota(52.5, 12.2),
+      CardRole.spell: Quota(21.4, 9.8),
+      CardRole.trap: Quota(24.4, 16.6),
+      CardRole.quickSpell: Quota(4.9, 2.6),
+      CardRole.continuousTrap: Quota(0, 2.3),
+    },
+    curve: [
+      CurveStep(1, 4, Quota(37.5, 6.9)),
+      CurveStep(5, 6, Quota(7.5, 7.2)),
+      CurveStep(7, 99, Quota(5, 5)),
+    ],
+    reliability: BlueprintReliability.averaged,
+  );
+
+  /// L'Extra Deck y compte 11 cartes et non 15, et l'écart est large : 187 des
+  /// 484 decks Goat n'en ont **aucune**. C'est l'époque qui parle — seules les
+  /// Fusions existaient alors, et beaucoup de decks s'en passaient.
+  static const goat = DeckBlueprint(
+    size: 40,
+    extraSize: 11,
+    maxCopies: 3,
+    needsCommander: false,
+    lands: null,
+    usesColorIdentity: false,
+    curveLabel: 'niveau',
+    roles: {
+      CardRole.monster: Quota(45, 15),
+      CardRole.spell: Quota(30, 10),
+      CardRole.trap: Quota(22.5, 12.5),
+      CardRole.quickSpell: Quota(4.9, 4.8),
+      CardRole.continuousTrap: Quota(2.4, 2.5),
+    },
+    curve: [
+      CurveStep(1, 4, Quota(35, 2.5)),
+      CurveStep(5, 6, Quota(10, 12.5)),
+      CurveStep(7, 99, Quota(2.5, 0)),
+    ],
+    reliability: BlueprintReliability.averaged,
+  );
+
+  static const redu = DeckBlueprint(
+    size: 40,
+    extraSize: 15,
+    maxCopies: 3,
+    needsCommander: false,
+    lands: null,
+    usesColorIdentity: false,
+    curveLabel: 'niveau',
+    roles: {
+      CardRole.monster: Quota(43.9, 16.2),
+      CardRole.spell: Quota(27.5, 15.8),
+      CardRole.trap: Quota(27.5, 16.6),
+      CardRole.quickSpell: Quota(7.6, 7.5),
+      CardRole.continuousTrap: Quota(2.5, 5),
+    },
+    curve: [
+      CurveStep(1, 4, Quota(40, 16.4)),
+      CurveStep(5, 6, Quota(0, 2.5)),
+      CurveStep(7, 99, Quota(2.5, 9.8)),
+    ],
+    reliability: BlueprintReliability.averaged,
+  );
+
+  /// 81 decks seulement, et les écarts les plus larges du jeu — 24 points sur
+  /// les magies. La médiane y est la plus fragile des quatre.
+  static const hat = DeckBlueprint(
+    size: 40,
+    extraSize: 15,
+    maxCopies: 3,
+    needsCommander: false,
+    lands: null,
+    usesColorIdentity: false,
+    curveLabel: 'niveau',
+    roles: {
+      CardRole.monster: Quota(45, 12.2),
+      CardRole.spell: Quota(26.8, 24),
+      CardRole.trap: Quota(25, 20),
+      CardRole.quickSpell: Quota(7.3, 10),
+      CardRole.continuousTrap: Quota(5, 7.5),
+    },
+    curve: [
+      CurveStep(1, 4, Quota(37.5, 17.5)),
+      CurveStep(5, 6, Quota(0, 7.5)),
+      CurveStep(7, 99, Quota(0, 17.5)),
     ],
     reliability: BlueprintReliability.averaged,
   );

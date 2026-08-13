@@ -32,26 +32,35 @@ class BuildableRepository {
         )
         .timedOut();
 
+    // **Le jeu vient de la requête, pas des lignes.** La collection rendue est
+    // celle d'un seul jeu par construction — `p_game` le filtre côté base —, et
+    // c'est lui qui décide comment lire `type_line`, `cmc` et `color_identity`,
+    // dont le sens change d'un jeu à l'autre. L'omettre ferait lire des cartes
+    // Yu-Gi-Oh avec les règles de Magic, sans erreur et sans résultat.
     return rows
         .cast<Map<String, dynamic>>()
-        .map(_fromJson)
+        .map((json) => _fromJson(json, game.id))
         .toList(growable: false);
   }
 
-  BuildableCard _fromJson(Map<String, dynamic> json) => BuildableCard(
-    oracleId: json['oracle_id'] as String,
-    name: json['name'] as String,
-    printedName: json['printed_name'] as String?,
-    typeLine: json['type_line'] as String? ?? '',
-    cmc: (json['cmc'] as num?)?.toDouble() ?? 0,
-    manaCost: json['mana_cost'] as String? ?? '',
-    colorIdentity:
-        (json['color_identity'] as List<dynamic>?)?.cast<String>().toSet() ??
-        <String>{},
-    oracleText: json['oracle_text'] as String? ?? '',
-    quantity: (json['quantity'] as num?)?.toInt() ?? 1,
-    priceEur: (json['price_eur'] as num?)?.toDouble(),
-  );
+  BuildableCard _fromJson(Map<String, dynamic> json, String game) =>
+      BuildableCard(
+        game: game,
+        oracleId: json['oracle_id'] as String,
+        name: json['name'] as String,
+        printedName: json['printed_name'] as String?,
+        typeLine: json['type_line'] as String? ?? '',
+        cmc: (json['cmc'] as num?)?.toDouble() ?? 0,
+        manaCost: json['mana_cost'] as String? ?? '',
+        colorIdentity:
+            (json['color_identity'] as List<dynamic>?)
+                ?.cast<String>()
+                .toSet() ??
+            <String>{},
+        oracleText: json['oracle_text'] as String? ?? '',
+        quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+        priceEur: (json['price_eur'] as num?)?.toDouble(),
+      );
 }
 
 final buildableRepositoryProvider = Provider<BuildableRepository>(

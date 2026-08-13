@@ -22,6 +22,7 @@ library;
 import 'buildable_card.dart';
 
 enum CardRole {
+  // --- Magic -----------------------------------------------------------
   /// Produire du mana ou aller chercher un terrain : dans les deux cas, la
   /// carte sert à accélérer.
   ramp,
@@ -35,7 +36,46 @@ enum CardRole {
   creature,
 
   land,
+
+  // --- Yu-Gi-Oh --------------------------------------------------------
+  /// **Les axes de ce jeu ne sont pas ceux de Magic**, et les lui emprunter
+  /// rendrait des zéros partout : aucune de ses 13 866 cartes ne porte
+  /// « Creature » ni « Land ». Ses trois familles partitionnent le deck
+  /// principal — un monstre n'est ni une magie ni un piège —, là où les rôles
+  /// Magic se recouvrent.
+  monster,
+
+  spell,
+
+  trap,
+
+  /// Magie rapide : jouable pendant le tour adverse, la seule magie qui réponde.
+  quickSpell,
+
+  /// Piège continu : reste en jeu au lieu de se résoudre puis partir.
+  continuousTrap,
 }
+
+/// Les rôles que ce jeu sait reconnaître, dans l'ordre où on les affiche.
+///
+/// Sert au diagnostic et à l'écran : montrer un quota de créatures sur un deck
+/// Yu-Gi-Oh dirait « il en manque 21 » d'une carte qui n'existe pas.
+Set<CardRole> rolesFor(String game) => switch (game) {
+  'yugioh' => const {
+    CardRole.monster,
+    CardRole.spell,
+    CardRole.trap,
+    CardRole.quickSpell,
+    CardRole.continuousTrap,
+  },
+  _ => const {
+    CardRole.creature,
+    CardRole.draw,
+    CardRole.ramp,
+    CardRole.removal,
+    CardRole.land,
+  },
+};
 
 /// Motifs de reconnaissance, en anglais comme le texte oracle du catalogue.
 ///
@@ -52,7 +92,16 @@ final _removal = RegExp(
 final _draw = RegExp(r'draw (a|\w+) card', caseSensitive: false);
 
 /// Rôles remplis par [card]. Une carte peut en tenir plusieurs, ou aucun.
-Set<CardRole> rolesOf(BuildableCard card) {
+///
+/// **La lecture dépend du jeu**, parce que les axes en dépendent. Lire une
+/// carte Yu-Gi-Oh avec les motifs de Magic ne renverrait rien du tout : son
+/// texte ne dit pas « Destroy target » mais « destroy that target », son type ne
+/// dit pas « Creature » mais « Monster ». Un ensemble vide se lirait comme une
+/// carte sans rôle, non comme une lecture inadaptée.
+Set<CardRole> rolesOf(BuildableCard card) =>
+    card.game == 'yugioh' ? _yugiohRoles(card) : _magicRoles(card);
+
+Set<CardRole> _magicRoles(BuildableCard card) {
   final roles = <CardRole>{};
   if (card.isLand) roles.add(CardRole.land);
   if (card.isCreature) roles.add(CardRole.creature);
@@ -66,5 +115,24 @@ Set<CardRole> rolesOf(BuildableCard card) {
   if (_removal.hasMatch(text)) roles.add(CardRole.removal);
   if (_draw.hasMatch(text)) roles.add(CardRole.draw);
 
+  return roles;
+}
+
+/// **Le type suffit, et c'est une chance.** Là où Magic doit deviner un rôle
+/// dans le texte oracle — méthode grossière assumée —, Yu-Gi-Oh l'imprime :
+/// « Quick-Play Spell », « Continuous Trap ». Les trois familles principales
+/// sont exclusives, ce que le corpus confirme, et les deux sous-familles sont
+/// des raffinements que la mesure a trouvés assez réguliers pour être dosés.
+Set<CardRole> _yugiohRoles(BuildableCard card) {
+  final type = card.typeLine;
+  final roles = <CardRole>{};
+  // Une carte d'Extra Deck est un monstre, mais elle ne compte pas dans les
+  // quotas du deck principal : elle occupe une autre zone, et l'y compter
+  // fausserait la part des monstres de moitié.
+  if (type.contains('Monster') && !card.isExtraDeck) roles.add(CardRole.monster);
+  if (type.contains('Spell Card')) roles.add(CardRole.spell);
+  if (type.contains('Trap Card')) roles.add(CardRole.trap);
+  if (type.contains('Quick-Play Spell')) roles.add(CardRole.quickSpell);
+  if (type.contains('Continuous Trap')) roles.add(CardRole.continuousTrap);
   return roles;
 }

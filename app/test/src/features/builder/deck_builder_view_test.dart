@@ -37,6 +37,7 @@ BuildableCard card({
 Future<FakeBuildableRepository> pumpBuilder(
   WidgetTester tester, {
   required List<BuildableCard> cards,
+  DeckFormat format = DeckFormat.commander,
 }) async {
   final repository = FakeBuildableRepository()..cards = cards;
 
@@ -48,8 +49,8 @@ Future<FakeBuildableRepository> pumpBuilder(
           (ref) => Stream<Session?>.value(fakeSession()),
         ),
       ],
-      child: const MaterialApp(
-        home: Scaffold(body: DeckBuilderView(format: DeckFormat.commander)),
+      child: MaterialApp(
+        home: Scaffold(body: DeckBuilderView(format: format)),
       ),
     ),
   );
@@ -175,5 +176,64 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('2 généraux possibles'), findsOneWidget);
+  });
+
+  group('un format Yu-Gi-Oh', () {
+    List<BuildableCard> ygoCollection() => [
+      for (var i = 0; i < 50; i++)
+        BuildableCard(
+          game: 'yugioh',
+          oracleId: 'm$i',
+          name: 'Monstre $i',
+          typeLine: 'Effect Monster — Warrior Effect',
+          cmc: 4,
+          colorIdentity: const {'DARK'},
+          quantity: 3,
+        ),
+      for (var i = 0; i < 5; i++)
+        BuildableCard(
+          game: 'yugioh',
+          oracleId: 'f$i',
+          name: 'Fusion $i',
+          typeLine: 'Fusion Monster — Dragon Fusion',
+          cmc: 6,
+          colorIdentity: const {'LIGHT'},
+        ),
+    ];
+
+    testWidgets('montre l\'Extra Deck et ce qui lui manque', (tester) async {
+      await pumpBuilder(
+        tester,
+        cards: ygoCollection(),
+        format: DeckFormat.edison,
+      );
+
+      expect(find.textContaining('Extra Deck — 5 sur 15'), findsOneWidget);
+    });
+
+    testWidgets('ne parle pas de terrains, ce jeu n\'en a pas', (tester) async {
+      // Une rubrique vide se lirait comme un manque ; son absence dit qu'il n'y
+      // a rien à manquer.
+      await pumpBuilder(
+        tester,
+        cards: ygoCollection(),
+        format: DeckFormat.edison,
+      );
+
+      expect(find.text('Terrains de base'), findsNothing);
+      expect(find.textContaining('terrains spéciaux'), findsNothing);
+    });
+
+    testWidgets('affiche les rôles du jeu, pas ceux de Magic', (tester) async {
+      await pumpBuilder(
+        tester,
+        cards: ygoCollection(),
+        format: DeckFormat.edison,
+      );
+
+      expect(find.text('monstres'), findsOneWidget);
+      expect(find.text('pièges'), findsOneWidget);
+      expect(find.text('créatures'), findsNothing);
+    });
   });
 }

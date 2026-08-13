@@ -37,7 +37,22 @@ const _roleLabels = {
   CardRole.ramp: 'accélération',
   CardRole.removal: 'retrait',
   CardRole.land: 'terrains',
+  CardRole.monster: 'monstres',
+  CardRole.spell: 'magies',
+  CardRole.trap: 'pièges',
+  CardRole.quickSpell: 'magies rapides',
+  CardRole.continuousTrap: 'pièges continus',
 };
+
+/// Une liste de cartes en une ligne, exemplaires regroupés.
+String _grouped(List<BuildableCard> cards) {
+  final counts = <String, int>{};
+  for (final card in cards) {
+    counts[card.displayName] = (counts[card.displayName] ?? 0) + 1;
+  }
+  final names = counts.keys.toList()..sort();
+  return [for (final n in names) '${counts[n]} × $n'].join('   ·   ');
+}
 
 class DeckBuilderView extends ConsumerStatefulWidget {
   const DeckBuilderView({super.key, required this.format});
@@ -282,15 +297,34 @@ class _DeckView extends StatelessWidget {
             gap: deck.diagnosis.roleGaps[entry.key] ?? 0,
             tolerance: entry.value.spread,
           ),
-        const SizedBox(height: 20),
-        Text('Terrains de base', style: theme.textTheme.titleSmall),
-        const SizedBox(height: 6),
-        Text(
-          deck.basicLands.entries
-              .map((e) => '${e.value} × ${e.key}')
-              .join('   ·   '),
-          style: theme.textTheme.bodyMedium,
-        ),
+        // **Rien sur les terrains dans un jeu qui n'en a pas.** Une rubrique
+        // vide se lit comme un manque ; son absence dit qu'il n'y a rien à
+        // manquer.
+        if (blueprint.lands != null) ...[
+          const SizedBox(height: 20),
+          Text('Terrains de base', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 6),
+          Text(
+            deck.basicLands.entries
+                .map((e) => '${e.value} × ${e.key}')
+                .join('   ·   '),
+            style: theme.textTheme.bodyMedium,
+          ),
+        ],
+        if (blueprint.extraSize != null) ...[
+          const SizedBox(height: 20),
+          Text(
+            'Extra Deck — ${deck.extra.length} sur ${blueprint.extraSize}',
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            deck.extra.isEmpty
+                ? "Aucune carte d'Extra Deck dans votre collection."
+                : _grouped(deck.extra),
+            style: theme.textTheme.bodyMedium,
+          ),
+        ],
         const SizedBox(height: 20),
         Text(
           '${unique.length} cartes de votre collection',
@@ -300,7 +334,8 @@ class _DeckView extends StatelessWidget {
           blueprint.maxCopies == 1
               ? "Un seul exemplaire de chacune — le format l'exige. "
                     'Le coût de mana est indiqué à droite.'
-              : "Le nombre d'exemplaires précède le nom, le coût de mana suit.",
+              : "Le nombre d'exemplaires précède le nom, "
+                    'le ${blueprint.curveLabel} suit.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -342,8 +377,11 @@ class _Summary extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${deck.spells.length} sorts · ${deck.lands.length} terrains '
-            'spéciaux · ${deck.basicCount} terrains de base',
+            deck.lands.isEmpty && deck.basicCount == 0
+                ? '${deck.spells.length} cartes'
+                      '${deck.extra.isEmpty ? '' : ' · ${deck.extra.length} en Extra Deck'}'
+                : '${deck.spells.length} sorts · ${deck.lands.length} terrains '
+                      'spéciaux · ${deck.basicCount} terrains de base',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onPrimaryContainer,
             ),
