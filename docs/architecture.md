@@ -398,13 +398,31 @@ et la recherche de composantes parcourent chacun les mêmes 90 000 pixels quelle
 que soit la photo d'origine.
 
 Trente millisecondes pour 90 000 pixels font 330 ns par pixel, ce qui est
-beaucoup. **Une piste, non vérifiée à ce jour** : dans `card_bounds.dart`, le
-masque et la forme retenue sont des `List<bool>` — une liste d'objets, donc un
-déréférencement par accès — quand tous les autres tampons du même fichier
-(`seen`, `stack`, `members`) sont déjà des tableaux typés. `_largestComponent`
-alloue de surcroît une `List<bool>` de la taille de l'image à chaque fois qu'il
-trouve une composante plus grande. C'est le même genre de trajet que celui qui
-faisait coûter 12,4 ms à une empreinte qui en vaut 0,7.
+beaucoup.
+
+**Une piste suivie, et son rendement mesuré.** Le masque et la forme retenue
+étaient des `List<bool>` — un tableau de pointeurs vers les deux objets
+canoniques `true` et `false`, donc huit octets et un déréférencement par pixel —
+quand tous les autres tampons du même fichier étaient déjà typés. Passés en
+`Uint8List`, à comportement rigoureusement identique (coins inchangés au pixel
+près sur les trois photos de papier, parité Python intacte) :
+
+| | `findCard`, appareil | poste de travail, 720p |
+|---|---|---|
+| `List<bool>` | 27,2 ms | 9,8 ms |
+| **`Uint8List`** | **23,0 ms** | **9,2 ms** |
+
+**−15 % sur l'appareil**, mesuré en alternant les deux APK sur trois tours de
+deux tirages — les six mesures de référence tiennent dans 0,9 ms, ce qui valide
+le protocole. Le gain est réel mais **ne change pas le verdict** : le flux libre
+passe de 52,3 à 51,2 ms, toujours loin des 33 ms.
+
+Un effet secondaire est resté inexpliqué : dans les exécutions au masque typé,
+`computeArtHash` — que le changement ne touche pas — mesure 16,0 ms au lieu de
+13,1, de façon reproductible sur les trois tours. L'explication la plus
+plausible, non vérifiée, est que le banc s'auto-échauffe : une détection plus
+rapide lui fait traiter plus d'images par seconde. Le chemin réellement employé
+à caméra fixe, `artHashFromLuma`, ne bouge pas (0,98 ms dans les deux).
 
 **Deux goulots trouvés là où on ne les attendait pas.** La recherche linéaire
 coûtait 8,4 ms sur l'appareil — non à cause du parcours, mais parce qu'elle

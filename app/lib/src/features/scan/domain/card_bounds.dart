@@ -211,7 +211,7 @@ CardQuad? findCard(img.Image photo, {String game = 'magic'}) {
 
   var area = 0;
   for (final on in shape) {
-    if (on) area++;
+    if (on != 0) area++;
   }
   if (area < minCardArea * small.width * small.height) return null;
 
@@ -375,7 +375,7 @@ bool _hasCardAspect(double aspect, String game) {
 /// faut voir. `tool/probe_photo.dart` l'écrit en image, et l'erreur saute alors
 /// aux yeux — une ombre qui relie la carte au bord, un fond pris pour du carton.
 /// Rien dans l'application n'appelle cette fonction.
-({List<bool> mask, List<bool>? shape, double fill, int width, int height})
+({Uint8List mask, Uint8List? shape, double fill, int width, int height})
 debugDetection(img.Image image) {
   final (:small, scale: _) = _analysisImage(image);
 
@@ -388,7 +388,7 @@ debugDetection(img.Image image) {
     var area = 0;
     var minX = small.width, maxX = -1, minY = small.height, maxY = -1;
     for (var i = 0; i < shape.length; i++) {
-      if (!shape[i]) continue;
+      if (shape[i] == 0) continue;
       area++;
       final x = i % small.width;
       final y = i ~/ small.width;
@@ -474,7 +474,7 @@ debugDetection(img.Image image) {
 /// n'a sur cette portion aucun pourtour plus sombre que la table. C'est alors
 /// son cadre intérieur qui forme l'anneau, et le quadrilatère rendu est
 /// légèrement plus petit que la carte.
-List<bool> _cardMask(img.Image image) {
+Uint8List _cardMask(img.Image image) {
   final width = image.width;
   final height = image.height;
   final count = width * height;
@@ -516,10 +516,16 @@ List<bool> _cardMask(img.Image image) {
   final litMean = _boxMean(lit, width, height, radius);
   final litShare = _boxMean(share, width, height, radius);
 
-  final mask = List<bool>.filled(count, false, growable: false);
+  // **Un octet par pixel, non un booléen.** Une `List<bool>` de Dart est un
+  // tableau de pointeurs vers les deux objets canoniques `true` et `false` :
+  // huit octets par pixel, un déréférencement par accès, et de la pression sur
+  // le ramasse-miettes. Tous les autres tampons de ce module — `seen`, `stack`,
+  // `members` — sont typés depuis toujours ; le masque, qui est pourtant le plus
+  // parcouru, ne l'était pas. Voir [findCard] pour ce que cela coûtait.
+  final mask = Uint8List(count);
   for (var i = 0; i < count; i++) {
     final table = litShare[i] > 0 ? litMean[i] / litShare[i] : mean[i];
-    mask[i] = greys[i] < table * cardCeiling;
+    if (greys[i] < table * cardCeiling) mask[i] = 1;
   }
   return mask;
 }
@@ -570,13 +576,13 @@ Float32List _boxMean(Float32List source, int width, int height, int radius) {
 /// bouchage, il creuse la forme et la coupe en deux. Un trou se reconnaît à ce
 /// qu'il **ne touche pas le bord de l'image** ; on inonde donc le fond depuis
 /// les bords, et ce qui reste sec appartient à la carte qui l'entoure.
-void _fillHoles(List<bool> mask, int width, int height) {
+void _fillHoles(Uint8List mask, int width, int height) {
   final outside = Uint8List(width * height);
   final stack = Int32List(width * height);
   var top = 0;
 
   void push(int index) {
-    if (mask[index] || outside[index] != 0) return;
+    if (mask[index] != 0 || outside[index] != 0) return;
     outside[index] = 1;
     stack[top++] = index;
   }
@@ -601,7 +607,7 @@ void _fillHoles(List<bool> mask, int width, int height) {
   }
 
   for (var i = 0; i < mask.length; i++) {
-    if (outside[i] == 0) mask[i] = true;
+    if (outside[i] == 0) mask[i] = 1;
   }
 }
 
@@ -610,7 +616,7 @@ void _fillHoles(List<bool> mask, int width, int height) {
 /// Sur une photo d'une seule carte, c'est elle. Les autres composantes sont des
 /// ombres, des reflets, un bout de manche — toutes plus petites, et aucune ne
 /// peut fusionner avec la carte puisqu'il n'y a pas de voisine à toucher.
-List<bool>? _largestComponent(List<bool> mask, int width, int height) {
+Uint8List? _largestComponent(Uint8List mask, int width, int height) {
   final seen = Uint8List(width * height);
   final stack = Int32List(width * height);
   // **Un seul tampon, réutilisé.** Il était alloué à l'intérieur de la boucle,
@@ -626,11 +632,11 @@ List<bool>? _largestComponent(List<bool> mask, int width, int height) {
   // reste juste dans tous les cas : une allocation par composante ne sert à
   // rien, quel qu'en soit le prix.
   final members = Int32List(width * height);
-  List<bool>? best;
+  Uint8List? best;
   var bestSize = 0;
 
   for (var start = 0; start < mask.length; start++) {
-    if (!mask[start] || seen[start] != 0) continue;
+    if (mask[start] == 0 || seen[start] != 0) continue;
 
     var size = 0;
     var top = 0;
@@ -644,7 +650,7 @@ List<bool>? _largestComponent(List<bool> mask, int width, int height) {
       final y = index ~/ width;
 
       void visit(int next) {
-        if (mask[next] && seen[next] == 0) {
+        if (mask[next] != 0 && seen[next] == 0) {
           seen[next] = 1;
           stack[top++] = next;
         }
@@ -658,9 +664,9 @@ List<bool>? _largestComponent(List<bool> mask, int width, int height) {
 
     if (size > bestSize) {
       bestSize = size;
-      final shape = List<bool>.filled(mask.length, false);
+      final shape = Uint8List(mask.length);
       for (var i = 0; i < size; i++) {
-        shape[members[i]] = true;
+        shape[members[i]] = 1;
       }
       best = shape;
     }
@@ -676,13 +682,13 @@ List<bool>? _largestComponent(List<bool> mask, int width, int height) {
 /// le bas-gauche le minimise. C'est exact pour un rectangle quelle que soit sa
 /// rotation, et insensible au bruit du contour — un pixel isolé ne peut décaler
 /// un coin que de lui-même.
-CardQuad? _cornersOf(List<bool> shape, int width, int height) {
+CardQuad? _cornersOf(Uint8List shape, int width, int height) {
   var minSum = 1 << 30, maxSum = -(1 << 30);
   var minDiff = 1 << 30, maxDiff = -(1 << 30);
   Point? topLeft, bottomRight, topRight, bottomLeft;
 
   for (var index = 0; index < shape.length; index++) {
-    if (!shape[index]) continue;
+    if (shape[index] == 0) continue;
     final x = index % width;
     final y = index ~/ width;
     final sum = x + y;

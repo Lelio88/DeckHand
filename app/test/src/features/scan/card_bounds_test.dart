@@ -236,7 +236,7 @@ void main() {
 
     test('une table grenue ne devient jamais du carton', () {
       final vu = debugDetection(_tableGrenue());
-      final marques = vu.mask.where((on) => on).length;
+      final marques = vu.mask.where((on) => on != 0).length;
 
       // Zéro pixel à 0,84 ; 10 % à 0,88. Le seuil de 1 % laisse la place au
       // hasard du tirage sans laisser passer un cran de plus.
@@ -268,7 +268,7 @@ void main() {
 
     test('une table finement texturée ne devient pas du carton', () {
       final vu = debugDetection(_tableTexturee(1600, 2133));
-      final marques = vu.mask.where((on) => on).length;
+      final marques = vu.mask.where((on) => on != 0).length;
 
       // En moyennant, le grain s'éteint et rien n'est marqué. En interpolant,
       // **60,7 %** de cette figure passe pour du carton, et `findCard` n'y

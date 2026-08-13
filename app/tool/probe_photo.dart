@@ -61,12 +61,12 @@ void main(List<String> args) {
   final view = img.Image(width: seen.width, height: seen.height);
   var on = 0;
   for (var i = 0; i < seen.mask.length; i++) {
-    if (seen.mask[i]) on++;
+    if (seen.mask[i] != 0) on++;
     // Trois niveaux : la forme retenue en blanc, le reste du masque en gris,
     // le fond en noir. La différence entre les deux premiers est précisément
     // ce que la recherche de composante a décidé de garder.
-    final kept = seen.shape?[i] ?? false;
-    final v = kept ? 255 : (seen.mask[i] ? 110 : 0);
+    final kept = (seen.shape?[i] ?? 0) != 0;
+    final v = kept ? 255 : (seen.mask[i] != 0 ? 110 : 0);
     view.setPixelRgb(i % seen.width, i ~/ seen.width, v, v, v);
   }
   File('$out/masque.png').writeAsBytesSync(img.encodePng(view));
