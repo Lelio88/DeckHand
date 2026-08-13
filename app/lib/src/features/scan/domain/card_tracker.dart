@@ -23,11 +23,32 @@
 /// pas, et fausse ensuite toutes ses suggestions de decks. C'est cette
 /// asymétrie qui devra guider leur réglage.
 ///
-/// **Ces deux valeurs ne sont pas mesurées.** Elles attendent une séquence
-/// réelle — un booster passé devant l'objectif, journalisé image par image — et
-/// se régleront comme le seuil de l'étalement : en rejouant le journal hors
-/// ligne, jamais en reconstruisant l'application à chaque essai. Les valeurs
-/// par défaut ci-dessous sont un point de départ explicite, pas un résultat.
+/// **Ces deux valeurs sont mesurées** (`dart run tool/stream_bench.dart`, sur
+/// des séquences composées portant les quatre événements qui les arbitrent :
+/// carte posée, échangée sur place, montrée brièvement, retirée). Onze passages
+/// réels, douze réglages balayés :
+///
+/// | | `gap` 2 | `gap` 4 | `gap` 8 |
+/// |---|---|---|---|
+/// | `min` 2 | 11/11 | 11/11 | 10/11 |
+/// | `min` 3 | **11/11** | **11/11** | 10/11 |
+/// | `min` 5 | 7/11 | 7/11 | 7/11 |
+/// | `min` 8 | 7/11 | 7/11 | 7/11 |
+///
+/// **Aucune carte inventée, dans aucun réglage.** C'est le résultat qui compte :
+/// l'erreur chère — le même exemplaire compté deux fois — ne s'est produite
+/// nulle part, et le réglage n'arbitre donc qu'entre du calcul et des cartes
+/// manquées.
+///
+/// Un `min` de 5 manque les quatre passages brefs ; un `gap` de 8 dépasse la
+/// durée d'un retrait et refuse une carte qui revient. D'où **3 et 4**.
+///
+/// **Ce que la mesure ne peut pas dire.** Le rôle de [minFrames] est de rejeter
+/// une reconnaissance *accidentelle*, et des images composées n'en produisent
+/// aucune : le banc l'optimise donc sur la seule moitié qu'il sait voir. Le
+/// garde-fou contre une carte fausse n'est de toute façon pas ici — c'est la
+/// marge de confiance de l'index, chiffrée par `art_collisions`, puis la liste
+/// à cocher que l'utilisateur valide (§IV.8).
 ///
 /// Exemple :
 /// ```dart
@@ -41,19 +62,19 @@ library;
 
 /// Images consécutives portant le même identifiant avant de retenir une carte.
 ///
-/// **Provisoire, et à mesurer.** Trop bas, une reconnaissance accidentelle
-/// entre au panier ; trop haut, une carte montrée brièvement est manquée. À
-/// 30 images par seconde, 5 images valent un sixième de seconde — le temps de
-/// poser une carte et de la laisser.
-const int defaultMinFrames = 5;
+/// **Mesuré à 3.** Au-delà, les passages brefs sont manqués — quatre sur onze
+/// à 5 images. En deçà, rien ne se gagne sur la séquence du banc, et la marge
+/// contre une reconnaissance accidentelle se réduit sans contrepartie. À
+/// 30 images par seconde, 3 images valent un dixième de seconde.
+const int defaultMinFrames = 3;
 
 /// Images sans la carte avant d'accepter qu'elle revienne.
 ///
-/// **Provisoire, et à mesurer.** C'est le nombre qui décide si deux exemplaires
-/// identiques comptent pour deux. Le sous-estimer invente des cartes ; le
-/// surestimer en perd. La première erreur est la plus coûteuse — une carte
-/// inventée fausse durablement les suggestions —, donc ce seuil doit pencher
-/// vers la prudence.
+/// **Mesuré à 4**, et confirmé dans le bon sens : aucune carte n'a été inventée
+/// à ce réglage ni à aucun autre. C'est pourtant le nombre qui décide si deux
+/// exemplaires identiques comptent pour deux, et son erreur chère est de
+/// sous-estimer. Au-dessus, il dépasse la durée d'un retrait et refuse une carte
+/// qui revient : à 8 images, un passage sur onze est perdu.
 const int defaultGapFrames = 4;
 
 /// Suit ce que le flux montre, et n'annonce une carte qu'une fois.

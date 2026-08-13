@@ -73,6 +73,8 @@ import 'package:deckhand/src/features/scan/domain/art_hash.dart';
 import 'package:deckhand/src/features/scan/domain/art_hash_index.dart';
 import 'package:deckhand/src/features/scan/domain/camera_frame.dart';
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
+import 'package:deckhand/src/features/scan/domain/card_tracker.dart';
+import 'package:deckhand/src/features/scan/domain/live_scanner.dart';
 import 'package:deckhand/src/features/scan/domain/quad_tracker.dart';
 import 'package:image/image.dart' as img;
 
@@ -373,6 +375,90 @@ Future<void> main(List<String> args) async {
   for (final strategy in strategies) {
     _report(strategy.name, _run(strategy, sequence, index), reference, sequence);
   }
+
+  _reportTemporalThresholds(sequence, index);
+}
+
+/// Les deux seuils du suivi **temporel**, mesurés au lieu d'être choisis.
+///
+/// **C'est la mesure que `CardTracker` réclame depuis qu'il existe** : son
+/// commentaire dit que ses valeurs par défaut sont « un point de départ
+/// explicite, pas un résultat ». La séquence de ce banc porte exactement les
+/// événements qu'elles arbitrent — une carte posée, une carte échangée, un
+/// retrait — et permet donc de les régler ailleurs qu'à vue.
+///
+/// **Les deux erreurs ne coûtent pas le même prix**, et c'est ce qui doit
+/// guider la lecture. Une carte **manquée** se rattrape : l'utilisateur la
+/// repasse. Une carte **inventée** — le même exemplaire compté deux fois parce
+/// que l'écart exigé était trop court — entre en collection sans exister, et
+/// fausse ensuite toutes les suggestions de decks. Le tableau sépare donc les
+/// deux plutôt que d'en faire un score.
+void _reportTemporalThresholds(List<Frame> sequence, ArtHashIndex index) {
+  // La vérité de la séquence : les cartes réellement présentées, dans l'ordre,
+  // une entrée par passage devant l'objectif.
+  final expected = <String>[];
+  for (var i = 0; i < sequence.length; i++) {
+    final truth = sequence[i].truth;
+    if (truth == null) continue;
+    if (i > 0 && sequence[i - 1].truth == truth) continue;
+    expected.add(truth);
+  }
+
+  stdout.writeln('\nseuils du suivi temporel — ${expected.length} passages réels');
+  stdout.writeln(
+    '${'minFrames'.padLeft(10)}${'gapFrames'.padLeft(10)}'
+    '${'trouvées'.padLeft(10)}${'manquées'.padLeft(10)}'
+    '${'inventées'.padLeft(11)}${'fausses'.padLeft(9)}',
+  );
+
+  for (final minFrames in const [2, 3, 5, 8]) {
+    for (final gapFrames in const [2, 4, 8]) {
+      final scanner = LiveScanner(
+        index: index,
+        quads: QuadTracker(),
+        cards: CardTracker(minFrames: minFrames, gapFrames: gapFrames),
+      );
+      final accepted = <String>[];
+      for (final frame in sequence) {
+        final seen = scanner.observe(
+          frame.luma,
+          width: frame.width,
+          height: frame.height,
+          rowStride: frame.width,
+        );
+        if (seen.accepted != null) accepted.add(seen.accepted!);
+      }
+
+      // Comparaison par multiensemble : l'ordre importe moins que le compte,
+      // et c'est le compte qui entre en collection.
+      final wanted = <String, int>{};
+      for (final id in expected) {
+        wanted[id] = (wanted[id] ?? 0) + 1;
+      }
+      var found = 0;
+      var wrong = 0;
+      var extra = 0;
+      for (final id in accepted) {
+        final left = wanted[id] ?? 0;
+        if (left > 0) {
+          wanted[id] = left - 1;
+          found++;
+        } else if (expected.contains(id)) {
+          // La bonne carte, mais une fois de trop : un exemplaire inventé.
+          extra++;
+        } else {
+          wrong++;
+        }
+      }
+      final missed = expected.length - found;
+
+      stdout.writeln(
+        '${minFrames.toString().padLeft(10)}${gapFrames.toString().padLeft(10)}'
+        '${found.toString().padLeft(10)}${missed.toString().padLeft(10)}'
+        '${extra.toString().padLeft(11)}${wrong.toString().padLeft(9)}',
+      );
+    }
+  }
 }
 
 List<Step> _run(Strategy strategy, List<Frame> sequence, ArtHashIndex index) => [
@@ -462,6 +548,17 @@ List<Frame> _sequenceFor(
   // 4. Retrait : plus rien devant l'objectif.
   for (var n = 0; n < 6; n++) {
     add(null, null, regime, 'retrait', 300 + n);
+  }
+  // 5. **Passage bref**, puis retrait franc. C'est le seul moment qui départage
+  //    `minFrames` : partout ailleurs les phases durent douze images, et
+  //    n'importe quel seuil raisonnable est satisfait. Trois images valent un
+  //    dixième de seconde — moins qu'il n'en faut pour poser une carte, donc
+  //    manquer ce passage n'est pas forcément une faute.
+  for (var n = 0; n < 3; n++) {
+    add(card, id, regime, 'passage bref', 400 + n);
+  }
+  for (var n = 0; n < 6; n++) {
+    add(null, null, regime, 'retrait', 410 + n);
   }
   return frames;
 }
