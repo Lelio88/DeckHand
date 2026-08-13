@@ -33,6 +33,7 @@ import '../features/collection/data/collection_repository.dart';
 import '../features/collection/presentation/collection_screen.dart';
 import '../features/collection/presentation/history_sheet.dart';
 import '../features/decks/presentation/deck_suggestions_screen.dart';
+import '../features/scan/presentation/live_scan_screen.dart';
 import '../features/scan/presentation/scan_screen.dart';
 import '../features/scan/presentation/spread_scan_screen.dart';
 import '../features/voice/presentation/voice_input_screen.dart';
@@ -148,15 +149,15 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-/// Les trois façons d'ajouter des cartes autrement qu'au clavier.
+/// Les quatre façons d'ajouter des cartes autrement qu'au clavier.
 ///
 /// **Elles occupaient la ligne du champ de recherche**, qu'elles rétrécissaient
 /// d'un tiers. En haut, elles deviennent ce qu'elles sont : les entrées de
 /// l'onglet, à côté de la saisie au clavier qui reste dessous.
 ///
 /// L'ordre va du geste le plus large au plus fin — une photo d'étalement pour
-/// vider une boîte, la dictée pour saisir en vrac, la photo d'une carte pour
-/// lever un doute.
+/// vider une boîte, la dictée pour saisir en vrac, la caméra au fil de l'eau
+/// pour dépouiller un booster, la photo d'une carte pour lever un doute.
 class _CaptureButtons extends StatelessWidget {
   const _CaptureButtons();
 
@@ -187,13 +188,22 @@ class _CaptureButtons extends StatelessWidget {
           onPressed: () => _open(context, const VoiceInputScreen()),
         ),
         const SizedBox(width: 6),
-        // L'icône annonce ce que ce mode deviendra — la caméra qui reconnaît au
-        // fil des cartes (#8). Le comportement, lui, reste la photo unique tant
-        // que le temps réel n'est pas mesuré : promettre du direct avant de
-        // l'avoir éprouvé ferait passer une limite pour une panne.
+        // **Le viseur est devenu ce qu'il annonçait** : la caméra reconnaît au
+        // fil des cartes (#8), et le panier se confirme à la fin. Le coût d'une
+        // image est mesuré — 12,3 ms pour 33 disponibles — et les deux seuils
+        // du suivi temporel le sont aussi.
         IconButton.filledTonal(
-          tooltip: 'Viser une carte',
+          tooltip: 'Scanner au fil de la caméra',
           icon: const Icon(Icons.center_focus_strong_outlined),
+          onPressed: () => _open(context, const LiveScanScreen()),
+        ),
+        const SizedBox(width: 6),
+        // La photo unique reste, et elle a son emploi : elle ne demande pas de
+        // tenir un appareil au-dessus d'un tapis, et lit le nom par l'OCR là où
+        // le flux ne connaît que l'illustration.
+        IconButton.filledTonal(
+          tooltip: 'Photographier une carte',
+          icon: const Icon(Icons.crop_free),
           onPressed: () => _open(context, const ScanScreen()),
         ),
       ],
