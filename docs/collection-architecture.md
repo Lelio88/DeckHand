@@ -281,6 +281,83 @@ meilleur score sont désormais retenues, et la possession tranche.
 
 ---
 
+## L'overlay OBS — ce que le direct montre (#14)
+
+DeckHand ne touche jamais la vidéo. OBS filme ; DeckHand publie ce qu'il a vu ;
+une *browser source* le lit à l'adresse `?o=<adresse-de-partage>`. C'est la même
+porte publique que le classeur, avec une autre page derrière.
+
+### La source de l'événement est le journal, pas le flux
+
+L'issue faisait dépendre l'overlay du mode temps réel (#8). **Ce n'était pas
+nécessaire** : le journal des mouvements existe déjà, et une carte qui entre en
+collection est exactement une carte reconnue puis confirmée. Le garde-fou §IV.8
+s'en trouve respecté sans effort — rien n'est publié en direct que l'utilisateur
+n'ait validé.
+
+### Le piège : un journal contourne les choix de partage
+
+`shared_sets` permet de ne publier que certaines extensions. Un journal lu sans
+ce filtre montrerait en direct des cartes que le classeur public, lui, cache — et
+personne ne s'en apercevrait, les deux écrans étant distincts.
+
+Le filtre vit donc dans `public_recent_additions`, en base, et non dans la page.
+Vérifié dans les quatre sens, sur la collection réelle, dans une transaction
+annulée :
+
+| Cas | Attendu | Mesuré |
+|---|---|---|
+| Collection non publiée | rien | 0 ligne |
+| Adresse inconnue | rien | 0 ligne |
+| Publiée, portée complète | tout | 50 lignes |
+| Publiée, deux extensions sur cinq | ces deux-là | 50 → 17, aucune hors portée |
+| Carte sans édition, portée restreinte | disparaît | 1 → 0 |
+
+Le dernier cas n'existait pas dans les données : un mouvement sans impression a
+été créé dans la transaction annulée, sans quoi le test aurait été vide — et un
+test vide se lit comme un test réussi.
+
+### Une interrogation périodique plutôt que Realtime
+
+L'issue supposait `postgres_changes`. Deux raisons de ne pas le prendre, et la
+seconde vient de l'issue elle-même.
+
+- **La portée.** Diffuser les lignes brutes du journal demanderait d'ouvrir
+  `collection_movements` à `anon`, donc de réécrire la règle `shared_sets` dans
+  une politique — un second endroit où l'oublier.
+- **La robustesse.** L'overlay doit « résister à la coupure réseau sans afficher
+  d'erreur en plein direct ». Une interrogation qui échoue est **sans effet** :
+  la carte affichée reste. Une connexion persistante coupée demande une
+  reconnexion, donc du code qui peut échouer au pire moment.
+
+Cadence : une seconde et demie. Un direct de deux heures fait cinq mille
+requêtes, le prix d'une page qui se recharge, étalé.
+
+### Trois pièges, trois tests
+
+- **Rien au démarrage.** La dernière carte du journal peut dater de la veille ;
+  l'afficher au lancement d'OBS ferait croire qu'on vient de l'ouvrir. La
+  première réponse ne fait qu'établir la référence.
+- **L'identifiant de mouvement, pas le nom.** Deux exemplaires successifs de la
+  même carte sont deux événements — et le second est le plus intéressant,
+  puisqu'il fait le doublon. Une comparaison par nom l'avalerait.
+- **L'effacement a besoin de son propre réveil.** Une première version comparait
+  l'heure courante dans `build` ; rien ne provoquant de reconstruction à
+  l'échéance, la carte serait restée jusqu'à l'arrivée de la suivante,
+  c'est-à-dire indéfiniment sur un direct qui s'arrête. Le test l'a montré avant
+  l'antenne.
+
+### Ce qui a de la valeur pour un spectateur
+
+La carte comble-t-elle une case vide, ou est-ce un doublon ? `copies_before` est
+la somme des mouvements antérieurs sur la même impression — le journal la porte
+déjà. C'est l'information que l'issue réclamait, et elle ne coûte rien.
+
+L'attribution Scryfall est **sur le calque**, garde-fou §IV.2 : un overlay est vu
+par plus d'inconnus qu'un écran « à propos ».
+
+---
+
 ## 5. Impasses mesurées
 
 À lire avant d'y revenir.

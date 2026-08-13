@@ -19,6 +19,7 @@ import '../../../config/request_timeout.dart';
 import '../../../config/selected_game.dart';
 
 import '../../auth/data/auth_repository.dart';
+import '../../binders/domain/recent_addition.dart';
 import '../domain/collection_entry.dart';
 import '../domain/collection_movement.dart';
 
@@ -195,6 +196,30 @@ class CollectionRepository {
         .rpc<String?>('collection_by_handle', params: {'p_handle': handle})
         .timedOut();
     return value;
+  }
+
+  /// Les dernières cartes entrées dans une collection publiée.
+  ///
+  /// **Sans compte, et sans rien révéler de plus que le classeur public.** La
+  /// fonction appelée refuse une collection non publiée et applique les mêmes
+  /// choix de partage par extension : un journal qui les ignorerait montrerait
+  /// en direct ce que le classeur cache, et personne ne le verrait puisque les
+  /// deux écrans sont distincts. La règle vit donc en base, vérifiée dans les
+  /// deux sens.
+  Future<List<RecentAddition>> recentAdditions(
+    String handle, {
+    int limit = 1,
+  }) async {
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'public_recent_additions',
+          params: {'p_handle': handle, 'p_limit': limit},
+        )
+        .timedOut();
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(RecentAddition.fromJson)
+        .toList(growable: false);
   }
 
   /// Le journal des mouvements, du plus récent au plus ancien.

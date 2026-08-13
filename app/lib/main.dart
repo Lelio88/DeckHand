@@ -12,6 +12,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'src/app/home_shell.dart';
 import 'src/config/supabase_config.dart';
 import 'src/features/auth/data/auth_repository.dart';
+import 'src/features/binders/presentation/overlay_screen.dart';
 import 'src/features/binders/presentation/public_binder_screen.dart';
 import 'src/features/auth/presentation/sign_in_screen.dart';
 import 'src/features/scan/presentation/frame_bench_screen.dart';
@@ -88,6 +89,13 @@ class _AuthGate extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // **Le calque avant le classeur.** Une adresse `?o=` ouvre l'overlay OBS,
+    // qui est une autre page et pas une variante de celui-ci : fond
+    // transparent, aucune navigation. Les deux se résolvent sans compte, par la
+    // même porte publique.
+    final overlay = overlayFromUrl(Uri.base);
+    if (overlay != null) return OverlayScreen(handle: overlay);
+
     final shared = collectionFromUrl(Uri.base);
     if (shared != null) return PublicBinderScreen(handle: shared);
     if (publicOnly) return const _SharedOnly();
