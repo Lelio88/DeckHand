@@ -5,6 +5,10 @@ aujourd'hui la base de DeckHand : **Magic**, **Riftbound** (le TCG League of
 Legends de Riot) et **Yu-Gi-Oh**. Ce document dit ce que chacun a demandé, et ce
 que le modèle a absorbé sans se déformer.
 
+Un quatrième, **Pokémon**, a été *mesuré* sans être ingéré : la
+[§ 8](#8-pokémon--ce-que-la-mesure-a-rendu-avant-toute-ingestion) dit ce qu'il
+coûterait, et rien de lui n'est en base.
+
 ---
 
 ## 0. Yu-Gi-Oh — 13 866 cartes, et presque rien à inventer
@@ -41,9 +45,11 @@ reproduit l'illustration détourée que la même source publie :
   latérales. Mesuré sur 18 cartes des six sous-familles, stable à 0,001 près.
 
 **Le choix entre les deux ne se devine pas** : `frameType` porte « pendulum »
-pour ces cartes et pour elles seules. C'est ce qui sépare ce jeu de Pokémon
-(#28), dont le seul discriminant disponible est la rareté — quarante valeurs qui
-ont changé plusieurs fois en vingt-sept ans.
+pour ces cartes et pour elles seules. Pokémon a longtemps paru dépourvu d'un tel
+contrat — la rareté, quarante valeurs remaniées en vingt-sept ans, semblait le
+seul recours. La mesure de #28 a démenti cette crainte : ce jeu offre **cinq**
+champs à vocabulaire fermé qui font le travail, voir
+[§ 8](#8-pokémon--ce-que-la-mesure-a-rendu-avant-toute-ingestion).
 
 **La première mesure a échoué, et son échec instruit.** Elle cherchait un carré,
 parce que l'illustration détourée des cartes ordinaires en est un (624 × 624).
@@ -812,3 +818,250 @@ Aucun écart : les deux calculs concordent sur tous les decks.
 Et par le chemin réel de l'application, sous le rôle `authenticated` :
 `deck_suggestions(p_format='constructed', p_game='riftbound')` rend des decks
 avec leur Légende, leurs cartes manquantes et leur coût en euros.
+
+---
+
+## 8. Pokémon — ce que la mesure a rendu, avant toute ingestion
+
+**Rien de Pokémon n'est en base, et ce n'était pas le but.** #28 est un chantier
+de mesure : son résultat devait dire si un quatrième jeu est tenable, et à quel
+prix. Tout ce qui suit est relevé sur les données par trois bancs —
+`api/app/measure/pokemon_taxonomy`, `pokemon_art_window`,
+`pokemon_energy_collisions` — et non repris d'une documentation.
+
+**La crainte de départ portait sur le bon endroit, et la réponse est l'inverse
+de celle qu'on attendait.** L'issue redoutait un jeu dont l'illustration « n'a
+pas une position, elle en a au moins quatre », et dont le seul discriminant
+serait la rareté — quarante valeurs remaniées en vingt-sept ans. Les positions
+sont bien multiples. Le discriminant, lui, n'est pas la rareté : la source
+publie **cinq champs à vocabulaire fermé** qui font le travail, et la rareté est
+précisément celui qu'il ne faut pas prendre.
+
+### La source, et sous quelles conditions
+
+TCGdex — licence MIT, sans clé, **23 444 cartes en 218 sets et 21 séries**, plus
+de dix langues. Ses conditions ne sont pas publiées : le garde-fou §IV.9
+s'applique et lui donne celles de Scryfall, comme à Riftcodex — `User-Agent`
+descriptif, débit bas, attribution visible, aucune illustration réhébergée.
+
+Une nuance de plus, propre à ce jeu, mérite d'être écrite **avant** d'investir :
+les deux CDN d'images sont eux-mêmes des tiers non affiliés, et **aucune source
+Pokémon n'a de bénédiction éditeur** comparable à la *Fan Content Policy* qui
+légitime Scryfall. Les CGU de pokemon.com interdisent de « download quantities
+of content to a database » — clause qui gouverne les services de l'éditeur, non
+les API tierces, mais qui retire toute marge d'interprétation confortable.
+
+### Ce que la source ne publie pas ferme la méthode la moins chère
+
+TCGdex ne sert que **la carte entière** : `image` est une URL de base à laquelle
+on accole la qualité (`/high.webp`), et il n'existe aucune illustration
+détourée. La méthode qui a rendu Yu-Gi-Oh à 0,001 près — chercher, dans la carte
+entière, la région qui reproduit l'illustration publiée à part — est donc fermée
+d'emblée.
+
+En contrepartie, toutes les images sortent en **600 × 825**, d'une carte de 1999
+comme d'une de 2024. C'est ce qui permet de les empiler sans redimensionner,
+donc sans introduire le flou d'un rééchantillonnage là où on cherche des arêtes.
+
+### Trois signaux essayés, un seul qui tranche
+
+| Signal | Ce qu'il donne | Verdict |
+|---|---|---|
+| Écart-type entre cartes | 50 à 65 niveaux sur **toute** la carte | inutilisable |
+| Luminosité de l'image moyenne | illustration 137, pavé de texte 165 | insuffisant seul |
+| **Gradient de l'image moyenne** | fond à 5, traits de fenêtre à **63** | tranche |
+
+L'écart-type est l'impasse propre à ce jeu, et elle n'était pas prévisible :
+**la couleur du cadre Pokémon suit le type du Pokémon**, si bien que le cadre
+varie autant que l'illustration. C'est pourtant le signal qui aurait dû marcher,
+et une variante de celui qui a servi à Riftbound.
+
+Ce qui reste tient en une phrase : *ce qui survit à la moyenne, c'est ce qui ne
+bouge pas — donc les traits du cadre.* Empiler quarante cartes alignées éteint
+les illustrations en un gris terne dont le gradient tombe à 5, tandis que les
+traits imprimés au même endroit sur chaque carte y montent à 63. La fenêtre est
+la plage calme ; ses bords sont les traits qui l'arrêtent. La luminosité sert
+alors de **contrôle croisé** : l'illustration doit ressortir plus sombre que le
+pavé de texte qui la suit, et le banc le vérifie au lieu d'y croire.
+
+**Une quatrième piste a été suivie puis retirée**, et elle mérite d'être écrite
+pour ne pas la refaire : délimiter d'abord la « zone imprimée » par l'écart-type,
+en croyant qu'un bord de carte ne varie jamais. L'écart-type tombe bien à zéro
+dans les vingt premières colonnes des cartes ordinaires — mais parce que leur
+**bordure jaune est identique partout**, non parce qu'on serait hors du carton.
+Les cartes *ex*, à bordure argentée variable, y affichent 40. La même mesure
+rendait 24..575 pour les unes et 0..599 pour les autres, sur des images pourtant
+cadrées de la même façon.
+
+### Le discriminant n'était pas la rareté — il y en a cinq
+
+| Question | Champ | Vocabulaire | Ce qu'il rend |
+|---|---|---|---|
+| Cette carte existe-t-elle sur carton ? | `serie` | 21 séries | `tcgp` = **2 480 cartes en 15 sets**, à écarter |
+| Encadrée, ou pleine page ? | `localId` vs `set.cardCount.official` | des nombres | 17 365 encadrées, 1 937 pleine page |
+| Quelle mise en page de cadre ? | `category` | 3 valeurs | Pokémon, Dresseur, Énergie |
+| Fenêtre haute (`ex`, `V`, `VMAX`…) ? | `suffix` ou `stage` | 8 + 7 valeurs | **1 882 cartes**, soit 10,8 % des encadrées |
+| A-t-elle seulement une illustration ? | `energyType` | 2 valeurs | 336 énergies de base, qui n'en ont pas |
+
+Deux de ces champs contredisent le relevé d'ouverture, et c'est le gain
+principal du chantier :
+
+- **La famille à fenêtre haute a bien un discriminant structuré.** Le relevé la
+  disait sans. Le partage entre `suffix` et `stage` ne suit aucune logique
+  apparente — `ex`, `V` et `GX` sont des suffixes ; `VMAX`, `VSTAR` et `MEGA`
+  sont des *stages* — mais les deux vocabulaires sont **publiés et fermés**, ce
+  qu'une liste de raretés qui s'allonge à chaque extension n'est pas. Lire un
+  seul des deux champs manquerait 274 cartes.
+- **`category` est un axe, et il manquait.** Mesuré dans la même série : la
+  fenêtre d'un Pokémon s'arrête à la ligne 390, celle d'un Dresseur à la ligne
+  430 — quarante pixels, 5 % de la hauteur.
+
+**Ce que la rareté ne saurait pas faire**, chiffré plutôt qu'affirmé :
+
+- pour la famille à fenêtre haute — 3 valeurs de rareté la désignent purement,
+  **7 sont mélangées**, et **1 783 cartes** ne pourraient pas être isolées ;
+- pour le périmètre — 10 valeurs ne servent que sur écran, 16 que sur carton, et
+  **une sert des deux côtés** (`None` : 430 cartes de carton, 62 d'écran). La
+  série, elle, est une propriété du set : elle coupe sans reste.
+
+**L'ordre des règles compte, et il n'est pas indifférent.** 684 cartes pleine
+page — 35,3 % d'entre elles — portent aussi un `suffix` ou un `stage`. Lire la
+marque avant le numéro les rangerait parmi les encadrées, où elles n'ont pas de
+cadre. Le numéro tranche d'abord, la marque ensuite.
+
+### Les fenêtres mesurées
+
+Sur la série Écarlate-Violet, 40 cartes par groupe et 40 autres en contrôle :
+
+| Famille | gauche | haut | droite | bas | dérive du contrôle |
+|---|---|---|---|---|---|
+| Pokémon encadré | 0,0850 | 0,1055 | 0,9200 | 0,4727 | **2 px** |
+| Dresseur | 0,0850 | 0,1455 | 0,9200 | 0,5164 | **0 px** |
+
+Les arêtes sont bordées de traits qui dépassent le calme intérieur de 3 à 33
+fois, et la luminance est dans l'ordre attendu (137 contre 165 pour le Pokémon,
+142 contre 198 pour le Dresseur). Le contrôle sur tirage disjoint est ce qui a
+démasqué `category` : tant que Pokémon et Dresseurs étaient mêlés, l'arête haute
+dérivait de **32 px** d'un tirage à l'autre, et cette dérive était le seul
+symptôme.
+
+### Une seule fenêtre pour vingt ans
+
+Le cadre Pokémon a changé plusieurs fois. La fenêtre, presque pas :
+
+| Série | année | gauche | haut | droite | bas | dérive |
+|---|---|---|---|---|---|---|
+| `ex` | 2003 | 0,0750 | 0,0958 | 0,9250 | 0,4655 | 2 px |
+| `dp` | 2007 | 0,0733 | 0,1091 | 0,9283 | 0,5006 | 12 px |
+| `xy` | 2014 | 0,0883 | 0,1152 | 0,9117 | 0,4933 | 1 px |
+| `swsh` | 2020 | 0,0850 | 0,1200 | 0,9183 | 0,4727 | 0 px |
+| `sv` | 2023 | 0,0850 | 0,1055 | 0,9200 | 0,4727 | 2 px |
+
+**Et la question « un gabarit ou cinq » se tranche en bits, pas en pixels.**
+Chaque époque a été éprouvée sous la fenêtre des quatre autres : la distance
+moyenne entre empreintes reste entre 31,1 et 32,3 bits, et la paire la plus
+serrée entre 16 et 21 — le gabarit d'origine n'est jamais meilleur de façon
+significative, et il lui arrive d'être battu par un étranger (`ex` sous la
+fenêtre de `sv` : 18 bits de marge, contre 16 sous la sienne). **Les quatre
+gabarits sont interchangeables.**
+
+`base` (1999) est le seul à résister : dérive de 66 px entre deux tirages, arête
+gauche introuvable. La série y est un regroupement commercial et non une mise en
+page — c'est la limite du découpage retenu, pas celle de la méthode.
+
+### La famille à fenêtre haute se fond dans la standard
+
+Son cadre est pourtant visiblement différent : l'illustration va **bord à bord**,
+sans trait latéral — le relief de ses arêtes gauche et droite vaut 0,0, ce qui
+est la façon dont le banc dit « il n'y a rien à trouver ici ».
+
+Cela ne justifie pas un second gabarit, et c'est la mesure qui le dit :
+
+| Cartes | sous la fenêtre standard | sous la leur |
+|---|---|---|
+| Fenêtre haute | 32,1 bits, paire la plus serrée **20** | 32,1 bits, paire **19** |
+| Standard | 32,0 bits, paire **17** | 29,3 bits, paire **15** |
+
+La fenêtre standard tient entièrement dans l'illustration des cartes à fenêtre
+haute : elle y capte donc de l'illustration pure, et fait aussi bien que la
+leur. L'inverse est faux — la fenêtre large embarque du cadre sur une carte
+standard et lui coûte deux bits de marge. **Un seul gabarit, le plus étroit.**
+
+Le Dresseur, lui, garde le sien : sous la fenêtre standard il perd 1,8 bit de
+moyenne et 3 bits sur la paire la plus serrée.
+
+### La famille « pleine page » n'est pas une famille
+
+Découpée par rareté, elle se disloque :
+
+- `Shiny rare` rend (0,0850 · 0,1164 · 0,9183 · 0,4715) avec **0 px de dérive**
+  et un relief de 44,8 — c'est le cadre standard, à un pixel près ;
+- `Special illustration rare` rend un relief de 3,3 / 1,1 / **0,0** / 1,9 :
+  aucune arête, dans aucune direction. L'illustration *est* la carte, et c'est
+  la bonne réponse ;
+- `Ultra Rare` et `Secret Rare` donnent des fenêtres stables mais distinctes
+  d'une série à l'autre.
+
+Autrement dit, « au-dessus du décompte officiel » désigne un **statut
+d'impression**, pas une mise en page. C'est ici, et ici seulement, que la rareté
+redevient le bon champ — parce que ces traitements *sont* des raretés.
+
+### Les énergies de base : le chiffre qui justifie de les exclure
+
+L'issue posait que ces cartes « produisent des collisions massives ». C'était
+juste, et ce n'était pas chiffré. Sur les **175** énergies de base dont la source
+publie une image (161 des 336 n'en ont pas), hachées entières faute de fenêtre :
+
+| Mesure | Résultat |
+|---|---|
+| Empreintes distinctes | 161 pour 175 cartes |
+| Cartes dont l'empreinte est portée par une autre | 26 (**14,9 %**) |
+| Une *autre* énergie sous le seuil de confiance | 170 (**97,1 %**) |
+| **Annoncées à tort et avec assurance** | 21 (**12,0 %**) |
+| Paire la plus serrée | **0 bit** |
+
+Le pipeline est mesuré à zéro fausse carte annoncée avec assurance
+([`architecture.md`](./architecture.md)). Les accueillir casserait ce résultat
+sur 12 % d'entre elles. **Elles sont donc exclues de l'index, et il faut le dire
+à l'utilisateur** plutôt que de laisser la reconnaissance en rendre une au
+hasard : une énergie de base ne se scanne pas, elle se saisit.
+
+Ce qu'elles coûteraient aux autres est en revanche modeste : sur 147 cartes
+ordinaires, **aucune** n'a d'énergie sous le seuil, et 6 seulement en ont une
+assez proche pour leur manger leur marge. La plus proche est à 13 bits.
+
+**`category` ne suffit pas à les désigner** : il compte 533 cartes, dont 196
+énergies **spéciales** qui, elles, ont une illustration. Les exclure sur ce champ
+retirerait 196 cartes illustrées de l'index sans raison. `energyType == Normal`
+coupe exactement.
+
+### Deux limites relevées, non résolues
+
+- **La règle du numéro ne s'applique qu'à 92,1 % du catalogue.** 1 662 cartes y
+  échappent : 1 602 portent un `localId` non numérique — 1 533 de forme `H01`,
+  32 de forme `50b` —, 60 appartiennent à un set sans décompte officiel. Seules
+  26 se récupèrent en retirant une lettre finale. Ce huitième-là n'a pas de
+  gabarit, et rien ne dit encore ce qu'il faudrait en faire.
+- **Une réédition n'est pas une confusion.** La paire la plus serrée du groupe
+  Dresseur est à **0 bit** : `sv08.5-121` et `sv04-171` sont la même carte,
+  *Professor Turo's Scenario*, rééditée avec la même illustration et le même
+  illustrateur. Ce n'est pas un défaut de l'index mais une question d'identité —
+  celle que #29 a coûté cher à Riftbound. Pokémon la pose plus simplement : nom
+  et effet sont identiques, là où Riftbound réécrivait ses champs d'affichage
+  d'une extension à l'autre.
+
+### Ce qu'il resterait à faire, si un quatrième jeu se décidait
+
+Le chantier de mesure est clos ; l'ingestion ne l'est pas et n'a pas été
+commencée. Resteraient :
+
+- le **catalogue, les prix et les decks** — accessibles et documentés. TCGdex
+  publie d'ailleurs les cotes Cardmarket en euros et TCGplayer en dollars, ce
+  qui éviterait peut-être le détour par TCGCSV et la conversion BCE : à mesurer,
+  la leçon Yu-Gi-Oh étant qu'un prix servi par un catalogue peut n'être qu'un
+  plancher ;
+- une **carte de papier** — aucune n'a été photographiée, et c'est le carton qui
+  a livré les deux derniers défauts de Riftbound ;
+- le gabarit de deck (`DeckBlueprint`), qui se mesure sur un corpus et ne se
+  déclare pas d'avance ;
+- le sort des cartes que la règle du numéro ne sait pas lire.
