@@ -1,40 +1,41 @@
-"""Catalogue Wankul — normalisation et écriture. **La lecture n'est pas branchée.**
+"""Catalogue Wankul, depuis le Wankuldex.
 
-Ce module porte tout ce qui ne dépend pas de la source : la forme normalisée
-d'une carte, son identité dérivée, l'écriture idempotente en base, et le débit
-auquel la source sera interrogée. Ce qu'il ne porte pas encore, c'est la lecture
-elle-même — voir [`fetch_all`] et le pourquoi.
+**Source autorisée nominativement** par LINK DIGITAL SPIRIT, éditeur du jeu : ses
+conditions (article 4) interdisent sinon toute collecte automatisée, et le
+garde-fou §IV.1 du `CLAUDE.md` en fait un motif d'exclusion — c'est ce qui a
+écarté EDHREC. Wankul y échappe par cette autorisation, et par elle seule.
 
-**Pourquoi écrire la moitié d'un connecteur.** Les quatre jeux précédents l'ont
-montré : ce qui coûte n'est jamais le transport, c'est ce qu'on range dans les
-colonnes. Yu-Gi-Oh a payé un prix pris pour une cote, Pokémon un nom pris pour
-une identité, Riftbound un champ d'affichage pris pour une clé. Cette partie-là
-se décide sans la source, et elle se teste sans réseau.
+**Ce que l'autorisation ne couvre pas : les illustrations.** Leur accès direct
+rend un `403 Hotlinking not allowed` explicite, qui n'est pas une panne mais une
+politique. Elles ne sont donc ni téléchargées ni référencées ici ; lever ce
+blocage demande un geste de l'éditeur.
 
-**L'identité est le numéro d'impression, jamais le nom.** Une carte Wankul porte
-un numéro dans son extension, et la leçon Pokémon vaut ici : 92 % du catalogue y
-partageait son nom, et dériver l'identité du nom aurait fusionné 112 Pikachu.
-Rien ne dit que Wankul soit différent — deux effigies d'un même personnage
-(Laink et Terracid) portent des noms proches, et le dump tiers observé montrait
-déjà `mort_vivant_laink` et `mort_vivant_terracid` comme deux cartes.
+**L'identité vient de l'identifiant de la source, pas du numéro.** Le couple
+extension-numéro paraissait suffire et fusionnait 15 cartes sur 958 : « Hors
+Série » agrège des sous-collections — PGW 2023 et 2024, Starter Packs, Booster
+Gold, Gala TCG — dont chacune recommence sa numérotation, si bien que
+`hors-serie:1` désigne quatre cartes. Le défaut a été pris à la première course,
+avant qu'une collection ne pointe sur ces clés.
 
 **Ce que ce jeu ne remplit pas, et volontairement.** `cmc`, `mana_cost` et
 `color_identity` restent vides : Wankul n'a ni coût d'invocation ni couleur, et
 y ranger un analogue de forme referait l'erreur mesurée sur Yu-Gi-Oh, où
 l'Attribut logé dans `color_identity` aurait écarté 32 % du catalogue sur une
-règle qui n'existe pas. `price_eur` restera nul lui aussi : ce jeu se vend en
+règle qui n'existe pas. `price_eur` reste nul lui aussi : ce jeu se vend en
 direct par son éditeur et n'a aucun marché secondaire coté.
 
-Usage (une fois la lecture branchée) :
+Usage :
     cd api && .venv/Scripts/python -m app.ingestion.wankul_ingest
 """
 
 from __future__ import annotations
 
+import time
 import uuid
 from dataclasses import dataclass
 from typing import Any, Iterable, Iterator
 
+import httpx
 import psycopg
 
 from app.config import SupabaseConfig
@@ -126,6 +127,20 @@ class WankulCard:
     Les tests écrivent des `WankulCard` à la main, sans réseau.
     """
 
+    #: Identifiant de la carte chez la source.
+    #:
+    #: **C'est lui qui fait l'identité, et le numéro n'y suffisait pas.**
+    #: Mesuré : le couple extension-numéro fusionnait 15 cartes sur 958. Dans
+    #: « Hors Série », qui agrège des sous-collections — PGW 2023, PGW 2024,
+    #: Starter Packs, Booster Gold, Gala TCG —, chacune recommence sa
+    #: numérotation : `hors-serie:1` désigne quatre cartes différentes, dont
+    #: « CHIEN - PGW 2024 » et « PIRATE - PGW 2023 ».
+    #:
+    #: Ajouter la rareté à la clé les séparerait, mais ferait dépendre l'identité
+    #: de trois champs d'affichage — ce que #29 a coûté sur Riftbound. Un
+    #: identifiant technique n'est pas un champ d'affichage : c'est le choix
+    #: déjà retenu pour Pokémon, dont l'identité est celle de TCGdex.
+    source_id: int
     number: str
     name: str
     set_code: str
@@ -147,8 +162,8 @@ class WankulCard:
 
     @property
     def oracle_id(self) -> uuid.UUID:
-        """Identité dérivée de l'extension et du numéro, jamais du nom."""
-        return uuid.uuid5(NAMESPACE, f"{self.set_code}:{self.number}")
+        """Identité dérivée de l'identifiant de la source, jamais du nom."""
+        return uuid.uuid5(NAMESPACE, f"card:{self.source_id}")
 
 
 def write_cards(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
@@ -194,33 +209,113 @@ def write_cards(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
     return written
 
 
-def fetch_all() -> list[WankulCard]:
-    """Lit le catalogue à la source. **Pas encore branchée, et à dessein.**
-
-    Trois choses manquent, et aucune n'est du code :
-
-    1. **La trace écrite de l'autorisation.** La table de maintenance du
-       `CLAUDE.md` impose de documenter les conditions de chaque source, et le
-       garde-fou §IV.1 interdit nommément une source dont les conditions
-       prohibent l'extraction. Wankul y échappe par une autorisation nominative
-       de LINK DIGITAL SPIRIT : sans le message qui l'établit, le dépôt porterait
-       un connecteur que sa propre doctrine interdit, et rien ne permettrait à un
-       futur lecteur de faire la différence.
-    2. **Le périmètre.** Données factuelles seules, ou illustrations comprises ?
-       Le second décide si la reconnaissance photo est possible ; le reste de
-       l'application tient sans.
-    3. **Le débit accordé.** [`PAUSE_SECONDS`] tient lieu de valeur prudente en
-       l'absence de chiffre.
-
-    Lever plutôt que rendre une liste vide : une liste vide se propagerait
-    jusqu'à une course qui n'écrirait rien, et le journal dirait « 0 carte » —
-    ce qui se lit comme une source tarie, pas comme un connecteur inachevé.
-    """
-    raise NotImplementedError(
-        "La lecture de la source n'est pas branchée : il manque la trace écrite "
-        "de l'autorisation, le périmètre accordé et le débit. Voir la docstring "
-        "et docs/architecture.md §3."
+def card_from(payload: dict) -> WankulCard:
+    """Une carte de la source, ramenée à la forme que la base attend."""
+    effigy = (payload.get("effigy") or {}).get("name")
+    rarity = (payload.get("rarity") or {}).get("name")
+    orientation = orientation_of(payload)
+    return WankulCard(
+        source_id=int(payload["id"]),
+        number=str(payload.get("number") or payload["id"]),
+        name=payload.get("name") or "",
+        set_code=(payload.get("set") or {}).get("slug") or "?",
+        # **Le type se déduit du rendu, faute d'un champ qui le porte.** La
+        # source n'en publie aucun : « Terrain » y est à la fois une rareté et
+        # une effigie, et ni l'une ni l'autre ne suffit — la carte « Ouverture
+        # de Colis » est un Terrain (T#201) de rareté « Edition Gold ». Le rendu
+        # paysage, lui, ne suit que la maquette, et la maquette suit le type.
+        type_line="Terrain" if orientation == "horizontal" else "Personnage",
+        rarity=rarity,
+        orientation=orientation,
+        effigy=effigy,
     )
+
+
+#: Combien de fois un lot est redemandé après un 503.
+#:
+#: La source en rend de façon **intermittente** : la course d'essai en a reçu un
+#: seul sur trente lots, et il a coûté 79 cartes. Sans reprise, une extension
+#: entière manque et le total final ne le dit qu'après coup.
+RETRIES = 3
+
+
+def fetch_all(sleep=time.sleep, client=None) -> list[WankulCard]:
+    """Le catalogue entier, découpé par extension et par effigie.
+
+    **La pagination est cassée au-delà de la première page.** Mesuré :
+    `?page=1` rend 200, `?page=2` rend un 503 déterministe, et `limit` plafonne
+    à 100 quoi qu'on demande. Le catalogue fait 958 cartes en six extensions
+    dont cinq dépassent la centaine : il faut donc un second axe.
+
+    C'est exactement le piège de TCGdex sur Pokémon, dont l'argument
+    `pagination` existait avec un resolveur cassé — et il a fallu bissecter
+    seize champs avant de comprendre que l'argument était en cause.
+
+    **Deux axes ont été essayés, le moins coûteux gagne.** `rarity` découpe en
+    27 valeurs, `effigy` en cinq : 30 requêtes contre 162 pour le même
+    résultat. `setId` est ignoré par la source — c'est `set`, par son slug, qui
+    filtre ; le premier rendait le catalogue entier en annonçant l'avoir
+    filtré, ce qui est le pire des deux comportements.
+
+    Le total de chaque lot est comparé à celui que la source annonce, et le
+    total général à [EXPECTED_TOTAL] : une course qui rendrait moins a rencontré
+    un mur, et doit le dire.
+    """
+    cartes: dict[str, WankulCard] = {}
+    manques: list[str] = []
+    proprietaire = client is None
+    if proprietaire:
+        client = httpx.Client(
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            timeout=60,
+            follow_redirects=True,
+        )
+
+    def lire(params: dict) -> dict | None:
+        """Un lot, réessayé tant que la source rend un 503."""
+        for tentative in range(RETRIES):
+            sleep(PAUSE_SECONDS * (tentative + 1))
+            r = client.get(f"{BASE}/api/wankuldex/cards", params=params)
+            if r.status_code == 200:
+                return r.json()
+            if r.status_code != 503:
+                return None
+        return None
+
+    try:
+        sleep(PAUSE_SECONDS)
+        effigies = client.get(f"{BASE}{ROUTE_EFFIGIES}").json()["data"]
+        slugs = [e["slug"] for e in effigies]
+
+        for set_slug in EXPECTED_CARDS:
+            for effigy in slugs:
+                corps = lire({"set": set_slug, "effigy": effigy,
+                              "limit": 100, "page": 1})
+                if corps is None:
+                    manques.append(f"{set_slug}/{effigy}: illisible")
+                    continue
+                lot = corps.get("data", [])
+                annonce = (corps.get("meta") or {}).get("total", len(lot))
+                if annonce > len(lot):
+                    # Un lot tronqué par le plafond de 100 : le signaler plutôt
+                    # que d'enregistrer un catalogue amputé en silence.
+                    manques.append(
+                        f"{set_slug}/{effigy}: {len(lot)} rendus sur {annonce}")
+                for payload in lot:
+                    carte = card_from(payload)
+                    cartes[str(carte.oracle_id)] = carte
+    finally:
+        if proprietaire:
+            client.close()
+
+    if manques:
+        print("  lots incomplets :")
+        for m in manques:
+            print(f"    {m}")
+    if len(cartes) < EXPECTED_TOTAL:
+        print(f"  ATTENTION : {len(cartes)} cartes pour {EXPECTED_TOTAL} "
+              f"attendues — il manque {EXPECTED_TOTAL - len(cartes)}")
+    return list(cartes.values())
 
 
 def main() -> int:
