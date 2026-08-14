@@ -292,4 +292,28 @@ void main() {
     // La promesse qui distingue une série d'un deck répété.
     expect(find.textContaining('Aucune carte partagée'), findsOneWidget);
   });
+
+  testWidgets("le nombre d'exemplaires est un nombre, pas son code source", (
+    tester,
+  ) async {
+    // **Le defaut que seul l'appareil a montre.** La ligne affichait
+    // litteralement « $copies » — le dollar etait echappe, donc Dart rendait le
+    // texte au lieu de la variable — et la colonne de 24 px le cassait en trois
+    // (« $co / pie / s ») devant chaque carte. Invisible en Commander, ou aucune
+    // carte n'a deux exemplaires ; massif en Pauper, ou elles en ont quatre.
+    await pumpBuilder(
+      tester,
+      format: DeckFormat.pauper,
+      cards: [
+        for (var i = 0; i < 80; i++)
+          card(
+            name: 'Carte ${i.toString().padLeft(3, '0')}',
+            cmc: (i % 6) + 1,
+          ).withQuantity(4),
+      ],
+    );
+
+    expect(find.textContaining(r'$copies'), findsNothing);
+    expect(find.text('4'), findsWidgets);
+  });
 }

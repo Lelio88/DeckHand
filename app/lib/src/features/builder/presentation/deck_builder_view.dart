@@ -652,7 +652,7 @@ class _CardLine extends StatelessWidget {
               SizedBox(
                 width: 24,
                 child: Text(
-                  '\$copies',
+                  '$copies',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),

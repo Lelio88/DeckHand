@@ -250,21 +250,32 @@ class _DeckModeChips extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(deckModeProvider);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final value in DeckMode.values) ...[
-          ChoiceChip(
-            label: Text(value.label),
-            selected: mode == value,
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onSelected: (_) =>
-                ref.read(deckModeProvider.notifier).select(value),
-          ),
-          const SizedBox(width: 6),
+    // **Deux corrections d'un débordement de 6,2 px**, relevé sur l'appareil et
+    // invisible partout ailleurs — ni l'analyse ni les tests ne mesurent une
+    // largeur. La boucle ajoutait un séparateur **après la dernière puce** :
+    // six pixels dont personne n'avait besoin, et qui font l'essentiel du
+    // compte. Le reste passe par un `FittedBox`, qui rétrécit au lieu de
+    // couper : sur un écran plus étroit ou un texte plus long, la puce doit
+    // devenir petite, jamais tronquée.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerRight,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final (i, value) in DeckMode.values.indexed) ...[
+            if (i > 0) const SizedBox(width: 6),
+            ChoiceChip(
+              label: Text(value.label),
+              selected: mode == value,
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              onSelected: (_) =>
+                  ref.read(deckModeProvider.notifier).select(value),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
