@@ -16,7 +16,7 @@ de toute façon une première release manuelle avant d'ouvrir l'API.
 | Version | `1.0.0+1` dans `app/pubspec.yaml` |
 | Signature de release | câblée, lit `app/android/key.properties` |
 | Politique de confidentialité | <https://lelio88.github.io/DeckHand/privacy.html> |
-| Compte de démonstration | `DECKHAND_TEST_EMAIL` / `DECKHAND_TEST_PASSWORD` dans `../.deckhand-secrets/supabase.env` |
+| Compte de démonstration | `DECKHAND_DEMO_EMAIL` / `DECKHAND_DEMO_PASSWORD` dans `../.deckhand-secrets/supabase.env` |
 
 ## 2. La clé de signature — à faire une seule fois
 
@@ -106,12 +106,32 @@ peur, interactions — pour une app qui n'a aucun de ces contenus).
 **Coordonnées** : `heianenterpriseyt@gmail.com` — contact public de toutes les apps du compte. Ne
 jamais y mettre d'adresse professionnelle.
 
+## 3 bis. Le compte de démonstration
+
+**`DECKHAND_TEST_EMAIL` n'est pas un compte de test** malgré son nom : c'est
+`buton1@live.fr`, le compte du propriétaire, avec ses 5 classeurs réels et son
+journal de mouvements. Le donner aux examinateurs leur donnerait accès à tout
+cela, et la possibilité de le modifier.
+
+Le compte à fournir est `DECKHAND_DEMO_EMAIL` / `DECKHAND_DEMO_PASSWORD`, créé
+par l'API admin de Supabase avec `email_confirm` — le domaine n'existe pas, et
+un examinateur n'a pas de boîte à relever. Il porte **30 cartes Pauper en quatre
+exemplaires, rangées dans 23 classeurs** : un écran vide inviterait à conclure
+que l'application ne fonctionne pas.
+
+Le mot de passe est généré et ne figure que dans le coffre. Pour le lire au
+moment de le coller :
+
+```bash
+grep DECKHAND_DEMO ../.deckhand-secrets/supabase.env
+```
+
 ## 4. Les réponses aux sections du guide
 
 | Section | Réponse pour DeckHand |
 |---|---|
 | 2 · Politique de confidentialité | <https://lelio88.github.io/DeckHand/privacy.html> |
-| 3 · App access | **Oui, une partie est limitée** — l'app exige un compte. Fournir `DECKHAND_TEST_EMAIL` / `DECKHAND_TEST_PASSWORD`, jamais le compte personnel. |
+| 3 · App access | **Oui, une partie est limitée** — l'app exige un compte. Fournir `DECKHAND_DEMO_EMAIL` / `DECKHAND_DEMO_PASSWORD`. **Surtout pas `DECKHAND_TEST_EMAIL`** : malgré son nom, c'est le compte du propriétaire, avec sa collection réelle et son journal. |
 | 4 · Annonces | **Non**, aucune publicité. |
 | 5 · Classification IARC | Catégorie *Application*, donc questionnaire court. Aucune violence, aucun contenu sexuel, aucun jeu d'argent, aucune substance. **Pas de chat** : le partage est en lecture seule, sans messagerie. |
 | 6 · Public cible | 13 ans et plus. L'app ne cible pas les enfants et ne collecte rien à des fins publicitaires. |
