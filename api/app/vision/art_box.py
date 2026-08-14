@@ -123,6 +123,19 @@ POKEMON_TRAINER = ArtBox(0.0850, 0.1455, 0.9200, 0.5164)
 POKEMON_FULL = ArtBox(0.0, 0.0, 1.0, 1.0)
 
 
+#: Wankul, cartes debout — les Personnages. Jumeau de `CardFrame.wankul`.
+#:
+#: Mesuré sur onze cartes par deux signaux concordants (`app.measure.
+#: wankul_art_window`) : le gradient de l'image moyenne, dont la crête du bas
+#: culmine à 42,9 contre 5 à 6 pour le contenu, et le début du pavé de texte
+#: relevé carte par carte — médiane 0,6881, écart interquartile 0,0107, soit
+#: 0,0024 du bord lu sur le gradient.
+#:
+#: Une carte seule avait rendu un cadre asymétrique ; l'échantillon a montré
+#: que l'écart venait de la détection, pas de la maquette.
+WANKUL = ArtBox(0.0483, 0.0298, 0.9450, 0.6857)
+
+
 def box_for(game: str, layout: str | None) -> ArtBox | None:
     """Gabarit à appliquer, ou `None` si l'image est déjà découpée.
 
@@ -146,6 +159,19 @@ def box_for(game: str, layout: str | None) -> ArtBox | None:
         return _pokemon_box(layout)
     if game == "riftbound":
         return RIFTBOUND_LANDSCAPE if layout == "landscape" else RIFTBOUND_PORTRAIT
+    if game == "wankul":
+        # **La maquette horizontale n'est pas mesurée, et rend donc `None`.**
+        # Ce n'est pas la verticale tournée d'un quart de tour, contrairement à
+        # Riftbound : la verticale porte une illustration encadrée, l'horizontale
+        # la porte en plein cadre avec les textes posés dessus. Leur appliquer le
+        # même gabarit découperait un pavé de texte en croyant tenir un dessin.
+        #
+        # Deux cartes horizontales sont connues et elles ne concordent pas — la
+        # seconde est une édition Gold, dont le traitement holographique déjoue
+        # la détection des bandeaux et qui n'est de toute façon pas
+        # représentative. Une seule pièce exploitable ne fait pas un gabarit ;
+        # la verticale vient d'en administrer la preuve.
+        return None if layout == "horizontal" else WANKUL
     return None
 
 
@@ -168,7 +194,15 @@ GAMES_WITH_PREDETOURED_ART = frozenset({"magic"})
 #: ces jeux-là et refuse tous les autres. En sortir demande une mesure sur de
 #: vraies cartes — c'est ce que #28 a fait pour Pokémon, et ce que Riftbound a
 #: payé de trois méthodes et deux échecs.
-GAMES_AWAITING_ART_BOX = frozenset({"wankul"})
+GAMES_AWAITING_ART_BOX = frozenset()
+
+#: Maquettes connues mais **pas encore mesurées**, jeu par orientation.
+#:
+#: Plus fin que [GAMES_AWAITING_ART_BOX], qui raisonne par jeu : Wankul a deux
+#: mises en page distinctes, et l'une est mesurée quand l'autre ne l'est pas.
+#: Déclarer l'attente à ce grain évite de faire passer le jeu entier pour
+#: inachevé, comme de faire passer la moitié manquante pour réglée.
+LAYOUTS_AWAITING_ART_BOX = frozenset({("wankul", "horizontal")})
 
 
 def _pokemon_box(layout: str | None) -> ArtBox:

@@ -174,7 +174,33 @@ enum CardFrame {
     top: 0.0,
     right: 1.0,
     bottom: 1.0,
-  ), 'pokemon');
+  ), 'pokemon'),
+
+  /// Wankul, cartes debout — les Personnages.
+  ///
+  /// **Mesuré sur onze cartes, par deux signaux qui concordent.** Le gradient
+  /// de l'image moyenne donne les arêtes du cadre : la crête du bas culmine à
+  /// 42,9 contre 5 à 6 pour le contenu, un rapport de huit. Le début du pavé de
+  /// texte, relevé carte par carte, tombe à 0,6881 de médiane pour un écart
+  /// interquartile de 0,0107 — soit 0,0024 du bord lu sur le gradient.
+  ///
+  /// **Une seule carte avait rendu un cadre asymétrique**, 8,9 % de marge à
+  /// gauche contre 6,4 % à droite. L'échantillon a tranché : 0,048 et 0,055,
+  /// l'écart venait de la détection et non de la maquette. C'est la raison
+  /// d'être d'un banc, et un rappel que la mesure sur une pièce n'en est pas
+  /// une.
+  ///
+  /// Les deux encoches d'angle du haut — l'icône de coût à gauche, la Force à
+  /// droite — sont **dans** la fenêtre. Les retirer coûterait de l'illustration
+  /// sur toute la largeur pour gagner deux coins, et la variance entre cartes
+  /// montre qu'elles ne sont pas constantes : la Force change d'une carte à
+  /// l'autre, donc elle discrimine au lieu de brouiller.
+  wankul((
+    left: 0.0483,
+    top: 0.0298,
+    right: 0.9450,
+    bottom: 0.6857,
+  ), 'wankul');
 
   const CardFrame(this.box, this.game, {this.landscape = false});
 

@@ -26,6 +26,7 @@ from pathlib import Path
 from app.vision.art_box import (
     GAMES_AWAITING_ART_BOX,
     GAMES_WITH_PREDETOURED_ART,
+    LAYOUTS_AWAITING_ART_BOX,
     POKEMON,
     POKEMON_FULL,
     POKEMON_TRAINER,
@@ -117,6 +118,31 @@ def test_l_attente_n_est_pas_un_fourre_tout():
             f"« {game} » a un gabarit mais reste déclaré en attente"
         )
         assert game not in GAMES_WITH_PREDETOURED_ART
+
+
+def test_wankul_debout_a_son_gabarit_et_couche_ne_l_a_pas():
+    """**Les deux orientations de Wankul ne sont pas deux rotations.** La
+    verticale porte une illustration encadrée, l'horizontale la porte en plein
+    cadre avec les textes posés dessus. Leur donner le même gabarit découperait
+    un pavé de texte en croyant tenir un dessin — d'où le `None`, tant que
+    l'horizontale n'aura pas son propre échantillon.
+    """
+    assert box_for("wankul", "vertical") is not None
+    assert box_for("wankul", None) is not None
+    assert box_for("wankul", "horizontal") is None
+    assert ("wankul", "horizontal") in LAYOUTS_AWAITING_ART_BOX
+
+
+def test_le_gabarit_wankul_est_a_peu_pres_symetrique():
+    """Le garde-fou de la mesure qui l'a produit. Une carte seule avait rendu
+    8,9 % de marge à gauche pour 6,4 % à droite ; l'échantillon a ramené l'écart
+    sous un point. Une régression au-delà signalerait un cadrage repris sur trop
+    peu de pièces."""
+    box = box_for("wankul", "vertical")
+    gauche, droite = box.left, 1.0 - box.right
+    assert abs(gauche - droite) < 0.02, (
+        f"marges {gauche:.4f} / {droite:.4f} — mesure faite sur trop peu de cartes ?"
+    )
 
 
 def test_magic_est_la_seule_asymetrie_admise():
