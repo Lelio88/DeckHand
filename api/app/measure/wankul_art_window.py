@@ -109,6 +109,33 @@ def window_from_gradient(mean: np.ndarray) -> Window:
     return Window(left / w, top / h, right / w, bottom / h)
 
 
+def is_rotated_terrain(card: np.ndarray) -> bool:
+    """Vrai si la carte est **couchée mais stockée debout**, donc à redresser.
+
+    **Le rendu principal d'un Terrain est la carte tournée d'un quart de tour.**
+    Son texte se lit de bas en haut, et son pavé n'est plus une bande
+    horizontale mais une **colonne**. C'est ce basculement qui la distingue, et
+    non sa taille : une verticale ordinaire et un Terrain tourné font tous deux
+    435 x 600.
+
+    Deux essais l'ont manqué avant celui-ci. Classer sur la clarté seule rangeait
+    498 cartes en « pavé haut » — des ciels. Ajouter l'uniformité laissait encore
+    « PRINCESSE » chez les couchées, ses cheveux blonds faisant un aplat clair au
+    milieu. Ce qui tranche est l'**axe** du pavé, pas sa position.
+    """
+    g = normalized(card)
+    h, w = g.shape
+
+    def part_plate(profil_med, profil_ecart) -> float:
+        return float(((profil_med > 170) & (profil_ecart < 45)).mean())
+
+    lignes = part_plate(np.median(g[:, int(w * 0.2):int(w * 0.8)], axis=1),
+                        g[:, int(w * 0.2):int(w * 0.8)].std(axis=1))
+    colonnes = part_plate(np.median(g[int(h * 0.2):int(h * 0.8), :], axis=0),
+                          g[int(h * 0.2):int(h * 0.8), :].std(axis=0))
+    return colonnes > lignes
+
+
 def per_card_bottom(card: np.ndarray) -> float | None:
     """Où commence le pavé de texte sur *cette* carte.
 
@@ -121,6 +148,62 @@ def per_card_bottom(card: np.ndarray) -> float | None:
     med = np.median(bande, axis=1)
     bas = [y for y in range(int(h * 0.5), h) if med[y] > 175]
     return min(bas) / h if bas else None
+
+
+def redressee(card: np.ndarray) -> np.ndarray:
+    """La carte couchée remise dans son sens de lecture.
+
+    **Le lot contient les deux sens de rotation**, ce qu'une rotation uniforme
+    ne pouvait pas rattraper : l'image moyenne de 150 Terrains montrait alors
+    deux jeux de bandeaux, symétriques par rapport au centre — la moitié des
+    cartes à l'endroit, l'autre à 180°.
+
+    Le sens se décide donc carte par carte, sur un repère stable : les bandeaux
+    de texte occupent la moitié **haute** d'un Terrain à l'endroit — mesuré sur
+    « Road Trip », 0,097 à 0,446. S'ils tombent en bas, la carte est retournée.
+    """
+    droite = np.rot90(card, k=1)
+    g = normalized(droite)
+    h, w = g.shape
+    bande = g[:, int(w * 0.15):int(w * 0.85)]
+    med, ecart = np.median(bande, axis=1), bande.std(axis=1)
+    plat = (med > 170) & (ecart < 45)
+    haut = plat[: h // 2].sum()
+    bas = plat[h // 2:].sum()
+    return droite if haut >= bas else np.rot90(droite, k=2)
+
+
+def mesure_terrains(cartes: list[np.ndarray]) -> None:
+    """Le gabarit des cartes couchées, redressées puis moyennées."""
+    pile = np.stack([normalized(redressee(c)) for c in cartes])
+    mean = pile.mean(axis=0)
+    h, w = mean.shape
+    gy = np.abs(np.diff(mean, axis=0)).mean(axis=1)
+    gx = np.abs(np.diff(mean, axis=1)).mean(axis=0)
+
+    def cretes(profil, n=6):
+        ordre = np.argsort(profil)[::-1]
+        gardees: list[int] = []
+        for i in ordre:
+            if all(abs(i - j) > len(profil) * 0.04 for j in gardees):
+                gardees.append(int(i))
+            if len(gardees) == n:
+                break
+        return sorted(gardees)
+
+    print("\n--- crêtes horizontales (y) ---")
+    for y in cretes(gy):
+        print(f"   {y / h:.4f}   force {gy[y]:6.1f}")
+    print("--- crêtes verticales (x) ---")
+    for x in cretes(gx):
+        print(f"   {x / w:.4f}   force {gx[x]:6.1f}")
+
+    sd = pile.std(axis=0)
+    lignes = np.where(sd.mean(axis=1) > sd.mean() * 0.6)[0]
+    colonnes = np.where(sd.mean(axis=0) > sd.mean() * 0.6)[0]
+    print(f"\nzone où les cartes diffèrent : "
+          f"y {lignes.min() / h:.4f}..{lignes.max() / h:.4f}   "
+          f"x {colonnes.min() / w:.4f}..{colonnes.max() / w:.4f}")
 
 
 def main() -> int:
