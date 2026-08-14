@@ -26,7 +26,15 @@ enum DeckFormat {
   /// récentes, donc chères et peu probables dans une collection ordinaire. Mais
   /// c'est ce que la source publie, et inventer un format mieux servi serait
   /// pire qu'un format cher.
-  standard('standard', 'Standard');
+  standard('standard', 'Standard'),
+
+  /// Wankul. **Un format distinct de `constructed`, et non son partage.**
+  /// Riftbound porte déjà `constructed`, or `DeckBlueprint.of` ne reçoit que le
+  /// format, jamais le jeu : partager l'identifiant ferait partager le gabarit,
+  /// et un deck Wankul se construirait sur les proportions d'un autre jeu sans
+  /// que rien ne l'annonce. Le nom vient des « règles de tournoi » publiées par
+  /// l'éditeur, qui est le vocabulaire du jeu.
+  tournament('tournament', 'Tournoi');
 
   const DeckFormat(this.id, this.label);
 
@@ -68,11 +76,14 @@ const _yugiohFormats = [
 /// (`cardTypesFor`).
 const _pokemonFormats = [DeckFormat.standard];
 
+const _wankulFormats = [DeckFormat.tournament];
+
 List<DeckFormat> deckFormatsFor(Game game) => switch (game) {
   Game.magic => _magicFormats,
   Game.riftbound => _riftboundFormats,
   Game.yugioh => _yugiohFormats,
   Game.pokemon => _pokemonFormats,
+  Game.wankul => _wankulFormats,
 };
 
 class DeckSuggestion {

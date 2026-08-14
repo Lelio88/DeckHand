@@ -24,7 +24,8 @@ enum Game {
   magic('magic', 'Magic: The Gathering'),
   riftbound('riftbound', 'Riftbound'),
   yugioh('yugioh', 'Yu-Gi-Oh!'),
-  pokemon('pokemon', 'Pokémon');
+  pokemon('pokemon', 'Pokémon'),
+  wankul('wankul', 'Wankul');
 
   const Game(this.id, this.label);
 

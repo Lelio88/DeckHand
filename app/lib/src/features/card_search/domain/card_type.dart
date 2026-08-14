@@ -91,9 +91,23 @@ const _pokemonTypes = [
   CardType('Energy', 'Énergie'),
 ];
 
+/// **Deux types, et ils partitionnent le jeu sans reste** — Personnage ou
+/// Terrain, tels que la source les nomme. C'est la coupe la plus courte de tous
+/// les jeux couverts, et elle suffit : un deck se compose de 10 terrains et de
+/// 40 personnages, si bien que ce filtre répond exactement à la question qu'on
+/// se pose en construisant.
+///
+/// L'effigie (Laink, Terracid, Guest) n'est pas proposée ici : elle dit de quel
+/// personnage la carte porte le visage, pas ce que la carte fait.
+const _wankulTypes = [
+  CardType('Personnage', 'Personnage'),
+  CardType('Terrain', 'Terrain'),
+];
+
 List<CardType> cardTypesFor(Game game) => switch (game) {
   Game.magic => _magicTypes,
   Game.riftbound => _riftboundTypes,
   Game.yugioh => _yugiohTypes,
   Game.pokemon => _pokemonTypes,
+  Game.wankul => _wankulTypes,
 };

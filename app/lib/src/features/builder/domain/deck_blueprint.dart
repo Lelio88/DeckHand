@@ -157,6 +157,24 @@ class DeckBlueprint {
     // runes, champs de bataille — ne sont celles d'aucun des deux autres jeux,
     // et son corpus n'a pas été mesuré sous cet angle.
     DeckFormat.constructed => null,
+    // **Wankul connaît sa règle et n'a pourtant pas de gabarit**, ce qui est
+    // une situation nouvelle : les règles de tournoi publiées donnent
+    // 50 cartes — 10 terrains, 35 personnages, au plus 5 marqueurs — soit des
+    // proportions plus sûres qu'une médiane, puisqu'elles sont prescrites et
+    // non observées.
+    //
+    // Il manque pourtant les deux moitiés qui rendraient ce gabarit exécutable.
+    // La notion de **marqueur** n'existe dans aucun champ du catalogue : sans
+    // elle, le plafond de cinq ne se vérifie sur rien, et un deck construit
+    // l'ignorerait en silence. Et la **limite d'exemplaires** n'est pas connue
+    // — ni mesurée sur un corpus, qui n'existe pas encore, ni lue dans les
+    // règles. La poser au jugé produirait un deck faux avec l'assurance d'un
+    // deck mesuré, ce que ce module refuse depuis Riftbound.
+    //
+    // La vue le dit plutôt que de le deviner. À reprendre quand le catalogue
+    // sera en base : les deux manques s'y trouveront ou non, et c'est le
+    // catalogue qui tranchera.
+    DeckFormat.tournament => null,
   };
 
   /// Mesuré sur 190 précons. Le format le plus régulier du corpus.

@@ -60,6 +60,16 @@ const Map<String, double> cardAspects = {
   // pour manquer une illustration, assez pour valoir une vérification — celle
   // qu'aucune carte de papier n'a encore permise, faute d'en posséder une.
   'pokemon': 63 / 88,
+  // Wankul : format standard présumé, **non vérifié sur carton**.
+  //
+  // C'est la seule entrée de cette table qui ne repose sur aucune mesure. Les
+  // quatre autres ont été confrontées soit au rendu de leur source, soit au
+  // carton ; celle-ci sera à vérifier dès qu'une carte sera photographiée, au
+  // même titre que la fenêtre d'illustration. La déclarer explicitement plutôt
+  // que de la laisser tomber sur `defaultCardAspect` est délibéré : le repli
+  // signifie « jeu ajouté sans ses proportions », et le test qui l'attrape doit
+  // continuer de servir à ça.
+  'wankul': 63 / 88,
 };
 
 /// Ce sur quoi retombe un jeu absent de [cardAspects].
