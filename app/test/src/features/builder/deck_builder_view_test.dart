@@ -236,4 +236,60 @@ void main() {
       expect(find.text('créatures'), findsNothing);
     });
   });
+
+  // --- plusieurs decks à la fois ------------------------------------------
+
+  testWidgets(
+    "une collection trop mince n'affiche aucun sélecteur de deck",
+    (tester) async {
+      // **Le cas courant, et la règle qui le gouverne** : la série n'ajoute rien
+      // à l'écran tant qu'elle n'a rien à dire. Le vivier est le facteur
+      // limitant — 72 sorts jouables pour 61 places sur une collection
+      // ordinaire — donc l'écran d'un deck seul doit rester intact.
+      await pumpBuilder(tester, cards: [general, card(name: 'Ordinaire')]);
+      await tester.tap(find.text('Général').first);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('decks jouables en même temps'), findsNothing);
+      expect(find.text('Deck 1'), findsNothing);
+    },
+  );
+
+  testWidgets('deux decks possibles font apparaître le sélecteur', (
+    tester,
+  ) async {
+    // Assez de cartes pour deux decks entiers, et deux généraux.
+    await pumpBuilder(
+      tester,
+      cards: [
+        general,
+        other,
+        for (var i = 0; i < 200; i++)
+          card(
+            name: 'Carte ${i.toString().padLeft(3, '0')}',
+            type: switch (i % 10) {
+              0 || 1 => 'Instant',
+              2 => 'Sorcery',
+              3 => 'Instant',
+              _ => 'Creature — Human',
+            },
+            text: switch (i % 10) {
+              0 || 1 => 'Draw a card.',
+              2 => 'Search your library for a basic land card.',
+              3 => 'Destroy target creature.',
+              _ => '',
+            },
+            cmc: (i % 6) + 1,
+          ),
+      ],
+    );
+    await tester.tap(find.text('Général').first);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('decks jouables en même temps'), findsOneWidget);
+    expect(find.text('Deck 1'), findsOneWidget);
+    expect(find.text('Deck 2'), findsOneWidget);
+    // La promesse qui distingue une série d'un deck répété.
+    expect(find.textContaining('Aucune carte partagée'), findsOneWidget);
+  });
 }

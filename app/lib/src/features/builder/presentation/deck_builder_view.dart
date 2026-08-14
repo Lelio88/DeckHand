@@ -28,6 +28,7 @@ import '../domain/buildable_card.dart';
 import '../domain/card_role.dart';
 import '../domain/deck_blueprint.dart';
 import '../domain/deck_builder.dart';
+import '../domain/deck_series.dart';
 
 /// Libellés français des rôles. Le domaine les nomme en anglais, comme le texte
 /// oracle qu'il inspecte ; l'écran, lui, parle à l'utilisateur.
@@ -74,6 +75,36 @@ class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
   /// liste des candidats plutôt qu'un deck qu'on n'a pas demandé.
   BuildableCard? _commander;
 
+  /// Deck affiché, quand la collection en porte plusieurs à la fois.
+  int _shown = 0;
+
+  /// Dernière série calculée, et ce pour quoi elle l'a été.
+  ///
+  /// **Mémorisée parce que la calculer coûte quatre constructions**, et que le
+  /// seul geste courant — passer d'un deck à l'autre — ne change ni la
+  /// collection ni le général. Sans ce cache, changer d'onglet reconstruirait
+  /// tout pour afficher ce qui était déjà calculé.
+  List<BuildableCard>? _seriesFor;
+  BuildableCard? _seriesCommander;
+  DeckSeries? _series;
+
+  DeckSeries _seriesOf(List<BuildableCard> cards, BuildableCard? commander) {
+    final cached = _series;
+    if (cached != null &&
+        identical(_seriesFor, cards) &&
+        identical(_seriesCommander, commander)) {
+      return cached;
+    }
+    final computed = DeckSeriesBuilder(builder: _builder).build(
+      cards,
+      first: commander,
+    );
+    _seriesFor = cards;
+    _seriesCommander = commander;
+    _series = computed;
+    return computed;
+  }
+
   @override
   Widget build(BuildContext context) {
     // **Sans gabarit, pas de construction.** Le format construit de Riftbound
@@ -102,11 +133,7 @@ class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
   Widget _content(List<BuildableCard> cards) {
     final blueprint = DeckBlueprint.of(widget.format)!;
     if (!blueprint.needsCommander) {
-      return _DeckView(
-        deck: _builder.build(cards),
-        blueprint: blueprint,
-        onChangeCommander: null,
-      );
+      return _built(cards, null, blueprint, onChangeCommander: null);
     }
 
     final commanders = _builder.commanders(cards);
@@ -121,14 +148,141 @@ class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
     if (commander == null) {
       return _CommanderPicker(
         commanders: commanders,
-        onPick: (c) => setState(() => _commander = c),
+        onPick: (c) => setState(() {
+          _commander = c;
+          _shown = 0;
+        }),
       );
     }
 
-    return _DeckView(
-      deck: _builder.build(cards, commander),
-      blueprint: blueprint,
-      onChangeCommander: () => setState(() => _commander = null),
+    return _built(
+      cards,
+      commander,
+      blueprint,
+      onChangeCommander: () => setState(() {
+        _commander = null;
+        _shown = 0;
+      }),
+    );
+  }
+
+  /// Le deck, et les autres decks quand la collection en porte plusieurs.
+  ///
+  /// **La série n'enlève rien à l'écran d'un deck seul, elle s'y ajoute.** Une
+  /// collection trop mince pour deux decks — le cas courant, le vivier étant le
+  /// facteur limitant — retrouve exactement l'écran d'avant : un deck, son
+  /// diagnostic, et rien de plus. Le sélecteur n'apparaît que lorsqu'il a
+  /// quelque chose à sélectionner.
+  ///
+  /// Et quand la série refuse **tout** — un premier deck trop éloigné du corpus
+  /// —, c'est le deck ordinaire qui s'affiche, avec ce qu'on peut lui
+  /// reprocher. Refuser de montrer serait une régression : l'écran d'un deck
+  /// seul a toujours montré les decks imparfaits, c'est même sa raison d'être.
+  Widget _built(
+    List<BuildableCard> cards,
+    BuildableCard? commander,
+    DeckBlueprint blueprint, {
+    required VoidCallback? onChangeCommander,
+  }) {
+    final series = _seriesOf(cards, commander);
+
+    if (series.decks.length < 2) {
+      return _DeckView(
+        deck: series.decks.isEmpty
+            ? _builder.build(cards, commander)
+            : series.decks.first,
+        blueprint: blueprint,
+        onChangeCommander: onChangeCommander,
+      );
+    }
+
+    final index = _shown.clamp(0, series.decks.length - 1);
+    return Column(
+      children: [
+        _SeriesBar(
+          series: series,
+          shown: index,
+          onPick: (i) => setState(() => _shown = i),
+        ),
+        Expanded(
+          child: _DeckView(
+            deck: series.decks[index],
+            blueprint: blueprint,
+            onChangeCommander: onChangeCommander,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Le bandeau des decks simultanés : combien, lequel, et pourquoi pas un de plus.
+class _SeriesBar extends StatelessWidget {
+  const _SeriesBar({
+    required this.series,
+    required this.shown,
+    required this.onPick,
+  });
+
+  final DeckSeries series;
+  final int shown;
+  final ValueChanged<int> onPick;
+
+  /// Ce qui a arrêté la série, dit à l'utilisateur plutôt qu'au journal.
+  ///
+  /// **Le deck refusé porte ce qui lui manquait**, et c'est le seul renseignement
+  /// actionnable : « il manque six cartes » se règle en achetant six cartes,
+  /// « pas de troisième deck » ne se règle pas.
+  String get _reason => switch (series.stop) {
+    SeriesStop.limitReached =>
+      'Au moins ${series.decks.length} : la recherche s\'arrête là.',
+    SeriesStop.incomplete =>
+      'Un ${series.decks.length + 1}ᵉ deck manquerait de '
+          '${series.refused?.diagnosis.short ?? 0} cartes.',
+    SeriesStop.offBlueprint =>
+      'Un ${series.decks.length + 1}ᵉ deck s\'écarterait trop des decks réels.',
+    SeriesStop.noCommander =>
+      'Il n\'y a plus de général disponible pour un ${series.decks.length + 1}ᵉ.',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${series.decks.length} decks jouables en même temps',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            // Ce que la promesse vaut : aucune carte n'est comptée deux fois.
+            'Aucune carte partagée entre eux. $_reason',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (var i = 0; i < series.decks.length; i++)
+                ChoiceChip(
+                  label: Text('Deck ${i + 1}'),
+                  selected: i == shown,
+                  onSelected: (_) => onPick(i),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

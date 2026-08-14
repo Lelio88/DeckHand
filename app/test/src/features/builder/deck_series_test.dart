@@ -249,4 +249,31 @@ void main() {
       expect(const DeckSeriesBuilder().meetsBlueprint(deck), isTrue);
     });
   });
+
+  group('un général imposé', () {
+    test('le premier deck garde celui que l_utilisateur a choisi', () {
+      // « Modeste » n'ouvre rien de plus que l'autre : sans consigne, la série
+      // prendrait le plus ouvrant. L'écran, lui, a déjà recueilli un choix.
+      final choisi = general('Modeste');
+      final result = series.build([
+        general('Le plus ouvrant'),
+        choisi,
+        ...richCollection(200),
+      ], limit: 2, first: choisi);
+
+      expect(result.decks.first.commander?.oracleId, 'Modeste');
+    });
+
+    test('le général imposé n_est pas repris par le deck suivant', () {
+      final choisi = general('Modeste');
+      final result = series.build([
+        general('Autre'),
+        choisi,
+        ...richCollection(200),
+      ], limit: 2, first: choisi);
+
+      expect(result.decks.length, 2);
+      expect(result.decks[1].commander?.oracleId, isNot('Modeste'));
+    });
+  });
 }

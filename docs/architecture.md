@@ -1648,6 +1648,10 @@ Un deck seul répond à « que puis-je jouer ? ». Une **série** répond à « 
 
 **Les terrains de base ne sont jamais décomptés**, puisqu'ils ne viennent pas de la collection. Ce qui s'épuise et limite le nombre de decks, ce sont les sorts et les terrains non basiques.
 
+**L'écran ne montre la série que lorsqu'elle a quelque chose à dire.** Une collection trop mince pour deux decks — le cas courant — retrouve exactement l'écran d'un deck seul : pas de sélecteur, pas de bandeau, rien de changé. Dès qu'il y a deux decks, un bandeau annonce le nombre, rappelle qu'aucune carte n'est partagée, dit ce qui a arrêté la série, et une puce par deck permet de passer de l'un à l'autre — un deck à la fois, quatre listes de cent cartes empilées étant illisibles. En Commander, le général choisi par l'utilisateur est **imposé au premier deck** : lui en substituer un autre au motif qu'il ouvre davantage serait le contredire sans le dire.
+
+**Et quand la série refuse tout, c'est le deck ordinaire qui s'affiche**, avec ce qu'on peut lui reprocher. Refuser de montrer serait une régression : l'écran d'un deck seul a toujours montré les decks imparfaits, c'est même sa raison d'être — la série ajoute, elle n'enlève pas.
+
 **Le vivier décidera, pas l'algorithme**, et le chiffre du paragraphe précédent dit déjà à quoi s'attendre : 72 sorts jouables pour 61 places, sur une paire de couleurs. Un seul deck épuise presque le vivier ; un second deck Commander complet suppose une collection sensiblement plus fournie. La série répondra donc souvent « un seul », et c'est une réponse juste — pas une panne.
 
 **Le deck est jetable.** Rien n'est enregistré : on construit, on lit, on recopie, on ferme. Conserver les decks demanderait une table, un écran pour les relire et de décider ce qu'il advient d'un deck quand la collection change — un produit à lui seul, qu'il vaut mieux bâtir une fois qu'on saura si le résultat mérite d'être gardé.

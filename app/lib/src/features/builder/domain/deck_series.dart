@@ -90,7 +90,16 @@ class DeckSeriesBuilder {
   DeckBlueprint get blueprint => builder.blueprint;
 
   /// Construit jusqu'à [limit] decks disjoints avec [collection].
-  DeckSeries build(List<BuildableCard> collection, {int limit = 4}) {
+  ///
+  /// [first] impose le général du **premier** deck, les suivants étant choisis
+  /// par la série. C'est ce que l'écran demande : l'utilisateur a déjà désigné
+  /// son général, et lui en substituer un autre au motif qu'il ouvre davantage
+  /// serait le contredire sans le dire.
+  DeckSeries build(
+    List<BuildableCard> collection, {
+    int limit = 4,
+    BuildableCard? first,
+  }) {
     final decks = <BuiltDeck>[];
     final usedCommanders = <String>{};
     var pool = [...collection];
@@ -107,7 +116,8 @@ class DeckSeriesBuilder {
         if (candidates.isEmpty) {
           return DeckSeries(decks: decks, stop: SeriesStop.noCommander);
         }
-        commander = candidates.first;
+        // Le général imposé passe devant, au premier tour seulement.
+        commander = decks.isEmpty && first != null ? first : candidates.first;
         // **Les généraux des decks suivants sont mis de côté.** Sans cela, le
         // premier deck mange les créatures légendaires comme n'importe quelle
         // créature, et la série s'arrête au tour suivant faute de général — ce
@@ -115,7 +125,7 @@ class DeckSeriesBuilder {
         // reste de decks à faire, et pas davantage : chaque général réservé est
         // une créature de moins pour le deck en cours.
         final reserved = candidates
-            .skip(1)
+            .where((c) => c.oracleId != commander!.oracleId)
             .take(limit - decks.length - 1)
             .map((c) => c.oracleId)
             .toSet();
