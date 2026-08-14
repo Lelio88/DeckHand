@@ -41,6 +41,23 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Lien de réinitialisation du mot de passe
+                 (deckhand://reset-password), consommé par supabase_flutter qui
+                 échange son code et ouvre la session temporaire. Le filtre ne
+                 vise que le schéma, sans hôte : DeckHand n'a qu'un seul lien de
+                 ce genre, et le restreindre davantage n'ajouterait qu'un endroit
+                 de plus à tenir à jour.
+
+                 La même adresse doit être autorisée côté Supabase
+                 (Authentication → URL Configuration → Redirect URLs) ; sans
+                 cela le lien reçu par courriel mène à une erreur, et rien ici ne
+                 le signalerait. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="deckhand"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

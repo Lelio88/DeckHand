@@ -765,6 +765,65 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 
 **`deck_sources` porte l'attribution.** TopDeck.gg impose un crédit visible ; l'exigence doit voyager avec la donnée pour que l'interface ne puisse pas l'oublier.
 
+### Le compte, et la route de retour du mot de passe
+
+La confirmation par courriel est désactivée côté projet (`mailer_autoconfirm`) :
+l'inscription ouvre immédiatement une session, choix assumé pour un cercle de
+proches. **Ce choix rend la réinitialisation nécessaire plutôt que
+confortable**, et trois manques se tenaient ensemble pour former une trappe :
+
+| | |
+|---|---|
+| un mot de passe saisi **une seule fois**, à l'aveugle | une frappe de travers passe |
+| une adresse que **rien ne vérifie** | une frappe de travers passe aussi |
+| **aucune récupération** | et le compte est perdu, définitivement |
+
+Ce que perd l'utilisateur n'est pas un accès : c'est une collection saisie carte
+par carte, ce que ce produit demande des heures à constituer.
+
+La route en place, calquée sur celle de DewDrop :
+
+1. L'écran de connexion demande **deux fois** le mot de passe à l'inscription,
+   une seule à la connexion — retaper un mot de passe qu'on connaît n'a pas
+   besoin d'être confirmé. Un œil permet de relire ce qu'on tape : la
+   confirmation seule ne rattrape que les fautes qu'on ne refait pas.
+2. « Mot de passe oublié ? » demande l'adresse et déclenche
+   `resetPasswordForEmail`. **La réponse ne dit jamais si un compte existe** —
+   Supabase répond pareil dans les deux cas, et l'écran tient le même silence,
+   sans quoi il deviendrait un test d'existence de compte ouvert à tous.
+3. Le courriel porte un lien `deckhand://reset-password` qui **rouvre
+   l'application**. Une adresse `https://` mènerait au navigateur, où la version
+   hébergée ne sait rien faire d'un compte (`DECKHAND_PUBLIC_ONLY`).
+4. `supabase_flutter` échange le code et ouvre une session temporaire, puis émet
+   `AuthChangeEvent.passwordRecovery`.
+5. `passwordRecoveryProvider` retient l'événement et l'aiguillage de `main.dart`
+   affiche l'écran de nouveau mot de passe **avant** de regarder la session.
+
+**Les points 4 et 5 sont les seuls non évidents.** Une session de récupération
+est une session valide : rien ne la distingue d'une connexion ordinaire sinon
+l'événement qui l'a créée, et sans ce détour l'application ouvrirait l'accueil,
+le nouveau mot de passe n'étant jamais demandé. Le flux d'authentification ne
+rejoue pas ce qui est passé, donc **l'abonnement doit précéder l'événement** :
+c'est pourquoi l'aiguillage observe le drapeau dès son premier build. Un test
+écrit dans l'autre ordre a échoué, et c'est ce qui a rendu la contrainte
+visible.
+
+**Deux réglages vivent hors du dépôt, et rien dans le code ne signale leur
+absence :**
+
+| Réglage | Où | État |
+|---|---|---|
+| `deckhand://reset-password` autorisé | Supabase → Authentication → URL Configuration | **fait** |
+| Schéma `deckhand` déclaré | `AndroidManifest.xml` | **fait** |
+| Serveur d'envoi | Supabase → Auth → SMTP | **absent** — voir ci-dessous |
+
+**Sans SMTP propre, la route s'arrête au premier maillon.** Le projet utilise le
+service de démonstration de Supabase : **deux courriels par heure**, et
+uniquement vers les adresses membres du projet. Un tiers ne recevrait donc rien,
+sans erreur visible côté application. DewDrop résout cela par **Brevo**
+(`.dewdrop-secrets/brevo-smtp.env`) ; DeckHand peut réutiliser ce compte ou
+recevoir une clé dédiée.
+
 **Granularité de collection retenue** : carte + édition + finition. La finition entre dans la clé d'unicité (`UNIQUE NULLS NOT DISTINCT (collection_id, oracle_id, print_id, is_foil)`) parce qu'un exemplaire brillant se vend couramment le double ou le triple de sa jumelle : les confondre fausse la valorisation dans les deux sens. L'écran de collection le signale par un fond irisé, lisible au défilement là où une mention en petits caractères demandait d'être cherchée. L'état (NM/played) reste ignoré — pure saisie manuelle, sans apport pour le deckbuilding.
 
 **La collection compte des éditions, le deckbuilding compte des cartes.** `my_collection_summary.distinct_cards` dénombre les couples (extension, numéro) — une carte sans édition précisée en valant un. Compter les `oracle_id` annonçait « 180 cartes dont 179 références distinctes » à qui possède deux Plaines numérotées 277 et 278 : Scryfall donne un identifiant oracle unique à tous les terrains de base d'un même type, et la collection en connaît 871 éditions. Les deux lectures sont justes, mais pas au même endroit — deux illustrations occupent deux cases d'un classeur, quand `deck_suggestions` doit continuer de voir deux exemplaires de la même carte. Conséquences assumées de cette unité : la même édition en français et en anglais compte pour une, le brillant aussi, la finition n'étant pas un numéro.

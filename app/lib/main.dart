@@ -14,6 +14,7 @@ import 'src/config/supabase_config.dart';
 import 'src/features/auth/data/auth_repository.dart';
 import 'src/features/binders/presentation/overlay_screen.dart';
 import 'src/features/binders/presentation/public_binder_screen.dart';
+import 'src/features/auth/presentation/reset_password_screen.dart';
 import 'src/features/auth/presentation/sign_in_screen.dart';
 import 'src/features/scan/presentation/frame_bench_screen.dart';
 
@@ -99,6 +100,15 @@ class _AuthGate extends ConsumerWidget {
     final shared = collectionFromUrl(Uri.base);
     if (shared != null) return PublicBinderScreen(handle: shared);
     if (publicOnly) return const _SharedOnly();
+
+    // **Observé avant la session, et non après.** Un lien de réinitialisation
+    // ouvre une session de récupération que rien ne distingue d'une connexion
+    // ordinaire : sans ce détour, l'application afficherait l'accueil et le
+    // nouveau mot de passe ne serait jamais demandé. L'observer ici garantit
+    // aussi que l'abonnement existe avant que l'événement n'arrive — le flux
+    // d'authentification ne rejoue pas ce qui est passé.
+    final recovering = ref.watch(passwordRecoveryProvider);
+    if (recovering) return const ResetPasswordScreen();
 
     final session = ref.watch(sessionProvider);
 

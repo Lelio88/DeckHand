@@ -3,6 +3,12 @@
 /// Un seul écran pour les deux gestes : l'application vise un cercle restreint,
 /// où l'inscription est un acte rare et la connexion la norme. Séparer en deux
 /// écrans ajouterait une navigation pour rien.
+///
+/// **L'inscription demande deux fois le mot de passe, la connexion une seule.**
+/// La différence n'est pas cosmétique : se connecter, c'est retaper un mot de
+/// passe qu'on connaît, et le confirmer serait une friction sans contrepartie.
+/// S'inscrire, c'est en inventer un — et une frappe de travers, sur une adresse
+/// que rien ne vérifie, rendait jusqu'ici le compte irrécupérable.
 library;
 
 import 'package:flutter/material.dart';
@@ -10,6 +16,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/auth_repository.dart';
+import 'auth_shell.dart';
+import 'forgot_password_screen.dart';
+import 'reset_password_screen.dart' show minPasswordLength;
 
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
@@ -22,8 +31,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _confirm = TextEditingController();
 
   bool _isRegistering = false;
+  bool _obscured = true;
   bool _busy = false;
   String? _error;
 
@@ -31,11 +42,17 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _confirm.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    if (_isRegistering && _password.text != _confirm.text) {
+      setState(() => _error = 'Les deux mots de passe ne correspondent pas.');
+      return;
+    }
 
     setState(() {
       _busy = true;
@@ -75,121 +92,118 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       return 'Un compte existe déjà avec cette adresse.';
     }
     if (lower.contains('password')) {
-      return 'Mot de passe refusé : il doit faire au moins 8 caractères.';
+      return 'Mot de passe refusé : il doit faire au moins '
+          '$minPasswordLength caractères.';
     }
     return message;
   }
 
+  void _toggleMode() {
+    setState(() {
+      _isRegistering = !_isRegistering;
+      _error = null;
+      _confirm.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('DeckHand', style: theme.textTheme.headlineMedium),
-                  const SizedBox(height: 6),
-                  Text(
-                    _isRegistering
-                        ? 'Créez un compte pour enregistrer votre collection'
-                        : 'Connectez-vous pour retrouver votre collection',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  TextFormField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(
-                      labelText: 'Adresse e-mail',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) {
-                      final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'Adresse requise';
-                      if (!v.contains('@') || !v.contains('.')) {
-                        return 'Adresse invalide';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _password,
-                    obscureText: true,
-                    autofillHints: const [AutofillHints.password],
-                    onFieldSubmitted: (_) => _submit(),
-                    decoration: const InputDecoration(
-                      labelText: 'Mot de passe',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) {
-                      final v = value ?? '';
-                      if (v.isEmpty) return 'Mot de passe requis';
-                      // Le minimum est fixé à 8 côté projet Supabase ; le
-                      // vérifier ici évite un aller-retour réseau pour rien.
-                      if (_isRegistering && v.length < 8) {
-                        return 'Au moins 8 caractères';
-                      }
-                      return null;
-                    },
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: _busy
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(
-                            _isRegistering ? 'Créer le compte' : 'Se connecter',
-                          ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () => setState(() {
-                            _isRegistering = !_isRegistering;
-                            _error = null;
-                          }),
-                    child: Text(
-                      _isRegistering
-                          ? 'J\'ai déjà un compte'
-                          : 'Créer un compte',
-                    ),
-                  ),
-                ],
+    return AuthShell(
+      subtitle: _isRegistering
+          ? 'Créez un compte pour enregistrer votre collection'
+          : 'Connectez-vous pour retrouver votre collection',
+      children: [
+        Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                decoration: const InputDecoration(
+                  labelText: 'Adresse e-mail',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  final v = (value ?? '').trim();
+                  if (v.isEmpty) return 'Adresse requise';
+                  if (!v.contains('@') || !v.contains('.')) {
+                    return 'Adresse invalide';
+                  }
+                  return null;
+                },
               ),
-            ),
+              const SizedBox(height: 14),
+              AuthPasswordField(
+                controller: _password,
+                label: 'Mot de passe',
+                obscured: _obscured,
+                onToggle: () => setState(() => _obscured = !_obscured),
+                autofillHints: _isRegistering
+                    ? const [AutofillHints.newPassword]
+                    : const [AutofillHints.password],
+                textInputAction: _isRegistering
+                    ? TextInputAction.next
+                    : TextInputAction.done,
+                onSubmitted: _isRegistering ? null : (_) => _submit(),
+                validator: (value) {
+                  final v = value ?? '';
+                  if (v.isEmpty) return 'Mot de passe requis';
+                  if (_isRegistering && v.length < minPasswordLength) {
+                    return 'Au moins $minPasswordLength caractères';
+                  }
+                  return null;
+                },
+              ),
+              if (_isRegistering) ...[
+                const SizedBox(height: 14),
+                AuthPasswordField(
+                  controller: _confirm,
+                  label: 'Confirmez le mot de passe',
+                  obscured: _obscured,
+                  onToggle: () => setState(() => _obscured = !_obscured),
+                  autofillHints: const [AutofillHints.newPassword],
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
+                  validator: (value) {
+                    if ((value ?? '').isEmpty) return 'Confirmation requise';
+                    return null;
+                  },
+                ),
+              ],
+            ],
           ),
         ),
-      ),
+        if (_error != null) AuthErrorText(message: _error!),
+        const SizedBox(height: 24),
+        AuthSubmitButton(
+          label: _isRegistering ? 'Créer le compte' : 'Se connecter',
+          busy: _busy,
+          onPressed: _submit,
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: _busy ? null : _toggleMode,
+          child: Text(
+            _isRegistering ? 'J\'ai déjà un compte' : 'Créer un compte',
+          ),
+        ),
+        // Seulement à la connexion : à l'inscription, il n'y a pas encore de
+        // mot de passe à oublier.
+        if (!_isRegistering)
+          TextButton(
+            onPressed: _busy
+                ? null
+                : () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ForgotPasswordScreen(),
+                    ),
+                  ),
+            child: const Text('Mot de passe oublié ?'),
+          ),
+      ],
     );
   }
 }

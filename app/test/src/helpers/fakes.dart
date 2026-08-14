@@ -6,6 +6,9 @@
 /// au moindre remaniement.
 library;
 
+import 'dart:async';
+
+import 'package:deckhand/src/features/auth/data/auth_repository.dart';
 import 'package:deckhand/src/features/card_search/data/card_repository.dart';
 import 'package:deckhand/src/features/scan/data/card_text_reader.dart';
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
@@ -438,6 +441,64 @@ class FakePrintingRepository implements PrintingRepository {
       for (final id in oracleIds)
         if (sole[id] != null) id: sole[id]!,
     };
+  }
+}
+
+/// Faux dépôt d'authentification.
+///
+/// Il retient ce qu'on lui demande plutôt que d'y répondre : c'est ce qui permet
+/// d'affirmer qu'un écran **n'a pas** appelé le serveur — la moitié des tests de
+/// validation portent sur ce refus, et non sur ce qui s'affiche.
+class FakeAuthRepository implements AuthRepository {
+  final List<(String, String)> signUps = [];
+  final List<(String, String)> signIns = [];
+  final List<String> resetsSent = [];
+  final List<String> passwordsSet = [];
+
+  /// Levée par le prochain appel, quel qu'il soit.
+  Object? error;
+
+  final _events = StreamController<AuthState>.broadcast();
+
+  /// Rejoue ce que `supabase_flutter` émet quand un lien de réinitialisation
+  /// rouvre l'application.
+  void emitPasswordRecovery() {
+    _events.add(AuthState(AuthChangeEvent.passwordRecovery, fakeSession()));
+  }
+
+  void dispose() => _events.close();
+
+  @override
+  Session? get currentSession => null;
+
+  @override
+  Stream<AuthState> get changes => _events.stream;
+
+  @override
+  Future<void> signIn({required String email, required String password}) async {
+    if (error != null) throw error!;
+    signIns.add((email, password));
+  }
+
+  @override
+  Future<void> signUp({required String email, required String password}) async {
+    if (error != null) throw error!;
+    signUps.add((email, password));
+  }
+
+  @override
+  Future<void> signOut() async {}
+
+  @override
+  Future<void> sendPasswordReset(String email) async {
+    if (error != null) throw error!;
+    resetsSent.add(email);
+  }
+
+  @override
+  Future<void> updatePassword(String password) async {
+    if (error != null) throw error!;
+    passwordsSet.add(password);
   }
 }
 
