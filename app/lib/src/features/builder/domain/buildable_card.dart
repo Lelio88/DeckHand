@@ -115,4 +115,25 @@ class BuildableCard {
       typeLine.contains('Synchro Monster') ||
       typeLine.contains('Xyz Monster') ||
       typeLine.contains('Link Monster');
+
+  /// La même carte, avec [quantity] exemplaires restants.
+  ///
+  /// Sert au partage d'une collection entre plusieurs decks : quand le premier
+  /// deck a pris deux des quatre exemplaires, les deux autres restent
+  /// disponibles pour les suivants. Une nouvelle instance plutôt qu'une
+  /// mutation — la collection reçue ne doit pas changer sous les pieds de
+  /// l'appelant.
+  BuildableCard withQuantity(int quantity) => BuildableCard(
+    oracleId: oracleId,
+    name: name,
+    typeLine: typeLine,
+    cmc: cmc,
+    colorIdentity: colorIdentity,
+    game: game,
+    manaCost: manaCost,
+    printedName: printedName,
+    oracleText: oracleText,
+    quantity: quantity,
+    priceEur: priceEur,
+  );
 }

@@ -1617,6 +1617,22 @@ La différence est la **fiabilité du gabarit**, et elle est mesurée. Les 190 p
 
 **Deux limites mesurées** sur cette collection d'essai : les créatures dépassent leur quota (39 pour 29) parce qu'une collection qui en regorge en fait entrer par la porte de la courbe, et le palier à sept manas reste vide faute de cartes assez chères. Ni l'une ni l'autre ne se corrige en tordant l'algorithme.
 
+### Plusieurs decks à la fois — des decks disjoints
+
+Un deck seul répond à « que puis-je jouer ? ». Une **série** répond à « combien de decks puis-je poser sur la table en même temps ? », et c'est une autre question : les decks doivent être **disjoints**, un exemplaire employé par le premier ne pouvant pas resservir au second. `deck_series.dart` construit, retire du vivier ce que le deck a consommé, recommence.
+
+**Le partage est glouton et séquentiel.** Le premier deck se sert dans toute la collection, le second dans ce qui reste : les decks sont de qualité décroissante. La série ne prétend donc pas répartir équitablement, elle prétend que chacun des decks rendus est complet et conforme au corpus. Un partage équilibré est un problème d'optimisation d'une autre nature, qu'on n'ouvrira pas sans l'avoir mesuré.
+
+**Le refus a une mesure, pas une opinion.** Un deck est écarté quand il manque de cartes, ou quand un rôle s'écarte de sa cible au-delà de l'écart interquartile que porte `Quota.spread` — au-delà, donc, de la bande où tient la moitié des decks réels. Refuser sur un seuil inventé serait un jugement.
+
+**Elle s'arrête en disant pourquoi**, et c'est la moitié de son utilité : le deck refusé est conservé (`DeckSeries.refused`). Répondre « pas de troisième deck » sans dire à combien de cartes il était n'apprend rien ; le rendre avec ses six cartes manquantes permet d'aller les acheter.
+
+**Les généraux des decks suivants sont réservés**, et c'est un test qui l'a imposé avant qu'on y pense : sans réservation, le premier deck mange les créatures légendaires comme n'importe quelle créature, et la série s'arrête au tour suivant faute de général. On en met de côté autant qu'il reste de decks à faire, et pas davantage — chaque général réservé est une créature de moins pour le deck en cours.
+
+**Les terrains de base ne sont jamais décomptés**, puisqu'ils ne viennent pas de la collection. Ce qui s'épuise et limite le nombre de decks, ce sont les sorts et les terrains non basiques.
+
+**Le vivier décidera, pas l'algorithme**, et le chiffre du paragraphe précédent dit déjà à quoi s'attendre : 72 sorts jouables pour 61 places, sur une paire de couleurs. Un seul deck épuise presque le vivier ; un second deck Commander complet suppose une collection sensiblement plus fournie. La série répondra donc souvent « un seul », et c'est une réponse juste — pas une panne.
+
 **Le deck est jetable.** Rien n'est enregistré : on construit, on lit, on recopie, on ferme. Conserver les decks demanderait une table, un écran pour les relire et de décider ce qu'il advient d'un deck quand la collection change — un produit à lui seul, qu'il vaut mieux bâtir une fois qu'on saura si le résultat mérite d'être gardé.
 
 `my_buildable_cards` sert la collection entière et d'un coup, avec le texte oracle que la page de collection ne porte pas. La pagination n'a pas de sens ici : on ne choisit pas quelles cartes retenir en n'en voyant qu'un vingtième.
