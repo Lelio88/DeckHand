@@ -147,7 +147,48 @@ YUGIOH = GameAnatomy(
     },
 )
 
-GAMES = {"magic": MAGIC, "yugioh": YUGIOH}
+#: Énergie de base — celle qu'on prend dans la boîte, comme un terrain de base.
+#:
+#: `layout` porte la famille rangée par l'ingestion (#28) ; `energy` désigne
+#: l'énergie de base, `special-energy` celle qui a une illustration et un texte.
+POKEMON_BASIC_ENERGY = "c.layout = 'energy'"
+
+POKEMON = GameAnatomy(
+    # Choisis par volume mesuré : Standard porte 99,5 % du corpus importé.
+    formats=("standard", "glc", "ex", "expanded"),
+    body="TRUE",
+    traits={
+        # **Les trois familles sont LA décision de construction de ce jeu.** Un
+        # deck Pokémon n'a ni terrains ni courbe de mana : il dose des Pokémon,
+        # des cartes Dresseur et des Énergies, et c'est tout ce qu'il dose.
+        "pokémon": "c.type_line LIKE 'Pokemon%'",
+        "dresseurs": "c.type_line LIKE 'Trainer%'",
+        "énergies": "c.type_line LIKE 'Energy%'",
+        # Les sous-familles Dresseur, que les règles distinguent : un Supporter
+        # par tour, un Stadium en jeu, les Objets sans limite.
+        "supporters": "c.type_line LIKE 'Trainer — Supporter%'",
+        "objets": "c.type_line LIKE 'Trainer — Item%'",
+        "stades": "c.type_line LIKE 'Trainer — Stadium%'",
+        "outils": "c.type_line LIKE 'Trainer — Tool%'",
+        "énergies de base": POKEMON_BASIC_ENERGY,
+        "énergies spéciales": "c.layout = 'special-energy'",
+    },
+    # **Aucune courbe.** `cmc` porte ici les points de vie — 70, 60, 80 sont les
+    # valeurs les plus fréquentes — et non un coût. Découper les PV en paliers
+    # décrirait la robustesse des créatures, pas une contrainte de construction :
+    # ce serait le même contresens que de lire le Niveau de Yu-Gi-Oh comme un
+    # coût de mana, avec l'aggravation qu'ici rien ne se paie.
+    curve=(),
+    curve_label="pv",
+    curve_scope="TRUE",
+    # **L'énergie de base est illimitée**, comme le terrain de base à Magic : la
+    # compter ferait annoncer un plafond de vingt exemplaires là où la règle en
+    # autorise quatre. Un plafond qui se lit comme une infraction alors qu'il
+    # décrit une exception est pire qu'une absence de mesure.
+    copies_scope=f"NOT ({POKEMON_BASIC_ENERGY})",
+)
+
+GAMES = {"magic": MAGIC, "yugioh": YUGIOH, "pokemon": POKEMON}
 
 
 @dataclass
@@ -203,13 +244,20 @@ def per_deck(
     # prendrait sinon pour ses propres marques de paramètre et refuserait la
     # requête. Les doubler plus tôt rendrait les traits illisibles.
     body = game.body.replace("%", "%%")
+    # **Une courbe peut être vide**, et le vide se filtre comme les zones : chez
+    # Pokémon, `cmc` porte les points de vie et non un coût, si bien qu'aucun
+    # découpage n'y décrit une contrainte de construction. Laisser passer la
+    # chaîne vide produirait un `, ,` que Postgres refuse.
     parts = [
-        f"SUM(dc.quantity) FILTER (WHERE {body})::real AS \"corps\"",
-        columns.replace("%", "%%"),
-        curve.replace("%", "%%"),
+        p
+        for p in (
+            f"SUM(dc.quantity) FILTER (WHERE {body})::real AS \"corps\"",
+            columns.replace("%", "%%"),
+            curve.replace("%", "%%"),
+            zones.replace("%", "%%"),
+        )
+        if p
     ]
-    if zones:
-        parts.append(zones.replace("%", "%%"))
     query = f"""
         SELECT d.id,
                {",".join(chr(10) + "               " + p for p in parts)},

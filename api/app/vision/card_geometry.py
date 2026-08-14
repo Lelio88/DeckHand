@@ -46,6 +46,19 @@ CARD_ASPECTS: dict[str, float] = {
     # rien ne garantissait : mesuré sur 20 cartes de dix cadres différents,
     # 813 × 1185 soit 0,6861, contre 0,68605 pour 59 × 86.
     "yugioh": 59 / 86,
+    # Pokémon : même carton que Magic, 63 × 88 mm.
+    #
+    # **Le rendu de la source ne s'y aligne pas**, contrairement aux trois autres
+    # jeux : TCGdex publie 600 × 825, soit 0,7273 contre 0,7159 pour le carton —
+    # 1,6 % d'écart, la plus grande divergence rencontrée jusqu'ici. C'est le
+    # carton qui gagne, parce que c'est lui que la photo montre.
+    #
+    # Ce que cet écart laisse en suspens : les fenêtres d'illustration de #28 ont
+    # été mesurées sur les rendus, en proportions de ceux-ci. Appliquées à une
+    # photo de carton, elles peuvent glisser d'environ 1 % en hauteur — trop peu
+    # pour manquer une illustration, assez pour valoir une vérification que
+    # personne n'a encore pu faire, faute de posséder une carte de ce jeu.
+    "pokemon": 63 / 88,
 }
 
 #: Ce sur quoi retombe un jeu absent de `CARD_ASPECTS`.

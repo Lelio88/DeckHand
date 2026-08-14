@@ -16,7 +16,17 @@ enum DeckFormat {
   edison('edison', 'Edison'),
   goat('goat', 'Goat'),
   redu('redu', 'REDU'),
-  hat('hat', 'HAT');
+  hat('hat', 'HAT'),
+
+  /// Pokémon. **Standard porte 99,5 % du corpus importé** — 17 295 decks sur
+  /// 17 380 — quand GLC en a 58, EX 14 et Expanded 9. C'est l'exact inverse de
+  /// Yu-Gi-Oh, où les formats rétro portaient 97 % du corpus.
+  ///
+  /// Cela dessert plutôt le produit : Standard tourne sur des extensions
+  /// récentes, donc chères et peu probables dans une collection ordinaire. Mais
+  /// c'est ce que la source publie, et inventer un format mieux servi serait
+  /// pire qu'un format cher.
+  standard('standard', 'Standard');
 
   const DeckFormat(this.id, this.label);
 
@@ -56,10 +66,13 @@ const _yugiohFormats = [
 /// en Riftbound afficherait trois onglets vides — un écran qui a l'air en panne
 /// alors qu'il dit la vérité. Le pendant existe déjà pour les types de cartes
 /// (`cardTypesFor`).
+const _pokemonFormats = [DeckFormat.standard];
+
 List<DeckFormat> deckFormatsFor(Game game) => switch (game) {
   Game.magic => _magicFormats,
   Game.riftbound => _riftboundFormats,
   Game.yugioh => _yugiohFormats,
+  Game.pokemon => _pokemonFormats,
 };
 
 class DeckSuggestion {

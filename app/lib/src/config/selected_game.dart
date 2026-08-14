@@ -23,7 +23,8 @@ import '../features/scan/domain/card_geometry.dart';
 enum Game {
   magic('magic', 'Magic: The Gathering'),
   riftbound('riftbound', 'Riftbound'),
-  yugioh('yugioh', 'Yu-Gi-Oh!');
+  yugioh('yugioh', 'Yu-Gi-Oh!'),
+  pokemon('pokemon', 'Pokémon');
 
   const Game(this.id, this.label);
 

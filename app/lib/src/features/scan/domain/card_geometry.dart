@@ -46,6 +46,20 @@ const Map<String, double> cardAspects = {
   // 813 × 1185 soit 0,6861, contre 0,68605 pour 59 × 86. C'est la vérification
   // que le paramétrage de ce module attendait pour cesser d'être théorique.
   'yugioh': 59 / 86,
+  // Pokémon : même carton que Magic, 63 × 88 mm.
+  //
+  // **Le rendu de la source ne s'y aligne pas**, contrairement aux trois autres
+  // jeux : TCGdex publie 600 × 825, soit 0,7273 contre 0,7159 pour le carton —
+  // 1,6 % d'écart, la plus grande divergence rencontrée jusqu'ici. C'est le
+  // carton qui gagne, parce que c'est lui que la photo montre, et c'est la règle
+  // que ce module s'est donnée dès Riftbound.
+  //
+  // **Ce que cet écart laisse en suspens** : les fenêtres d'illustration de #28
+  // ont été mesurées sur les rendus, en proportions de ceux-ci. Appliquées à une
+  // photo de carton, elles peuvent glisser d'environ 1 % en hauteur. Trop peu
+  // pour manquer une illustration, assez pour valoir une vérification — celle
+  // qu'aucune carte de papier n'a encore permise, faute d'en posséder une.
+  'pokemon': 63 / 88,
 };
 
 /// Ce sur quoi retombe un jeu absent de [cardAspects].

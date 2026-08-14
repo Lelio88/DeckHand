@@ -152,6 +152,7 @@ class DeckBlueprint {
     DeckFormat.goat => goat,
     DeckFormat.redu => redu,
     DeckFormat.hat => hat,
+    DeckFormat.standard => pokemonStandard,
     // Le format construit de Riftbound n'en a toujours pas : ses notions —
     // runes, champs de bataille — ne sont celles d'aucun des deux autres jeux,
     // et son corpus n'a pas été mesuré sous cet angle.
@@ -246,6 +247,58 @@ class DeckBlueprint {
   /// Les paliers portent le **Niveau** et non un coût de mana : on invoque sans
   /// tribut jusqu'à 4, avec un tribut à 5 et 6, avec deux au-delà. C'est le seul
   /// découpage qui décrive une contrainte réelle du jeu.
+  /// Pokémon Standard — mesuré sur **17 295 decks**, le plus gros corpus du
+  /// projet (`deck_anatomy --game pokemon`).
+  ///
+  /// **La taille est le chiffre le plus net qu'on ait mesuré** : 60 cartes,
+  /// écart interquartile **0,0**. Pas un deck du corpus ne s'en écarte.
+  ///
+  /// **Ce jeu ne dose que trois choses**, et elles partitionnent le deck :
+  /// Dresseurs 51,7 %, Pokémon 33,3 %, Énergies 15,0 %. Les trois portent le
+  /// même écart de 6,7 points — une régularité qu'aucun autre jeu du corpus
+  /// n'affiche sur ses familles principales.
+  ///
+  /// **Aucune courbe, et c'est mesuré plutôt qu'omis.** L'ingestion range les
+  /// points de vie dans `cmc` faute d'un champ dédié — 70, 60 et 80 sont les
+  /// valeurs les plus fréquentes. Découper les PV en paliers décrirait la
+  /// robustesse des créatures, pas une contrainte de construction : rien ne se
+  /// paie dans ce jeu, on pose une énergie par tour et c'est tout. C'est le même
+  /// piège que le Niveau de Yu-Gi-Oh, en pire — là-bas au moins le Niveau
+  /// conditionne l'invocation.
+  ///
+  /// **Ni terrains ni identité de couleur.** Les Énergies jouent le rôle des
+  /// terrains mais sont des cartes du deck, comptées dans les 60 et soumises au
+  /// quota ci-dessus — d'où `lands: null`, qui dit « cette notion n'existe pas »
+  /// là où un zéro se lirait comme un manque. Les types (Feu, Eau…) n'imposent
+  /// aucune contrainte de construction : un deck mélange ce qu'il veut.
+  ///
+  /// Les sous-familles Dresseur s'ajoutent au lieu de découper — un Supporter
+  /// reste un Dresseur —, comme une créature Magic qui produit du mana compte
+  /// dans deux rôles.
+  static const pokemonStandard = DeckBlueprint(
+    size: 60,
+    // La règle du jeu, et le corpus la confirme : maximum observé 4 sur les
+    // 17 295 decks, énergies de base exclues du décompte puisqu'illimitées.
+    maxCopies: 4,
+    needsCommander: false,
+    lands: null,
+    usesColorIdentity: false,
+    curveLabel: 'pv',
+    roles: {
+      CardRole.trainer: Quota(51.7, 6.7),
+      CardRole.pokemon: Quota(33.3, 6.7),
+      CardRole.energy: Quota(15.0, 6.7),
+      CardRole.supporter: Quota(16.7, 3.3),
+      CardRole.item: Quota(26.7, 6.7),
+      CardRole.stadium: Quota(5.0, 3.3),
+    },
+    curve: [],
+    // Un seul format, un seul archétype ? Non : Standard mêle tous les decks du
+    // méta, et ses écarts de 6,7 points le disent. La médiane décrit un deck
+    // plausible, pas un deck existant.
+    reliability: BlueprintReliability.averaged,
+  );
+
   static const edison = DeckBlueprint(
     size: 40,
     extraSize: 15,

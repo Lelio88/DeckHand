@@ -170,9 +170,14 @@ class _GamePicker extends ConsumerWidget {
             name: game.label,
             detail: switch (game) {
               Game.magic => '32 918 cartes, 1 028 decks',
+              // 929 et non 1 035 : le catalogue enregistrait deux fois les
+              // cartes dont la source réécrit le nom ou le texte d'une
+              // extension à l'autre. L'identité tient désormais au titre, au
+              // type et au champion.
               Game.riftbound =>
-                'le TCG League of Legends — 1 035 cartes, 2 500 decks',
-              Game.yugioh => '14 491 cartes, aucun deck pour l\'instant',
+                'le TCG League of Legends — 929 cartes, 2 500 decks',
+              Game.yugioh => '13 866 cartes, 3 935 decks',
+              Game.pokemon => '20 964 cartes, 17 380 decks',
             },
             // **Les prix Riftbound sont convertis, et ça se dit ici.** Ils sont
             // relevés en dollars chez TCGplayer ; l'euro affiché passe par le
@@ -185,11 +190,12 @@ class _GamePicker extends ConsumerWidget {
               // par le taux de la BCE et n'est donc pas un prix de marché
               // européen. Le chiffre est bon, sa provenance mérite d'être
               // connue avant qu'on décide d'acheter sur sa foi.
-              Game.riftbound => 'Prix convertis du dollar au taux de la BCE',
-              // Le catalogue est là, le corpus de decks pas encore : mieux vaut
-              // le dire sur la tuile que de laisser l'écran des decks paraître
-              // en panne.
-              Game.yugioh => 'Catalogue seul — decks et prix à venir',
+              // Les trois jeux servis par TCGCSV sont dans le même cas : les
+              // cotes y sont relevées en dollars, et l'euro affiché passe par le
+              // taux de la BCE.
+              Game.riftbound ||
+              Game.yugioh ||
+              Game.pokemon => 'Prix convertis du dollar au taux de la BCE',
               Game.magic => null,
             },
             selected: game == selected,

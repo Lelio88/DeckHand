@@ -80,8 +80,20 @@ const _yugiohTypes = <CardType>[
   CardType('Ritual', 'Rituel'),
 ];
 
+/// **Trois familles, et elles partitionnent le jeu entier** — 17 587 Pokémon,
+/// 2 844 Dresseurs, 533 Énergies sur les 20 964 cartes du catalogue. Les
+/// sous-familles Dresseur (Supporter, Objet, Stade, Outil) ne sont pas
+/// proposées ici : un filtre de recherche gagne à trancher large, et les trois
+/// familles suffisent à couper le catalogue sans reste.
+const _pokemonTypes = [
+  CardType('Pokemon', 'Pokémon'),
+  CardType('Trainer', 'Dresseur'),
+  CardType('Energy', 'Énergie'),
+];
+
 List<CardType> cardTypesFor(Game game) => switch (game) {
   Game.magic => _magicTypes,
   Game.riftbound => _riftboundTypes,
   Game.yugioh => _yugiohTypes,
+  Game.pokemon => _pokemonTypes,
 };

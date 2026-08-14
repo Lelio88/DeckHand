@@ -87,7 +87,13 @@ void main() {
   test('un identifiant inconnu retombe sur Magic', () {
     // Une préférence écrite par une version antérieure, ou corrompue, ne doit
     // pas empêcher l'application de démarrer.
-    expect(Game.fromId('pokemon'), Game.magic);
+    //
+    // **L'identifiant d'essai ne doit pas être celui d'un jeu à venir.** Celui-ci
+    // valait `pokemon`, et le test est tombé le jour où Pokémon a été accueilli —
+    // en accusant le code alors que c'est lui qui avait vieilli. Un nom qui ne
+    // sera jamais un jeu ne prend pas ce risque.
+    expect(Game.fromId('jeu-qui-nexiste-pas'), Game.magic);
+    expect(Game.fromId(''), Game.magic);
     expect(Game.fromId(null), Game.magic);
   });
 }

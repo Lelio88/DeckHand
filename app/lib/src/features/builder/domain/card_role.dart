@@ -54,6 +54,27 @@ enum CardRole {
 
   /// Piège continu : reste en jeu au lieu de se résoudre puis partir.
   continuousTrap,
+
+  // --- Pokémon ---------------------------------------------------------
+  /// **Ce jeu ne dose que trois choses**, et elles partitionnent le deck : des
+  /// Pokémon, des cartes Dresseur, des Énergies. Ni terrain, ni courbe de coût —
+  /// mesuré sur 17 295 decks Standard, `cmc` y porte les points de vie, dont
+  /// aucun découpage ne décrit une contrainte de construction.
+  pokemon,
+
+  trainer,
+
+  energy,
+
+  /// Un Supporter par tour : la carte la plus contrainte du jeu, donc celle
+  /// qu'un deck dose le plus étroitement (écart interquartile de 3,3 points).
+  supporter,
+
+  /// Objet : jouable sans limite de nombre dans le tour.
+  item,
+
+  /// Stade : un seul en jeu, et il remplace celui de l'adversaire.
+  stadium,
 }
 
 /// Les rôles que ce jeu sait reconnaître, dans l'ordre où on les affiche.
@@ -67,6 +88,14 @@ Set<CardRole> rolesFor(String game) => switch (game) {
     CardRole.trap,
     CardRole.quickSpell,
     CardRole.continuousTrap,
+  },
+  'pokemon' => const {
+    CardRole.pokemon,
+    CardRole.trainer,
+    CardRole.energy,
+    CardRole.supporter,
+    CardRole.item,
+    CardRole.stadium,
   },
   _ => const {
     CardRole.creature,
@@ -99,7 +128,33 @@ final _draw = RegExp(r'draw (a|\w+) card', caseSensitive: false);
 /// dit pas « Creature » mais « Monster ». Un ensemble vide se lirait comme une
 /// carte sans rôle, non comme une lecture inadaptée.
 Set<CardRole> rolesOf(BuildableCard card) =>
-    card.game == 'yugioh' ? _yugiohRoles(card) : _magicRoles(card);
+    switch (card.game) {
+      'yugioh' => _yugiohRoles(card),
+      'pokemon' => _pokemonRoles(card),
+      _ => _magicRoles(card),
+    };
+
+/// **Le type imprimé suffit, comme chez Yu-Gi-Oh.** « Pokemon — Basic Water »,
+/// « Trainer — Supporter » : la source publie la famille et sa sous-famille, et
+/// aucune ne se devine dans un texte.
+///
+/// Les trois familles principales partitionnent le deck ; les sous-familles
+/// Dresseur s'y ajoutent au lieu de le découper, un Supporter restant un
+/// Dresseur. C'est le même recouvrement volontaire que chez Magic, où une
+/// créature qui produit du mana compte dans les deux.
+Set<CardRole> _pokemonRoles(BuildableCard card) {
+  final type = card.typeLine;
+  final roles = <CardRole>{};
+  if (type.startsWith('Pokemon')) roles.add(CardRole.pokemon);
+  if (type.startsWith('Energy')) roles.add(CardRole.energy);
+  if (type.startsWith('Trainer')) {
+    roles.add(CardRole.trainer);
+    if (type.contains('Supporter')) roles.add(CardRole.supporter);
+    if (type.contains('Item')) roles.add(CardRole.item);
+    if (type.contains('Stadium')) roles.add(CardRole.stadium);
+  }
+  return roles;
+}
 
 Set<CardRole> _magicRoles(BuildableCard card) {
   final roles = <CardRole>{};

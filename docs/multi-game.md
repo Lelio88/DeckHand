@@ -1347,6 +1347,31 @@ la clé. Coût mesuré : ~0,1 % des cartes citées, et une part des 163 decks
 écartés. La correction devra distinguer une extension principale d'une annexe —
 le suffixe `tg` et le nombre de cartes le disent tous les deux.
 
+### Le gabarit de deck, mesuré sur 17 295 decks Standard
+
+| | médiane | écart interquartile |
+|---|---|---|
+| **corps du deck** | **60 cartes** | **0,0** |
+| dresseurs | 51,7 % | 6,7 |
+| pokémon | 33,3 % | 6,7 |
+| énergies | 15,0 % | 6,7 |
+| supporters | 16,7 % | 3,3 |
+| objets | 26,7 % | 6,7 |
+| stades | 5,0 % | 3,3 |
+| exemplaires d'une même carte | **4** | |
+
+**La taille est le chiffre le plus net du projet, tous jeux confondus** : écart interquartile 0,0, pas un deck du corpus ne s'écarte de 60. Et les trois familles portent le même écart de 6,7 points — une régularité qu'aucun autre jeu n'affiche sur ses familles principales.
+
+**Ce jeu ne dose que trois choses**, et elles partitionnent le deck : Pokémon, Dresseurs, Énergies. Les sous-familles Dresseur s'y ajoutent au lieu de le découper — un Supporter reste un Dresseur —, comme une créature Magic qui produit du mana compte dans deux rôles.
+
+**Aucune courbe, et c'est mesuré plutôt qu'omis.** L'ingestion range les points de vie dans `cmc` faute d'un champ dédié : 70, 60 et 80 sont les valeurs les plus fréquentes du catalogue. Découper les PV en paliers décrirait la robustesse des créatures, pas une contrainte de construction — rien ne se paie dans ce jeu, on pose une énergie par tour et c'est tout. C'est le piège du Niveau de Yu-Gi-Oh en pire : là-bas au moins, le Niveau conditionne l'invocation. Le banc a été rendu capable d'un jeu **sans courbe**, ce qu'il ne savait pas faire — la chaîne vide produisait un `, ,` que Postgres refuse.
+
+**L'énergie de base est illimitée**, comme le terrain de base à Magic, et elle est exclue du décompte d'exemplaires : l'y laisser aurait fait annoncer un plafond de vingt là où la règle en autorise quatre. Un plafond qui se lit comme une infraction alors qu'il décrit une exception est pire qu'une absence de mesure.
+
+**Standard seul.** Il porte 99,5 % du corpus importé (17 295 decks sur 17 380) ; GLC en a 58, EX 14, Expanded 9. GLC est d'ailleurs mesuré à **1 exemplaire maximum** — c'est un format singleton — mais 58 decks ne font pas un gabarit.
+
+**Ce que l'accueil du jeu a demandé en plus du gabarit** : `Game.pokemon` n'existait pas côté application. Le catalogue, les prix, les decks et l'index d'empreintes étaient en base sans que le jeu puisse être *sélectionné*. Trois `switch` sur `Game` l'ont signalé en refusant de compiler, et l'un d'eux affichait encore « Yu-Gi-Oh : 14 491 cartes, aucun deck » — un texte devenu faux sans que rien ne le dise.
+
 ### Ce qui reste dû
 
 - l'**index d'empreintes**, et c'est le mur : ~21 000 images, soit plusieurs
@@ -1355,7 +1380,6 @@ le suffixe `tg` et le nombre de cartes le disent tous les deux.
 - une **carte de papier**. Aucune n'a été photographiée, et c'est le carton qui a
   livré les deux derniers défauts de Riftbound. Le propriétaire de la collection
   n'a pas de cartes Pokémon : cette validation dépendra d'un tiers ;
-- le gabarit de deck (`DeckBlueprint`), qui se mesure désormais sur un corpus
-  réel de 17 380 listes — la seule chose déjà sûre est la taille, 60 ;
+- ~~le gabarit de deck~~ — **mesuré et câblé**, voir ci-dessous ;
 - les **103 sigles non résolus** ci-dessus, dont le diagnostic est fait : les
   mini-extensions volent la clé de leur extension mère.
