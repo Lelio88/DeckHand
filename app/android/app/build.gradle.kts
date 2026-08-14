@@ -1,8 +1,28 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Clé de signature de publication, **hors du dépôt**.
+//
+// `android/key.properties` pointe vers un keystore rangé dans
+// `../.deckhand-secrets/` et porte ses mots de passe : ni l'un ni l'autre ne
+// doit être versionné, le dépôt étant public (garde-fou §IV.7).
+//
+// Le fichier est **facultatif** : sans lui, la version release reste signée avec
+// la clé de débogage pour que `flutter run --release` fonctionne sur le poste.
+// C'est un piège connu — un AAB ainsi signé est refusé par Play, et le refus
+// arrive après l'envoi — d'où l'avertissement bien visible plus bas.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseKey = keystorePropertiesFile.exists()
+if (hasReleaseKey) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -30,11 +50,32 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // La clé de publication quand elle est là, celle de débogage sinon —
+            // et dans ce cas on le dit, parce qu'un AAB signé en débogage est
+            // accepté par Gradle et refusé par Play, bien plus tard.
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "ATTENTION : android/key.properties absent — la version " +
+                        "release est signée avec la clé de DÉBOGAGE. Play " +
+                        "refusera cet AAB. Voir docs/publication-play.md.",
+                )
+                signingConfigs.getByName("debug")
+            }
             // Nécessaire depuis l'ajout de la lecture de texte : voir le fichier
             // pour la raison — R8 bute sur des alphabets que nous n'embarquons pas.
             proguardFiles(

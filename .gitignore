@@ -56,3 +56,9 @@ app/**/GeneratedPluginRegistrant.*
 Thumbs.db
 .idea/
 .vscode/
+
+# Signature de publication Android — le dépôt est public (garde-fou §IV.7).
+# Le keystore et ses mots de passe vivent dans ../.deckhand-secrets/.
+app/android/key.properties
+*.jks
+*.keystore
