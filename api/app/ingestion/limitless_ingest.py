@@ -175,7 +175,13 @@ def tcgdex_sets(client: httpx.Client) -> list[dict[str, Any]]:
     """
     response = client.post(
         ENDPOINT_TCGDEX,
-        json={"query": "{sets{id name releaseDate tcgOnline serie{id}}}"},
+        # `cardCount` départage deux extensions qui se disputent un sigle : la
+        # principale est la plus grande, sa Trainer Gallery ne fait que trente
+        # cartes. Sans ce champ, l'ordre d'itération décidait à sa place.
+        json={
+            "query": "{sets{id name releaseDate tcgOnline serie{id} "
+            "cardCount{official}}}"
+        },
         timeout=120.0,
     )
     response.raise_for_status()
@@ -189,42 +195,117 @@ def set_abbreviations(
     *,
     today: dt.date,
 ) -> dict[str, str]:
-    """Sigle d'extension -> identifiant d'extension du catalogue.
+    """Sigle d'extension -> identifiants d'extension du catalogue.
 
-    Les trois gisements sont consultés dans l'ordre décrit en tête de module. Le
-    **premier arrivé garde la clé** : un sigle déjà attribué n'est pas réécrit,
-    faute de quoi un identifiant d'extension générique viendrait déloger une
-    abréviation officielle.
+    **Un sigle peut en désigner plusieurs, et c'est la source qui l'impose.**
+    `swsh10` (Astral Radiance, 216 cartes) et `swsh10.5tg` (sa *Trainer
+    Gallery*, 30) portent toutes deux `tcgOnline = "ASR"` — côté jeu numérique,
+    les cartes de la Gallery font partie du même produit. Attribuer le sigle à
+    une seule des deux perdait l'autre : `ASR` désignait l'annexe, et `ASR-146`
+    ne tombait sur rien. Même chose pour `LOR` et `SIT`.
+
+    Les indexer ensemble est sans risque, et c'est ce qui distingue ce cas d'une
+    ambiguïté : **leurs numéros ne se chevauchent pas**. L'extension principale
+    numérote en clair — 1, 146, 216 — la Gallery en `TG01`…`TG30`. Un même sigle
+    couvre donc deux plages disjointes, ce que `load_code_index` fusionne sans
+    perte.
+
+
+    Les trois gisements sont consultés dans l'ordre décrit en tête de module,
+    **un gisement entier à la fois**. La version précédente parcourait les
+    extensions et essayait leurs trois gisements pour chacune : une extension
+    rencontrée tôt posait alors son identifiant générique avant qu'une autre,
+    rencontrée plus tard, n'ait pu poser son abréviation officielle. La priorité
+    n'était donc respectée qu'à l'intérieur d'une extension, jamais entre elles,
+    et l'ordre d'itération décidait du reste.
+
+    **À gisement égal, la plus grande extension garde la clé.** Mesuré sur le
+    corpus : `ASR` pointait sur `swsh10.5tg` — la *Trainer Gallery*, trente
+    cartes — au lieu de `swsh10` et ses 216, si bien qu'`ASR-146` ne tombait sur
+    rien. Même chose pour `LOR` et `SIT`. Ces annexes portent le nom de leur
+    extension mère et sortent le même jour ; leur taille est ce qui les
+    départage. La règle n'exclut pas les annexes : une annexe dont la mère est
+    absente du catalogue garde son sigle, faute de mieux.
     """
     groups = list(groups)
+    sets = list(sets)
     pairs, _ = match_sets(sets, groups, today=today)
     abbrev_by_group = {
         int(g["groupId"]): (g.get("abbreviation") or "") for g in groups
     }
 
-    table: dict[str, str] = {}
-    for card_set in sets:
-        candidates = (
-            abbrev_by_group.get(pairs.get(card_set["id"], -1), ""),
-            card_set.get("tcgOnline") or "",
-            card_set["id"],
-        )
-        for candidate in candidates:
-            key = (candidate or "").strip().upper()
-            if key:
-                table.setdefault(key, card_set["id"])
+    def official_size(card_set: dict[str, Any]) -> int:
+        return int(((card_set.get("cardCount") or {}).get("official")) or 0)
+
+    def candidate_of(card_set: dict[str, Any], gisement: int) -> str:
+        if gisement == 0:
+            return abbrev_by_group.get(pairs.get(card_set["id"], -1), "")
+        if gisement == 1:
+            return card_set.get("tcgOnline") or ""
+        return card_set["id"]
+
+    table: dict[str, list[str]] = {}
+    for gisement in range(3):
+        found: dict[str, list[tuple[int, str]]] = {}
+        for card_set in sets:
+            key = (candidate_of(card_set, gisement) or "").strip().upper()
+            # Un sigle déjà servi par un gisement plus sûr n'est pas repris.
+            if not key or key in table:
+                continue
+            found.setdefault(key, []).append(
+                (official_size(card_set), card_set["id"])
+            )
+        for key, candidates in found.items():
+            # La plus grande d'abord : c'est l'extension principale, celle que
+            # les decklists citent le plus.
+            candidates.sort(key=lambda pair: (-pair[0], pair[1]))
+            table[key] = [set_id for _, set_id in candidates]
+
+    known = {card_set["id"] for card_set in sets}
+    for key, set_ids in table.items():
+        for set_id in list(set_ids):
+            mother = _mother_set(set_id)
+            if mother and mother in known and mother not in set_ids:
+                # En tête : c'est l'extension principale.
+                set_ids.insert(0, mother)
     return table
 
 
+def _mother_set(set_id: str) -> str | None:
+    """Extension dont `set_id` est une annexe, ou `None`.
+
+    **`LOR` et `SIT` n'étaient portés que par leur annexe.** `swsh11.5tg` — la
+    *Trainer Gallery* de Lost Origin — déclare `tcgOnline = "LOR"`, mais
+    `swsh11` n'en déclare aucun : le sigle ne désignait donc que trente cartes
+    sur deux cent vingt-six, et `LOR-101` ne tombait sur rien. Le cas d'`ASR` se
+    réglait par la taille, celui-ci non — il n'y avait qu'un candidat.
+
+    La convention de la source est lisible : une annexe porte l'identifiant de sa
+    mère, un point, puis un suffixe (`swsh11` → `swsh11.5tg`). C'est une
+    heuristique de nommage et non un contrat publié, d'où la double garde — la
+    mère n'est ajoutée que si le catalogue la connaît, et jamais en remplacement
+    de l'annexe, seulement devant elle. Les deux plages de numéros étant
+    disjointes (1…226 contre TG01…TG30), les indexer ensemble ne perd rien.
+    """
+    head, dot, _ = set_id.partition(".")
+    return head if dot and head else None
+
+
 def load_code_index(
-    conn: psycopg.Connection, abbreviations: dict[str, str]
+    conn: psycopg.Connection, abbreviations: dict[str, list[str]]
 ) -> dict[str, str]:
     """Index `SIGLE-NUMÉRO` -> `oracle_id`.
 
     Repart de l'index par identifiant d'extension — même cadrage du numéro sur
     trois chiffres que `PrintCodeResolver` — et le réindexe sous chaque sigle
     connu. Plusieurs sigles peuvent pointer la même extension, ce qui est voulu :
-    Limitless a changé de convention au fil des années.
+    Limitless a changé de convention au fil des années. Et **un sigle peut
+    couvrir plusieurs extensions** — une extension et sa *Trainer Gallery*
+    partagent leur code PTCGO — dont les plages de numéros sont disjointes.
+
+    L'ordre des extensions compte : la principale vient en premier, et
+    `setdefault` lui laisse la place si un numéro venait malgré tout à exister
+    des deux côtés.
     """
     by_set: dict[str, dict[str, str]] = {}
     for code, oracle_id in load_print_code_index(conn, GAME).items():
@@ -232,9 +313,10 @@ def load_code_index(
         by_set.setdefault(set_id, {})[number] = oracle_id
 
     index: dict[str, str] = {}
-    for abbreviation, set_id in abbreviations.items():
-        for number, oracle_id in by_set.get(set_id.upper(), {}).items():
-            index.setdefault(f"{abbreviation}-{number}", oracle_id)
+    for abbreviation, set_ids in abbreviations.items():
+        for set_id in set_ids:
+            for number, oracle_id in by_set.get(set_id.upper(), {}).items():
+                index.setdefault(f"{abbreviation}-{number}", oracle_id)
     return index
 
 

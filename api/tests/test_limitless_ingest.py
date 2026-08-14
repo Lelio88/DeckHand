@@ -37,21 +37,21 @@ def test_le_sigle_tcgplayer_est_retenu():
     sets = [_set("sv06", "Twilight Masquerade", "2024-05-24")]
     groups = [_group(1, "SV06: Twilight Masquerade", "2024-05-24", "TWM")]
     table = set_abbreviations(sets, groups, today=TODAY)
-    assert table["TWM"] == "sv06"
+    assert table["TWM"] == ["sv06"]
 
 
 def test_le_code_ptcgo_comble_ce_que_tcgplayer_ne_donne_pas():
     sets = [_set("sm2", "Guardians Rising", "2017-05-05", "GRI")]
     groups = [_group(1, "SM02: Guardians Rising", "2017-05-05", None)]
     table = set_abbreviations(sets, groups, today=TODAY)
-    assert table["GRI"] == "sm2"
+    assert table["GRI"] == ["sm2"]
 
 
 def test_lidentifiant_dextension_sert_de_dernier_recours():
     """« Mega Evolution Energy » n'a pas de groupe TCGplayer, et pèse 6 762 citations."""
     sets = [_set("mee", "Mega Evolution Energy", "2026-06-01")]
     table = set_abbreviations(sets, [], today=TODAY)
-    assert table["MEE"] == "mee"
+    assert table["MEE"] == ["mee"]
 
 
 def test_le_premier_gisement_garde_la_cle():
@@ -63,7 +63,7 @@ def test_le_premier_gisement_garde_la_cle():
     ]
     groups = [_group(1, "SV06: Twilight Masquerade", "2024-05-24", "TWM")]
     table = set_abbreviations(sets, groups, today=TODAY)
-    assert table["TWM"] == "sv06"
+    assert table["TWM"] == ["sv06"]
 
 
 def test_un_couple_faux_ne_transmet_pas_son_sigle():
@@ -72,7 +72,7 @@ def test_un_couple_faux_ne_transmet_pas_son_sigle():
     groups = [_group(7, "SM Base Set", "2017-02-03", "SUM")]
     table = set_abbreviations(sets, groups, today=TODAY)
     assert "SUM" not in table
-    assert table["BASE1"] == "base1"  # le dernier recours joue quand même
+    assert table["BASE1"] == ["base1"]  # le dernier recours joue quand même
 
 
 # --- l'aplatissement d'une decklist ----------------------------------------
@@ -378,3 +378,86 @@ def test_les_decks_dun_tournoi_sont_commites_avec_lui():
 
     assert (inserted, skipped) == (2, 1)
     assert conn.commits == 1
+
+
+# --- l'annexe ne vole pas le sigle de son extension mere --------------------
+
+
+def _set_size(id_: str, name: str, day: str, cards: int, ptcgo=None) -> dict:
+    s = _set(id_, name, day, ptcgo)
+    s["cardCount"] = {"official": cards}
+    return s
+
+
+def test_lextension_principale_garde_le_sigle_face_a_son_annexe():
+    """**Le defaut mesure sur le corpus reel** : `ASR` pointait sur
+    `swsh10.5tg` -- la *Trainer Gallery*, trente cartes -- au lieu de
+    `swsh10`, si bien qu'`ASR-146` ne tombait sur rien. Meme chose pour `LOR`
+    et `SIT`. Les deux extensions portent des noms proches et sortent le meme
+    jour ; seule leur taille les departage.
+    """
+    sets = [
+        _set_size("swsh10", "Astral Radiance", "2022-05-27", 216),
+        _set_size("swsh10.5tg", "Astral Radiance Trainer Gallery", "2022-05-27", 30),
+    ]
+    groups = [
+        _group(1, "SWSH10: Astral Radiance", "2022-05-27", "ASR"),
+        _group(2, "SWSH10: Astral Radiance Trainer Gallery", "2022-05-27", "ASR"),
+    ]
+    table = set_abbreviations(sets, groups, today=TODAY)
+    assert table["ASR"][0] == "swsh10"
+
+
+def test_une_annexe_seule_garde_son_sigle():
+    """Sans mere possedee au catalogue, l'annexe reste la meilleure reponse :
+    la regle departage, elle n'exclut pas."""
+    sets = [_set_size("swsh10.5tg", "Astral Radiance Trainer Gallery", "2022-05-27", 30)]
+    groups = [_group(2, "SWSH10: Astral Radiance Trainer Gallery", "2022-05-27", "ASR")]
+    table = set_abbreviations(sets, groups, today=TODAY)
+    assert table["ASR"] == ["swsh10.5tg"]
+
+
+def test_le_gisement_prime_toujours_sur_la_taille():
+    """La taille departage **a gisement egal**, jamais entre gisements : une
+    abreviation officielle TCGplayer doit continuer de battre un identifiant
+    d'extension pris en dernier recours, meme si celui-ci designe une extension
+    plus grosse."""
+    sets = [
+        _set_size("mee", "Mega Evolution Energy", "2026-06-01", 500),
+        _set_size("sv06", "Twilight Masquerade", "2024-05-24", 200),
+    ]
+    groups = [_group(1, "SV06: Twilight Masquerade", "2024-05-24", "MEE")]
+    table = set_abbreviations(sets, groups, today=TODAY)
+    # `MEE` vient du gisement TCGplayer pour sv06 ; l'identifiant `mee`, pris en
+    # dernier recours, ne doit pas le deloger malgre ses 500 cartes.
+    assert table["MEE"] == ["sv06"]
+
+
+def test_lannexe_entraine_sa_mere_quand_elle_seule_porte_le_sigle():
+    """**Le cas que la taille ne reglait pas.** `swsh11.5tg` declare
+    `tcgOnline = "LOR"`, mais `swsh11` n'en declare aucun : le sigle ne
+    designait que trente cartes sur deux cent vingt-six, et `LOR-101` ne tombait
+    sur rien. Il n'y avait qu'un candidat, donc rien a departager -- il fallait
+    deduire la mere de l'identifiant.
+    """
+    sets = [
+        _set_size("swsh11", "Lost Origin", "2022-09-09", 217),
+        _set_size("swsh11.5tg", "Lost Origin Trainer Gallery", "2022-09-09", 30, "LOR"),
+    ]
+    table = set_abbreviations(sets, [], today=TODAY)
+    # La mere en tete, l'annexe derriere : leurs numeros sont disjoints.
+    assert table["LOR"] == ["swsh11", "swsh11.5tg"]
+
+
+def test_une_mere_absente_du_catalogue_nest_pas_inventee():
+    """La deduction porte sur un nommage, pas sur un contrat publie : sans mere
+    au catalogue, on ne fabrique pas une extension."""
+    sets = [_set_size("swsh11.5tg", "Lost Origin Trainer Gallery", "2022-09-09", 30, "LOR")]
+    table = set_abbreviations(sets, [], today=TODAY)
+    assert table["LOR"] == ["swsh11.5tg"]
+
+
+def test_un_identifiant_sans_point_na_pas_de_mere():
+    sets = [_set_size("sv06", "Twilight Masquerade", "2024-05-24", 200, "TWM")]
+    table = set_abbreviations(sets, [], today=TODAY)
+    assert table["TWM"] == ["sv06"]

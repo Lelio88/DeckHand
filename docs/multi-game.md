@@ -1337,15 +1337,17 @@ relevés sur dix-neuf mois. Cela dessert le produit — Standard tourne sur des
 extensions récentes, donc chères et peu probables dans une collection ordinaire
 — mais c'est ce que la source publie.
 
-**103 sigles restent non résolus**, et le défaut n'est pas dans le connecteur :
-il est dans la table des sigles. `ASR` est apparié à `swsh10.5tg`, la *Trainer
-Gallery* de trente cartes, au lieu de l'extension principale — si bien
-qu'`ASR-146` ne tombe sur rien. Même chose pour `LOR` (`swsh11.5tg`) et `SIT`
-(`swsh12.5tg`) ; `TRR` n'a aucune extension du tout. Ces mini-extensions
-partagent le nom de leur extension mère, et le rapprochement par nom leur donne
-la clé. Coût mesuré : ~0,1 % des cartes citées, et une part des 163 decks
-écartés. La correction devra distinguer une extension principale d'une annexe —
-le suffixe `tg` et le nombre de cartes le disent tous les deux.
+**Les sigles ont été réglés, et la cause n'était pas celle qu'on croyait.** Le diagnostic disait « `ASR` pointe sur la *Trainer Gallery* au lieu de l'extension mère » — vrai, mais la cause tenait en trois défauts distincts.
+
+Le premier était dans l'ordre du parcours : la table essayait les trois gisements **extension par extension**, si bien qu'une extension rencontrée tôt posait son identifiant générique avant qu'une autre n'ait pu poser son abréviation officielle. La priorité des gisements n'était respectée qu'à l'intérieur d'une extension. Le parcours se fait désormais **gisement par gisement**.
+
+Le deuxième : `swsh10` et `swsh10.5tg` déclarent **toutes deux** `tcgOnline = "ASR"` — côté jeu numérique, les cartes de la Gallery font partie du même produit. Il n'y avait donc rien de faux à corriger, mais un choix à faire, et le champ qui l'aurait permis (`cardCount`) n'était pas demandé par la requête GraphQL. Il l'est, et **un sigle désigne désormais plusieurs extensions** : leurs plages de numéros sont disjointes (1…216 contre TG01…TG30), les indexer ensemble ne perd rien.
+
+Le troisième ne se réglait ni par l'ordre ni par la taille : pour `LOR` et `SIT`, **seule l'annexe porte le code**, la mère n'en déclare aucun. Il n'y avait qu'un candidat, donc rien à départager — la mère se déduit du nommage (`swsh11.5tg` → `swsh11`), avec deux gardes : elle n'est ajoutée que si le catalogue la connaît, et jamais en remplacement de l'annexe.
+
+Mesuré sur une fenêtre de trois jours (2 468 decks) : **49 267 codes d'impression indexés contre 43 361** (+13,6 %), **4 sigles non résolus contre 103**, et **un seul deck écarté** contre 0,9 % du corpus. Les quatre restants — `MEP`, `SP`, `BWP` — sont des promos anciennes qu'aucun gisement ne nomme.
+
+Les decks déjà en base gardent leurs cartes non résolues jusqu'à une réingestion complète : la correction agit sur ce qui est lu, pas sur ce qui est écrit.
 
 ### Le gabarit de deck, mesuré sur 17 295 decks Standard
 
