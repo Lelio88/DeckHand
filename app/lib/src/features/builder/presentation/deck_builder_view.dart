@@ -231,18 +231,21 @@ class _SeriesBar extends StatelessWidget {
   /// Ce qui a arrêté la série, dit à l'utilisateur plutôt qu'au journal.
   ///
   /// **Le deck refusé porte ce qui lui manquait**, et c'est le seul renseignement
-  /// actionnable : « il manque six cartes » se règle en achetant six cartes,
-  /// « pas de troisième deck » ne se règle pas.
+  /// actionnable : « à deux cartes près » se règle en achetant deux cartes,
+  /// « pas de quatrième deck » ne se règle pas.
+  ///
+  /// **Écrit court pour tenir sur une ligne.** Vu sur l'appareil, la version
+  /// longue passait à deux lignes et repoussait le deck à mi-hauteur, sous deux
+  /// barres de sélection déjà présentes. Le titre au-dessus donne le résultat ;
+  /// cette ligne le nuance, elle n'a pas à le répéter — d'où « un 4ᵉ » et non
+  /// « un 4ᵉ deck », et la disparition du « Au moins N » qui redisait le titre.
   String get _reason => switch (series.stop) {
-    SeriesStop.limitReached =>
-      'Au moins ${series.decks.length} : la recherche s\'arrête là.',
+    SeriesStop.limitReached => 'recherche arrêtée là',
     SeriesStop.incomplete =>
-      'Un ${series.decks.length + 1}ᵉ deck manquerait de '
-          '${series.refused?.diagnosis.short ?? 0} cartes.',
-    SeriesStop.offBlueprint =>
-      'Un ${series.decks.length + 1}ᵉ deck s\'écarterait trop des decks réels.',
-    SeriesStop.noCommander =>
-      'Il n\'y a plus de général disponible pour un ${series.decks.length + 1}ᵉ.',
+      'un ${series.decks.length + 1}ᵉ à '
+          '${series.refused?.diagnosis.short ?? 0} cartes près',
+    SeriesStop.offBlueprint => 'un ${series.decks.length + 1}ᵉ serait trop bancal',
+    SeriesStop.noCommander => 'plus de général disponible',
   };
 
   @override
@@ -263,8 +266,10 @@ class _SeriesBar extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            // Ce que la promesse vaut : aucune carte n'est comptée deux fois.
-            'Aucune carte partagée entre eux. $_reason',
+            // Ce que la promesse vaut — aucune carte n'est comptée deux fois —
+            // puis ce qui a arrêté la série, séparés par un point médian pour
+            // tenir sur une ligne là où deux phrases en prenaient deux.
+            'Aucune carte partagée · $_reason',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
