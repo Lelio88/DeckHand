@@ -1322,6 +1322,31 @@ liste enregistrée à moitié à la source franchirait sans peine le seuil de
 résolution — le peu qu'elle contient se résout parfaitement — et s'afficherait
 comme presque constructible, le pire défaut possible pour ce produit.
 
+#### Le corpus ingéré, fenêtre de trente jours couverte
+
+| | |
+|---|---|
+| Decks | **17 380** (443 321 lignes) |
+| Tournois | 327 |
+| Fenêtre | 14 juillet → 13 août |
+| Standard | 17 295 · GLC 58 · EX 14 · Expanded 13 |
+| Écartés (trop lacunaires) | 163, soit 0,9 % |
+
+Standard pèse 99,5 % du corpus réellement importé, plus encore que les 95,4 %
+relevés sur dix-neuf mois. Cela dessert le produit — Standard tourne sur des
+extensions récentes, donc chères et peu probables dans une collection ordinaire
+— mais c'est ce que la source publie.
+
+**103 sigles restent non résolus**, et le défaut n'est pas dans le connecteur :
+il est dans la table des sigles. `ASR` est apparié à `swsh10.5tg`, la *Trainer
+Gallery* de trente cartes, au lieu de l'extension principale — si bien
+qu'`ASR-146` ne tombe sur rien. Même chose pour `LOR` (`swsh11.5tg`) et `SIT`
+(`swsh12.5tg`) ; `TRR` n'a aucune extension du tout. Ces mini-extensions
+partagent le nom de leur extension mère, et le rapprochement par nom leur donne
+la clé. Coût mesuré : ~0,1 % des cartes citées, et une part des 163 decks
+écartés. La correction devra distinguer une extension principale d'une annexe —
+le suffixe `tg` et le nombre de cartes le disent tous les deux.
+
 ### Ce qui reste dû
 
 - l'**index d'empreintes**, et c'est le mur : ~21 000 images, soit plusieurs
@@ -1331,5 +1356,6 @@ comme presque constructible, le pire défaut possible pour ce produit.
   livré les deux derniers défauts de Riftbound. Le propriétaire de la collection
   n'a pas de cartes Pokémon : cette validation dépendra d'un tiers ;
 - le gabarit de deck (`DeckBlueprint`), qui se mesure désormais sur un corpus
-  réel — la seule chose déjà sûre est la taille, invariablement 60 ;
-- le sort des cartes que la règle du numéro ne sait pas lire.
+  réel de 17 380 listes — la seule chose déjà sûre est la taille, 60 ;
+- les **103 sigles non résolus** ci-dessus, dont le diagnostic est fait : les
+  mini-extensions volent la clé de leur extension mère.
