@@ -144,9 +144,31 @@ def box_for(game: str, layout: str | None) -> ArtBox | None:
         return YUGIOH_PENDULUM if layout and "pendulum" in layout else YUGIOH
     if game == "pokemon":
         return _pokemon_box(layout)
-    if game != "riftbound":
-        return None
-    return RIFTBOUND_LANDSCAPE if layout == "landscape" else RIFTBOUND_PORTRAIT
+    if game == "riftbound":
+        return RIFTBOUND_LANDSCAPE if layout == "landscape" else RIFTBOUND_PORTRAIT
+    return None
+
+
+#: Jeux dont la source publie une illustration **déjà détourée**.
+#:
+#: Pour eux, `box_for` rend `None` et l'image part telle quelle : la redécouper
+#: l'amputerait. C'est le cas de Magic, dont Scryfall sert l'illustration seule.
+#:
+#: **Cette liste existe parce que `None` est ambigu.** Il signifie « ne rien
+#: découper », ce qui est juste pour Magic et faux pour tout jeu dont la source
+#: publie la carte entière. Un cinquième jeu ajouté sans gabarit retombait
+#: silencieusement dans ce cas et voyait son index bâti sur des cartes entières
+#: prises pour des illustrations — une panne qui ne s'annonce pas, puisque les
+#: empreintes restent valides et se comparent entre elles.
+GAMES_WITH_PREDETOURED_ART = frozenset({"magic"})
+
+#: Jeux couverts par l'application dont la fenêtre n'est **pas encore mesurée**.
+#:
+#: Y figurer est un état déclaré, pas un oubli : le test de couverture accepte
+#: ces jeux-là et refuse tous les autres. En sortir demande une mesure sur de
+#: vraies cartes — c'est ce que #28 a fait pour Pokémon, et ce que Riftbound a
+#: payé de trois méthodes et deux échecs.
+GAMES_AWAITING_ART_BOX = frozenset({"wankul"})
 
 
 def _pokemon_box(layout: str | None) -> ArtBox:

@@ -24,6 +24,8 @@ import re
 from pathlib import Path
 
 from app.vision.art_box import (
+    GAMES_AWAITING_ART_BOX,
+    GAMES_WITH_PREDETOURED_ART,
     POKEMON,
     POKEMON_FULL,
     POKEMON_TRAINER,
@@ -78,6 +80,43 @@ def test_les_jeux_decoupes_ont_les_memes_gabarits_des_deux_cotes():
     dart = cadres_dart()
     for game, boxes in DECOUPES.items():
         assert dart.get(game) == boxes, f"gabarits divergents pour « {game} »"
+
+
+def test_chaque_jeu_couvert_a_une_decision_explicite():
+    """**`None` est ambigu, et ce test lève l'ambiguïté.**
+
+    Il signifie « ne rien découper », ce qui est juste pour Magic — Scryfall sert
+    l'illustration seule — et faux pour tout jeu dont la source publie la carte
+    entière. Un jeu ajouté sans gabarit y retombait en silence, et son index se
+    bâtissait sur des cartes entières prises pour des illustrations : une panne
+    qui ne s'annonce pas, les empreintes restant valides et comparables entre
+    elles.
+
+    Trois états sont donc admis, et le troisième est déclaré : gabarit mesuré,
+    illustration déjà détourée, ou mesure en attente.
+    """
+    from app.vision.card_geometry import CARD_ASPECTS
+
+    for game in CARD_ASPECTS:
+        decide = (
+            box_for(game, None) is not None
+            or game in GAMES_WITH_PREDETOURED_ART
+            or game in GAMES_AWAITING_ART_BOX
+        )
+        assert decide, (
+            f"« {game} » n'a ni gabarit, ni dispense, ni mention d'attente : "
+            "son index se bâtirait sur des cartes entières sans que rien ne le dise"
+        )
+
+
+def test_l_attente_n_est_pas_un_fourre_tout():
+    """Un jeu déclaré « en attente » ne doit pas l'être en même temps que mesuré :
+    sortir de l'attente est un geste, pas un oubli inverse."""
+    for game in GAMES_AWAITING_ART_BOX:
+        assert box_for(game, None) is None, (
+            f"« {game} » a un gabarit mais reste déclaré en attente"
+        )
+        assert game not in GAMES_WITH_PREDETOURED_ART
 
 
 def test_magic_est_la_seule_asymetrie_admise():
