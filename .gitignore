@@ -62,3 +62,9 @@ Thumbs.db
 app/android/key.properties
 *.jks
 *.keystore
+
+# Bundles et paquets : ils sont archives dans ../.deckhand-secrets/ sous
+# <projet>-v<versionCode>-<package>.aab, comme pour les autres apps du compte.
+# Un AAB pese 60 Mo et se regenere ; le depot n'a pas a le porter.
+*.aab
+*.apk

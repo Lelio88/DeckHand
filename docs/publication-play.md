@@ -25,7 +25,7 @@ l'app, définitivement.** Il vit dans `../.deckhand-secrets/`, avec les autres s
 
 ```bash
 cd ../.deckhand-secrets
-keytool -genkey -v -keystore deckhand-upload.jks \
+keytool -genkey -v -keystore upload-keystore.jks \
         -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 ```
 
@@ -36,7 +36,7 @@ depuis `android/app/`, ce qui est une source d'erreurs silencieuses :
 storePassword=<saisi à la création>
 keyPassword=<idem>
 keyAlias=upload
-storeFile=C:/Users/buton/Documents/Projets/.deckhand-secrets/deckhand-upload.jks
+storeFile=C:/Users/buton/Documents/Projets/.deckhand-secrets/upload-keystore.jks
 ```
 
 Sans ce fichier, la version release reste signée avec la clé de **débogage** : Gradle l'accepte, Play
@@ -139,6 +139,26 @@ grep DECKHAND_DEMO ../.deckhand-secrets/supabase.env
 | 8 · Applis gouvernementales | Non. |
 | 9 · Fonctionnalités financières | Aucune. Les prix affichés sont indicatifs ; l'app ne vend rien et ne prend aucun paiement. |
 | 10 · Applis de santé | Non. |
+
+## 4 bis. Où vivent la clé et les bundles
+
+**Convention du compte, partagée avec les autres apps** — voir
+`.dewdrop-secrets/`, `.gtg-secrets/`, `.culturiaquests-secrets/` :
+
+| Fichier | Emplacement |
+|---|---|
+| Clé de signature | `../.deckhand-secrets/upload-keystore.jks` |
+| Mot de passe | `../.deckhand-secrets/supabase.env` → `DECKHAND_KEYSTORE_PASSWORD` |
+| Bundle archivé | `../.deckhand-secrets/deckhand-v<versionCode>-app.deckhand.aab` |
+
+**Rien de tout cela n'entre dans le dépôt** : `key.properties` est ignoré deux
+fois (par `app/android/.gitignore` et par celui de la racine), et `*.aab` /
+`*.apk` le sont désormais aussi — un bundle pèse 60 Mo et se régénère.
+
+⚠️ **Le keystore ne se perd pas.** Le perdre interdit toute mise à jour de
+l'application, définitivement — aucune récupération n'existe. Play App Signing
+laissé activé à l'envoi est le seul filet : Google peut alors réinitialiser une
+clé d'upload compromise ou perdue.
 
 ## 5. La release
 
