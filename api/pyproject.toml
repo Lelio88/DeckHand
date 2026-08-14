@@ -33,6 +33,13 @@ dev = [
     "pytest>=8.3,<10.0",
     "ruff>=0.8,<1.0",
 ]
+# Publication sur le Play Store (`tools/release/publish_play.py`). Séparé du
+# cœur : l'ingestion n'en a pas besoin, et ces deux paquets ne doivent pas
+# peser sur un environnement qui ne publie jamais.
+release = [
+    "google-auth>=2.35,<3.0",   # jeton du compte de service play-publisher
+    "requests>=2.32,<3.0",      # transport de l'API Android Publisher
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

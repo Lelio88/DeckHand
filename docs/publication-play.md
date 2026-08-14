@@ -185,10 +185,37 @@ première release manuelle, et il faut l'inviter sur cette application dans *Uti
 autorisations* avec l'autorisation *Gérer les versions de test*. La production ne lui est pas
 accordée, à dessein.
 
-## 6. Ce qui manque encore
+## 6. Les envois suivants passent par l'API
 
-- **Les captures d'écran** — au moins deux, à faire sur l'appareil. Seule pièce que rien ne peut
-  produire sans lui.
-- **L'icône** — 512 × 512 px, et une bannière 1024 × 500.
-- **`publish_play.py`** — à copier depuis `dewdrop/tools/release/` et adapter, pour les envois qui
-  suivront le premier.
+Le premier envoi se fait à la main ; **tous les suivants passent par
+`tools/release/publish_play.py`**, copié depuis DewDrop sans une ligne de
+modification — il détecte seul le dépôt, le module Flutter, l'`applicationId`
+lu dans Gradle, la version de `pubspec.yaml`, l'AAB et la clé de service.
+
+```bash
+cd api
+.venv/Scripts/python -m pip install -e ".[release]"      # une fois
+
+# Toujours commencer par là : un vrai upload dans un edit temporaire, abandonné
+# ensuite. C'est ce qui prouve les droits et la validité du bundle avant
+# d'engager quoi que ce soit.
+.venv/Scripts/python ../tools/release/publish_play.py --track alpha \
+    --notes-file ../tools/release/notes-<version>.txt --dry-run
+
+.venv/Scripts/python ../tools/release/publish_play.py --track alpha \
+    --notes-file ../tools/release/notes-<version>.txt
+
+.venv/Scripts/python ../tools/release/publish_play.py --list-tracks
+```
+
+**Incrémenter `version:` dans `app/pubspec.yaml` avant de construire** : Play
+refuse un `versionCode` déjà envoyé, et le refus arrive après l'upload.
+
+Le compte de service ne peut pas atteindre la production — la permission n'a pas
+été accordée, à dessein. Voir `INFRASTRUCTURE.md` §compte de service à la racine
+des projets.
+
+## 7. Ce qui manque encore
+
+- **Les captures d'écran** de la fiche — au moins deux, à faire sur l'appareil.
+  Seule pièce que rien ne peut produire sans lui.

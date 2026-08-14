@@ -1,0 +1,5 @@
+Mot de passe oublié : vous pouvez désormais en demander un nouveau par e-mail, sans passer par personne.
+
+À l'inscription, le mot de passe se saisit deux fois et peut être affiché — une faute de frappe ne rend plus le compte inaccessible.
+
+L'application porte enfin son icône.
