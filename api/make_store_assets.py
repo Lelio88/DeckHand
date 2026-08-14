@@ -146,16 +146,57 @@ def eventail(dessin: ImageDraw.ImageDraw, centre: tuple[float, float], hauteur: 
         )
 
 
-def icone() -> Path:
-    """512 x 512, motif centré à 62 % — Play arrondit les coins par-dessus."""
-    cote = 512 * ECHELLE
+def dessiner_icone(cote_final: int) -> Image.Image:
+    """L'icône, dessinée à quadruple résolution puis réduite à [cote_final].
+
+    Redessiner à chaque taille plutôt que réduire le 512 : à 48 pixels, une
+    réduction par huit de l'image finale empâte les bords des cartes, là où le
+    dessin refait garde ses arêtes.
+    """
+    cote = cote_final * ECHELLE
     image = fond_degrade(cote, cote)
     dessin = ImageDraw.Draw(image)
     eventail(dessin, (cote / 2, cote / 2), cote * 0.42)
-    image = image.resize((512, 512), Image.LANCZOS)
+    return image.resize((cote_final, cote_final), Image.LANCZOS)
+
+
+def icone() -> Path:
+    """512 x 512, motif centré à 62 % — Play arrondit les coins par-dessus."""
     chemin = SORTIE / "icon-512.png"
-    image.save(chemin)
+    dessiner_icone(512).save(chemin)
     return chemin
+
+
+#: Densités Android et le côté attendu par chacune, en pixels.
+#:
+#: Le lanceur ne lit pas l'icône de la fiche Play : celle-ci reste sur le serveur
+#: de Google. Sans ces fichiers, l'application porte le logo Flutter du gabarit
+#: de départ — ce qu'un `flutter analyze` ne signale pas et qu'aucun test ne
+#: voit, mais que tout testeur a sous les yeux au premier lancement.
+DENSITES = {
+    "mdpi": 48,
+    "hdpi": 72,
+    "xhdpi": 96,
+    "xxhdpi": 144,
+    "xxxhdpi": 192,
+}
+
+
+def icones_lanceur() -> list[Path]:
+    """Remplace `ic_launcher.png` dans chaque `mipmap-*` du projet Android."""
+    res = (
+        Path(__file__).resolve().parent.parent
+        / "app" / "android" / "app" / "src" / "main" / "res"
+    )
+    ecrits: list[Path] = []
+    for densite, cote in DENSITES.items():
+        dossier = res / f"mipmap-{densite}"
+        if not dossier.exists():
+            continue
+        chemin = dossier / "ic_launcher.png"
+        dessiner_icone(cote).save(chemin)
+        ecrits.append(chemin)
+    return ecrits
 
 
 def police_ajustee(chemin: str | None, texte: str, largeur_max: float, plafond: int):
@@ -215,3 +256,7 @@ if __name__ == "__main__":
     for chemin in (icone(), banniere()):
         taille = Image.open(chemin).size
         print(f"{chemin.name:26} {taille[0]} x {taille[1]}")
+    for chemin in icones_lanceur():
+        taille = Image.open(chemin).size
+        print(f"{chemin.parent.name + '/' + chemin.name:26} "
+              f"{taille[0]} x {taille[1]}")

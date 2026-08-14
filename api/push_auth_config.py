@@ -29,7 +29,17 @@ from pathlib import Path
 
 import httpx
 
-COFFRE = Path(__file__).resolve().parent.parent.parent / ".deckhand-secrets"
+RACINE = Path(__file__).resolve().parent.parent.parent
+COFFRE = RACINE / ".deckhand-secrets"
+
+#: Le relais est une ressource **transverse**, partagée avec DewDrop : sa clé
+#: vit à la racine des projets et non dans le coffre de celui-ci, sur le modèle
+#: de `.play-secrets/`. La dupliquer par application donnerait deux endroits à
+#: mettre à jour lors d'une rotation, donc un des deux oublié — et une
+#: application qui cesse d'envoyer sans que rien ne le signale.
+#: Voir `../../brevo-email-guide.md`.
+COFFRE_BREVO = RACINE / ".brevo-secrets"
+
 GABARITS = Path(__file__).resolve().parent.parent / "supabase" / "templates"
 
 #: Le sujet porte le nom du produit : c'est ce qui rend les courriels de
@@ -37,9 +47,9 @@ GABARITS = Path(__file__).resolve().parent.parent / "supabase" / "templates"
 SUJET_RECOVERY = "DeckHand — nouveau mot de passe"
 
 
-def lire_env(nom: str) -> dict[str, str]:
+def lire_env(nom: str, coffre: Path = COFFRE) -> dict[str, str]:
     valeurs: dict[str, str] = {}
-    chemin = COFFRE / nom
+    chemin = coffre / nom
     if not chemin.exists():
         raise SystemExit(f"coffre introuvable : {chemin}")
     for ligne in chemin.read_text(encoding="utf-8").splitlines():
@@ -52,7 +62,7 @@ def lire_env(nom: str) -> dict[str, str]:
 
 def main() -> int:
     supabase = lire_env("supabase.env")
-    brevo = lire_env("brevo-smtp.env")
+    brevo = lire_env("brevo-smtp.env", COFFRE_BREVO)
 
     ref = re.sub(r"https?://([^.]+)\..*", r"\1", supabase["SUPABASE_URL"])
     entetes = {"Authorization": f"Bearer {supabase['SUPABASE_ACCESS_TOKEN']}"}
