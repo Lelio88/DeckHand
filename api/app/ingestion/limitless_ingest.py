@@ -430,7 +430,15 @@ def store_standings(
         stored = store_deck(
             conn,
             source_id=SOURCE_ID,
-            external_id=f"{tournament_id}-{entry.get('placing')}",
+            # Le joueur, et non son classement. Le classement paraissait
+            # évident et coûtait un quart du corpus : Limitless rend
+            # `placing: null` pour tout joueur non classé — d'un tournoi encore
+            # en cours — si bien que tous partageaient la clé `{tournoi}-None`
+            # et s'écrasaient l'un l'autre. Il n'est pas stable non plus : le
+            # même joueur passe de `null` à `5` une fois le tournoi terminé, et
+            # une réingestion créerait alors un doublon au lieu de remplacer.
+            # Le pseudonyme est présent partout et unique dans un tournoi.
+            external_id=f"{tournament_id}-{entry.get('player')}",
             name=deck_name(entry, tournament),
             fmt=db_format,
             # Ce sont des listes de compétition : l'étiquette permet à

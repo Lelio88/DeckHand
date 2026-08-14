@@ -1322,6 +1322,32 @@ liste enregistrée à moitié à la source franchirait sans peine le seuil de
 résolution — le peu qu'elle contient se résout parfaitement — et s'afficherait
 comme presque constructible, le pire défaut possible pour ce produit.
 
+#### Le classement n'identifie pas un deck, et le silence a coûté un quart du corpus
+
+Le connecteur identifiait un deck par `{tournoi}-{placing}`. Le classement
+paraît être la clé naturelle d'un standing — il l'est dans un tournoi terminé.
+**Limitless rend `placing: null` pour tout joueur non classé**, ce qui est le cas
+de tous les participants d'un tournoi encore en cours, et des joueurs sortis en
+route. Tous recevaient alors la clé `{tournoi}-None`, et l'`ON CONFLICT DO
+UPDATE` qui rend l'ingestion rejouable les écrasait l'un après l'autre : il n'en
+restait qu'un par tournoi.
+
+Le défaut ne s'annonçait pas. Le connecteur lisait, parsait et résolvait ces
+decks correctement ; il rendait même un compte juste de **ce qu'il avait
+écrit** — 23 488 — sans que rien ne dise que la base n'en portait que **18 041**.
+C'est le rapprochement des deux nombres qui l'a révélé, et non une erreur.
+
+**La correction est le pseudonyme**, présent sur tous les standings et unique
+dans un tournoi (vérifié : 229/229 distincts, aucun absent). Il a une seconde
+vertu que le classement n'a pas : il est **stable dans le temps**. Un joueur non
+classé pendant le tournoi est classé une fois qu'il est fini ; une clé bâtie sur
+le classement passerait de `null` à `5` et la réingestion créerait un doublon au
+lieu de remplacer le deck déjà écrit. Deux tests tiennent les deux propriétés.
+
+La leçon rejoint celle de #29 sur Riftbound et celle des noms Pokémon : **une
+identité ne se dérive pas d'un champ d'affichage**. Le classement est un
+résultat, pas un identifiant — il change, il manque, et il se répète.
+
 #### Le corpus ingéré, fenêtre de trente jours couverte
 
 | | |

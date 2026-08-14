@@ -380,6 +380,65 @@ def test_les_decks_dun_tournoi_sont_commites_avec_lui():
     assert conn.commits == 1
 
 
+# --- ce qui identifie un deck dans un tournoi -------------------------------
+
+
+def _cles_ecrites(standings: list[dict]) -> list[str]:
+    """Les `external_id` que `store_standings` écrirait pour ces standings."""
+    cles: list[str] = []
+
+    def espion(conn, **kw):
+        cles.append(kw["external_id"])
+        return True
+
+    original = limitless_ingest.store_deck
+    limitless_ingest.store_deck = espion
+    try:
+        limitless_ingest.store_standings(
+            ConnexionFactice(),
+            standings,
+            tournament={"name": "Regional"},
+            tournament_id="T1",
+            db_format="standard",
+            recorded_at=None,
+            resolver=None,
+        )
+    finally:
+        limitless_ingest.store_deck = original
+    return cles
+
+
+def _liste(numero: str) -> dict:
+    return {"pokemon": [{"count": 4, "set": "TWM", "number": numero}]}
+
+
+def test_deux_joueurs_non_classes_ne_sont_pas_le_meme_deck():
+    """**Le défaut mesuré sur le corpus réel.** La clé était
+    `{tournoi}-{placing}`, or Limitless rend `placing: null` pour tout joueur
+    non classé — d'un tournoi en cours, typiquement. Tous recevaient alors la
+    même clé et s'écrasaient l'un l'autre en silence : 23 488 decks lus pour
+    18 041 conservés, soit près d'un quart du corpus perdu sans un mot.
+    """
+    cles = _cles_ecrites(
+        [
+            {"player": "nuno314", "placing": None, "decklist": _liste("1")},
+            {"player": "sanzoku", "placing": None, "decklist": _liste("2")},
+        ]
+    )
+
+    assert len(set(cles)) == 2, f"deux decks, une seule clé : {cles}"
+
+
+def test_la_cle_ne_bouge_pas_quand_le_classement_tombe():
+    """Le classement n'est pas stable : un joueur non classé pendant le tournoi
+    est classé une fois qu'il est fini. Une clé qui en dépend crée un doublon à
+    la réingestion au lieu de remplacer le deck qu'elle a déjà écrit."""
+    pendant = _cles_ecrites([{"player": "nuno314", "placing": None, "decklist": _liste("1")}])
+    apres = _cles_ecrites([{"player": "nuno314", "placing": 5, "decklist": _liste("1")}])
+
+    assert pendant == apres
+
+
 # --- l'annexe ne vole pas le sigle de son extension mere --------------------
 
 
