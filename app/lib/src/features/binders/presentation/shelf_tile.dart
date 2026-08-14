@@ -39,14 +39,35 @@ import '../domain/binder.dart';
 /// l'écran : l'étagère reste une liste qu'on parcourt.
 const double _bannerHeight = 118;
 
+/// Hauteur d'un classeur satellite — decks Commander, jetons d'une extension.
+///
+/// 100 et non 92 : à 92, mesuré sur l'appareil, le bloc du bas remontait assez
+/// pour que le pourcentage rencontre le coin haut-droit. Le retrait latéral et
+/// cette différence de hauteur suffisent à dire la subordination.
+const double _satelliteHeight = 100;
+
 /// Ce qui détache le texte clair d'une illustration quelconque.
 const List<Shadow> _legibility = [Shadow(blurRadius: 6, color: Colors.black87)];
 
 class ShelfTile extends StatelessWidget {
-  const ShelfTile({super.key, required this.entry, required this.onOpen});
+  const ShelfTile({
+    super.key,
+    required this.entry,
+    required this.onOpen,
+    this.isSatellite = false,
+  });
 
   final BinderShelfEntry entry;
   final VoidCallback onOpen;
+
+  /// Cette extension dépend d'une autre, possédée elle aussi.
+  ///
+  /// **Le retrait dit la parenté sans avoir à l'écrire.** Une sortie produit
+  /// plusieurs extensions — boosters, decks Commander, jetons de chacune — et
+  /// les aligner toutes au même niveau laissait croire à cinq produits sans
+  /// rapport. Le classeur reste entier et se range comme les autres : seule sa
+  /// place sur l'étagère change.
+  final bool isSatellite;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +80,7 @@ class ShelfTile extends StatelessWidget {
     final cover = entry.artCropUrl;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+      padding: EdgeInsets.fromLTRB(isSatellite ? 34 : 12, 4, 12, 4),
       child: Material(
         clipBehavior: Clip.antiAlias,
         borderRadius: BorderRadius.circular(14),
@@ -67,7 +88,10 @@ class ShelfTile extends StatelessWidget {
         child: InkWell(
           onTap: onOpen,
           child: SizedBox(
-            height: _bannerHeight,
+            // Un satellite est plus court que sa mère : le retrait seul se
+            // perdrait sur une étagère longue, et la hauteur dit la
+            // subordination même quand la tête est hors de l'écran.
+            height: isSatellite ? _satelliteHeight : _bannerHeight,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -81,7 +105,16 @@ class ShelfTile extends StatelessWidget {
                 // fait sursauter la liste, et le fond est déjà là.
                 if (cover != null) CardImage(url: cover),
                 const _Veil(),
-                if (entry.iconSvgUri != null)
+                // **Le coin haut-droit n'accueille qu'une chose à la fois.**
+                // Vérifié sur l'appareil : sur une tuile satellite, plus courte,
+                // le pourcentage remontait sous l'icône d'extension et la
+                // pastille « Jetons » touchait le titre. L'icône d'un satellite
+                // étant de toute façon celle de sa mère, affichée juste
+                // au-dessus, c'est la pastille qui prend la place — elle, elle
+                // apprend quelque chose.
+                if (entry.isTokenSet)
+                  const Positioned(top: 9, right: 11, child: _TokenBadge())
+                else if (entry.iconSvgUri != null && !isSatellite)
                   Positioned(
                     top: 9,
                     right: 11,
@@ -176,6 +209,37 @@ class ShelfTile extends StatelessWidget {
 /// Le SVG n'est pas mis en cache par le disque ici — `flutter_svg` garde le
 /// rendu en mémoire pour la session, et une silhouette d'un kilo-octet ne
 /// justifie pas davantage.
+/// Marque d'un classeur de jetons.
+///
+/// Discrète à dessein : elle informe, elle ne dévalue pas. Un classeur de
+/// jetons se collectionne comme un autre — il ne mène simplement à aucun deck,
+/// et le savoir évite de chercher pourquoi ces cartes n'apparaissent jamais
+/// dans une construction.
+class _TokenBadge extends StatelessWidget {
+  const _TokenBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Text(
+        'Jetons',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+          shadows: _legibility,
+        ),
+      ),
+    );
+  }
+}
+
 class _SetIcon extends StatelessWidget {
   const _SetIcon({required this.url});
 

@@ -89,6 +89,8 @@ class BinderShelfEntry {
     this.releasedAt,
     this.artCropUrl,
     this.iconSvgUri,
+    this.parentSetCode,
+    this.setType,
   });
 
   final String setCode;
@@ -132,6 +134,29 @@ class BinderShelfEntry {
   /// fois sur trois. Vaut `null` tant que les extensions ne sont pas ingérées.
   final String? iconSvgUri;
 
+  /// Extension dont celle-ci dépend, quand elle en dépend.
+  ///
+  /// **Une sortie ne produit pas une extension mais une famille** : « Marvel
+  /// Super Heroes » en compte quatre — les boosters (`msh`), les decks Commander
+  /// (`msc`), et un jeu de jetons pour chacune (`tmsh`, `tmsc`). La chaîne peut
+  /// faire deux niveaux : `tmsc` dépend de `msc`, qui dépend de `msh`.
+  ///
+  /// Cela sert à **grouper l'affichage, jamais à fusionner les classeurs** : les
+  /// numérotations se chevauchent, et le n° 1 vaut trois cartes différentes
+  /// selon l'extension. Trois cartes ne tiennent pas dans une case.
+  final String? parentSetCode;
+
+  /// Nature de l'extension, telle que Scryfall la publie : `expansion`,
+  /// `commander`, `token`, `masterpiece`, `promo`…
+  final String? setType;
+
+  /// Extension de jetons — des marqueurs, pas des cartes de deck.
+  ///
+  /// Mesuré sur la collection réelle : aucune des cartes ainsi marquées n'est
+  /// légale en Pauper, Modern ni Commander. Elles occupent un classeur et un
+  /// compte d'exemplaires sans pouvoir entrer dans un deck.
+  bool get isTokenSet => setType == 'token';
+
   /// Part de l'édition possédée, entre 0 et 1.
   double get completion => totalCells == 0 ? 0 : ownedCells / totalCells;
 
@@ -153,6 +178,8 @@ class BinderShelfEntry {
             : DateTime.tryParse(json['released_at'] as String),
         artCropUrl: json['art_crop_url'] as String?,
         iconSvgUri: json['icon_svg_uri'] as String?,
+        parentSetCode: json['parent_set_code'] as String?,
+        setType: json['set_type'] as String?,
       );
 }
 

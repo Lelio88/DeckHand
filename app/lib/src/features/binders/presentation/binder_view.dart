@@ -32,6 +32,7 @@ import '../../printings/presentation/foil_decoration.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/binder_repository.dart';
 import '../domain/binder.dart';
+import '../domain/binder_family.dart';
 import 'page_turn.dart';
 import 'shelf_tile.dart';
 
@@ -327,20 +328,37 @@ class _Shelf extends ConsumerWidget {
             // et le laisserait croire à une collection vide.
             if (!ref.watch(readOnlyProvider)) const _ShelfSearch(),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                itemCount: entries.length + 1,
-                // La pile à trier ouvre l'étagère plutôt que de la clore :
-                // c'est le travail en cours, et ce qu'on range aujourd'hui
-                // remplira les classeurs demain.
-                itemBuilder: (context, i) {
-                  if (i == 0) return const _UnsortedTile();
-                  final entry = entries[i - 1];
-                  return ShelfTile(
-                    entry: entry,
-                    onOpen: () {
-                      ref.read(binderPageNumberProvider.notifier).set(1);
-                      ref.read(openBinderProvider.notifier).open(entry.setCode);
+              child: Builder(
+                builder: (context) {
+                  // **Groupées par sortie, jamais fusionnées.** Une extension et
+                  // ses satellites — decks Commander, jetons — viennent du même
+                  // produit, mais chacun garde son classeur : les numérotations
+                  // se chevauchent, et le n° 1 vaut trois cartes différentes.
+                  final rows = [
+                    for (final famille in groupIntoFamilies(entries)) ...[
+                      (famille.head, false),
+                      for (final s in famille.satellites) (s, true),
+                    ],
+                  ];
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: rows.length + 1,
+                    // La pile à trier ouvre l'étagère plutôt que de la clore :
+                    // c'est le travail en cours, et ce qu'on range aujourd'hui
+                    // remplira les classeurs demain.
+                    itemBuilder: (context, i) {
+                      if (i == 0) return const _UnsortedTile();
+                      final (entry, isSatellite) = rows[i - 1];
+                      return ShelfTile(
+                        entry: entry,
+                        isSatellite: isSatellite,
+                        onOpen: () {
+                          ref.read(binderPageNumberProvider.notifier).set(1);
+                          ref
+                              .read(openBinderProvider.notifier)
+                              .open(entry.setCode);
+                        },
+                      );
                     },
                   );
                 },

@@ -74,6 +74,18 @@ deux classeurs sur cinq. Symboles et icônes sont **chargés depuis
 `svgs.scryfall.io`, jamais embarqués** — ils sont copyright Wizards of the Coast,
 et les commiter dans un dépôt public serait les redistribuer (garde-fou §IV.10).
 
+#### Une sortie, plusieurs classeurs — groupés, jamais fusionnés
+
+**Une sortie ne produit pas une extension mais une famille.** « Marvel Super Heroes » en compte quatre : les boosters (`msh`, 453 cartes), les decks Commander (`msc`, 866), et un jeu de jetons pour chacune (`tmsh` 27, `tmsc` 32). L'étagère les alignait au même niveau — cinq classeurs en vrac pour une seule sortie — alors que `card_sets.parent_set_code` porte la parenté depuis l'ingestion et n'était **lu nulle part**, ni en SQL ni en Dart.
+
+**Le regroupement ne fusionne rien, et c'est la mesure qui l'interdit.** Chaque extension a sa propre numérotation, et les numéros se chevauchent : le n° 1 vaut « Agent 13, Sharon Carter » dans `msh`, « Invisible Woman » dans `msc` et « Wall » dans `tmsh`. Trois cartes ne tiennent pas dans une case — c'est exactement pourquoi l'édition se lit par son code et jamais par son numéro. Chaque extension garde donc son classeur ; seule sa place sur l'étagère change.
+
+`groupIntoFamilies` remonte la chaîne de parenté jusqu'à la **racine possédée** — `tmsc` → `msc` → `msh`, deux niveaux — et s'arrête au dernier maillon présent : on peut posséder des jetons sans avoir ouvert un booster, et les rattacher à une mère absente les ferait disparaître. Une parenté circulaire rend chaque extension à elle-même plutôt que de désigner une tête introuvable, ce qu'un test a imposé en faisant planter l'écran.
+
+**Les jetons se rangent en dernier et se signalent.** Aucune de leurs cartes n'est légale en Pauper, Modern ni Commander — vérifié sur la collection réelle, zéro sur vingt-deux exemplaires. Ils passent donc derrière les satellites jouables quel que soit leur remplissage, et portent une pastille : rien d'autre ne les distingue, ni la bannière, ni l'illustration, ni le taux de complétion.
+
+**Deux réglages viennent de l'appareil et non du raisonnement.** La tuile satellite fait 100 px et non 92 : à 92, le pourcentage remontait sous le symbole d'extension. Et un satellite n'affiche plus ce symbole — il est celui de sa mère, juste au-dessus — ce qui libère le coin haut-droit pour la pastille, laquelle chevauchait le titre.
+
 ### La feuille qui se tourne
 
 Le relief vient de la **lumière** — reflet qui balaie la feuille, ombre portée sur
