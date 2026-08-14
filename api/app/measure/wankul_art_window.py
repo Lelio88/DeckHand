@@ -158,19 +158,29 @@ def redressee(card: np.ndarray) -> np.ndarray:
     deux jeux de bandeaux, symétriques par rapport au centre — la moitié des
     cartes à l'endroit, l'autre à 180°.
 
-    Le sens se décide donc carte par carte, sur un repère stable : les bandeaux
-    de texte occupent la moitié **haute** d'un Terrain à l'endroit — mesuré sur
-    « Road Trip », 0,097 à 0,446. S'ils tombent en bas, la carte est retournée.
+    **Le repère n'est pas la position des bandeaux**, et s'en servir a coûté
+    deux essais. Il existe deux maquettes de Terrain — bandeaux en haut sur
+    « Road Trip » ou « Jeu de Vitres », en bas sur « Ouverture de Colis » — si
+    bien qu'un critère haut/bas garde les unes à l'endroit et les autres à 180°.
+    L'image moyenne le disait sans que je l'entende : du texte renversé dans la
+    *même* bande que le texte correct, ce qu'une rotation seule ne peut pas
+    produire.
+
+    Le repère invariant est la mention **« Art : »**, toujours en bas à gauche,
+    et le code d'extension, toujours en bas à droite. On compare donc la densité
+    de traits fins du bandeau bas à celle du bandeau haut : à l'endroit, le bas
+    en porte davantage.
     """
     droite = np.rot90(card, k=1)
     g = normalized(droite)
-    h, w = g.shape
-    bande = g[:, int(w * 0.15):int(w * 0.85)]
-    med, ecart = np.median(bande, axis=1), bande.std(axis=1)
-    plat = (med > 170) & (ecart < 45)
-    haut = plat[: h // 2].sum()
-    bas = plat[h // 2:].sum()
-    return droite if haut >= bas else np.rot90(droite, k=2)
+    h = g.shape[0]
+
+    def encre(y0: float, y1: float) -> float:
+        """Densité de traits fins sur une bande — la signature d'une mention."""
+        zone = g[int(h * y0):int(h * y1), :]
+        return float(np.abs(np.diff(zone, axis=1)).mean())
+
+    return droite if encre(0.88, 0.99) >= encre(0.01, 0.12) else np.rot90(droite, k=2)
 
 
 def mesure_terrains(cartes: list[np.ndarray]) -> None:
