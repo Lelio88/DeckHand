@@ -11,7 +11,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.ingestion.wankul_ingest import GAME, WankulCard, fetch_all, write_cards
+from app.ingestion.wankul_ingest import (
+    EXPECTED_CARDS,
+    EXPECTED_TOTAL,
+    GAME,
+    WankulCard,
+    fetch_all,
+    write_cards,
+)
 
 
 def carte(**kw) -> WankulCard:
@@ -104,14 +111,30 @@ def test_les_colonnes_de_magic_restent_vides():
     assert row[7] == GAME
 
 
-def test_l_effigie_tient_lieu_de_disposition():
-    """Elle décide de la mise en page, donc de la fenêtre d'illustration —
-    même usage que le `frameType` de Yu-Gi-Oh et le gabarit de #28."""
+def test_l_orientation_tient_lieu_de_disposition_et_non_l_effigie():
+    """**Correction établie sur pièces.** Ce module rangeait d'abord l'effigie
+    dans `layout`. Deux cartes ont montré que c'est faux : « Road Trip » est
+    horizontale et porte son illustration en plein cadre, textes superposés ;
+    « Braqueur » est verticale et porte une illustration encadrée, de 0,045 à
+    0,672 de sa hauteur. Ce ne sont pas deux rotations d'une même maquette, ce
+    sont deux mises en page — et c'est l'orientation qui les distingue, comme
+    chez Riftbound. L'API du Wankuldex publie d'ailleurs ce champ.
+
+    L'effigie reste une information de contenu : de quel personnage la carte
+    porte le visage, ce qui ne décide d'aucun découpage."""
     conn = ConnexionFactice()
-    write_cards(conn, [carte(effigy="Terracid")])
+    write_cards(conn, [carte(orientation="horizontal", effigy="Terracid")])
 
     (row,) = conn.rows
-    assert row[6] == "Terracid"
+    assert row[6] == "horizontal"
+
+
+def test_le_volume_attendu_couvre_les_six_extensions():
+    """Garde-fou de complétude : une course qui rendrait nettement moins a
+    rencontré un mur, et le journal doit le dire plutôt que d'enregistrer un
+    catalogue amputé — le défaut qui a coûté 93 decks sur Yu-Gi-Oh."""
+    assert len(EXPECTED_CARDS) == 6
+    assert EXPECTED_TOTAL == 958
 
 
 def test_une_carte_citee_deux_fois_n_est_ecrite_qu_une_fois():

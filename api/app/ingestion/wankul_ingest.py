@@ -51,6 +51,36 @@ USER_AGENT = (
     "contact via github.com/Lelio88/DeckHand)"
 )
 
+#: Le Wankuldex est une application servie par un *app proxy* Shopify : la
+#: boutique relaie `/apps/wankul/**` vers un service qui, lui, parle JSON.
+#:
+#: **Les routes ne sont pas devinées, elles sont lues.** Le bundle de
+#: l'application les déclare toutes ; les chercher par essais aurait produit une
+#: volée de 404 pour le même résultat. `window.__WANKULDEX_CONFIG__` donne la
+#: base du proxy, le bundle donne le reste.
+BASE = "https://wankul.fr/apps/wankul"
+ROUTE_SETS = "/api/wankuldex/sets"
+ROUTE_CARDS = "/api/wankuldex/cards/{slug}"
+ROUTE_RARITIES = "/api/wankuldex/rarities"
+ROUTE_EFFIGIES = "/api/wankuldex/effigies"
+ROUTE_ARTISTS = "/api/wankuldex/artists"
+
+#: Les six extensions et leur volume, relevés sur `ROUTE_SETS`.
+#:
+#: Sert de garde-fou de complétude : une course qui rendrait nettement moins que
+#: 958 cartes a rencontré un mur, et le journal doit le dire plutôt que
+#: d'enregistrer un catalogue amputé. Les valeurs viennent du champ `cardCount`
+#: publié par la source, pas d'un comptage maison.
+EXPECTED_CARDS = {
+    "origins": 180,
+    "campus": 155,
+    "battle": 180,
+    "stellar": 180,
+    "legacy": 185,
+    "hors-serie": 78,
+}
+EXPECTED_TOTAL = sum(EXPECTED_CARDS.values())  # 958
+
 #: Une requête toutes les deux secondes.
 #:
 #: **Le plus prudent des débits pratiqués par le projet**, et c'est délibéré
@@ -77,9 +107,17 @@ class WankulCard:
     set_code: str
     type_line: str
     rarity: str | None = None
-    #: Effigie (Laink, Terracid, Guest…). Rangée dans `layout` : c'est une
-    #: propriété qui décide de la mise en page, donc de la fenêtre
-    #: d'illustration — même usage que le `frameType` de Yu-Gi-Oh.
+    #: `vertical` ou `horizontal`. **C'est elle qui va dans `layout`, et non
+    #: l'effigie**, contrairement à ce que ce module prévoyait d'abord.
+    #:
+    #: La correction vient d'une carte : « Road Trip » est horizontale, et ses
+    #: bandeaux de texte occupent 0,186 à 0,418 de la hauteur — des proportions
+    #: qui n'ont aucun sens sur une carte verticale. `layout` sert à choisir le
+    #: gabarit d'illustration ; ce qui le décide ici est l'orientation, comme
+    #: chez Riftbound. L'effigie, elle, dit de quel personnage la carte porte le
+    #: visage : une information de contenu, pas de mise en page.
+    orientation: str | None = None
+    #: Laink, Terracid, Guest… Conservée pour la recherche, pas pour le gabarit.
     effigy: str | None = None
     text: str | None = None
 
@@ -119,7 +157,7 @@ def write_cards(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
                 # Vide, et non « aucune couleur » : ce jeu n'a pas de couleurs.
                 [],
                 "{}",
-                card.effigy,
+                card.orientation,
                 GAME,
             )
 
