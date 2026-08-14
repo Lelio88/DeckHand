@@ -140,25 +140,29 @@ grep DECKHAND_DEMO ../.deckhand-secrets/supabase.env
 | 9 · Fonctionnalités financières | Aucune. Les prix affichés sont indicatifs ; l'app ne vend rien et ne prend aucun paiement. |
 | 10 · Applis de santé | Non. |
 
-## 4 bis. Où vivent la clé et les bundles
-
-**Convention du compte, partagée avec les autres apps** — voir
-`.dewdrop-secrets/`, `.gtg-secrets/`, `.culturiaquests-secrets/` :
+## 4 bis. Où vivent la clé et le bundle
 
 | Fichier | Emplacement |
 |---|---|
-| Clé de signature | `../.deckhand-secrets/upload-keystore.jks` |
+| Clé de signature | `../.deckhand-secrets/upload-keystore.jks` — même nom que dewdrop, GTG, LLMarmite |
 | Mot de passe | `../.deckhand-secrets/supabase.env` → `DECKHAND_KEYSTORE_PASSWORD` |
-| Bundle archivé | `../.deckhand-secrets/deckhand-v<versionCode>-app.deckhand.aab` |
+| Bundle | `app/build/app/outputs/bundle/release/app-release.aab` — **là où Flutter le produit** |
 
-**Rien de tout cela n'entre dans le dépôt** : `key.properties` est ignoré deux
-fois (par `app/android/.gitignore` et par celui de la racine), et `*.aab` /
-`*.apk` le sont désormais aussi — un bundle pèse 60 Mo et se régénère.
+**Le bundle reste dans le dossier de build**, comme dans les quatre autres apps
+du compte. Le garde-fou du hub le dit : « les APK/AAB/binaires restent dans le
+dossier de build natif du projet ».
+
+Une seule app fait autrement : CulturiaQuests archive en plus ses envois dans son
+coffre (`culturiaquests-v1…v5-com.culturiaquests.app.aab`), ce qui garde
+l'historique des versions soumises. C'est une pratique **facultative**, pas la
+règle — l'adopter ici demanderait de le décider, pas de le supposer.
+
+**Rien de sensible n'entre dans le dépôt** : `key.properties` est ignoré deux
+fois, et `*.aab` / `*.apk` le sont aussi — un bundle pèse 60 Mo et se régénère.
 
 ⚠️ **Le keystore ne se perd pas.** Le perdre interdit toute mise à jour de
 l'application, définitivement — aucune récupération n'existe. Play App Signing
-laissé activé à l'envoi est le seul filet : Google peut alors réinitialiser une
-clé d'upload compromise ou perdue.
+laissé activé à l'envoi est le seul filet.
 
 ## 5. La release
 
