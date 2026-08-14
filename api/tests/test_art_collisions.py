@@ -24,11 +24,21 @@ from app.measure.art_collisions import (
 )
 
 
-def catalogue(hashes: list[int], cards: list[int]) -> Catalogue:
+def catalogue(
+    hashes: list[int], cards: list[int], names: list[int] | None = None
+) -> Catalogue:
+    """Un catalogue d'essai.
+
+    `names` vaut `cards` par défaut : c'est le cas des jeux dont l'identité
+    réunit déjà les éditions, où les deux axes coïncident. Le passer
+    explicitement sert à reproduire le cas Pokémon, où une même carte rééditée
+    porte deux identités et un seul nom.
+    """
     return Catalogue(
         game="essai",
         hashes=np.array(hashes, dtype=np.uint64),
         cards=np.array(cards, dtype=np.int32),
+        names=np.array(names if names is not None else cards, dtype=np.int32),
     )
 
 
@@ -120,3 +130,54 @@ def test_les_seuils_mesures_sont_ceux_de_l_application():
     autre système que celui qui tourne."""
     assert MAX_TRUSTED_DISTANCE == 12
     assert MIN_CONFIDENCE_MARGIN == 4
+
+
+# --- les deux axes d'identité ----------------------------------------------
+
+
+def test_deux_reeditions_dune_meme_carte_ne_sont_pas_une_fausse_carte():
+    """**Le piège qui a fait lire 7,36 % là où il y avait 1,49 %.** Chez Pokémon
+    l'identité publiée est l'impression : une carte rééditée avec la même
+    illustration porte deux identités et un seul nom. Compter leur ressemblance
+    comme une fausse carte revient à reprocher au scan de bien reconnaître
+    l'image qu'il a sous les yeux."""
+    # Deux entrées identiques, deux cartes distinctes, un seul nom.
+    cat = catalogue([0b1111, 0b1111], cards=[0, 1], names=[7, 7])
+    r = measure_internal(cat)
+
+    # Sur l'axe « carte », elles se confondent — c'est vrai et sans intérêt.
+    assert r["confusable"] == 2
+    # Sur l'axe « nom », il n'y a aucune confusion : c'est la même carte.
+    assert r["confusable_name"] == 0
+    assert r["confident_wrong_name"] == 0
+
+
+def test_deux_cartes_de_noms_differents_restent_comptees():
+    """L'axe du nom ne doit rien excuser : deux cartes réellement différentes
+    qui se ressemblent sont une fausse carte sur les deux axes."""
+    # Deux empreintes proches (2 bits), deux cartes, deux noms, et une
+    # troisième **hors du seuil** — 32 bits, non 8 : à 8 elle tombait elle aussi
+    # sous les 12 bits et se comptait comme confondable, ce qui faisait échouer
+    # ce test sur un chiffre juste.
+    cat = catalogue(
+        [0b0000, 0b0011, 0xFFFFFFFF],
+        cards=[0, 1, 2],
+        names=[0, 1, 2],
+    )
+    r = measure_internal(cat)
+
+    assert r["confusable_name"] == 2
+    assert r["confident_wrong_name"] == 2
+
+
+def test_lapostrophe_typographique_ne_fait_pas_deux_noms():
+    """La source publie « Professor Elm's » et « Professor Elm’s » — deux
+    graphies de la même carte, et les deux seuls cas où les noms semblaient
+    différer sur 247 groupes d'empreintes identiques."""
+    from app.measure.art_collisions import _name_key
+
+    assert _name_key("Professor Elm's Training Method") == _name_key(
+        "Professor Elm\u2019s Training Method"
+    )
+    # Deux cartes réellement différentes gardent des clés différentes.
+    assert _name_key("Pikachu") != _name_key("Raichu")

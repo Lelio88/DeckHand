@@ -277,7 +277,24 @@ aussi avec réserve.
 reste utile pour les mises en page hors gabarit (`saga`, `transform`, pleine
 page), que l'empreinte ne sait pas cadrer.
 
-### Ce que l'index annonce quand il ne devrait rien dire — trois jeux, 64 126 empreintes
+### Ce que l'index annonce quand il ne devrait rien dire — quatre jeux, 83 452 empreintes
+
+#### Deux axes d'identité, et le chiffre se lit de travers si on les confond
+
+**Le même banc a rendu 7,36 % pour Pokémon et 1,51 % pour Magic, et la différence n'était pas dans la reconnaissance.** Elle était dans le mot « carte ». Chez Magic, `art_hashes.oracle_id` porte l'identité *oracle* : elle réunit toutes les éditions, si bien que deux tirages de la même carte qui se ressemblent ne comptent pas comme une confusion. Chez Pokémon, l'identité publiée par TCGdex est l'**impression** — chaque réédition est une carte distincte, et l'`illustration_id` est dérivé de sa clé. Deux tirages de la même illustration y sont donc hachés séparément, et leur ressemblance était comptée comme une fausse carte.
+
+Vérifié plutôt que supposé : sur les **247 groupes d'empreintes identiques** de l'index Pokémon (503 cartes), **99,2 % portent le même nom**. Les deux seules exceptions apparentes sont *Professor Elm's Training Method* et *Professor Elm’s Training Method* — la même carte, avec deux apostrophes différentes chez la source.
+
+Le banc compte désormais les deux axes, et seul le second est comparable d'un jeu à l'autre :
+
+| Jeu | annoncées à tort, par carte | **par nom** |
+|---|---|---|
+| Magic | 1,51 % | **1,54 %** |
+| Pokémon | 7,36 % | **1,49 %** |
+| Riftbound | 1,76 % | **1,76 %** |
+| Yu-Gi-Oh | 1,32 % | **1,32 %** |
+
+Les quatre jeux tiennent dans la bande 1,3–1,8 %. Et se tromper d'édition n'est pas annoncer une autre carte : le garde-fou §IV.8 le prévoit déjà — la carte se confirme, l'édition se déduit quand rien ne reste à choisir.
 
 La mesure ci-dessus interroge l'index avec des cartes **qui s'y trouvent**. Elle
 ne dit donc rien du cas que l'utilisateur rencontrera pourtant : une carte

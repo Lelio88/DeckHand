@@ -43,6 +43,7 @@ Usage :
 from __future__ import annotations
 
 import sys
+import unicodedata
 from dataclasses import dataclass
 
 import numpy as np
@@ -69,6 +70,9 @@ class Catalogue:
     game: str
     hashes: np.ndarray  # uint64, une par illustration
     cards: np.ndarray  # int32, code de la carte porteuse
+    #: Code du **nom** de la carte, normalisé. Second axe d'identité, et il est
+    #: indispensable pour comparer deux jeux entre eux — voir `measure_internal`.
+    names: np.ndarray  # int32
 
     @property
     def size(self) -> int:
@@ -91,29 +95,49 @@ def load(conn: psycopg.Connection) -> dict[str, Catalogue]:
     with conn.cursor() as cur:
         rows = cur.execute(
             """
-            SELECT c.game, a.dhash, a.oracle_id::text
+            SELECT c.game, a.dhash, a.oracle_id::text, c.name
             FROM public.art_hashes a
             JOIN public.cards c ON c.oracle_id = a.oracle_id
             ORDER BY c.game
             """
         ).fetchall()
 
-    by_game: dict[str, list[tuple[int, str]]] = {}
-    for game, dhash, oracle_id in rows:
-        by_game.setdefault(game, []).append((dhash, oracle_id))
+    by_game: dict[str, list[tuple[int, str, str]]] = {}
+    for game, dhash, oracle_id, name in rows:
+        by_game.setdefault(game, []).append((dhash, oracle_id, name))
 
     catalogues: dict[str, Catalogue] = {}
     for game, entries in by_game.items():
         # `dhash` est un bigint signé côté Postgres ; le masque le ramène aux
         # 64 bits qu'il représente, sans quoi les empreintes de poids fort
         # deviendraient négatives et le XOR perdrait son sens.
-        hashes = np.array([h & 0xFFFFFFFFFFFFFFFF for h, _ in entries], dtype=np.uint64)
+        hashes = np.array(
+            [h & 0xFFFFFFFFFFFFFFFF for h, _, _ in entries], dtype=np.uint64
+        )
         seen: dict[str, int] = {}
+        seen_names: dict[str, int] = {}
         codes = np.empty(len(entries), dtype=np.int32)
-        for i, (_, oracle_id) in enumerate(entries):
+        name_codes = np.empty(len(entries), dtype=np.int32)
+        for i, (_, oracle_id, name) in enumerate(entries):
             codes[i] = seen.setdefault(oracle_id, len(seen))
-        catalogues[game] = Catalogue(game=game, hashes=hashes, cards=codes)
+            name_codes[i] = seen_names.setdefault(_name_key(name), len(seen_names))
+        catalogues[game] = Catalogue(
+            game=game, hashes=hashes, cards=codes, names=name_codes
+        )
     return catalogues
+
+
+def _name_key(name: str) -> str:
+    """Nom réduit à ce qui le distingue vraiment.
+
+    L'apostrophe est le piège : la source publie « Professor Elm's Training
+    Method » **et** « Professor Elm’s Training Method », deux graphies de la même
+    carte. Sans cette normalisation, elles comptaient pour deux noms différents
+    et donc pour une fausse carte — les deux seuls cas, sur 247 groupes
+    d'empreintes identiques, où les noms semblaient différer.
+    """
+    lowered = unicodedata.normalize("NFKD", name).replace("’", "'").lower()
+    return "".join(c for c in lowered if c.isalnum() or c == "'")
 
 
 def distances(queries: np.ndarray, index: np.ndarray) -> np.ndarray:
@@ -128,10 +152,27 @@ def measure_internal(cat: Catalogue) -> dict[str, int]:
     carte, puis on reconstitue la décision de l'application : distance sous le
     seuil, et marge suffisante avec le candidat suivant. Une confusion qui
     franchit les deux est une carte annoncée avec assurance et fausse.
+
+    **Deux axes d'identité, et confondre les deux fait lire le résultat de
+    travers.** « Une autre carte » ne veut pas dire la même chose d'un jeu à
+    l'autre : chez Magic, `cards` porte l'`oracle_id`, qui **réunit toutes les
+    éditions** d'une carte, si bien que deux éditions qui se ressemblent ne
+    comptent pas. Chez Pokémon, l'identité de la source est l'impression : chaque
+    réédition est une carte distincte, et une confusion entre deux tirages de la
+    *même* illustration y était comptée comme une fausse carte.
+
+    Mesuré sur les 19 326 empreintes Pokémon : **7,36 %** par carte, mais
+    **1,49 %** par nom — et 99,2 % des 247 groupes d'empreintes identiques
+    portent le même nom, ce sont des rééditions. Le second chiffre est le seul
+    comparable d'un jeu à l'autre, et le seul qui décrive le risque réel : se
+    tromper d'édition n'est pas annoncer une autre carte, et le §IV.8 le prévoit
+    déjà — l'édition se déduit, la carte se confirme.
     """
     n = cat.size
     confusable = 0
     confident_wrong = 0
+    confusable_name = 0
+    confident_wrong_name = 0
     self_starved = 0
     worst = (64, -1, -1)
 
@@ -143,10 +184,17 @@ def measure_internal(cat: Catalogue) -> dict[str, int]:
         block[np.arange(stop - start), rows] = 127
 
         same_card = cat.cards[rows][:, None] == cat.cards[None, :]
+        same_name = cat.names[rows][:, None] == cat.names[None, :]
 
         # Le plus proche d'une autre carte : c'est lui qui trompe.
         other = np.where(same_card, np.int16(127), block)
         nearest_other = other.min(axis=1)
+
+        # Le plus proche d'un autre **nom** : celui-là trompe vraiment.
+        other_name = np.where(same_name, np.int16(127), block)
+        nearest_name = other_name.min(axis=1)
+        two_name = np.partition(other_name, 1, axis=1)[:, :2]
+        margin_name = two_name[:, 1] - two_name[:, 0]
 
         # Les deux plus proches toutes entrées confondues : c'est ce que
         # l'application voit, et donc la marge dont elle dispose.
@@ -163,6 +211,10 @@ def measure_internal(cat: Catalogue) -> dict[str, int]:
                     confident_wrong += 1
                 if nearest_other[k] < worst[0]:
                     worst = (int(nearest_other[k]), int(rows[k]), 0)
+            if nearest_name[k] <= MAX_TRUSTED_DISTANCE:
+                confusable_name += 1
+                if margin_name[k] >= MIN_CONFIDENCE_MARGIN:
+                    confident_wrong_name += 1
             # Deux illustrations d'une même carte se volent-elles la marge ?
             if (
                 best[k] <= MAX_TRUSTED_DISTANCE
@@ -176,6 +228,8 @@ def measure_internal(cat: Catalogue) -> dict[str, int]:
         "cards": cat.distinct_cards,
         "confusable": confusable,
         "confident_wrong": confident_wrong,
+        "confusable_name": confusable_name,
+        "confident_wrong_name": confident_wrong_name,
         "self_starved": self_starved,
         "closest_pair": worst[0],
     }
@@ -246,6 +300,12 @@ def run(only: str | None = None, sample: int = 2000) -> None:
             f"             annoncées à tort avec assurance             : "
             f"{r['confident_wrong']:>5}"
             f"  ({100 * r['confident_wrong'] / r['entries']:.2f} %)"
+        )
+        print(
+            f"             — dont sous un AUTRE nom (comparable)       : "
+            f"{r['confident_wrong_name']:>5}"
+            f"  ({100 * r['confident_wrong_name'] / r['entries']:.2f} %)"
+            f"   [confondables : {r['confusable_name']}]"
         )
         print(
             f"             rejetées par leur propre jumelle            : "
