@@ -1348,17 +1348,31 @@ La leçon rejoint celle de #29 sur Riftbound et celle des noms Pokémon : **une
 identité ne se dérive pas d'un champ d'affichage**. Le classement est un
 résultat, pas un identifiant — il change, il manque, et il se répète.
 
+**La course qui suit la correction le prouve sur pièces** : 23 574 decks
+annoncés, 23 574 en base, rapport exact. Le corpus gagne **5 533 decks, soit
++30,7 %**, sans qu'une seule requête de plus ait été faite à la source — ils
+étaient lus depuis le début.
+
+Le compteur de progression, lui, ne pouvait pas le voir : il mesure ce que le
+connecteur **écrit**, jamais ce qui survit à l'écriture. Les deux courses
+écrivent le même nombre de decks à dix près ; seule la seconde les conserve.
+Un compteur d'écritures n'est pas un compteur de résultats, et le seul contrôle
+qui les sépare est de compter les lignes en base à la fin.
+
 #### Le corpus ingéré, fenêtre de trente jours couverte
 
 | | |
 |---|---|
-| Decks | **17 380** (443 321 lignes) |
-| Tournois | 327 |
-| Fenêtre | 14 juillet → 13 août |
-| Standard | 17 295 · GLC 58 · EX 14 · Expanded 13 |
-| Écartés (trop lacunaires) | 163, soit 0,9 % |
+| Decks | **23 574** (602 121 lignes, aucune orpheline) |
+| Tournois | 334 |
+| Fenêtre | 15 juillet → 14 août |
+| Standard | 23 431 · GLC 105 · Expanded 24 · EX 14 |
+| Écartés (trop lacunaires) | 201, soit 0,8 % |
 
-Standard pèse 99,5 % du corpus réellement importé, plus encore que les 95,4 %
+C'est le plus gros corpus de decks du projet, devant Yu-Gi-Oh (3 935),
+Riftbound (2 500) et Magic (1 028).
+
+Standard pèse 99,4 % du corpus réellement importé, plus encore que les 95,4 %
 relevés sur dix-neuf mois. Cela dessert le produit — Standard tourne sur des
 extensions récentes, donc chères et peu probables dans une collection ordinaire
 — mais c'est ce que la source publie.
@@ -1373,7 +1387,7 @@ Le troisième ne se réglait ni par l'ordre ni par la taille : pour `LOR` et `SI
 
 Mesuré sur une fenêtre de trois jours (2 468 decks) : **49 267 codes d'impression indexés contre 43 361** (+13,6 %), **4 sigles non résolus contre 103**, et **un seul deck écarté** contre 0,9 % du corpus. Les quatre restants — `MEP`, `SP`, `BWP` — sont des promos anciennes qu'aucun gisement ne nomme.
 
-Les decks déjà en base gardent leurs cartes non résolues jusqu'à une réingestion complète : la correction agit sur ce qui est lu, pas sur ce qui est écrit.
+**Sur le corpus complet réingéré**, 45 sigles restent non résolus, très largement dominés par `TRR` (192 + 114 + 102 + 35 occurrences pour ses quatre premiers codes) puis `P5` et `MEP` — des promos qu'aucun des trois gisements ne nomme. Ils coûtent 201 decks écartés, soit 0,8 % du corpus.
 
 ### Le gabarit de deck, mesuré sur 17 295 decks Standard
 
