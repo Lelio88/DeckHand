@@ -28,6 +28,7 @@ import psycopg
 from PIL import Image, UnidentifiedImageError
 
 from app.config import SupabaseConfig
+from app.db import Session
 from app.vision.art_box import box_for, crop
 from app.vision.dhash import dhash, to_signed_64
 
@@ -74,6 +75,16 @@ def pending_prints(
 
     Les impressions sans `illustration_id` (rares) sont écartées : sans lui, rien
     ne permet de savoir si leur image a déjà été hachée.
+
+    **Les énergies de base Pokémon sont écartées, chiffres à l'appui.** Sur les
+    175 dont la source publie une image, 170 (97,1 %) ont une *autre* énergie
+    sous le seuil de confiance, 26 portent une empreinte déjà prise par une
+    voisine, et la paire la plus serrée est à **0 bit**. Les accueillir ferait
+    annoncer à tort et avec assurance 21 d'entre elles (12,0 %), ce qui casserait
+    le résultat que tout le pipeline protège. Une énergie de base ne se scanne
+    pas, elle se saisit. Ce qu'elles coûtent aux autres est en revanche modeste :
+    aucune carte ordinaire n'en a une sous le seuil, six seulement en ont une
+    assez proche pour leur manger leur marge.
     """
     query = """
         SELECT DISTINCT ON (p.illustration_id)
@@ -83,6 +94,7 @@ def pending_prints(
         JOIN public.cards c ON c.oracle_id = p.oracle_id
         WHERE p.art_crop_url IS NOT NULL
           AND p.illustration_id IS NOT NULL
+          AND c.layout IS DISTINCT FROM 'energy'
           AND NOT EXISTS (
               SELECT 1
               FROM public.art_hashes h
@@ -95,6 +107,29 @@ def pending_prints(
         query += f" LIMIT {int(limit)}"
     with conn.cursor() as cur:
         return cur.execute(query).fetchall()
+
+
+def image_url(url: str, game: str) -> str:
+    """URL réellement téléchargeable, la source ne les servant pas toutes prêtes.
+
+    **TCGdex publie une URL de base et refuse de la servir nue** : `.../base4/1`
+    rend 404, il faut `.../base4/1/high.png`. L'ingestion stocke la base à dessein
+    — figer une qualité en base obligerait à réécrire le catalogue pour en changer
+    — donc la composition appartient à l'usage, et c'est ici.
+
+    **`high.png` plutôt que `high.webp`**, alors que le WebP est 4,3 fois plus
+    léger à résolution égale (600 × 825 dans les deux cas). Mesuré : sa
+    compression avec perte déplace l'empreinte de 0 à 2 bits. C'est peu, mais
+    l'index est la *référence* — le bruit de la photo viendra s'ajouter par-dessus,
+    et les paires les plus serrées ne sont qu'à 14 bits. Le WebP ne ferait rien
+    gagner sur la durée totale, celle-ci étant dictée par la pause de politesse et
+    non par le poids des images.
+
+    Scryfall, lui, sert des URL complètes : rien à composer.
+    """
+    if game != "pokemon":
+        return url
+    return f"{url}/high.png"
 
 
 def hash_one(
@@ -112,10 +147,15 @@ def hash_one(
     rencontreront jamais.
     """
     try:
-        response = client.get(url)
+        response = client.get(image_url(url, game))
         response.raise_for_status()
         with Image.open(io.BytesIO(response.content)) as image:
             box = box_for(game, layout)
+            # Aucune conversion ici : `dhash` fait déjà `convert("RGB")`, et la
+            # conversion commute avec le découpage — vérifié sur les PNG en
+            # palette de TCGdex, empreintes identiques au bit près dans les deux
+            # ordres. En ajouter une changerait le chemin des trois index déjà
+            # calculés pour ne rien gagner.
             return dhash(crop(image, box) if box else image)
     except (httpx.HTTPError, UnidentifiedImageError, OSError):
         return None
@@ -123,8 +163,8 @@ def hash_one(
         time.sleep(DELAY_PER_WORKER)
 
 
-def build(conn: psycopg.Connection, limit: int | None = None) -> BuildReport:
-    todo = pending_prints(conn, limit)
+def build(session: Session, limit: int | None = None) -> BuildReport:
+    todo = session.run(lambda conn: pending_prints(conn, limit))
     report = BuildReport()
     total = len(todo)
     if total == 0:
@@ -167,12 +207,23 @@ def build(conn: psycopg.Connection, limit: int | None = None) -> BuildReport:
         with lock:
             pending, rows = rows, []
         if pending:
-            with conn.cursor() as cur:
-                cur.executemany(statement, pending)
-            conn.commit()
+            # Unité de reprise : les téléchargements du lot sont déjà payés et
+            # restent dehors, l'écriture seule est rejouée si la connexion cède.
+            # Rejouable telle quelle — l'INSERT est en ON CONFLICT DO UPDATE — et
+            # elle commite, donc une coupure ne coûte au pire que ce lot.
+            session.run(lambda conn: _write(conn, statement, pending))
 
     print(f"  {report.hashed + report.failed}/{total}      ")
     return report
+
+
+def _write(
+    conn: psycopg.Connection, statement: str, rows: list[tuple[str, str, int]]
+) -> None:
+    """Écrit un lot d'empreintes et commite. Unité de reprise de `build`."""
+    with conn.cursor() as cur:
+        cur.executemany(statement, rows)
+    conn.commit()
 
 
 def propagate_shared_art(conn: psycopg.Connection) -> int:
@@ -217,12 +268,19 @@ def propagate_shared_art(conn: psycopg.Connection) -> int:
 
 def run(limit: int | None = None) -> None:
     config = SupabaseConfig.load()
-    with psycopg.connect(config.db_url, connect_timeout=30) as conn:
+    # `Session` plutôt qu'une connexion nue : cette course dure des heures, et
+    # une connexion tenue ouverte aussi longtemps sera coupée — Supabase a fermé
+    # les siennes le 14 août à 00 h 10, le poste a perdu son DNS à 00 h 49. Le
+    # module était déjà reprenable en le relançant à la main ; il n'a plus besoin
+    # qu'on le relance.
+    with Session(config.db_url) as session:
         print("construction de l'index d'empreintes")
-        report = build(conn, limit)
+        report = build(session, limit)
         print(report.summary())
-        shared = propagate_shared_art(conn)
+        shared = session.run(propagate_shared_art)
         print(f"empreintes partagées propagées : {shared}")
+        if session.recoveries:
+            print(f"coupures de connexion encaissées : {session.recoveries}")
 
 
 if __name__ == "__main__":

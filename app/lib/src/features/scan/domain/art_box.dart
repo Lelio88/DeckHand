@@ -115,7 +115,66 @@ enum CardFrame {
     top: 0.1789,
     right: 0.9360,
     bottom: 0.6238,
-  ), 'yugioh');
+  ), 'yugioh'),
+
+  /// Pokémon encadré — 17 365 cartes, et **une seule fenêtre pour vingt ans**.
+  ///
+  /// Le cadre a changé cinq fois depuis 1999 ; la fenêtre presque pas. Chaque
+  /// époque a été éprouvée sous la fenêtre des quatre autres : la distance
+  /// moyenne entre empreintes reste entre 31,1 et 32,3 bits, et le gabarit
+  /// d'origine n'est jamais meilleur de façon significative — il lui arrive
+  /// d'être battu par un étranger. **Les gabarits d'époque sont
+  /// interchangeables** (#28), celui-ci les remplace tous.
+  ///
+  /// Il sert aussi la **fenêtre haute** (`ex`, `V`, `VMAX`…) : la fenêtre
+  /// standard tient entièrement dans leur illustration, donc y capte de
+  /// l'illustration pure et fait aussi bien que la leur. L'inverse est faux, la
+  /// fenêtre large embarquant du cadre sur une carte standard. Et l'**énergie
+  /// spéciale**, dont les fenêtres d'époque ne sont pas stables (arête gauche de
+  /// 0,028 à 0,200 selon la série) pour deux bits de marge en moins seulement.
+  ///
+  /// Limite connue : la série `base` (1999) résiste, 66 px de dérive entre deux
+  /// tirages. C'est un regroupement commercial et non une mise en page.
+  pokemon((
+    left: 0.0850,
+    top: 0.1055,
+    right: 0.9200,
+    bottom: 0.4727,
+  ), 'pokemon'),
+
+  /// Pokémon, cartes Dresseur — un axe qui a été payé pour être appris.
+  ///
+  /// Mesuré dans la même série, la fenêtre d'un Pokémon s'arrête à la ligne 390
+  /// et celle d'un Dresseur à la ligne 430 : quarante pixels, 5 % de la hauteur.
+  /// Tant que les deux familles étaient mêlées, l'arête haute dérivait de 32 px
+  /// d'un tirage à l'autre, et cette dérive était le seul symptôme.
+  ///
+  /// Sous la fenêtre standard, le Dresseur perd 1,8 bit de moyenne et 3 bits sur
+  /// la paire la plus serrée : il garde donc le sien.
+  pokemonTrainer((
+    left: 0.0850,
+    top: 0.1455,
+    right: 0.9200,
+    bottom: 0.5164,
+  ), 'pokemon'),
+
+  /// Pokémon « pleine page » — 1 937 cartes, au-dessus du décompte officiel.
+  ///
+  /// **L'illustration *est* la carte.** Le banc le dit dans son vocabulaire :
+  /// une `Special illustration rare` rend un relief d'arêtes de 3,3 / 1,1 / 0,0
+  /// / 1,9, c'est-à-dire aucune arête dans aucune direction. Il n'y a pas de
+  /// fenêtre à trouver, et la bonne réponse est de tout prendre.
+  ///
+  /// Ce cadre est déclaré plutôt qu'implicite parce que la photo, elle, ne dit
+  /// pas à quelle famille appartient la carte : les trois hypothèses Pokémon
+  /// sont calculées et la recherche retient la meilleure. Sans celle-ci, aucune
+  /// des 1 937 cartes pleine page ne serait jamais retrouvée.
+  pokemonFull((
+    left: 0.0,
+    top: 0.0,
+    right: 1.0,
+    bottom: 1.0,
+  ), 'pokemon');
 
   const CardFrame(this.box, this.game, {this.landscape = false});
 

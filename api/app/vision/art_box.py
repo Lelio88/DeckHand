@@ -69,6 +69,59 @@ YUGIOH = ArtBox(0.1181, 0.1823, 0.8807, 0.7055)
 #: stable à 0,001 près. Jumeau de `CardFrame.yugiohPendulum`.
 YUGIOH_PENDULUM = ArtBox(0.0615, 0.1789, 0.9360, 0.6238)
 
+#: Pokémon encadré — 17 365 cartes, et **une seule fenêtre pour vingt ans**.
+#:
+#: Le cadre a changé cinq fois ; la fenêtre presque pas. Chaque époque a été
+#: éprouvée sous la fenêtre des quatre autres : la distance moyenne entre
+#: empreintes reste entre 31,1 et 32,3 bits, la paire la plus serrée entre 16 et
+#: 21, et le gabarit d'origine n'est jamais meilleur de façon significative — il
+#: lui arrive d'être battu par un étranger (`ex` sous la fenêtre de `sv` : 18 bits
+#: de marge, contre 16 sous la sienne). **Les gabarits d'époque sont
+#: interchangeables**, celui-ci les remplace tous.
+#:
+#: Il sert aussi deux familles qui n'ont pas le leur :
+#:
+#: - la **fenêtre haute** (`ex`, `V`, `VMAX`… 1 882 cartes) : la fenêtre standard
+#:   tient entièrement dans leur illustration, donc y capte de l'illustration
+#:   pure et fait aussi bien que la leur — 32,1 bits de part et d'autre.
+#:   L'inverse est faux : la fenêtre large embarque du cadre sur une carte
+#:   standard et lui coûte deux bits. **Le plus étroit gagne.**
+#: - l'**énergie spéciale** (196 cartes) : mesuré sur la série `sv`, 30,4 bits de
+#:   moyenne et 14 sur la paire la plus serrée sous cette fenêtre, contre 30,4 et
+#:   16 sous la sienne — deux bits, là où lui donner sa propre fenêtre en
+#:   coûterait quatre aux Pokémon standard. Ses fenêtres d'époque ne sont de
+#:   toute façon pas stables (arête gauche de 0,028 à 0,200 selon la série).
+#:
+#: Limite connue : la série `base` (1999) résiste — 66 px de dérive entre deux
+#: tirages, arête gauche introuvable. C'est un regroupement commercial et non une
+#: mise en page. Jumeau de `CardFrame.pokemon`.
+POKEMON = ArtBox(0.0850, 0.1055, 0.9200, 0.4727)
+
+#: Pokémon, cartes Dresseur — et c'est un axe qui a été payé pour être appris.
+#:
+#: Mesuré dans la même série, la fenêtre d'un Pokémon s'arrête à la ligne 390 et
+#: celle d'un Dresseur à la ligne 430 : quarante pixels, 5 % de la hauteur. Tant
+#: que les deux familles étaient mêlées, l'arête haute dérivait de 32 px d'un
+#: tirage à l'autre, et cette dérive était le seul symptôme.
+#:
+#: Le Dresseur garde donc le sien : sous la fenêtre standard il perd 1,8 bit de
+#: moyenne et 3 bits sur la paire la plus serrée. Jumeau de
+#: `CardFrame.pokemonTrainer`.
+POKEMON_TRAINER = ArtBox(0.0850, 0.1455, 0.9200, 0.5164)
+
+#: Pokémon « pleine page » — 1 937 cartes, au-dessus du décompte officiel.
+#:
+#: **L'illustration *est* la carte**, et le banc le dit dans son vocabulaire :
+#: une `Special illustration rare` rend un relief d'arêtes de 3,3 / 1,1 / 0,0 /
+#: 1,9, c'est-à-dire aucune arête dans aucune direction. Il n'y a pas de fenêtre
+#: à trouver, et la bonne réponse est de tout prendre.
+#:
+#: Le gabarit est déclaré plutôt que laissé à `None` pour que la parité avec le
+#: Dart reste vérifiable : découper de 0 à 1 rend l'image entière des deux côtés,
+#: mais un cadre sans pendant échapperait au test. Jumeau de
+#: `CardFrame.pokemonFull`.
+POKEMON_FULL = ArtBox(0.0, 0.0, 1.0, 1.0)
+
 
 def box_for(game: str, layout: str | None) -> ArtBox | None:
     """Gabarit à appliquer, ou `None` si l'image est déjà découpée.
@@ -89,9 +142,35 @@ def box_for(game: str, layout: str | None) -> ArtBox | None:
     """
     if game == "yugioh":
         return YUGIOH_PENDULUM if layout and "pendulum" in layout else YUGIOH
+    if game == "pokemon":
+        return _pokemon_box(layout)
     if game != "riftbound":
         return None
     return RIFTBOUND_LANDSCAPE if layout == "landscape" else RIFTBOUND_PORTRAIT
+
+
+def _pokemon_box(layout: str | None) -> ArtBox:
+    """Fenêtre d'une carte Pokémon, d'après la famille rangée par l'ingestion.
+
+    `layout` porte ici la sortie de `tcgdex_ingest.art_layout`, qui applique les
+    cinq discriminants mesurés — la série pour le périmètre, le numéro contre le
+    décompte officiel pour la pleine page, `category` pour la mise en page,
+    `suffix`/`stage` pour la fenêtre haute, `energyType` pour l'énergie de base.
+    Aucun de ces choix n'est refait ici : ce module ne fait que traduire.
+
+    Une énergie de base (`energy`) **n'arrive pas jusqu'ici** — elle est écartée
+    de l'index par `pending_prints`, 97,1 % ayant une jumelle sous le seuil de
+    confiance et 12 % étant annoncées à tort avec assurance. Si elle y arrivait,
+    la fenêtre standard lui serait appliquée par défaut, ce qui est sans
+    conséquence : c'est l'exclusion en amont qui la protège, pas ce gabarit.
+    """
+    if layout == "trainer":
+        return POKEMON_TRAINER
+    if layout == "full":
+        return POKEMON_FULL
+    # `pokemon`, `special-energy`, et tout ce qui viendrait s'ajouter : la
+    # fenêtre la plus étroite, celle qui capte de l'illustration pure.
+    return POKEMON
 
 
 def crop(image, box: ArtBox):

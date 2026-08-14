@@ -24,6 +24,9 @@ import re
 from pathlib import Path
 
 from app.vision.art_box import (
+    POKEMON,
+    POKEMON_FULL,
+    POKEMON_TRAINER,
     RIFTBOUND_LANDSCAPE,
     RIFTBOUND_PORTRAIT,
     YUGIOH,
@@ -41,6 +44,7 @@ DART = (
 DECOUPES = {
     "riftbound": {RIFTBOUND_PORTRAIT, RIFTBOUND_LANDSCAPE},
     "yugioh": {YUGIOH, YUGIOH_PENDULUM},
+    "pokemon": {POKEMON, POKEMON_TRAINER, POKEMON_FULL},
 }
 
 #: Le motif tolère les espaces et les sauts de ligne partout où `dart format`
@@ -94,6 +98,37 @@ def test_le_gabarit_pendule_est_choisi_par_le_frame_type():
         assert box_for("yugioh", frame) == YUGIOH_PENDULUM
     for frame in ("effect", "spell", "trap", "xyz", "link", None):
         assert box_for("yugioh", frame) == YUGIOH
+
+
+def test_les_familles_pokemon_sont_choisies_par_le_layout():
+    # `layout` porte la sortie de `tcgdex_ingest.art_layout`, qui applique les
+    # cinq discriminants mesurés par #28. Ce module ne fait que les traduire.
+    assert box_for("pokemon", "trainer") == POKEMON_TRAINER
+    assert box_for("pokemon", "full") == POKEMON_FULL
+    assert box_for("pokemon", "pokemon") == POKEMON
+    # L'énergie spéciale prend la standard : deux bits de marge en moins, contre
+    # quatre que sa propre fenêtre coûterait aux Pokémon.
+    assert box_for("pokemon", "special-energy") == POKEMON
+    # Une famille inconnue retombe sur la fenêtre la plus étroite, jamais sur
+    # rien : `None` ferait hacher la carte entière sans que rien ne le signale.
+    assert box_for("pokemon", None) == POKEMON
+    assert box_for("pokemon", "famille_a_venir") == POKEMON
+
+
+def test_le_dresseur_commence_plus_bas_que_le_pokemon():
+    # Ce que la mesure a montré, et ce qui justifie un second gabarit : quarante
+    # pixels d'écart sur l'arête haute, 5 % de la hauteur.
+    assert POKEMON_TRAINER.top > POKEMON.top
+    assert POKEMON_TRAINER.bottom > POKEMON.bottom
+    # Même largeur : c'est la hauteur seule qui distingue les deux familles.
+    assert POKEMON_TRAINER.left == POKEMON.left
+    assert POKEMON_TRAINER.right == POKEMON.right
+
+
+def test_la_pleine_page_prend_toute_la_carte():
+    # L'illustration *est* la carte : aucune arête n'a été trouvée, dans aucune
+    # direction. Découper de 0 à 1 rend l'image entière des deux côtés.
+    assert POKEMON_FULL == ArtBox(0.0, 0.0, 1.0, 1.0)
 
 
 def test_le_gabarit_pendule_est_plus_large_que_l_ordinaire():
