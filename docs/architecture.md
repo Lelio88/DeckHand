@@ -808,21 +808,42 @@ c'est pourquoi l'aiguillage observe le drapeau dès son premier build. Un test
 écrit dans l'autre ordre a échoué, et c'est ce qui a rendu la contrainte
 visible.
 
-**Deux réglages vivent hors du dépôt, et rien dans le code ne signale leur
-absence :**
+### Ce qui vit hors du dépôt, et que rien dans le code ne signale
 
-| Réglage | Où | État |
+| Réglage | Où | Porté par |
 |---|---|---|
-| `deckhand://reset-password` autorisé | Supabase → Authentication → URL Configuration | **fait** |
-| Schéma `deckhand` déclaré | `AndroidManifest.xml` | **fait** |
-| Serveur d'envoi | Supabase → Auth → SMTP | **absent** — voir ci-dessous |
+| Schéma `deckhand` déclaré | `AndroidManifest.xml` | le dépôt |
+| `deckhand://reset-password` autorisé | Supabase → URL Configuration | `push_auth_config.py` |
+| Relais d'envoi (Brevo) | Supabase → Auth → SMTP | `push_auth_config.py` |
+| Sujet et corps du courriel | Supabase → Auth → Templates | `supabase/templates/` |
 
-**Sans SMTP propre, la route s'arrête au premier maillon.** Le projet utilise le
-service de démonstration de Supabase : **deux courriels par heure**, et
-uniquement vers les adresses membres du projet. Un tiers ne recevrait donc rien,
-sans erreur visible côté application. DewDrop résout cela par **Brevo**
-(`.dewdrop-secrets/brevo-smtp.env`) ; DeckHand peut réutiliser ce compte ou
-recevoir une clé dédiée.
+**Le courriel part par Brevo, sur le compte de DewDrop.** Le relais de
+démonstration de Supabase plafonnait à **deux courriels par heure** et n'écrivait
+qu'aux membres du projet : un tiers n'aurait rien reçu, sans erreur visible côté
+application. Le quota gratuit de Brevo est de 300 par jour, sans commune mesure
+avec le besoin — une réinitialisation se compte en unités par mois.
+
+**Partager le compte ne laisse aucune trace chez le destinataire.** Ce qu'il voit
+— nom d'expéditeur, adresse, sujet, corps — est réglé **par projet Supabase** ;
+l'identifiant de connexion au relais n'apparaît jamais dans le message. DeckHand
+écrit donc sous `DeckHand <no-reply@heianenterprise.com>`, domaine déjà
+authentifié pour DewDrop, ce qui évite en prime la mention « via
+smtp-brevo.com » qu'ajoute Gmail quand la signature ne correspond pas.
+
+Ce qui *est* partagé tient à l'administration : le quota, les journaux d'envoi
+mêlés, et une révocation qui casserait les deux applications en silence. Une clé
+dédiée sur le même compte lèverait ces trois points sans rien changer au
+message ; le coffre le dit à l'endroit où la question se posera.
+
+**Le gabarit est dans le dépôt** (`supabase/templates/recovery.html`) et non dans
+la console : celle-ci ne garde aucun historique, et un texte qui parle au nom du
+produit se relit en revue comme le reste. `{{ .ConfirmationURL }}` y est
+obligatoire — `push_auth_config.py` refuse de pousser un gabarit qui ne le
+contient pas, faute de quoi le courriel partirait sans mener nulle part.
+
+**Le lien ouvre l'application, pas une page.** Relevé sur un ordinateur, il ne
+donne rien : le gabarit le dit donc explicitement, plutôt que de le laisser
+découvrir en cliquant.
 
 **Granularité de collection retenue** : carte + édition + finition. La finition entre dans la clé d'unicité (`UNIQUE NULLS NOT DISTINCT (collection_id, oracle_id, print_id, is_foil)`) parce qu'un exemplaire brillant se vend couramment le double ou le triple de sa jumelle : les confondre fausse la valorisation dans les deux sens. L'écran de collection le signale par un fond irisé, lisible au défilement là où une mention en petits caractères demandait d'être cherchée. L'état (NM/played) reste ignoré — pure saisie manuelle, sans apport pour le deckbuilding.
 

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<!--
+  Courriel de réinitialisation du mot de passe.
+
+  Il vit dans le dépôt plutôt que dans la console pour deux raisons : la console
+  ne garde aucun historique, et un texte qui parle au nom du produit doit se
+  relire dans une revue comme le reste.
+
+  Contraintes du HTML d'e-mail, qui expliquent la forme datée du balisage :
+  tables imbriquées plutôt que flexbox, styles en ligne plutôt qu'une feuille —
+  la plupart des clients suppriment `<style>` et ne connaissent pas la mise en
+  page moderne. La largeur est bornée à 460 px, au-delà de quoi le texte devient
+  illisible sur téléphone.
+
+  Les couleurs sont celles de l'application, relevées sur ses captures et déjà
+  employées par l'icône et la bannière de la fiche Play
+  (`api/make_store_assets.py`) : fond #12101A, carte #1E1A28, or #C9A961,
+  crème #EDE3C8.
+
+  `{{ .ConfirmationURL }}` est substitué par Supabase et porte le code d'échange.
+  **Ne jamais le retirer ni le raccourcir** : sans lui le message ne mène nulle
+  part, et rien ne le signalerait avant qu'un utilisateur ne s'en plaigne.
+
+  Poussé par `api/push_auth_templates.py`, le CLI Supabase exigeant un lien
+  interactif que ce projet n'utilise pas (même raison que pour les migrations).
+-->
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DeckHand — nouveau mot de passe</title>
+</head>
+<body style="margin:0;padding:0;background:#12101A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#12101A;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:460px;background:#1E1A28;border-radius:18px;">
+          <tr>
+            <td style="padding:36px 32px 30px;text-align:center;">
+              <div style="font-size:26px;font-weight:600;letter-spacing:1px;color:#EDE3C8;">DeckHand</div>
+              <div style="height:1px;background:#2C2637;margin:22px 0;line-height:1px;font-size:0;">&nbsp;</div>
+              <div style="font-size:19px;font-weight:500;color:#EDE3C8;margin-bottom:12px;">Choisissez un nouveau mot de passe</div>
+              <div style="font-size:15px;line-height:1.6;color:#B5AC97;margin-bottom:28px;">
+                Vous avez demandé à réinitialiser le mot de passe de votre compte DeckHand. Le bouton ci-dessous ouvre l'application pour en choisir un nouveau. Votre collection reste intacte.
+              </div>
+              <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#C9A961;color:#12101A;text-decoration:none;font-size:15px;font-weight:600;padding:14px 30px;border-radius:12px;">Choisir un nouveau mot de passe</a>
+              <!-- Le lien ouvre l'application, pas une page web : ouvert
+                   ailleurs que sur le téléphone, il ne mène à rien. Le dire ici
+                   évite de le découvrir en cliquant. -->
+              <div style="font-size:13px;line-height:1.6;color:#8A8272;margin-top:22px;">
+                Ce lien ouvre DeckHand&nbsp;: relevez ce message depuis le téléphone où l'application est installée.
+              </div>
+              <div style="font-size:13px;line-height:1.6;color:#7A7364;margin-top:22px;">
+                Si le bouton ne fonctionne pas, copiez cette adresse&nbsp;:<br />
+                <a href="{{ .ConfirmationURL }}" style="color:#C9A961;word-break:break-all;">{{ .ConfirmationURL }}</a>
+              </div>
+              <div style="font-size:12px;line-height:1.6;color:#6B6558;margin-top:24px;">
+                Ce lien expire dans une heure et ne sert qu'une fois. Vous n'êtes pas à l'origine de cette demande&nbsp;? Ignorez ce message — votre mot de passe reste inchangé.
+              </div>
+            </td>
+          </tr>
+        </table>
+        <div style="font-size:11px;color:#5B564C;margin-top:18px;">DeckHand · heianenterpriseyt@gmail.com</div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
