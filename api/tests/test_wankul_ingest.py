@@ -17,6 +17,7 @@ from app.ingestion.wankul_ingest import (
     GAME,
     WankulCard,
     fetch_all,
+    orientation_of,
     write_cards,
 )
 
@@ -127,6 +128,26 @@ def test_l_orientation_tient_lieu_de_disposition_et_non_l_effigie():
 
     (row,) = conn.rows
     assert row[6] == "horizontal"
+
+
+def test_l_orientation_se_deduit_du_rendu_et_non_du_champ_homonyme():
+    """**Le champ `orientation` de la source ment, et c'est mesuré.**
+    `?orientation=horizontal` rend 40 cartes dont 13 sont debout : les promos
+    PGW 2023, 2024, 2025 et une Édition Spéciale. Trois d'entre elles ont été
+    confrontées à leur rendu — 751 x 1059, des cartes verticales.
+
+    Ce qui sépare réellement les deux maquettes est la présence d'un rendu
+    paysage : les 27 Terrains du lot en ont un, aucune des 13 autres.
+    """
+    terrain = {"name": "NAVIRE PIRATE", "imagePaysage": "/…_paysage.jpg",
+               "imageUrl": "/…_main.jpg"}
+    promo = {"name": "CHIEN - PGW 2024", "imagePaysage": None,
+             "imageUrl": "/…_main.jpg"}
+
+    assert orientation_of(terrain) == "horizontal"
+    assert orientation_of(promo) == "vertical", (
+        "une promo PGW est annoncée horizontale par la source et imprimée debout"
+    )
 
 
 def test_le_volume_attendu_couvre_les_six_extensions():

@@ -81,6 +81,30 @@ EXPECTED_CARDS = {
 }
 EXPECTED_TOTAL = sum(EXPECTED_CARDS.values())  # 958
 
+#: Champs servis par `/api/wankuldex/cards`, relevés sur la source :
+#: `id`, `name`, `number`, `effigy{id,name,slug}`, `imageUrl`, `imagePaysage`,
+#: `imageUR`, `imageLeg`, `holoMasks`, `set`, `rarity`, `artist`.
+
+
+def orientation_of(card: dict) -> str:
+    """`horizontal` ou `vertical`, déduits du rendu et non du champ homonyme.
+
+    **Le champ `orientation` de la source ne dit pas comment la carte est
+    imprimée.** Mesuré : `?orientation=horizontal` rend 40 cartes dont 13 sont
+    debout — les promos PGW 2023, 2024, 2025 et une Édition Spéciale. Trois
+    d'entre elles ont été confrontées à leur rendu, qui fait 751 x 1059 : des
+    cartes verticales, annoncées horizontales.
+
+    Ce qui distingue réellement les deux maquettes est la présence d'un rendu
+    **paysage**. Les 27 Terrains du même lot en ont un ; aucune des 13 autres.
+
+    C'est le même piège que `Advanced` chez Yu-Gi-Oh — un format déclaré sur la
+    foi de son nom, qui portait 3 decklists — et que le classement Limitless,
+    pris pour une identité alors qu'il valait `null`. Un nom de champ n'est pas
+    un contrat ; ce que le champ contient, mesuré, en est un.
+    """
+    return "horizontal" if card.get("imagePaysage") else "vertical"
+
 #: Une requête toutes les deux secondes.
 #:
 #: **Le plus prudent des débits pratiqués par le projet**, et c'est délibéré
