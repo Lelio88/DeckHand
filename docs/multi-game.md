@@ -1505,7 +1505,7 @@ raisons plus étroites que ce qui était écrit.
 | **TCGCSV / TCGplayer**, qui cote déjà Riftbound, Yu-Gi-Oh et Pokémon | Absent des **90 catégories**, sous ses quatre orthographes (`wankul`, `wankil`, `laink`, `terracid`). Et l'index **ne couvre aucun jeu du marché français** : son silence ne prouve pas l'absence de marché, seulement qu'il n'indexe pas celui-ci. |
 | **wankul.trade**, plateforme d'échange citée par les moteurs | **Le domaine n'existe plus** (NXDOMAIN). Résultat de recherche périmé. |
 | **Coleka**, qui catalogue bien le jeu (182 cartes Origins, 162 Campus) | Les fiches de carte **n'affichent aucun prix** en visiteur. Ses fonctions de valeur sont derrière un compte, et son `robots.txt` interdit explicitement `/sale/`, `/shop/`, `/marketplace/`, `/exchange/` — la valeur vit précisément là où le crawl est refusé. |
-| **eBay, Vinted, LeBonCoin, Beebs** | Des annonces, pas une cote. Aucune API exploitable, et les collecter serait un cas EDHREC (§IV.1). |
+| **eBay, Vinted, LeBonCoin, Beebs** | Des annonces, pas une cote — voir ci-dessous, la piste a été instruite et le mur n'est pas celui qu'on attendait. |
 | **Cardmarket**, seul index européen sérieux | **Absent de ses 20 jeux**, et `/en/Wankul` rend 404. Vérifié dans un navigateur : son `403` sur une requête simple était une détection de robot, pas une absence de page — l'écarter sur ce seul motif aurait été une erreur. |
 
 Ce qu'il faut retenir pour la suite : **ce n'est pas « il n'existe pas de
@@ -1520,6 +1520,51 @@ référencera le jeu, la porte se rouvre sans rien changer au modèle, `price_eu
 en dollars, convertis au taux BCE (§ 6) ; Cardmarket les donnerait en euros
 relevés. À mettre en regard de ses conditions, qui sont restrictives — c'est une
 piste, pas une recommandation.
+
+### Les places de revente : l'identification marche, le reste non
+
+La piste « moissonner eBay, Vinted, LeBonCoin » a été instruite plutôt
+qu'écartée d'un principe, et **elle échoue là où on ne l'attendait pas**.
+
+**Ce qui marche, et c'est contre-intuitif : l'identification.** On supposait que
+des intitulés libres seraient inexploitables. Mesuré sur neuf annonces eBay
+réelles, **huit se résolvent exactement** vers une carte du catalogue :
+
+```
+Carte Wankul - Legacy - Alpiniste - Légendaire Bronze - #166 - FR FOIL
+   -> legacy #166 = « Alpiniste », rareté « Légendaire Bronze »
+Carte Wankul Stellar (s4) DÉNUÉ D'ÉCLAT / LÉGENDAIRE ARGENT #178
+   -> stellar #178 = « DÉNUÉ D'ÉCLAT », rareté « Légendaire Argent »
+```
+
+Les vendeurs écrivent l'extension **et le numéro** ; le nom et la rareté servent
+alors de contrôle croisé, et ils concordent. C'est le rapprochement à deux
+signaux que le projet exige ailleurs. La neuvième est une carte « Gagnant Ticket
+Or », qui n'a pas de numéro — un cas identifiable comme tel, pas un faux.
+
+**Ce qui ne marche pas, et qui décide :**
+
+- **Le droit.** Moissonner le HTML est interdit par les conditions des trois
+  sites. Les API sanctionnées, elles, ne donnent pas la donnée voulue : celle
+  d'eBay qui expose les **ventes réalisées** (Marketplace Insights) est
+  « restricted and not open to new users », exactement le mur rencontré chez
+  Cardmarket. Vinted et LeBonCoin n'exposent rien.
+- **La nature du chiffre.** Une annonce est un **prix demandé**, pas une vente.
+  Le projet a déjà tranché cette question en choisissant `marketPrice` plutôt
+  que `lowPrice` chez TCGCSV — « le prix bas est une annonce isolée, carte
+  abîmée ou erreur de saisie ». Ici *tout* serait une annonce isolée.
+- **Le volume et les lots.** ~1 600 annonces pour 958 cartes, concentrées sur
+  les rares ; la majorité du catalogue resterait sans rien. Et une bonne part
+  est vendue en lots (« 20,00 € à 40,00 € ») ou aux enchères, d'où aucun prix
+  par carte ne s'extrait.
+
+**Ce qui resterait légitime, et ce que ce serait.** L'API Browse d'eBay est
+ouverte et gratuite, et rend les **annonces en cours**. Elle permettrait
+d'afficher « en vente aujourd'hui : de X à Y € », ce qui est une information
+honnête — mais ce n'est **pas** une cote, et cela n'a rien à faire dans
+`price_eur`. Le garde-fou tient dans les deux sens : une carte sans cote compte
+pour 0 €, jamais pour une estimation inventée ; et une estimation, si elle est
+un jour affichée, doit se présenter comme telle et sous un autre nom.
 
 ### Les vignettes sont hébergées — la seule source dans ce cas
 
