@@ -1442,12 +1442,34 @@ hors la loi du projet.
 
 | | Pourquoi |
 |---|---|
-| **Aucun prix** | Le jeu se vend en direct par son éditeur. Aucun marché secondaire ne le cote — ni TCGCSV, ni TCGplayer. `card_prints.price_eur` reste nul, et la colonne est laissée **hors de la requête** d'écriture : y ranger un zéro se lirait « cette carte ne vaut rien » là où la vérité est « personne ne la cote ». |
+| **Aucun prix** | Aucune source ne publie de cote carte par carte — cherché, voir ci-dessous. `card_prints.price_eur` reste nul, et la colonne est laissée **hors de la requête** d'écriture : y ranger un zéro se lirait « cette carte ne vaut rien » là où la vérité est « personne ne la cote ». |
 | **Aucun deck** | Nul corpus de listes n'est publié. Le constructeur n'a donc rien à proposer. |
 | **Aucune illustration servie par la source** | Le CDN rend `403 Hotlinking not allowed`. Mesuré dans les trois cas : sans `Referer`, avec un `Referer` étranger, **et avec celui de `wankul.fr`**. Ce n'est pas un blocage par en-tête que l'on contournerait — c'est une politique. L'accord de l'éditeur couvrant l'hébergement, les rendus sont versés dans un bucket ; voir plus bas. |
 
 La collection s'y saisit, s'y range, s'y compte et **s'y regarde** ; elle ne s'y
 valorise pas.
+
+### Les prix : quatre pistes suivies, aucune n'aboutit
+
+L'absence de cote était **affirmée** — « le jeu se vend en direct par son
+éditeur, il n'existe aucune cote carte par carte » — sans qu'aucune recherche ne
+soit consignée. Elle l'est maintenant, et la conclusion tient, mais pour des
+raisons plus étroites que ce qui était écrit.
+
+| Piste | Résultat |
+|---|---|
+| **TCGCSV / TCGplayer**, qui cote déjà Riftbound, Yu-Gi-Oh et Pokémon | Absent des **90 catégories**, sous ses quatre orthographes (`wankul`, `wankil`, `laink`, `terracid`). Et l'index **ne couvre aucun jeu du marché français** : son silence ne prouve pas l'absence de marché, seulement qu'il n'indexe pas celui-ci. |
+| **wankul.trade**, plateforme d'échange citée par les moteurs | **Le domaine n'existe plus** (NXDOMAIN). Résultat de recherche périmé. |
+| **Coleka**, qui catalogue bien le jeu (182 cartes Origins, 162 Campus) | Les fiches de carte **n'affichent aucun prix** en visiteur. Ses fonctions de valeur sont derrière un compte, et son `robots.txt` interdit explicitement `/sale/`, `/shop/`, `/marketplace/`, `/exchange/` — la valeur vit précisément là où le crawl est refusé. |
+| **eBay, Vinted, LeBonCoin, Beebs** | Des annonces, pas une cote. Aucune API exploitable, et les collecter serait un cas EDHREC (§IV.1). |
+
+**Une piste reste ouverte et non tranchée** : Cardmarket, seul index européen
+sérieux. Il rend `403` à une requête simple, ce qui ne dit rien de son
+catalogue. À vérifier depuis un navigateur ordinaire avant de conclure.
+
+Ce qu'il faut retenir pour la suite : **ce n'est pas « il n'existe pas de
+marché »**, c'est « aucun index public ne le cote carte par carte, et les
+endroits où des prix circulent sont soit fermés, soit interdits au crawl ».
 
 ### Les vignettes sont hébergées — la seule source dans ce cas
 
