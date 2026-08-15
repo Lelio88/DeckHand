@@ -29,6 +29,9 @@ from app.ingestion.wankul_ingest import (
 UUID_MAIN = "b4372ef1-1c81-4d21-a91e-2c281cf86103"
 UUID_PAYSAGE = "2b6f1a67-3898-45dc-829b-77ad8c71920f"
 
+#: URL de projet Supabase d'essai — le dépôt d'images en dérive ses adresses.
+BASE = "https://abc.supabase.co"
+
 
 def carte(**kw) -> WankulCard:
     base = dict(
@@ -272,16 +275,51 @@ def test_l_oeuvre_est_identifiee_par_le_rendu_principal_jamais_le_paysage():
     assert str(terrain.illustration_id) != UUID_PAYSAGE
 
 
-def test_l_url_affichee_montre_la_carte_dans_son_sens_de_lecture():
+def test_l_url_de_la_source_montre_la_carte_dans_son_sens_de_lecture():
     """Un Terrain est couché : son rendu principal est stocké debout, tourné
-    d'un quart de tour. L'afficher ainsi ferait lire son texte de bas en haut."""
+    d'un quart de tour. L'afficher ainsi ferait lire son texte de bas en haut.
+
+    Cette URL n'est plus écrite en base — le CDN la refuse —, mais elle
+    documente d'où vient chaque image et redeviendrait la bonne réponse si
+    l'éditeur ouvrait son CDN."""
     terrain = card_from(payload_carte("1", "RADEAU", paysage=True))
     personnage = card_from(payload_carte("2", "BRAQUEUR"))
 
-    assert terrain.art_url.endswith(f"{UUID_PAYSAGE}_paysage.jpg")
-    assert personnage.art_url.endswith(f"{UUID_MAIN}_main.jpg")
+    assert terrain.source_art_url.endswith(f"{UUID_PAYSAGE}_paysage.jpg")
+    assert personnage.source_art_url.endswith(f"{UUID_MAIN}_main.jpg")
     # Absolue : la source publie des chemins relatifs, inutilisables tels quels.
-    assert terrain.art_url.startswith("https://wankul.fr/")
+    assert terrain.source_art_url.startswith("https://wankul.fr/")
+
+
+def test_l_url_ecrite_en_base_est_celle_du_depot_d_images():
+    """**Sinon une prochaine ingestion rendrait muet un classeur qui marche.**
+    Le CDN de l'éditeur rend 403 ; l'application va chercher le dépôt d'images,
+    dont l'adresse se dérive de `illustration_id` sans rien demander à personne.
+    """
+    carte_ = card_from(payload_carte("1", "RADEAU", paysage=True))
+
+    url = carte_.art_url("https://abc.supabase.co")
+
+    assert url == (
+        "https://abc.supabase.co/storage/v1/object/public/card-art/"
+        f"wankul/normal/{UUID_MAIN}.jpg"
+    )
+    # Le rendu principal, jamais le paysage : c'est lui qu'on possède hors ligne
+    # et qu'on verse, un Terrain étant redressé au moment du versement.
+    assert UUID_PAYSAGE not in url
+    assert "wankul.fr" not in url
+
+
+def test_l_application_sait_deriver_la_vignette_legere_de_cette_url():
+    """**Le chemin imite Scryfall exprès.** `previewCardImage`, côté Dart,
+    échange `/normal/` contre `/small/` : calquer la convention donne les deux
+    paliers sans une ligne de Dart à écrire."""
+    url = card_from(payload_carte("1", "RADEAU")).art_url("https://abc.supabase.co")
+
+    assert "/normal/" in url
+    assert url.replace("/normal/", "/small/").endswith(f"small/{UUID_MAIN}.jpg")
+    # Et surtout pas de segment `/art_crop/`, que `fullCardImage` remplacerait.
+    assert "/art_crop/" not in url
 
 
 def test_une_url_sans_identifiant_ne_produit_pas_de_cle_inventee():
@@ -297,7 +335,7 @@ def test_l_impression_ne_porte_ni_prix_ni_identifiant_marchand():
     par son éditeur (§IV.10). Ranger un zéro se lirait « cette carte ne vaut
     rien » là où la vérité est « personne ne la cote »."""
     conn = ConnexionFactice()
-    write_prints(conn, [card_from(payload_carte("1", "RADEAU", paysage=True))])
+    write_prints(conn, [card_from(payload_carte("1", "RADEAU", paysage=True))], BASE)
 
     (row,) = conn.rows
     # scryfall_id, oracle_id, lang, printed_name, set_code, set_name,
@@ -318,7 +356,7 @@ def test_l_impression_ne_se_confond_pas_avec_la_carte():
 
 def test_une_carte_citee_deux_fois_ne_produit_qu_une_impression():
     conn = ConnexionFactice()
-    written = write_prints(conn, [card_from(payload_carte("1", "RADEAU"))] * 2)
+    written = write_prints(conn, [card_from(payload_carte("1", "RADEAU"))] * 2, BASE)
 
     assert written == 1
     assert conn.commits == 1

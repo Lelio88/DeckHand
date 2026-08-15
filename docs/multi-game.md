@@ -1444,10 +1444,56 @@ hors la loi du projet.
 |---|---|
 | **Aucun prix** | Le jeu se vend en direct par son éditeur. Aucun marché secondaire ne le cote — ni TCGCSV, ni TCGplayer. `card_prints.price_eur` reste nul, et la colonne est laissée **hors de la requête** d'écriture : y ranger un zéro se lirait « cette carte ne vaut rien » là où la vérité est « personne ne la cote ». |
 | **Aucun deck** | Nul corpus de listes n'est publié. Le constructeur n'a donc rien à proposer. |
-| **Aucune illustration servie** | Le CDN rend `403 Hotlinking not allowed`. Mesuré dans les trois cas : sans `Referer`, avec un `Referer` étranger, **et avec celui de `wankul.fr`**. Ce n'est pas un blocage par en-tête que l'on contournerait — c'est une politique, et la lever demande un geste de l'éditeur. |
+| **Aucune illustration servie par la source** | Le CDN rend `403 Hotlinking not allowed`. Mesuré dans les trois cas : sans `Referer`, avec un `Referer` étranger, **et avec celui de `wankul.fr`**. Ce n'est pas un blocage par en-tête que l'on contournerait — c'est une politique. L'accord de l'éditeur couvrant l'hébergement, les rendus sont versés dans un bucket ; voir plus bas. |
 
-La collection s'y saisit, s'y range et s'y compte ; elle ne s'y valorise pas, et
-son classeur montre des cases vides tant que le blocage tient.
+La collection s'y saisit, s'y range, s'y compte et **s'y regarde** ; elle ne s'y
+valorise pas.
+
+### Les vignettes sont hébergées — la seule source dans ce cas
+
+La règle du projet est de ne jamais réhéberger l'illustration d'une source : on
+pointe l'URL de l'éditeur et l'on n'en garde rien (§IV.3, §IV.9). Wankul est
+l'exception, et elle repose entièrement sur l'accord nominatif de LINK DIGITAL
+SPIRIT, qui couvre la copie comme il couvre la collecte.
+
+Le bucket `card-art` est créé par migration, public en lecture, plafonné à
+2 Mio par objet. **Ce n'est pas un cache générique** : un autre jeu n'y entre pas
+parce que son CDN a eu un hoquet, il y entre avec son propre accord — d'où le
+préfixe de jeu dans le chemin, qui force la question à chaque fois.
+
+**Le chemin calque celui de Scryfall, et c'est ce qui a évité d'écrire du
+Dart** :
+
+```
+.../object/public/card-art/wankul/normal/<illustration_id>.jpg   430 × 600, 52 Kio
+.../object/public/card-art/wankul/small/<illustration_id>.jpg    146 × 204,  9 Kio
+```
+
+L'application affiche déjà une vignette légère avant la grande en échangeant le
+segment de taille (`previewCardImage`). Calquer la convention donne les deux
+paliers gratuitement ; s'en écarter aurait demandé un cas particulier dans un
+module que les cinq jeux partagent. Total versé : **1 916 objets, 65,1 Mio**.
+
+**L'URL est dérivée, jamais relevée.** Elle se calcule depuis `illustration_id`
+sans savoir ce que le bucket contient : l'ordre des deux courses est libre, et
+une image pas encore versée rend 404 — ce qu'un classeur affiche comme une case
+vide, soit exactement l'état d'avant. Surtout, l'ingestion la recalcule à chaque
+course : sans cela, une réingestion aurait fait retomber `art_crop_url` sur le
+CDN bloqué et rendu muet un classeur qui fonctionnait.
+
+**Les Terrains sont versés couchés**, dans leur sens de lecture. Verser la
+vignette portrait du Wankuldex remplirait mieux une case, mais rendrait le texte
+illisible en plein écran — la vue où il compte. Redressés, ils se comportent
+comme un champ de bataille Riftbound : `BoxFit.cover` les recadre au centre dans
+la case.
+
+**Un défaut trouvé en regardant ce qui avait été versé**, et non en relisant le
+code : le palier léger imposait une boîte de 146 × 204, ce qui écrasait les 146
+Terrains. Leur grande sortait en 600 × 430 et leur vignette en 146 × 204 — deux
+proportions pour la même carte, que l'application pose l'une sur l'autre sans
+transition (`gaplessPlayback`). La déformation se serait vue en mouvement. Le
+palier léger contraint désormais le **plus grand côté** ; un test le verrouille
+dans les deux orientations.
 
 ### L'index d'empreintes est bâti depuis un dossier local
 
@@ -1551,5 +1597,6 @@ vérifier qu'aucune fusion ne réunit deux illustrations distinctes.
 
 - une **carte de papier**. Le format 63 × 88 est présumé, non vérifié sur
   carton : c'est la seule entrée de `CARD_ASPECTS` dans ce cas ;
-- la **levée du blocage d'images**, qui est du ressort de l'éditeur. Sans elle,
-  le classeur Wankul reste muet à l'écran alors que tout le reste fonctionne.
+- un **regard sur l'appareil**. Les Terrains couchés sont recadrés au centre
+  dans une case de classeur ; c'est cohérent avec Riftbound, mais personne ne
+  l'a encore vu à l'écran.

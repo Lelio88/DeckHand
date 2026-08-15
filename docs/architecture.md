@@ -281,6 +281,29 @@ par `art_crop_url` : cette dernière porte l'URL d'affichage, qui n'est pas
 toujours celle du rendu que le dossier contient. Détail et chiffres :
 [`multi-game.md` §9](./multi-game.md#9-wankul--un-catalogue-sans-prix-sans-decks-et-sans-images).
 
+### Le dépôt d'images — une exception, et une seule
+
+Le catalogue ne stocke qu'une **adresse** par impression, jamais l'image : c'est
+ce qui permet de couvrir 165 000 impressions Magic sans rien héberger, et c'est
+la contrepartie de l'usage gratuit qu'on fait de Scryfall (§IV.3).
+
+Wankul est la seule exception. Son CDN refuse de servir ses images à qui que ce
+soit, et l'accord nominatif de son éditeur couvre l'hébergement au même titre que
+la collecte. Les rendus sont donc versés dans le bucket **`card-art`**, créé par
+migration, public en lecture, et rangés sous un **préfixe de jeu** : ce bucket
+n'est pas un cache où l'on déverserait les autres sources au premier ennui de
+réseau, et le préfixe est là pour que la question se pose à chaque fois.
+
+Le chemin imite celui de Scryfall — `/normal/<id>.jpg` et `/small/<id>.jpg` —
+parce que l'application sait déjà passer de l'un à l'autre pour afficher une
+vignette légère avant la grande. Ce choix a évité d'ajouter un cas particulier
+dans `scryfall_image.dart`, que les cinq jeux partagent.
+
+L'URL est **dérivée d'`illustration_id`**, donc recalculée à chaque ingestion
+sans rien demander au bucket. Le point délicat est là : une URL relevée plutôt
+que dérivée aurait été réécrite par la course suivante vers le CDN bloqué, et le
+classeur serait redevenu muet sans qu'aucune erreur ne le dise.
+
 ### Mesures sur l'index complet — 31 634 illustrations
 
 **Densité.** Aucune collision : les 31 634 empreintes sont toutes distinctes. Mais

@@ -39,6 +39,7 @@ from typing import Any, Iterable, Iterator
 import httpx
 import psycopg
 
+from app.card_art import FULL, public_url
 from app.config import SupabaseConfig
 from app.ingestion.scryfall_parse import normalize_name
 
@@ -237,19 +238,36 @@ class WankulCard:
         return media_uuid(self.image_url)
 
     @property
-    def art_url(self) -> str | None:
-        """Le rendu de la carte **dans son sens de lecture**.
+    def source_art_url(self) -> str | None:
+        """Le rendu de la carte chez l'éditeur, **dans son sens de lecture**.
 
-        Le paysage quand il existe, le principal sinon. Un Terrain est une carte
-        couchée : la montrer debout ferait lire son texte de bas en haut.
+        Le paysage quand il existe, le principal sinon : un Terrain est une
+        carte couchée, la montrer debout ferait lire son texte de bas en haut.
 
-        **Cette URL n'est pas servie hors du site de l'éditeur** : mesuré, le CDN
-        rend `403 Hotlinking not allowed` sans `Referer` comme avec celui de
-        `wankul.fr`. Elle est écrite parce que c'est la bonne donnée et que le
-        jour où le blocage tombe rien n'est à réécrire — pas parce qu'elle
-        fonctionne aujourd'hui.
+        **Cette URL n'est servie qu'au site de l'éditeur** — `403 Hotlinking not
+        allowed` sans `Referer`, avec un `Referer` étranger, et avec celui de
+        `wankul.fr`. Elle n'est donc pas écrite en base ; elle reste ici parce
+        qu'elle documente d'où vient chaque image, et parce qu'elle redeviendrait
+        la bonne réponse si l'éditeur ouvrait son CDN.
         """
         return media_url(self.image_paysage or self.image_url)
+
+    def art_url(self, base_url: str) -> str | None:
+        """L'URL que l'application ira chercher : celle du dépôt d'images.
+
+        **Dérivée, jamais relevée.** Elle se calcule à partir de
+        `illustration_id` sans savoir ce que le bucket contient : l'ingestion
+        n'a donc pas à attendre le versement, et l'ordre des deux courses est
+        libre. Une image pas encore versée rend 404, ce qu'un classeur affiche
+        comme une case vide — exactement l'état d'avant.
+
+        **Le rendu principal, et non le paysage.** C'est lui qui est versé : le
+        dossier local ne contient que les `_main`, et un Terrain y est redressé
+        au moment du versement plutôt que repris d'un fichier qu'on n'a pas.
+        """
+        if self.illustration_id is None:
+            return None
+        return public_url(base_url, GAME, FULL, str(self.illustration_id))
 
 
 def write_cards(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
@@ -295,8 +313,15 @@ def write_cards(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
     return written
 
 
-def write_prints(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
+def write_prints(
+    conn: psycopg.Connection, cards: Iterable[WankulCard], base_url: str
+) -> int:
     """Écrit une impression par carte. Idempotent : rejouable sans doublon.
+
+    `base_url` est l'URL du projet Supabase, d'où sont dérivées les adresses du
+    dépôt d'images. **Elle est exigée et non déduite** : sans elle, la tentation
+    serait de retomber sur l'URL de l'éditeur, qui rend 403 — et une prochaine
+    course rendrait silencieusement muet un classeur qui fonctionnait.
 
     **`price_eur` n'est pas dans la requête, et c'est un choix.** Wankul se vend
     en direct par son éditeur et n'a aucun marché secondaire coté (§IV.10) :
@@ -350,7 +375,7 @@ def write_prints(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
                     card.set_name,
                     card.number,
                     card.rarity,
-                    card.art_url,
+                    card.art_url(base_url),
                     str(card.illustration_id) if card.illustration_id else None,
                 ),
             )
@@ -513,7 +538,7 @@ def main() -> int:
     with psycopg.connect(config.db_url, connect_timeout=30) as conn:
         written = write_cards(conn, cards)
         print(f"cartes écrites : {written}")
-        prints = write_prints(conn, cards)
+        prints = write_prints(conn, cards, config.url)
         print(f"impressions écrites : {prints}")
         names = write_search_names(conn, cards)
         print(f"noms indexés : {names}")
