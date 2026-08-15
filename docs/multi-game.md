@@ -1482,10 +1482,43 @@ course : sans cela, une réingestion aurait fait retomber `art_crop_url` sur le
 CDN bloqué et rendu muet un classeur qui fonctionnait.
 
 **Les Terrains sont versés couchés**, dans leur sens de lecture. Verser la
-vignette portrait du Wankuldex remplirait mieux une case, mais rendrait le texte
-illisible en plein écran — la vue où il compte. Redressés, ils se comportent
-comme un champ de bataille Riftbound : `BoxFit.cover` les recadre au centre dans
-la case.
+vignette portrait du Wankuldex aurait rempli la case sans rien faire, mais
+rendrait le texte illisible en plein écran — la vue où il compte. C'est
+l'application qui tourne la carte là où il le faut, et nulle part ailleurs :
+voir ci-dessous.
+
+### Une case de classeur tourne les cartes couchées
+
+Le défaut n'a pas été trouvé en relisant du code mais en **composant une page de
+classeur depuis les images réellement servies**. Une case est debout (0,72), une
+carte couchée fait 1,4 : `BoxFit.cover` jetait les deux tiers de la largeur, et
+ce qui restait était moitié illustration moitié pavé de texte.
+
+**Il était antérieur à Wankul.** Riftbound sert des champs de bataille couchés
+depuis toujours et souffrait exactement du même recadrage — en pire, ses noms
+étant collés au bord. 210 cartes étaient concernées : 64 champs de bataille et
+146 Terrains.
+
+`CardImage.uprightInCell` tourne la carte d'un quart de tour anti-horaire, celui
+que le Wankuldex applique à ses propres vignettes. Le résultat est exact au
+pixel près : une carte couchée tournée fait 63 × 88, c'est-à-dire la case.
+
+**L'orientation se lit sur l'image, jamais sur un champ.** Faire descendre
+`cards.layout` jusqu'à la case aurait demandé un RPC, quatre classes du modèle
+et leurs tests, pour une information que l'image porte déjà — et qu'elle porte
+*juste*, là où un champ peut se désynchroniser de ce qu'on affiche. C'est aussi
+ce qui règle les deux jeux du même geste, sans que ni l'un ni l'autre ne soit
+cité dans le widget.
+
+La sonde est la **vignette légère**, pas la grande : c'est elle qui s'affiche en
+premier, et mesurer la grande ferait pivoter la case sous les yeux au moment où
+celle-ci arrive. Les deux paliers ayant les mêmes proportions — le contraire a
+été le défaut corrigé plus haut —, la sonde est fiable.
+
+L'option est **explicite à chaque appel**. En plein écran ou dans une ligne de
+liste, tourner la carte rendrait son texte illisible pour rien : l'espace y est
+libre. La tuile d'étagère non plus ne tourne rien — c'est une bannière large, où
+une image couchée tient mieux que debout.
 
 **Un défaut trouvé en regardant ce qui avait été versé**, et non en relisant le
 code : le palier léger imposait une boîte de 146 × 204, ce qui écrasait les 146
@@ -1597,6 +1630,6 @@ vérifier qu'aucune fusion ne réunit deux illustrations distinctes.
 
 - une **carte de papier**. Le format 63 × 88 est présumé, non vérifié sur
   carton : c'est la seule entrée de `CARD_ASPECTS` dans ce cas ;
-- un **regard sur l'appareil**. Les Terrains couchés sont recadrés au centre
-  dans une case de classeur ; c'est cohérent avec Riftbound, mais personne ne
-  l'a encore vu à l'écran.
+- un **regard sur l'appareil**. Tout ce qui précède a été vérifié en composant
+  des pages depuis les images réellement servies, ce qui a livré deux défauts —
+  mais aucune capture n'a encore été prise sur le téléphone.

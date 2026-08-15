@@ -631,6 +631,7 @@ class _UnsortedCardTile extends ConsumerWidget {
               else
                 CardImage(
                   url: image,
+                  uprightInCell: true,
                   placeholder: ColoredBox(
                     color: theme.colorScheme.surfaceContainerLow,
                   ),
@@ -1495,7 +1496,7 @@ class _Cell extends ConsumerWidget {
                   ),
                   child: Opacity(
                     opacity: _ghostOpacity,
-                    child: CardImage(url: image),
+                    child: CardImage(url: image, uprightInCell: true),
                   ),
                 ),
               Center(
@@ -1556,6 +1557,7 @@ class _Cell extends ConsumerWidget {
             children: [
               CardImage(
                 url: image,
+                uprightInCell: true,
                 // Le cadre reste visible pendant le chargement : sans lui, la
                 // grille se recompose sous les yeux à chaque page tournée.
                 placeholder: ColoredBox(

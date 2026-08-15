@@ -52,6 +52,7 @@ class CardImage extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.placeholder,
     this.errorBuilder,
+    this.uprightInCell = false,
   });
 
   final String? url;
@@ -64,6 +65,20 @@ class CardImage extends StatelessWidget {
 
   final Widget Function(BuildContext context)? errorBuilder;
 
+  /// Tourne une carte **couchée** d'un quart de tour pour qu'elle remplisse une
+  /// case debout — comme on glisse un Terrain dans une pochette de classeur.
+  ///
+  /// **Sans cela, [BoxFit.cover] n'en montre qu'une bande centrale.** Une carte
+  /// couchée fait 1,4 fois plus large que haut, une case 0,72 : le recadrage
+  /// jette les deux tiers de la largeur, et ce qui reste est moitié
+  /// illustration moitié pavé de texte. Vérifié sur les deux jeux concernés —
+  /// 64 champs de bataille Riftbound, 146 Terrains Wankul.
+  ///
+  /// **À n'activer que là où la carte doit remplir un emplacement debout.** En
+  /// plein écran ou dans une ligne de liste, la tourner rendrait son texte
+  /// illisible pour rien : l'espace y est libre.
+  final bool uprightInCell;
+
   @override
   Widget build(BuildContext context) {
     final source = url;
@@ -71,25 +86,35 @@ class CardImage extends StatelessWidget {
     if (source == null || source.isEmpty) return blank;
 
     final preview = previewCardImage(source);
-    if (preview == null) return _full(context, source, blank);
+    final content = preview == null
+        ? _full(context, source, blank)
+        // La vignette tient toute la place sous la grande : quand celle-ci
+        // arrive, elle la recouvre exactement, sans que rien ne bouge.
+        : Stack(
+            fit: StackFit.passthrough,
+            children: [
+              Positioned.fill(
+                child: _Sharp(
+                  url: preview,
+                  fit: fit,
+                  // La vignette n'a pas d'espace réservé à elle : elle occupe
+                  // celui de la grande, sans quoi la case changerait de taille
+                  // en cours de chargement.
+                  placeholder: blank,
+                ),
+              ),
+              _full(context, source, blank),
+            ],
+          );
 
-    // La vignette tient toute la place sous la grande : quand celle-ci arrive,
-    // elle la recouvre exactement, sans que rien ne bouge.
-    return Stack(
-      fit: StackFit.passthrough,
-      children: [
-        Positioned.fill(
-          child: _Sharp(
-            url: preview,
-            fit: fit,
-            // La vignette n'a pas d'espace réservé à elle : elle occupe celui
-            // de la grande, sans quoi la case changerait de taille en cours de
-            // chargement.
-            placeholder: blank,
-          ),
-        ),
-        _full(context, source, blank),
-      ],
+    if (!uprightInCell) return content;
+    // **La vignette sert de sonde, pas la grande.** C'est elle qui s'affiche en
+    // premier : mesurer la grande ferait pivoter la case sous les yeux au
+    // moment où celle-ci arrive. Les deux paliers ont les mêmes proportions —
+    // le contraire a été un défaut, corrigé et testé côté serveur.
+    return UprightInCell(
+      probe: CardImageProvider(preview ?? source),
+      child: content,
     );
   }
 
@@ -140,6 +165,103 @@ class _Sharp extends StatelessWidget {
         frame == null && !wasSynchronouslyLoaded ? placeholder : child,
     errorBuilder: (context, _, _) => placeholder,
   );
+}
+
+/// Tourne son contenu d'un quart de tour si l'image sondée est couchée.
+///
+/// **L'orientation se lit sur l'image, pas sur une colonne.** Le classeur ne
+/// connaît de la carte que son URL ; faire descendre `cards.layout` jusqu'ici
+/// aurait demandé un RPC, quatre classes du modèle et leurs tests, pour une
+/// information que l'image porte déjà — et qu'elle porte *juste*, là où un
+/// champ peut se désynchroniser. C'est aussi ce qui fait que Riftbound et
+/// Wankul sont réglés du même geste, sans que ni l'un ni l'autre ne soit cité.
+///
+/// **Le sens du quart de tour n'est pas arbitraire** : c'est l'anti-horaire,
+/// celui que le Wankuldex applique à ses propres vignettes de Terrain. Le texte
+/// se lit alors de bas en haut, et la case reproduit exactement ce que montre
+/// la source — donc ce à quoi l'utilisateur est habitué.
+///
+/// [RotatedBox] plutôt que [Transform.rotate] : il tourne pendant la
+/// **mise en page** et échange donc les contraintes. L'image reçoit une boîte
+/// couchée, la remplit, et le résultat retombe droit dans la case. Une rotation
+/// à la peinture laisserait l'image se cadrer dans une boîte debout avant
+/// d'être tournée, ce qui ne réglerait rien.
+class UprightInCell extends StatefulWidget {
+  const UprightInCell({super.key, required this.probe, required this.child});
+
+  /// Image dont on mesure les proportions. Ce n'est pas forcément celle qu'on
+  /// affiche : la sonde est la vignette légère, qui arrive la première.
+  final ImageProvider<Object> probe;
+
+  final Widget child;
+
+  /// Quart de tour anti-horaire. `RotatedBox` compte dans le sens horaire.
+  static const int quarterTurns = 3;
+
+  @override
+  State<UprightInCell> createState() => _UprightInCellState();
+}
+
+class _UprightInCellState extends State<UprightInCell> {
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+  bool _landscape = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _listen();
+  }
+
+  @override
+  void didUpdateWidget(covariant UprightInCell old) {
+    super.didUpdateWidget(old);
+    if (old.probe != widget.probe) _listen();
+  }
+
+  void _listen() {
+    final stream = widget.probe.resolve(createLocalImageConfiguration(context));
+    if (stream.key == _stream?.key) return;
+    _stop();
+    final listener = ImageStreamListener(
+      (info, _) {
+        final landscape = info.image.width > info.image.height;
+        // Le listener reçoit un clone dont il est propriétaire : ne pas le
+        // libérer retiendrait la texture décodée aussi longtemps que la case.
+        info.dispose();
+        if (landscape != _landscape && mounted) {
+          setState(() => _landscape = landscape);
+        }
+      },
+      // Une sonde qui échoue laisse la carte droite : c'est l'état d'avant,
+      // et la grande image, elle, s'affichera peut-être quand même.
+      onError: (_, _) {},
+    );
+    _stream = stream..addListener(listener);
+    _listener = listener;
+  }
+
+  void _stop() {
+    final stream = _stream;
+    final listener = _listener;
+    if (stream != null && listener != null) stream.removeListener(listener);
+    _stream = null;
+    _listener = null;
+  }
+
+  @override
+  void dispose() {
+    _stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _landscape
+      ? RotatedBox(
+          quarterTurns: UprightInCell.quarterTurns,
+          child: widget.child,
+        )
+      : widget.child;
 }
 
 /// Fournisseur d'image qui regarde le disque avant le réseau.
