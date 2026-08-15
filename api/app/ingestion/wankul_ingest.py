@@ -30,6 +30,7 @@ Usage :
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -39,6 +40,7 @@ import httpx
 import psycopg
 
 from app.config import SupabaseConfig
+from app.ingestion.scryfall_parse import normalize_name
 
 GAME = "wankul"
 
@@ -59,7 +61,8 @@ USER_AGENT = (
 #: l'application les déclare toutes ; les chercher par essais aurait produit une
 #: volée de 404 pour le même résultat. `window.__WANKULDEX_CONFIG__` donne la
 #: base du proxy, le bundle donne le reste.
-BASE = "https://wankul.fr/apps/wankul"
+SITE = "https://wankul.fr"
+BASE = f"{SITE}/apps/wankul"
 ROUTE_SETS = "/api/wankuldex/sets"
 ROUTE_CARDS = "/api/wankuldex/cards/{slug}"
 ROUTE_RARITIES = "/api/wankuldex/rarities"
@@ -105,6 +108,40 @@ def orientation_of(card: dict) -> str:
     un contrat ; ce que le champ contient, mesuré, en est un.
     """
     return "horizontal" if card.get("imagePaysage") else "vertical"
+
+#: L'identifiant que la source donne à chaque fichier de rendu.
+#:
+#: **C'est un vrai UUID, et il est publié** : le chemin d'un rendu se termine par
+#: `<uuid>_main.jpg`, `<uuid>_paysage.jpg`, `<uuid>_ur.png`. En dériver un autre
+#: par `uuid5` jetterait une identité déjà bonne — et surtout la **seule prise**
+#: que le calcul d'empreinte ait sur le fichier : les illustrations ne pouvant
+#: être téléchargées (§IV.10), l'index est bâti depuis un dossier local dont les
+#: noms de fichiers portent exactement cet UUID.
+_MEDIA_UUID = re.compile(
+    r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", re.I
+)
+
+
+def media_uuid(path: str | None) -> uuid.UUID | None:
+    """L'identifiant du fichier de rendu, lu dans son chemin.
+
+    Rend `None` plutôt qu'un identifiant inventé si le chemin n'en porte pas :
+    une impression sans `illustration_id` est écartée de l'index, ce que
+    `main` compte et annonce. Mieux vaut un manque visible qu'une clé dérivée
+    d'une URL qui aurait changé de forme.
+    """
+    if not path:
+        return None
+    found = _MEDIA_UUID.findall(path.rsplit("/", 1)[-1])
+    return uuid.UUID(found[-1]) if found else None
+
+
+def media_url(path: str | None) -> str | None:
+    """Le chemin relatif servi par la source, ramené à une URL absolue."""
+    if not path:
+        return None
+    return path if path.startswith("http") else f"{SITE}{path}"
+
 
 #: Une requête toutes les deux secondes.
 #:
@@ -159,11 +196,60 @@ class WankulCard:
     #: Laink, Terracid, Guest… Conservée pour la recherche, pas pour le gabarit.
     effigy: str | None = None
     text: str | None = None
+    #: Nom lisible de l'extension — « Origins », quand `set_code` porte `origins`.
+    set_name: str | None = None
+    artist: str | None = None
+    #: Chemin du rendu principal. **Une carte couchée y est stockée debout**,
+    #: tournée d'un quart de tour : c'est le rendu de vignette du Wankuldex, et
+    #: c'est aussi le seul fichier dont on dispose hors ligne.
+    image_url: str | None = None
+    #: Chemin du rendu paysage, présent sur les seuls Terrains. C'est lui qui
+    #: montre la carte dans son sens de lecture — voir [orientation_of].
+    image_paysage: str | None = None
 
     @property
     def oracle_id(self) -> uuid.UUID:
         """Identité dérivée de l'identifiant de la source, jamais du nom."""
         return uuid.uuid5(NAMESPACE, f"card:{self.source_id}")
+
+    @property
+    def print_id(self) -> uuid.UUID:
+        """Identité de l'impression.
+
+        **Une carte, une impression, et c'est une propriété du jeu** : Wankul ne
+        réédite pas. Les variantes — Gold, Édition Spéciale, promos — portent
+        chacune leur propre identifiant de source et sont déjà des cartes
+        distinctes. Le couple carte/impression est donc un pour un, ce qui ne
+        dispense pas d'écrire les deux : le classeur, le choix d'édition et
+        l'index d'empreintes passent tous par `card_prints`.
+        """
+        return uuid.uuid5(NAMESPACE, f"print:{self.source_id}")
+
+    @property
+    def illustration_id(self) -> uuid.UUID | None:
+        """Identité de l'œuvre — celle du **rendu principal**, toujours.
+
+        Prendre celle du paysage sur un Terrain paraîtrait plus juste, puisque
+        c'est le rendu que `art_crop_url` désigne. Ce serait une erreur : le
+        dossier local ne contient que les `_main`, et c'est cet identifiant-là
+        qui doit s'y retrouver pour que l'empreinte puisse être calculée.
+        """
+        return media_uuid(self.image_url)
+
+    @property
+    def art_url(self) -> str | None:
+        """Le rendu de la carte **dans son sens de lecture**.
+
+        Le paysage quand il existe, le principal sinon. Un Terrain est une carte
+        couchée : la montrer debout ferait lire son texte de bas en haut.
+
+        **Cette URL n'est pas servie hors du site de l'éditeur** : mesuré, le CDN
+        rend `403 Hotlinking not allowed` sans `Referer` comme avec celui de
+        `wankul.fr`. Elle est écrite parce que c'est la bonne donnée et que le
+        jour où le blocage tombe rien n'est à réécrire — pas parce qu'elle
+        fonctionne aujourd'hui.
+        """
+        return media_url(self.image_paysage or self.image_url)
 
 
 def write_cards(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
@@ -209,6 +295,105 @@ def write_cards(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
     return written
 
 
+def write_prints(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
+    """Écrit une impression par carte. Idempotent : rejouable sans doublon.
+
+    **`price_eur` n'est pas dans la requête, et c'est un choix.** Wankul se vend
+    en direct par son éditeur et n'a aucun marché secondaire coté (§IV.10) :
+    laisser la colonne hors de l'écriture est plus honnête que d'y ranger un
+    zéro, qui serait lu comme « cette carte ne vaut rien » là où la vérité est
+    « personne ne la cote ». Même raison pour `tcgplayer_id` : aucun marchand ne
+    référence ce jeu.
+
+    `art_crop_url` désigne la carte **entière**, pas une illustration détourée —
+    la source ne publie pas celle-ci. Le découpage appartient donc au calcul
+    d'empreinte, comme pour Riftbound, Yu-Gi-Oh et Pokémon.
+    """
+    statement = """
+        INSERT INTO public.card_prints (scryfall_id, oracle_id, lang, printed_name,
+                                        set_code, set_name, collector_number,
+                                        rarity, art_crop_url, illustration_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (scryfall_id) DO UPDATE SET
+            -- L'identité doit suivre : sans cette ligne, une impression déjà
+            -- connue resterait rattachée à l'ancienne carte le jour où la règle
+            -- d'identité change, et les deux versions coexisteraient en base.
+            oracle_id        = EXCLUDED.oracle_id,
+            set_code         = EXCLUDED.set_code,
+            set_name         = EXCLUDED.set_name,
+            collector_number = EXCLUDED.collector_number,
+            printed_name     = EXCLUDED.printed_name,
+            rarity           = EXCLUDED.rarity,
+            art_crop_url     = EXCLUDED.art_crop_url,
+            illustration_id  = EXCLUDED.illustration_id
+    """
+
+    written = 0
+    with conn.cursor() as cur:
+        seen: set[uuid.UUID] = set()
+        for card in cards:
+            if card.print_id in seen:
+                continue
+            seen.add(card.print_id)
+            cur.execute(
+                statement,
+                (
+                    str(card.print_id),
+                    str(card.oracle_id),
+                    # Wankul est un jeu français et ne publie que le français :
+                    # les noms sont « GARAGISTE », « CAMIONNEUR ». La langue est
+                    # une préférence d'affichage, pas un filtre — écrire « en »
+                    # ici ferait passer ces cartes pour anglaises.
+                    "fr",
+                    card.name,
+                    card.set_code,
+                    card.set_name,
+                    card.number,
+                    card.rarity,
+                    card.art_url,
+                    str(card.illustration_id) if card.illustration_id else None,
+                ),
+            )
+            written += 1
+    conn.commit()
+    return written
+
+
+def write_search_names(conn: psycopg.Connection, cards: Iterable[WankulCard]) -> int:
+    """Alimente l'index de saisie. Sans lui, aucune carte n'est trouvable.
+
+    **Ce n'était écrit nulle part, et le catalogue était donc invisible.** Toutes
+    les fonctions de recherche du dépôt — autocomplétion, `binder_find`,
+    `binder_locate`, la résolution des decklists — passent par
+    `card_search_names` et non par `cards.name` : 958 cartes en base et zéro
+    ligne ici, c'est un catalogue qu'on ne peut pas saisir. Le défaut ne se
+    voyait pas depuis la table `cards`, qui était pleine.
+
+    **Un même nom peut désigner deux cartes**, et c'est voulu : « MORT-VIVANT »
+    existe sous deux effigies. L'unicité porte sur le couple carte-nom, pas sur
+    le nom, et la recherche rendra bien les deux.
+    """
+    statement = """
+        INSERT INTO public.card_search_names (oracle_id, name, normalized, lang)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (oracle_id, normalized, lang) DO NOTHING
+    """
+
+    written = 0
+    with conn.cursor() as cur:
+        seen: set[tuple[str, str]] = set()
+        for card in cards:
+            normalized = normalize_name(card.name)
+            key = (str(card.oracle_id), normalized)
+            if not normalized or key in seen:
+                continue
+            seen.add(key)
+            cur.execute(statement, (key[0], card.name, normalized, "fr"))
+            written += 1
+    conn.commit()
+    return written
+
+
 def card_from(payload: dict) -> WankulCard:
     """Une carte de la source, ramenée à la forme que la base attend."""
     effigy = (payload.get("effigy") or {}).get("name")
@@ -228,6 +413,10 @@ def card_from(payload: dict) -> WankulCard:
         rarity=rarity,
         orientation=orientation,
         effigy=effigy,
+        set_name=(payload.get("set") or {}).get("name"),
+        artist=(payload.get("artist") or {}).get("name"),
+        image_url=payload.get("imageUrl"),
+        image_paysage=payload.get("imagePaysage"),
     )
 
 
@@ -323,7 +512,21 @@ def main() -> int:
     config = SupabaseConfig.load()
     with psycopg.connect(config.db_url, connect_timeout=30) as conn:
         written = write_cards(conn, cards)
-    print(f"cartes écrites : {written}")
+        print(f"cartes écrites : {written}")
+        prints = write_prints(conn, cards)
+        print(f"impressions écrites : {prints}")
+        names = write_search_names(conn, cards)
+        print(f"noms indexés : {names}")
+
+    # Une impression sans identifiant d'œuvre est écartée de l'index
+    # d'empreintes. Le dire ici plutôt que de laisser l'index rendre un total
+    # inférieur au catalogue sans qu'on sache pourquoi.
+    orphelines = [c for c in cards if c.illustration_id is None]
+    if orphelines:
+        print(f"ATTENTION : {len(orphelines)} impressions sans identifiant "
+              f"d'œuvre — leur URL de rendu a-t-elle changé de forme ?")
+        for c in orphelines[:5]:
+            print(f"    {c.name} — {c.image_url}")
     return 0
 
 

@@ -247,6 +247,40 @@ téléphone, elle, se réduit d'un facteur 10. Ce qui a révélé la panne est d
 joué **la même photo** dans les deux implémentations et comparé les coins ; c'est
 le seul contrôle qui l'aurait vue, et il ne coûte rien.
 
+### Bâtir l'index sans télécharger une image
+
+`index_builder` télécharge chaque illustration. **Une source peut le refuser**, et
+Wankul le fait : son CDN rend `403 Hotlinking not allowed` sans `Referer`, avec
+un `Referer` étranger, et jusqu'avec celui de son propre site. Ce n'est pas un
+en-tête à contourner mais une politique, et le garde-fou §IV.10 interdit de la
+forcer.
+
+`app.vision.local_index` est la seconde voie : il lit un dossier de rendus déjà
+présents sur le disque, calcule les empreintes et écrit les mêmes lignes.
+**Aucun pas de la chaîne de calcul n'y est réimplémenté** — `box_for`, `crop` et
+`dhash` sont ceux du constructeur ordinaire — sans quoi les empreintes locales et
+téléchargées ne se compareraient plus, alors qu'elles cohabitent dans la même
+table.
+
+Ce qu'un dossier a de plus qu'un téléchargement, et qu'il faut traiter :
+
+- des **calques qui ne sont pas des illustrations** (masques holographiques :
+  308 fichiers sur 1 268 chez Wankul). Ce sont des images valides — un masque
+  s'ouvre, se hache, et produit une entrée d'index fausse dont rien ne dit
+  qu'elle l'est. Le filtre porte sur le suffixe de nom, pas sur l'extension ;
+- des **marges transparentes** possibles, qui fausseraient les proportions de la
+  valeur exacte de la marge ;
+- une **orientation de stockage** propre à la source : un Terrain Wankul est une
+  carte couchée dont le rendu principal la montre debout, tournée d'un quart de
+  tour. Tout ce qui est propre à une source vit dans une seule fonction
+  (`local_index.refine`), qui redresse l'image et précise sa maquette avant que
+  `box_for` ne choisisse la fenêtre.
+
+Le lien fichier ↔ impression passe par `card_prints.illustration_id`, et **non**
+par `art_crop_url` : cette dernière porte l'URL d'affichage, qui n'est pas
+toujours celle du rendu que le dossier contient. Détail et chiffres :
+[`multi-game.md` §9](./multi-game.md#9-wankul--un-catalogue-sans-prix-sans-decks-et-sans-images).
+
 ### Mesures sur l'index complet — 31 634 illustrations
 
 **Densité.** Aucune collision : les 31 634 empreintes sont toutes distinctes. Mais

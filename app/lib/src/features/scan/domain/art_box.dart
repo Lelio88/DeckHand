@@ -195,12 +195,65 @@ enum CardFrame {
   /// sur toute la largeur pour gagner deux coins, et la variance entre cartes
   /// montre qu'elles ne sont pas constantes : la Force change d'une carte à
   /// l'autre, donc elle discrimine au lieu de brouiller.
+  ///
+  /// **Éprouvé depuis sur les 812 verticales du catalogue, et conservé.** Le
+  /// gradient de leur moyenne donne une fenêtre plus basse — bottom 0,7024 —
+  /// qui pouvait passer pour une mesure plus solide. Elle est moins bonne :
+  /// sous elle l'index annonce à tort avec assurance 1,04 % des cartes contre
+  /// 0,84 % sous celle-ci. Les 0,017 de plus mordent sur le haut du pavé de
+  /// texte, identique sur toutes les cartes. Un échantillon plus grand ne rend
+  /// pas mécaniquement un meilleur gabarit.
   wankul((
     left: 0.0483,
     top: 0.0298,
     right: 0.9450,
     bottom: 0.6857,
-  ), 'wankul');
+  ), 'wankul'),
+
+  /// Wankul couché — les Terrains, bloc de texte **en haut** (77 sur 146).
+  ///
+  /// **La carte est posée en travers**, comme un champ de bataille Riftbound,
+  /// d'où [landscape]. Le rendu que publie la source la montre pourtant
+  /// debout, tournée d'un quart de tour : c'est sa vignette. Un seul quart de
+  /// tour horaire redresse les 146, vérifié en les regardant toutes — aucune
+  /// n'est à l'envers.
+  ///
+  /// Deux signaux indépendants donnent la même arête haute : le gradient de
+  /// l'image moyenne de 77 cartes place le bord bas des bandeaux à 0,4150, et
+  /// la variance entre cartes ouvre sa plus longue plage libre à 0,4167. Un
+  /// écart d'une ligne.
+  ///
+  /// Les marges 0,0440 / 0,9536 sont celles des bandeaux eux-mêmes.
+  /// L'illustration, elle, va bord à bord : la marge est **prise
+  /// volontairement**, un quadrilatère détecté de travers ramènerait sinon du
+  /// fond de photo. La borne basse retient la même marge convertie dans
+  /// l'autre sens (0,0440 × 88/63), le carton étant plus large que haut une
+  /// fois couché.
+  wankulWideBandsTop(
+    (left: 0.0440, top: 0.4150, right: 0.9536, bottom: 0.9385),
+    'wankul',
+    landscape: true,
+  ),
+
+  /// Wankul couché, bloc de texte **en bas** (69 Terrains).
+  ///
+  /// **Ce n'est pas [wankulWideBandsTop] retournée**, et c'est pourquoi ce
+  /// cadre existe : un demi-tour placerait le bloc à 0,5850 → 0,8300, or il
+  /// est à 0,6300 → 0,8750. Ces 0,045 d'écart sont ce qui interdit de compter
+  /// sur les deux quarts de tour que [artHashCandidatesInQuad] essaie déjà. Le
+  /// bloc a en revanche exactement la même hauteur (0,2450) : le même gabarit
+  /// de bandeaux, posé ailleurs.
+  ///
+  /// Le titre de la carte tombe **dans** la fenêtre — il est posé juste
+  /// au-dessus des bandeaux, vers 0,52. Sans conséquence : il est constant
+  /// pour une carte donnée, exactement comme le nom incrusté d'un champ de
+  /// bataille Riftbound, et le retirer coûterait un dixième de la hauteur
+  /// d'illustration.
+  wankulWideBandsBottom(
+    (left: 0.0440, top: 0.0615, right: 0.9536, bottom: 0.6300),
+    'wankul',
+    landscape: true,
+  );
 
   const CardFrame(this.box, this.game, {this.landscape = false});
 

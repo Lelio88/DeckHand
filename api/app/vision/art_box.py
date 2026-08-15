@@ -51,7 +51,7 @@ RIFTBOUND_LANDSCAPE = ArtBox(0.041, 0.199, 0.962, 0.777)
 #: introuvable. Ouvrir l'orientation couchée à tous les jeux reviendrait à
 #: accepter n'importe quel rectangle en Magic, où toutes les cartes sont debout.
 #: Jumeau de `CardFrame.landscape`.
-GAMES_WITH_LANDSCAPE = frozenset({"riftbound"})
+GAMES_WITH_LANDSCAPE = frozenset({"riftbound", "wankul"})
 
 #: Yu-Gi-Oh, cadre ordinaire — 14 101 cartes sur 14 491.
 #:
@@ -133,7 +133,61 @@ POKEMON_FULL = ArtBox(0.0, 0.0, 1.0, 1.0)
 #:
 #: Une carte seule avait rendu un cadre asymétrique ; l'échantillon a montré
 #: que l'écart venait de la détection, pas de la maquette.
+#:
+#: **Éprouvé depuis sur les 812 verticales du catalogue, et conservé.** Le
+#: gradient de leur moyenne donne une fenêtre un peu plus large et surtout plus
+#: basse — (0,0450, 0,0321, 0,9517, 0,7024) —, ce qui pouvait passer pour une
+#: mesure plus solide. Elle est moins bonne : sous elle, l'index annonce à tort
+#: avec assurance **1,04 %** des cartes contre 0,84 % sous celle-ci. Les 0,017
+#: de hauteur supplémentaires mordent sur le haut du pavé de texte, qui est le
+#: même sur toutes les cartes — de l'information dépensée en constante. Un
+#: échantillon plus grand ne rend pas mécaniquement un meilleur gabarit.
 WANKUL = ArtBox(0.0483, 0.0298, 0.9450, 0.6857)
+
+#: Wankul couché, bloc de texte **en haut** — 77 Terrains sur 146.
+#:
+#: L'illustration occupe tout ce qui reste sous les bandeaux. Deux signaux
+#: indépendants donnent la même arête haute : le gradient de l'image moyenne
+#: place le bord bas des bandeaux à 0,4150, et la variance entre cartes ouvre sa
+#: plus longue plage libre à 0,4167 — 0,0017 d'écart, soit une ligne.
+#:
+#: Les bords latéraux 0,0440 et 0,9536 sont ceux des bandeaux eux-mêmes, mesurés
+#: à l'identique sur les deux maquettes. L'illustration, elle, va bord à bord :
+#: cette marge n'est pas dans le dessin, elle est **prise volontairement**, parce
+#: qu'un quadrilatère détecté de travers ramènerait sinon du fond de photo. La
+#: borne basse retient la même marge convertie dans l'autre sens
+#: (0,0440 × 88/63 = 0,0615), le carton étant plus large que haut une fois couché.
+#:
+#: La ligne de crédit du bas — « Art : … » à gauche, code d'extension à droite —
+#: reste dans la fenêtre. Elle varie d'une carte à l'autre : elle discrimine au
+#: lieu de brouiller, comme les encoches d'angle de la maquette debout.
+#: Jumeau de `CardFrame.wankulWideBandsTop`.
+WANKUL_BANDS_TOP = ArtBox(0.0440, 0.4150, 0.9536, 0.9385)
+
+#: Wankul couché, bloc de texte **en bas** — 69 Terrains.
+#:
+#: **Ce n'est pas la précédente retournée**, et c'est le point à ne pas
+#: reperdre : un demi-tour placerait le bloc à 0,5850 → 0,8300, or il est à
+#: 0,6300 → 0,8750. Ces 0,045 d'écart sont ce qui oblige à déclarer deux cadres
+#: plutôt que de compter sur les deux quarts de tour que la reconnaissance essaie
+#: déjà. Le bloc a en revanche exactement la même hauteur (0,2450) : c'est le
+#: même gabarit de bandeaux, posé ailleurs.
+#:
+#: Le titre de la carte, lui, tombe **dans** la fenêtre : il est posé juste
+#: au-dessus des bandeaux, vers 0,52. C'est sans conséquence — il est constant
+#: pour une carte donnée, comme le nom incrusté des champs de bataille
+#: Riftbound — et le retirer coûterait un dixième de la hauteur d'illustration.
+#: Jumeau de `CardFrame.wankulWideBandsBottom`.
+WANKUL_BANDS_BOTTOM = ArtBox(0.0440, 0.0615, 0.9536, 0.6300)
+
+#: Valeurs de `layout` qui désignent l'une des deux maquettes couchées.
+#:
+#: **Déclarées ici et non dans `wankul_frame`**, qui les produit : ce module doit
+#: rester sans dépendance — il est le jumeau du Dart et le socle de tout le
+#: pipeline —, et faire remonter numpy jusqu'ici pour trois chaînes de
+#: caractères serait payer cher un import.
+WANKUL_LAYOUT_BANDS_TOP = "horizontal-bandeaux-haut"
+WANKUL_LAYOUT_BANDS_BOTTOM = "horizontal-bandeaux-bas"
 
 
 def box_for(game: str, layout: str | None) -> ArtBox | None:
@@ -160,19 +214,33 @@ def box_for(game: str, layout: str | None) -> ArtBox | None:
     if game == "riftbound":
         return RIFTBOUND_LANDSCAPE if layout == "landscape" else RIFTBOUND_PORTRAIT
     if game == "wankul":
-        # **La maquette horizontale n'est pas mesurée, et rend donc `None`.**
-        # Ce n'est pas la verticale tournée d'un quart de tour, contrairement à
-        # Riftbound : la verticale porte une illustration encadrée, l'horizontale
-        # la porte en plein cadre avec les textes posés dessus. Leur appliquer le
-        # même gabarit découperait un pavé de texte en croyant tenir un dessin.
-        #
-        # Deux cartes horizontales sont connues et elles ne concordent pas — la
-        # seconde est une édition Gold, dont le traitement holographique déjoue
-        # la détection des bandeaux et qui n'est de toute façon pas
-        # représentative. Une seule pièce exploitable ne fait pas un gabarit ;
-        # la verticale vient d'en administrer la preuve.
-        return None if layout == "horizontal" else WANKUL
+        return _wankul_box(layout)
     return None
+
+
+def _wankul_box(layout: str | None) -> ArtBox:
+    """Fenêtre d'une carte Wankul, d'après son orientation puis sa maquette.
+
+    **Deux niveaux, et le second ne vient pas de la source.** L'orientation est
+    publiée — enfin, elle se déduit de la présence d'un rendu paysage. La
+    maquette d'une carte couchée, elle, ne l'est pas : elle se mesure sur
+    l'image, et c'est `wankul_frame.maquette` qui la rend au constructeur
+    d'index sous la forme d'un `layout` affiné.
+
+    Une carte couchée dont la maquette n'a pas été mesurée retombe sur la
+    maquette majoritaire (bandeaux en haut, 77 sur 146). Ce n'est pas un choix
+    confortable — appliquée aux 69 autres, cette fenêtre avale leur bloc de
+    texte en entier — mais c'est le moins mauvais : `None` ferait hacher la
+    carte entière **sans que rien ne le signale**, ce que le garde-fou de
+    `GAMES_WITH_PREDETOURED_ART` existe précisément pour empêcher. Le
+    constructeur d'index ne s'y fie jamais : il classe chaque Terrain avant de
+    découper.
+    """
+    if layout == WANKUL_LAYOUT_BANDS_BOTTOM:
+        return WANKUL_BANDS_BOTTOM
+    if layout in (WANKUL_LAYOUT_BANDS_TOP, "horizontal"):
+        return WANKUL_BANDS_TOP
+    return WANKUL
 
 
 #: Jeux dont la source publie une illustration **déjà détourée**.
@@ -198,11 +266,11 @@ GAMES_AWAITING_ART_BOX = frozenset()
 
 #: Maquettes connues mais **pas encore mesurées**, jeu par orientation.
 #:
-#: Plus fin que [GAMES_AWAITING_ART_BOX], qui raisonne par jeu : Wankul a deux
-#: mises en page distinctes, et l'une est mesurée quand l'autre ne l'est pas.
-#: Déclarer l'attente à ce grain évite de faire passer le jeu entier pour
-#: inachevé, comme de faire passer la moitié manquante pour réglée.
-LAYOUTS_AWAITING_ART_BOX = frozenset({("wankul", "horizontal")})
+#: Plus fin que [GAMES_AWAITING_ART_BOX], qui raisonne par jeu : un même jeu peut
+#: avoir deux mises en page dont une seule est mesurée. Wankul y a figuré tant
+#: que sa maquette couchée manquait ; l'ensemble est vide aujourd'hui, et c'est
+#: un état, pas un oubli — le test de couverture s'en sert dans les deux sens.
+LAYOUTS_AWAITING_ART_BOX: frozenset[tuple[str, str]] = frozenset()
 
 
 def _pokemon_box(layout: str | None) -> ArtBox:

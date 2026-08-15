@@ -16,9 +16,18 @@ from app.ingestion.wankul_ingest import (
     WankulCard,
     card_from,
     fetch_all,
+    media_uuid,
     orientation_of,
     write_cards,
+    write_prints,
+    write_search_names,
 )
+
+#: Deux identifiants de fichier, tels que la source les publie dans ses chemins
+#: de rendu. Ils sont différents pour une même carte : le paysage est un autre
+#: fichier que le principal, et c'est tout l'enjeu du test qui les sépare.
+UUID_MAIN = "b4372ef1-1c81-4d21-a91e-2c281cf86103"
+UUID_PAYSAGE = "2b6f1a67-3898-45dc-829b-77ad8c71920f"
 
 
 def carte(**kw) -> WankulCard:
@@ -199,11 +208,13 @@ class ClientFactice:
             200, {"data": [], "meta": {"total": 0}})
 
 
-def payload_carte(num: str, nom: str, paysage: str | None = None) -> dict:
+def payload_carte(num: str, nom: str, paysage: bool = False) -> dict:
+    dossier = f"/apps/wankul/api/media/saison/01-origins/{num}-{nom.lower()}"
     return {
         "id": int(num), "name": nom, "number": num,
         "effigy": {"name": "Laink", "slug": "laink"},
-        "imageUrl": "/…_main.jpg", "imagePaysage": paysage,
+        "imageUrl": f"{dossier}/{UUID_MAIN}_main.jpg",
+        "imagePaysage": f"{dossier}/{UUID_PAYSAGE}_paysage.jpg" if paysage else None,
         "set": {"name": "Origins", "slug": "origins"},
         "rarity": {"name": "Commune", "slug": "commune"},
         "artist": {"name": "Jaycee"},
@@ -237,6 +248,102 @@ def test_le_type_se_deduit_du_rendu_paysage():
     rareté et une effigie, et ni l'une ni l'autre ne suffit — « Ouverture de
     Colis » est un Terrain (T#201) de rareté « Edition Gold ». Le rendu paysage
     ne suit que la maquette, et la maquette suit le type."""
-    assert card_from(payload_carte("1", "NAVIRE", "/…_paysage.jpg")).type_line \
+    assert card_from(payload_carte("1", "NAVIRE", paysage=True)).type_line \
         == "Terrain"
     assert card_from(payload_carte("2", "BRAQUEUR")).type_line == "Personnage"
+
+
+# --- les impressions : ce qui va dans quelle colonne -------------------------
+
+
+def test_l_oeuvre_est_identifiee_par_le_rendu_principal_jamais_le_paysage():
+    """**Le seul lien entre une impression et le fichier qu'on possède.**
+
+    Les illustrations Wankul ne sont pas téléchargeables — `403 Hotlinking not
+    allowed` (§IV.10) —, l'index d'empreintes est donc bâti depuis un dossier
+    local qui ne contient que les rendus `_main`. Prendre l'identifiant du
+    paysage sur un Terrain paraîtrait plus juste, puisque c'est le rendu que
+    `art_crop_url` désigne : ce serait 146 cartes introuvables dans le dossier,
+    et un index amputé sans que rien ne le dise.
+    """
+    terrain = card_from(payload_carte("1", "RADEAU", paysage=True))
+
+    assert str(terrain.illustration_id) == UUID_MAIN
+    assert str(terrain.illustration_id) != UUID_PAYSAGE
+
+
+def test_l_url_affichee_montre_la_carte_dans_son_sens_de_lecture():
+    """Un Terrain est couché : son rendu principal est stocké debout, tourné
+    d'un quart de tour. L'afficher ainsi ferait lire son texte de bas en haut."""
+    terrain = card_from(payload_carte("1", "RADEAU", paysage=True))
+    personnage = card_from(payload_carte("2", "BRAQUEUR"))
+
+    assert terrain.art_url.endswith(f"{UUID_PAYSAGE}_paysage.jpg")
+    assert personnage.art_url.endswith(f"{UUID_MAIN}_main.jpg")
+    # Absolue : la source publie des chemins relatifs, inutilisables tels quels.
+    assert terrain.art_url.startswith("https://wankul.fr/")
+
+
+def test_une_url_sans_identifiant_ne_produit_pas_de_cle_inventee():
+    """Mieux vaut un manque, que `main` compte et annonce, qu'une clé dérivée
+    d'une URL dont la forme aurait changé — laquelle rattacherait l'empreinte à
+    un fichier qui n'existe pas."""
+    assert media_uuid(None) is None
+    assert media_uuid("/media/origins/031-garagiste/vignette.jpg") is None
+
+
+def test_l_impression_ne_porte_ni_prix_ni_identifiant_marchand():
+    """**Wankul n'a aucun marché secondaire coté** : le jeu se vend en direct
+    par son éditeur (§IV.10). Ranger un zéro se lirait « cette carte ne vaut
+    rien » là où la vérité est « personne ne la cote »."""
+    conn = ConnexionFactice()
+    write_prints(conn, [card_from(payload_carte("1", "RADEAU", paysage=True))])
+
+    (row,) = conn.rows
+    # scryfall_id, oracle_id, lang, printed_name, set_code, set_name,
+    # collector_number, rarity, art_crop_url, illustration_id — et rien d'autre.
+    assert len(row) == 10
+    assert row[2] == "fr", "un jeu français annoncé anglais fausse l'affichage"
+    assert row[4] == "origins" and row[5] == "Origins"
+
+
+def test_l_impression_ne_se_confond_pas_avec_la_carte():
+    """Une carte, une impression — Wankul ne réédite pas —, mais deux clés :
+    `card_prints` est ce que le classeur et le choix d'édition interrogent."""
+    carte_ = card_from(payload_carte("1", "RADEAU"))
+
+    assert carte_.print_id != carte_.oracle_id
+    assert carte_.print_id == card_from(payload_carte("1", "RADEAU")).print_id
+
+
+def test_une_carte_citee_deux_fois_ne_produit_qu_une_impression():
+    conn = ConnexionFactice()
+    written = write_prints(conn, [card_from(payload_carte("1", "RADEAU"))] * 2)
+
+    assert written == 1
+    assert conn.commits == 1
+
+
+# --- l'index de saisie ------------------------------------------------------
+
+
+def test_les_noms_sont_indexes_sinon_rien_n_est_trouvable():
+    """**Le défaut ne se voyait pas depuis `cards`, qui était pleine.** Toutes
+    les recherches du dépôt passent par `card_search_names` : 958 cartes en base
+    et zéro ligne ici, c'est un catalogue qu'on ne peut pas saisir."""
+    conn = ConnexionFactice()
+    written = write_search_names(conn, [card_from(payload_carte("1", "RADEAU"))])
+
+    (row,) = conn.rows
+    assert written == 1
+    assert row[1] == "RADEAU" and row[2] == "radeau" and row[3] == "fr"
+
+
+def test_deux_cartes_du_meme_nom_sont_indexees_toutes_les_deux():
+    """« MORT-VIVANT » existe sous deux effigies : l'unicité porte sur le couple
+    carte-nom, pas sur le nom, et la recherche doit rendre les deux."""
+    conn = ConnexionFactice()
+    a = card_from(payload_carte("78", "MORT-VIVANT"))
+    b = card_from(payload_carte("79", "MORT-VIVANT"))
+
+    assert write_search_names(conn, [a, b]) == 2

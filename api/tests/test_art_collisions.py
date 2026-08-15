@@ -181,3 +181,25 @@ def test_lapostrophe_typographique_ne_fait_pas_deux_noms():
     )
     # Deux cartes réellement différentes gardent des clés différentes.
     assert _name_key("Pikachu") != _name_key("Raichu")
+
+
+def test_un_suffixe_de_produit_ne_fait_pas_deux_cartes_chez_wankul():
+    """« CAMIONNEUR - PGW 2024 » est le CAMIONNEUR d'origine, réimprimé pour un
+    salon, avec la même illustration à 0 bit près. Les compter séparément faisait
+    annoncer 3,44 % de confusions ; il en reste 0,84 %."""
+    from app.measure.art_collisions import _card_key
+
+    assert _card_key("CAMIONNEUR - PGW 2024", "wankul") == _card_key("CAMIONNEUR", "wankul")
+    assert _card_key("MARTINE", "wankul") != _card_key("MORT-VIVANT", "wankul")
+
+
+def test_le_retrait_du_suffixe_ne_deborde_pas_sur_les_autres_jeux():
+    """**Il fusionnerait 101 clés chez Yu-Gi-Oh et 41 chez Riftbound**, où le
+    tiret sépare deux cartes d'un même archétype et non deux tirages d'une même
+    carte. C'est mesuré, et c'est pourquoi la règle est bornée par jeu."""
+    from app.measure.art_collisions import _card_key
+
+    for jeu in ("yugioh", "riftbound", "magic", "pokemon"):
+        assert _card_key("Raidraptor - Fuzzy Lanius", jeu) != _card_key(
+            "Raidraptor - Skull Eagle", jeu
+        )

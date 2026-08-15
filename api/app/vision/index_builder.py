@@ -58,8 +58,8 @@ class BuildReport:
 
 
 def pending_prints(
-    conn: psycopg.Connection, limit: int | None = None
-) -> list[tuple[str, str, str, str, str | None]]:
+    conn: psycopg.Connection, limit: int | None = None, game: str | None = None
+) -> list[tuple[str, str, str, str, str | None, str]]:
     """Une impression par **illustration** encore dépourvue d'empreinte.
 
     L'index portait une seule image par carte, si bien qu'une réédition à
@@ -85,11 +85,16 @@ def pending_prints(
     pas, elle se saisit. Ce qu'elles coûtent aux autres est en revanche modeste :
     aucune carte ordinaire n'en a une sous le seuil, six seulement en ont une
     assez proche pour leur manger leur marge.
+
+    [game] restreint la liste à un jeu. Il sert au constructeur d'index **local**
+    (`local_index`), qui ne peut travailler que sur les jeux dont les images sont
+    déjà sur le disque : sans ce filtre, il réclamerait des fichiers absents pour
+    les 65 000 illustrations des autres jeux et son rapport ne dirait plus rien.
     """
     query = """
         SELECT DISTINCT ON (p.illustration_id)
                p.scryfall_id::text, p.oracle_id::text, p.art_crop_url,
-               c.game, c.layout
+               c.game, c.layout, p.illustration_id::text
         FROM public.card_prints p
         JOIN public.cards c ON c.oracle_id = p.oracle_id
         WHERE p.art_crop_url IS NOT NULL
@@ -103,10 +108,16 @@ def pending_prints(
           )
         ORDER BY p.illustration_id, (p.lang = 'en') DESC, p.released_at, p.scryfall_id
     """
+    args: tuple = ()
+    if game:
+        query = query.replace(
+            "WHERE p.art_crop_url IS NOT NULL", "WHERE c.game = %s AND p.art_crop_url IS NOT NULL"
+        )
+        args = (game,)
     if limit:
         query += f" LIMIT {int(limit)}"
     with conn.cursor() as cur:
-        return cur.execute(query).fetchall()
+        return cur.execute(query, args).fetchall()
 
 
 def image_url(url: str, game: str) -> str:
@@ -163,6 +174,24 @@ def hash_one(
         time.sleep(DELAY_PER_WORKER)
 
 
+#: Écriture d'une empreinte. Rejouable telle quelle — c'est ce qui permet de
+#: rejouer un lot dont la connexion a cédé. Partagée avec `local_index`, qui
+#: écrit exactement les mêmes lignes depuis un dossier au lieu du réseau.
+HASH_INSERT = """
+    INSERT INTO public.art_hashes (scryfall_id, oracle_id, dhash)
+    VALUES (%s, %s, %s)
+    ON CONFLICT (scryfall_id) DO UPDATE
+        SET dhash = EXCLUDED.dhash, computed_at = NOW()
+"""
+
+
+def write_hashes(conn: psycopg.Connection, rows: list[tuple[str, str, int]]) -> None:
+    """Écrit un lot d'empreintes et commite. Unité de reprise de `build`."""
+    with conn.cursor() as cur:
+        cur.executemany(HASH_INSERT, rows)
+    conn.commit()
+
+
 def build(session: Session, limit: int | None = None) -> BuildReport:
     todo = session.run(lambda conn: pending_prints(conn, limit))
     report = BuildReport()
@@ -176,8 +205,8 @@ def build(session: Session, limit: int | None = None) -> BuildReport:
     lock = threading.Lock()
     rows: list[tuple[str, str, int]] = []
 
-    def work(item: tuple[str, str, str, str, str | None]) -> None:
-        scryfall_id, oracle_id, url, game, layout = item
+    def work(item: tuple[str, str, str, str, str | None, str]) -> None:
+        scryfall_id, oracle_id, url, game, layout, _illustration = item
         with httpx.Client(
             timeout=30, headers={"User-Agent": USER_AGENT}, follow_redirects=True
         ) as client:
@@ -192,13 +221,6 @@ def build(session: Session, limit: int | None = None) -> BuildReport:
             if done % 50 == 0:
                 print(f"  {done}/{total}", end="\r", flush=True)
 
-    statement = """
-        INSERT INTO public.art_hashes (scryfall_id, oracle_id, dhash)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (scryfall_id) DO UPDATE
-            SET dhash = EXCLUDED.dhash, computed_at = NOW()
-    """
-
     for start in range(0, total, BATCH_SIZE):
         chunk = todo[start : start + BATCH_SIZE]
         with ThreadPoolExecutor(max_workers=WORKERS) as pool:
@@ -211,19 +233,10 @@ def build(session: Session, limit: int | None = None) -> BuildReport:
             # restent dehors, l'écriture seule est rejouée si la connexion cède.
             # Rejouable telle quelle — l'INSERT est en ON CONFLICT DO UPDATE — et
             # elle commite, donc une coupure ne coûte au pire que ce lot.
-            session.run(lambda conn: _write(conn, statement, pending))
+            session.run(lambda conn: write_hashes(conn, pending))
 
     print(f"  {report.hashed + report.failed}/{total}      ")
     return report
-
-
-def _write(
-    conn: psycopg.Connection, statement: str, rows: list[tuple[str, str, int]]
-) -> None:
-    """Écrit un lot d'empreintes et commite. Unité de reprise de `build`."""
-    with conn.cursor() as cur:
-        cur.executemany(statement, rows)
-    conn.commit()
 
 
 def propagate_shared_art(conn: psycopg.Connection) -> int:

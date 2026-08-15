@@ -25,6 +25,7 @@ from pathlib import Path
 
 from app.vision.art_box import (
     GAMES_AWAITING_ART_BOX,
+    GAMES_WITH_LANDSCAPE,
     GAMES_WITH_PREDETOURED_ART,
     LAYOUTS_AWAITING_ART_BOX,
     POKEMON,
@@ -32,6 +33,11 @@ from app.vision.art_box import (
     POKEMON_TRAINER,
     RIFTBOUND_LANDSCAPE,
     RIFTBOUND_PORTRAIT,
+    WANKUL,
+    WANKUL_BANDS_BOTTOM,
+    WANKUL_BANDS_TOP,
+    WANKUL_LAYOUT_BANDS_BOTTOM,
+    WANKUL_LAYOUT_BANDS_TOP,
     YUGIOH,
     YUGIOH_PENDULUM,
     ArtBox,
@@ -48,6 +54,10 @@ DECOUPES = {
     "riftbound": {RIFTBOUND_PORTRAIT, RIFTBOUND_LANDSCAPE},
     "yugioh": {YUGIOH, YUGIOH_PENDULUM},
     "pokemon": {POKEMON, POKEMON_TRAINER, POKEMON_FULL},
+    # Wankul manquait à cette table tant que sa maquette couchée n'était pas
+    # mesurée : le cadre debout existait des deux côtés sans que rien ne vérifie
+    # qu'ils coïncidaient.
+    "wankul": {WANKUL, WANKUL_BANDS_TOP, WANKUL_BANDS_BOTTOM},
 }
 
 #: Le motif tolère les espaces et les sauts de ligne partout où `dart format`
@@ -120,17 +130,53 @@ def test_l_attente_n_est_pas_un_fourre_tout():
         assert game not in GAMES_WITH_PREDETOURED_ART
 
 
-def test_wankul_debout_a_son_gabarit_et_couche_ne_l_a_pas():
+def test_wankul_a_ses_trois_maquettes():
     """**Les deux orientations de Wankul ne sont pas deux rotations.** La
     verticale porte une illustration encadrée, l'horizontale la porte en plein
-    cadre avec les textes posés dessus. Leur donner le même gabarit découperait
-    un pavé de texte en croyant tenir un dessin — d'où le `None`, tant que
-    l'horizontale n'aura pas son propre échantillon.
+    cadre avec les textes posés dessus. Et la couchée en a deux, distinguées par
+    la position de son bloc de texte — que la source ne publie pas et qui se
+    mesure sur l'image (`app.vision.wankul_frame`).
     """
-    assert box_for("wankul", "vertical") is not None
-    assert box_for("wankul", None) is not None
-    assert box_for("wankul", "horizontal") is None
-    assert ("wankul", "horizontal") in LAYOUTS_AWAITING_ART_BOX
+    assert box_for("wankul", "vertical") == WANKUL
+    assert box_for("wankul", None) == WANKUL
+    assert box_for("wankul", WANKUL_LAYOUT_BANDS_TOP) == WANKUL_BANDS_TOP
+    assert box_for("wankul", WANKUL_LAYOUT_BANDS_BOTTOM) == WANKUL_BANDS_BOTTOM
+    assert not LAYOUTS_AWAITING_ART_BOX
+
+
+def test_une_couchee_sans_maquette_mesuree_prend_la_majoritaire():
+    """Inconfortable — elle serait fausse pour 69 Terrains sur 146 — mais c'est
+    le moins mauvais : `None` ferait hacher la carte entière **sans que rien ne
+    le signale**. Le constructeur d'index ne s'y fie jamais, il classe chaque
+    Terrain avant de découper."""
+    assert box_for("wankul", "horizontal") == WANKUL_BANDS_TOP
+
+
+def test_les_deux_maquettes_couchees_ne_sont_pas_un_demi_tour_l_une_de_l_autre():
+    """**Le fait qui oblige à déclarer deux cadres.** La reconnaissance essaie
+    déjà les deux quarts de tour d'un cadre couché : si la seconde maquette était
+    la première retournée, elle serait couverte sans rien ajouter.
+
+    Elle ne l'est pas. Le bloc de texte occupe 0,1700 → 0,4150 sur l'une et
+    0,6300 → 0,8750 sur l'autre, là où un demi-tour le placerait à
+    0,5850 → 0,8300 : 0,045 d'écart, mesuré sur 77 et 69 cartes.
+    """
+    demi_tour_du_haut = 1.0 - WANKUL_BANDS_TOP.top
+    assert abs(demi_tour_du_haut - WANKUL_BANDS_BOTTOM.bottom) > 0.04
+
+    # Le bloc a en revanche la même hauteur : c'est le même gabarit de bandeaux,
+    # posé ailleurs. C'est ce qui rend les deux mesures crédibles l'une par
+    # l'autre.
+    haut = WANKUL_BANDS_TOP.top - 0.1700
+    bas = 0.8750 - WANKUL_BANDS_BOTTOM.bottom
+    assert abs(haut - bas) < 0.001
+
+
+def test_les_cartes_couchees_ouvrent_la_detection_en_travers():
+    """Un Terrain se pose en travers. Sans cette déclaration, `find_card`
+    rejetterait son quadrilatère — son rapport s'écarte de 0,68 pour une
+    tolérance de 0,30 — et les deux cadres mesurés ne serviraient jamais."""
+    assert "wankul" in GAMES_WITH_LANDSCAPE
 
 
 def test_le_gabarit_wankul_est_a_peu_pres_symetrique():

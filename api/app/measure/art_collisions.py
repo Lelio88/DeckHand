@@ -42,6 +42,7 @@ Usage :
 
 from __future__ import annotations
 
+import re
 import sys
 import unicodedata
 from dataclasses import dataclass
@@ -120,11 +121,38 @@ def load(conn: psycopg.Connection) -> dict[str, Catalogue]:
         name_codes = np.empty(len(entries), dtype=np.int32)
         for i, (_, oracle_id, name) in enumerate(entries):
             codes[i] = seen.setdefault(oracle_id, len(seen))
-            name_codes[i] = seen_names.setdefault(_name_key(name), len(seen_names))
+            name_codes[i] = seen_names.setdefault(_card_key(name, game), len(seen_names))
         catalogues[game] = Catalogue(
             game=game, hashes=hashes, cards=codes, names=name_codes
         )
     return catalogues
+
+
+#: Suffixe accolé au nom par un **produit** plutôt que par une carte :
+#: « CAMIONNEUR - PGW 2024 », « SKIEUR - Starter Pack Civilisations ».
+_VARIANT_SUFFIX = re.compile(r"\s+-\s+.+$")
+
+#: Jeux dont ce suffixe désigne l'emballage et non la carte.
+#:
+#: **Le retrait ne peut pas être global, et c'est mesuré.** Chez Yu-Gi-Oh il
+#: fusionnerait 101 clés — « Raidraptor - Fuzzy Lanius » et « Raidraptor - Skull
+#: Eagle » sont deux cartes, pas deux tirages —, chez Riftbound 41. Chez Magic
+#: et Pokémon, aucun nom ne porte ce motif.
+#:
+#: Chez Wankul il concerne 46 empreintes sur 958, toutes des promos qui
+#: reprennent l'illustration d'une carte ordinaire : PGW, Gala TCG, Japan Expo,
+#: Booster Gold, Starter Pack. Les compter comme des cartes différentes faisait
+#: annoncer **3,44 % de confusions ; il en reste 0,84 %**, soit moins que
+#: Pokémon. Ajouter un jeu ici demande de vérifier, comme ici, qu'aucune fusion
+#: ne réunit deux illustrations distinctes.
+GAMES_WITH_VARIANT_SUFFIX = frozenset({"wankul"})
+
+
+def _card_key(name: str, game: str) -> str:
+    """Le nom réduit à la carte, suffixe de produit retiré s'il y a lieu."""
+    if game in GAMES_WITH_VARIANT_SUFFIX:
+        name = _VARIANT_SUFFIX.sub("", name)
+    return _name_key(name)
 
 
 def _name_key(name: str) -> str:
@@ -313,6 +341,9 @@ def run(only: str | None = None, sample: int = 2000) -> None:
             f"  ({100 * r['self_starved'] / r['entries']:.2f} %)"
         )
         print(f"             paire la plus serrée : {r['closest_pair']} bits")
+        if game in GAMES_WITH_VARIANT_SUFFIX:
+            print("             (le suffixe de produit est retiré du nom : "
+                  "« X - PGW 2024 » compte comme « X »)")
 
     print("\n=== 2. intrusions : une carte étrangère à l'index interrogé ===")
     for target in games:

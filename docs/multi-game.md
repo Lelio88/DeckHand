@@ -1,13 +1,15 @@
 # Multi-jeu — accueil des jeux qui ne sont pas Magic
 
-Annexe de [`architecture.md`](./architecture.md). Trois jeux partagent
+Annexe de [`architecture.md`](./architecture.md). Cinq jeux partagent
 aujourd'hui la base de DeckHand : **Magic**, **Riftbound** (le TCG League of
-Legends de Riot) et **Yu-Gi-Oh**. Ce document dit ce que chacun a demandé, et ce
-que le modèle a absorbé sans se déformer.
+Legends de Riot), **Yu-Gi-Oh**, **Pokémon** et **Wankul**. Ce document dit ce que
+chacun a demandé, et ce que le modèle a absorbé sans se déformer.
 
-Un quatrième, **Pokémon**, a été *mesuré* sans être ingéré : la
-[§ 8](#8-pokémon--ce-que-la-mesure-a-rendu-avant-toute-ingestion) dit ce qu'il
-coûterait, et rien de lui n'est en base.
+Quatre bouclent la promesse entière — collection, prix, decks constructibles.
+**Wankul n'en boucle qu'une partie, et c'est structurel** : ni marché secondaire
+coté, ni corpus de listes publié, ni illustration accessible. La
+[§ 9](#9-wankul--un-catalogue-sans-prix-sans-decks-et-sans-images) dit pourquoi
+et ce qu'il en reste.
 
 ---
 
@@ -1425,3 +1427,129 @@ Mesuré sur une fenêtre de trois jours (2 468 decks) : **49 267 codes d'impress
 - ~~le gabarit de deck~~ — **mesuré et câblé**, voir ci-dessous ;
 - les **103 sigles non résolus** ci-dessus, dont le diagnostic est fait : les
   mini-extensions volent la clé de leur extension mère.
+
+---
+
+## 9. Wankul — un catalogue sans prix, sans decks et sans images
+
+Cinquième jeu, et le seul ingéré **sous autorisation nominative** de son
+éditeur, LINK DIGITAL SPIRIT : ses conditions (article 4) interdisent sinon
+toute collecte automatisée, sans condition de finalité. C'est le cas EDHREC du
+garde-fou §IV.1, levé par un accord explicite — le retirer remettrait la source
+hors la loi du projet.
+
+### Trois manques structurels, et non trois retards
+
+| | Pourquoi |
+|---|---|
+| **Aucun prix** | Le jeu se vend en direct par son éditeur. Aucun marché secondaire ne le cote — ni TCGCSV, ni TCGplayer. `card_prints.price_eur` reste nul, et la colonne est laissée **hors de la requête** d'écriture : y ranger un zéro se lirait « cette carte ne vaut rien » là où la vérité est « personne ne la cote ». |
+| **Aucun deck** | Nul corpus de listes n'est publié. Le constructeur n'a donc rien à proposer. |
+| **Aucune illustration servie** | Le CDN rend `403 Hotlinking not allowed`. Mesuré dans les trois cas : sans `Referer`, avec un `Referer` étranger, **et avec celui de `wankul.fr`**. Ce n'est pas un blocage par en-tête que l'on contournerait — c'est une politique, et la lever demande un geste de l'éditeur. |
+
+La collection s'y saisit, s'y range et s'y compte ; elle ne s'y valorise pas, et
+son classeur montre des cases vides tant que le blocage tient.
+
+### L'index d'empreintes est bâti depuis un dossier local
+
+Puisque les images ne peuvent pas être téléchargées, `app.vision.local_index`
+lit un dossier de rendus déjà présents sur le disque, calcule les empreintes et
+écrit les mêmes lignes que `index_builder`. **Rien de la chaîne de calcul n'est
+réimplémenté** — `box_for`, `crop`, `dhash` sont les mêmes — sans quoi les
+empreintes locales et téléchargées ne se compareraient plus, alors qu'elles
+cohabitent dans la même table.
+
+Le rapprochement fichier ↔ impression passe par **l'UUID que la source donne à
+chaque rendu** : elle nomme ses fichiers `<uuid>_main.jpg` et publie ce chemin ;
+l'ingestion en tire `card_prints.illustration_id`. Mesuré : 958 fichiers, 958
+impressions, aucun orphelin d'un côté ni de l'autre.
+
+Deux pièges propres à un dossier, qu'un téléchargement n'a pas :
+
+- **308 fichiers sur 1 268 ne sont pas des illustrations** — masques
+  holographiques `opw_*`, `diag_mask_*`, `metal_inverted`. Ce sont des images
+  valides : un masque s'ouvre, se hache, et produirait une entrée d'index
+  parfaitement fausse dont rien ne dirait qu'elle l'est. Le filtre porte sur le
+  suffixe `_main`, pas sur l'extension ;
+- **`art_crop_url` ne désigne pas le fichier**. Il porte le rendu *paysage* pour
+  un Terrain — celui qui montre la carte dans son sens de lecture, et qui n'est
+  pas dans le dossier. C'est `illustration_id` qui fait le lien, et lui seul.
+
+### Les Terrains : une rotation, deux maquettes
+
+Les 146 Terrains sont des cartes **couchées**, mais leur rendu principal les
+montre debout, tournées d'un quart de tour — c'est la vignette du Wankuldex.
+
+**Un seul quart de tour horaire les redresse toutes.** Vérifié en regardant les
+146 redressées : aucune n'est à l'envers.
+
+**Il existe deux maquettes**, distinguées par la position du bloc titre +
+bandeaux, et **elles ne sont pas deux rotations l'une de l'autre** :
+
+| Maquette | Bandeaux | Cartes | Fenêtre d'illustration |
+|---|---|---|---|
+| bandeaux en haut | 0,1700 → 0,4150 | 77 | (0,0440, 0,4150, 0,9536, 0,9385) |
+| bandeaux en bas | 0,6300 → 0,8750 | 69 | (0,0440, 0,0615, 0,9536, 0,6300) |
+
+Un demi-tour placerait le second bloc à 0,5850 → 0,8300, or il est à 0,6300 →
+0,8750 : **0,045 d'écart**. C'est ce qui oblige à déclarer deux cadres plutôt
+que de compter sur les deux quarts de tour que la reconnaissance essaie déjà.
+Le bloc a en revanche exactement la même hauteur (0,2450) des deux côtés — c'est
+le même gabarit de bandeaux, posé ailleurs, et cette égalité rend chaque mesure
+crédible par l'autre.
+
+**Ce qu'une mesure précédente avait conclu, et pourquoi c'était faux.** L'image
+moyenne de 150 Terrains montrait deux jeux de bandeaux symétriques ; on en avait
+déduit que le lot mêlait les deux sens de rotation, et ajouté un demi-tour
+conditionnel au redressement. Les deux jeux venaient des deux maquettes : le
+demi-tour conditionnel **introduisait** le résidu mal orienté qu'il croyait
+supprimer. Trois tentatives s'y sont épuisées avant qu'on regarde les cartes.
+
+**La maquette se lit sur l'image**, la source ne publiant rien qui la trahisse —
+ni le champ `orientation`, déjà pris en défaut, ni la rareté, ni l'effigie. Deux
+hypothèses sont confrontées aux quatre traits que les bandeaux dessinent, chacune
+notée par la **force des traits × la platitude des bandeaux** : la force seule se
+laisse imiter par une texture rayée (« TERRADOLLAR » est un billet de banque), la
+platitude seule par un ciel. Pire cas mesuré : 1,28 ; les douze décisions les
+moins tranchées ont été vérifiées à l'œil, toutes justes.
+
+Se tromper ne coûte pas un peu de précision : la fenêtre de l'autre maquette
+contient le bloc de texte **en entier**.
+
+### Le gabarit debout : un échantillon plus grand ne fait pas un meilleur gabarit
+
+La fenêtre verticale avait été mesurée sur 11 cartes. Reprise sur les 812 du
+catalogue, le gradient de la moyenne donne (0,0450, 0,0321, 0,9517, **0,7024**)
+au lieu de (0,0483, 0,0298, 0,9450, **0,6857**). Elle est **moins bonne** : sous
+elle, l'index annonce à tort avec assurance 1,04 % des cartes contre 0,84 %.
+Les 0,017 de hauteur supplémentaires mordent sur le haut du pavé de texte, qui
+est identique sur toutes les cartes — de l'information dépensée en constante.
+Le gabarit d'origine est conservé.
+
+### Ce que l'index donne, et ce que le chiffre brut disait de travers
+
+958 empreintes, aucun échec. Mesuré par `app.measure.art_collisions` :
+
+| | brut | suffixe de produit retiré |
+|---|---|---|
+| annoncées à tort avec assurance, sous un autre nom | 3,44 % | **0,84 %** |
+
+L'écart n'est pas une amélioration du pipeline, c'est une correction de la
+mesure. 46 empreintes portent un nom suffixé — « CAMIONNEUR - PGW 2024 »,
+« SKIEUR - Starter Pack Civilisations » — qui désigne **l'emballage et non la
+carte** : ce sont des promos reprenant l'illustration d'une carte ordinaire, à
+0 bit près. Les compter comme des cartes différentes reprochait au scan de bien
+reconnaître l'image qu'il a sous les yeux — exactement le piège des rééditions
+Pokémon (7,36 % annoncés contre 1,49 % réels).
+
+**Le retrait ne peut pas être global, et c'est mesuré** : chez Yu-Gi-Oh il
+fusionnerait 101 clés — « Raidraptor - Fuzzy Lanius » et « Raidraptor - Skull
+Eagle » sont deux cartes, pas deux tirages —, chez Riftbound 41. La règle est
+donc bornée par jeu (`GAMES_WITH_VARIANT_SUFFIX`), et ajouter un jeu demande de
+vérifier qu'aucune fusion ne réunit deux illustrations distinctes.
+
+### Ce qui reste dû
+
+- une **carte de papier**. Le format 63 × 88 est présumé, non vérifié sur
+  carton : c'est la seule entrée de `CARD_ASPECTS` dans ce cas ;
+- la **levée du blocage d'images**, qui est du ressort de l'éditeur. Sans elle,
+  le classeur Wankul reste muet à l'écran alors que tout le reste fonctionne.
