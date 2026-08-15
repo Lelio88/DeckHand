@@ -68,3 +68,8 @@ app/android/key.properties
 # Un AAB pese 60 Mo et se regenere ; le depot n'a pas a le porter.
 *.aab
 *.apk
+
+# Traces d'inspection au navigateur (Playwright MCP) : instantanes de pages et
+# journaux de console, ecrits a la racine par l'outil. Ce sont des brouillons de
+# reconnaissance — ce qu'ils ont appris vit dans docs/, pas ici.
+.playwright-mcp/
