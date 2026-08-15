@@ -802,11 +802,19 @@ ventes réelles, et c'est aussi ce que Scryfall publie pour Magic. Les deux jeux
 se valorisent donc sur la même notion, condition pour que les totaux se
 comparent. Un produit sans prix de marché est absent plutôt que mal valorisé.
 
-**493 impressions de base ne sont cotées qu'en brillante.** Un exemplaire
-ordinaire de ces cartes compte donc pour zéro : c'est la règle « une carte sans
-cote compte pour 0 €, jamais pour une estimation inventée », appliquée à une
-absence réelle de cote et non à un oubli. `card_cheapest_price` reste sur le prix
-ordinaire, inchangée — la modifier changerait aussi la valorisation Magic.
+**704 impressions ne sont cotées qu'en brillante** (493 lors de la première
+mesure ; le nombre suit les extensions). Un exemplaire ordinaire de ces cartes
+compte donc pour zéro : c'est la règle « une carte sans cote compte pour 0 €,
+jamais pour une estimation inventée », appliquée à une absence réelle de cote et
+non à un oubli. `card_cheapest_price` reste sur le prix ordinaire, inchangée —
+la modifier changerait aussi la valorisation Magic.
+
+**Compter les cotes sur la seule colonne ordinaire donne un chiffre faux**, et
+alarmant : 492 sur 1 451, soit 34 %. La bonne question est « cotée dans au moins
+une finition », et la réponse est **1 196 sur 1 451, 82,4 %** — le reste étant
+les 227 `VEN` non chaînées ci-dessous et 28 produits que TCGCSV connaît sans
+leur trouver de prix de marché. C'est la même leçon que le corpus Limitless :
+un compteur qui ne mesure pas ce qu'on croit rend un diagnostic, pas une donnée.
 
 **Les 227 impressions de `VEN` restent sans prix**, faute de `tcgplayer_id` chez
 Riftcodex. TCGCSV connaît pourtant le groupe : on pourrait rapprocher par nom et
@@ -821,6 +829,42 @@ compte réel : trois exemplaires ajoutés (deux ordinaires, un brillant) donnent
 total de **34,87 €**, égal au centime à la somme attendue
 (15,17 + 4,28 + 15,42). Le prix de la finition possédée est bien celui retenu.
 La collection réelle n'a pas été touchée.
+
+### Cardmarket : évalué, et écarté par ses conditions
+
+La question valait d'être posée — Cardmarket **couvre Riftbound**, cote en euros
+**relevés** plutôt que convertis, et connaît des extensions que TCGCSV ignore
+(`OGNX`, `UNLX`, `SFDX`, `VENX`, `PROK`, `SGN`, `RAD`), y compris des `VEN` que
+notre catalogue laisse sans prix. Techniquement, ce serait un gain.
+
+Ses conditions l'interdisent, et deux fois plutôt qu'une.
+
+**L'API est fermée.** Page d'aide officielle, verbatim : « The API provides an
+interface for users to create their own apps for using Cardmarket. *Currently,
+we are not accepting applications for access to the Cardmarket API.* » Aucun
+identifiant n'est délivré. (La documentation v1 rend d'ailleurs `410 Gone` et
+renvoie vers `apiv2.cardmarket.com`.)
+
+**Et même avec des identifiants, l'usage visé est nommément exclu.** CGU n° 9 :
+« The API may only be used for managing your own contents. ***The presentation
+of the trading cards and their respective prices require our prior written
+agreement.*** The use of the API and the transfer and use of data for any other
+purpose is prohibited. » Afficher un prix de carte demande donc un **accord
+écrit préalable** — exactement ce que DeckHand ferait.
+
+**Le contournement par les pages publiques est fermé aussi.** CGU n° 10 : « you
+are prohibited from disseminating or publicly reproducing contents of the online
+platform ». Le `robots.txt` autorise pourtant `Allow: /` au crawler générique :
+**s'y fier aurait été une erreur**, ce sont les CGU qui font foi. Il porte par
+ailleurs une réserve expresse au titre de l'article 4 de la directive 2019/790.
+
+C'est donc le cas EDHREC du garde-fou §IV.1, à une différence près : ici la
+porte existe. Elle s'appelle « prior written agreement », elle se demande à un
+humain, et c'est le même chemin que celui qui a ouvert Wankul.
+
+**La bonne nouvelle est ailleurs** : le manque que cette piste devait combler
+n'existe pas. La couverture est de 82,4 %, et les 227 `VEN` sans prix attendent
+un `tcgplayer_id` de Riftcodex, pas une autre source.
 
 ---
 
