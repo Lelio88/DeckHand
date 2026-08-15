@@ -1,0 +1,153 @@
+- generic [active] [ref=f3e1]:
+  - banner [ref=f3e2]:
+    - generic [ref=f3e4]:
+      - paragraph [ref=f3e5]:
+        - text: Cardmarket uses cookies and other related tools. Aside from required cookies, we also apply other types of cookies, but only if you consent to them. These cookies help us improve our product by analyzing user data and applying personalized functions. If you accept all cookies, we will transfer your data to our partners, who will aggregate this data with other website data about you. You will find further information on individual cookies in our
+        - link "Privacy Policy" [ref=f3e6] [cursor=pointer]:
+          - /url: /en/Policies/PrivacyPolicy
+        - text: ", where you can adjust your cookie settings. This is where you can withdraw your consent to the various types of cookies on the website."
+        - link "About Us" [ref=f3e7] [cursor=pointer]:
+          - /url: /en/AboutUs
+      - generic [ref=f3e8]:
+        - button "Accept All Cookies" [ref=f3e11] [cursor=pointer]
+        - button "Only Required Cookies" [ref=f3e14] [cursor=pointer]
+        - link "Adjust Cookie Settings" [ref=f3e15] [cursor=pointer]:
+          - /url: "#"
+    - progressbar "Progress Bar" [ref=f3e16]
+    - navigation [ref=f3e18]:
+      - link "Back to Home" [ref=f3e20] [cursor=pointer]:
+        - /url: /en
+        - generic [ref=f3e21]: 
+        - generic [ref=f3e22]: 
+      - list [ref=f3e23]:
+        - listitem [ref=f3e24]:
+          - generic [ref=f3e25]:
+            - text:  
+            - button "Log in" [ref=f3e26] [cursor=pointer]
+            - button "Sign up" [ref=f3e27] [cursor=pointer]
+      - button "Toggle navigation" [ref=f3e29] [cursor=pointer]
+      - generic [ref=f3e34]:
+        - generic [ref=f3e35]:
+          - generic [ref=f3e36]:
+            - generic [ref=f3e37]:
+              - generic [ref=f3e38]: Username
+              - generic [ref=f3e39]:
+                - generic [ref=f3e40]: 
+                - textbox "Username" [ref=f3e42]
+                - link "Forgot?" [ref=f3e43] [cursor=pointer]:
+                  - /url: /en/Login/ForgotUsername
+            - generic [ref=f3e44]:
+              - generic [ref=f3e45]: Password
+              - generic [ref=f3e46]:
+                - generic [ref=f3e47]: 
+                - textbox "Password" [ref=f3e49]
+                - link "Forgot?" [ref=f3e50] [cursor=pointer]:
+                  - /url: /en/Login/ForgotPassword
+            - button "Log in" [ref=f3e52] [cursor=pointer]
+          - separator [ref=f3e53]
+        - list [ref=f3e54]:
+          - listitem [ref=f3e55]:
+            - link "Policies" [ref=f3e56] [cursor=pointer]:
+              - /url: /en/Policies
+          - listitem [ref=f3e57]:
+            - link "About Us" [ref=f3e58] [cursor=pointer]:
+              - /url: /en/AboutUs
+          - listitem [ref=f3e59]:
+            - link "Help" [ref=f3e60] [cursor=pointer]:
+              - /url: https://help.cardmarket.com/en
+          - listitem [ref=f3e61]:
+            - link "Jobs" [ref=f3e62] [cursor=pointer]:
+              - /url: https://cardmarket.jobs.personio.com/
+          - listitem [ref=f3e63]:
+            - generic [ref=f3e64]:
+              - generic [ref=f3e65] [cursor=pointer]
+              - generic [ref=f3e66]:
+                - generic [ref=f3e67]: "Yes"
+                - generic [ref=f3e68]: "No"
+              - generic [ref=f3e69]: Dark Mode
+          - listitem [ref=f3e70]:
+            - generic [ref=f3e71]:
+              - generic [ref=f3e72] [cursor=pointer]
+              - generic [ref=f3e73]:
+                - generic [ref=f3e74]: "Yes"
+                - generic [ref=f3e75]: "No"
+              - generic [ref=f3e76]: Search 2.0
+            - link "Use this to enable improved search suggestions - click for details" [ref=f3e77] [cursor=pointer]:
+              - /url: https://news.cardmarket.com/en/improvements-to-search-bar-suggestions
+              - generic "Use this to enable improved search suggestions - click for details" [ref=f3e78]: 
+          - listitem [ref=f3e79]:
+            - button "English" [ref=f3e80] [cursor=pointer]
+        - list [ref=f3e82]:
+          - listitem [ref=f3e83]:
+            - link "    " [ref=f3e84] [cursor=pointer]:
+              - /url: https://news.cardmarket.com/en
+              - generic [ref=f3e85]:
+                - generic [ref=f3e86]: 
+                - generic: 
+                - generic: 
+                - generic: 
+                - generic: 
+          - listitem [ref=f3e87]:
+            - link "      " [ref=f3e88] [cursor=pointer]:
+              - /url: https://www.cardmarket.com/en/Insight/Articles
+              - generic [ref=f3e89]:
+                - generic [ref=f3e90]: 
+                - generic: 
+                - generic: 
+                - generic: 
+                - generic: 
+                - generic: 
+                - generic: 
+          - listitem [ref=f3e91]:
+            - link "  " [ref=f3e92] [cursor=pointer]:
+              - /url: https://help.cardmarket.com/en/EventSponsorship
+              - generic [ref=f3e93]:
+                - generic [ref=f3e94]: 
+                - generic: 
+                - generic: 
+  - main [ref=f3e95]:
+    - generic [ref=f3e102]:
+      - heading "404 Page not found" [level=1] [ref=f3e103]:
+        - text: "404"
+        - generic [ref=f3e104]: Page not found
+      - paragraph [ref=f3e105]: Page not found
+      - paragraph [ref=f3e106]: Huh... Where am I?!
+      - generic [ref=f3e107]: "Please try:"
+      - list [ref=f3e108]:
+        - listitem [ref=f3e109]:
+          - link "Home" [ref=f3e110] [cursor=pointer]:
+            - /url: /en
+        - listitem [ref=f3e111]:
+          - link "Advanced Singles Search" [ref=f3e112] [cursor=pointer]:
+            - /url: /en/AdvancedSearch
+  - contentinfo [ref=f3e113]:
+    - generic [ref=f3e114]:
+      - list [ref=f3e117]:
+        - listitem [ref=f3e118]:
+          - link "General Terms and Conditions" [ref=f3e119] [cursor=pointer]:
+            - /url: /en/Policies/GeneralTermsAndConditions
+        - listitem [ref=f3e120]:
+          - link "About Us" [ref=f3e121] [cursor=pointer]:
+            - /url: /en/AboutUs
+        - listitem [ref=f3e122]:
+          - link "Privacy Policy" [ref=f3e123] [cursor=pointer]:
+            - /url: /en/Policies/PrivacyPolicy
+        - listitem [ref=f3e124]:
+          - link "Help" [ref=f3e125] [cursor=pointer]:
+            - /url: https://help.cardmarket.com/en
+        - listitem [ref=f3e126]:
+          - link "Jobs" [ref=f3e127] [cursor=pointer]:
+            - /url: https://cardmarket.jobs.personio.com/
+        - listitem [ref=f3e128]:
+          - link "Manufacturers" [ref=f3e129] [cursor=pointer]:
+            - /url: https://help.cardmarket.com/en/manufacturer-list
+        - listitem [ref=f3e130]:
+          - link "Accessibility" [ref=f3e131] [cursor=pointer]:
+            - /url: https://help.cardmarket.com/en/accessibility-on-cardmarket
+        - listitem [ref=f3e132]:
+          - link "Feedback" [ref=f3e133] [cursor=pointer]:
+            - /url: "#"
+        - listitem [ref=f3e134]:
+          - 'button "Language: English" [ref=f3e135] [cursor=pointer]': Language:English
+      - paragraph [ref=f3e139]: © Copyright 2026 Sammelkartenmarkt GmbH und Co. KG. All rights reserved.
+      - text: 

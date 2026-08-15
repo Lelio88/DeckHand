@@ -1462,14 +1462,20 @@ raisons plus étroites que ce qui était écrit.
 | **wankul.trade**, plateforme d'échange citée par les moteurs | **Le domaine n'existe plus** (NXDOMAIN). Résultat de recherche périmé. |
 | **Coleka**, qui catalogue bien le jeu (182 cartes Origins, 162 Campus) | Les fiches de carte **n'affichent aucun prix** en visiteur. Ses fonctions de valeur sont derrière un compte, et son `robots.txt` interdit explicitement `/sale/`, `/shop/`, `/marketplace/`, `/exchange/` — la valeur vit précisément là où le crawl est refusé. |
 | **eBay, Vinted, LeBonCoin, Beebs** | Des annonces, pas une cote. Aucune API exploitable, et les collecter serait un cas EDHREC (§IV.1). |
-
-**Une piste reste ouverte et non tranchée** : Cardmarket, seul index européen
-sérieux. Il rend `403` à une requête simple, ce qui ne dit rien de son
-catalogue. À vérifier depuis un navigateur ordinaire avant de conclure.
+| **Cardmarket**, seul index européen sérieux | **Absent de ses 20 jeux**, et `/en/Wankul` rend 404. Vérifié dans un navigateur : son `403` sur une requête simple était une détection de robot, pas une absence de page — l'écarter sur ce seul motif aurait été une erreur. |
 
 Ce qu'il faut retenir pour la suite : **ce n'est pas « il n'existe pas de
-marché »**, c'est « aucun index public ne le cote carte par carte, et les
-endroits où des prix circulent sont soit fermés, soit interdits au crawl ».
+marché »** — il y en a un, sur Vinted et eBay — c'est « aucun index public ne le
+cote carte par carte, et les endroits où des prix circulent sont soit fermés,
+soit interdits au crawl ». La différence compte : le jour où une place de marché
+référencera le jeu, la porte se rouvre sans rien changer au modèle, `price_eur`
+étant déjà là et déjà nul.
+
+**Une observation faite au passage, sans rapport avec Wankul** : Cardmarket
+*couvre* Riftbound. Les prix Riftbound du projet viennent aujourd'hui de TCGCSV
+en dollars, convertis au taux BCE (§ 6) ; Cardmarket les donnerait en euros
+relevés. À mettre en regard de ses conditions, qui sont restrictives — c'est une
+piste, pas une recommandation.
 
 ### Les vignettes sont hébergées — la seule source dans ce cas
 
