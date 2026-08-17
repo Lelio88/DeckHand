@@ -220,7 +220,11 @@ LORCANA = GameAnatomy(
         "personnages": "c.type_line LIKE 'Character%'",
         "actions": "c.type_line LIKE 'Action%'",
         "objets": "c.type_line LIKE 'Item%'",
-        "chansons": "c.type_line LIKE 'Song%'",
+        # **Sous-famille, pas famille.** Une Chanson EST une Action — sa ligne
+        # de type vaut « Action Song » — et elle s'ajoute au dosage au lieu de
+        # le découper, comme le Supporter s'ajoute au Dresseur chez Pokémon.
+        # `LIKE 'Song%'` n'aurait jamais rien trouvé.
+        "chansons": "c.type_line LIKE '%Song%'",
         "lieux": "c.type_line LIKE 'Location%'",
     },
     curve=((0, 1), (2, 2), (3, 3), (4, 4), (5, 6), (7, 99)),

@@ -342,6 +342,42 @@ enum CardFrame {
   onePiece(
     (left: 0.0567, top: 0.0835, right: 0.9550, bottom: 0.4212),
     'onepiece',
+  ),
+
+  /// Lorcana debout — Personnages, Actions et Objets, 3 086 cartes sur 3 192.
+  ///
+  /// **Une seule fenêtre pour les trois types**, et c'est `--compare` qui l'a
+  /// choisie : chaque type éprouvé sous la fenêtre des deux autres reste entre
+  /// 13 et 17 bits, au-dessus du seuil de confiance de 12.
+  ///
+  /// **C'est la fenêtre des Actions qui est retenue, et pas celle des
+  /// Personnages** — pourtant huit fois plus nombreux. Le critère est la pire
+  /// paire sous chaque fenêtre : 15 bits sous celle des Actions, 13 sous celle
+  /// des Personnages, 12 sous celle des Objets. Elle fait même mieux chez les
+  /// Objets que la leur (17 contre 12). Un échantillon plus grand ne fait pas un
+  /// meilleur gabarit — la leçon des 812 verticales de Wankul, à l'identique.
+  lorcana(
+    (left: 0.0451, top: 0.1101, right: 0.9570, bottom: 0.5639),
+    'lorcana',
+  ),
+
+  /// Lorcana couché — les 106 Lieux.
+  ///
+  /// **Le rendu de la source est publié debout, contenu tourné**, ce qu'aucune
+  /// autre source ne fait : les Lieux sortent en 488 × 681 comme le reste, mais
+  /// leur texte s'y lit de bas en haut. L'index les redresse d'un quart de tour
+  /// horaire avant de hacher, et cette fenêtre s'exprime dans ce repère — celui
+  /// de la carte telle qu'elle est posée sur la table, donc telle que l'appareil
+  /// la photographie.
+  ///
+  /// Une première mesure les a redimensionnés sans tourner, donc **écrasés**, et
+  /// le banc a rendu une paire à 1 bit sur quarante cartes. Le nombre disait
+  /// « ces cartes sont indiscernables » là où il fallait lire « l'image est
+  /// déformée ». **L'orientation se vérifie sur l'image, jamais sur un champ.**
+  lorcanaLocation(
+    (left: 0.0367, top: 0.1516, right: 0.9662, bottom: 0.4877),
+    'lorcana',
+    landscape: true,
   );
 
   const CardFrame(this.box, this.game, {this.landscape = false});

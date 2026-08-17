@@ -87,6 +87,16 @@ CARD_ASPECTS: dict[str, float] = {
     # l'encadrent à un dix-millième. Toutes les cartes sont debout, aucune
     # n'étant imprimée en travers.
     "onepiece": 63 / 88,
+    # Disney Lorcana : même carton que Magic, 63 × 88 mm.
+    #
+    # **Le rendu s'y aligne**, mesuré sur les 3 192 fichiers publiés : 488 × 681,
+    # soit 0,7166 contre 0,7159 pour le carton — sept dix-millièmes.
+    #
+    # Y compris pour les 106 Lieux, et c'est ce qui surprend : ils sont
+    # physiquement couchés, mais leur rendu sort en 488 × 681 comme les autres,
+    # contenu tourné d'un quart de tour. Le rapport de la table décrit le carton,
+    # pas le fichier — et c'est le carton que la photo montre.
+    "lorcana": 63 / 88,
 }
 
 #: Ce sur quoi retombe un jeu absent de `CARD_ASPECTS`.

@@ -143,6 +143,34 @@ def image_url(url: str, game: str) -> str:
     return f"{url}/high.png"
 
 
+def upright(image: Image.Image, game: str, layout: str | None) -> Image.Image:
+    """L'image telle que la carte est posée sur la table.
+
+    **Presque toujours l'identité**, et c'est important : six jeux sur sept
+    publient leurs cartes couchées dans un rendu couché — Riftbound rend ses
+    champs de bataille en 1039 × 744, Wankul ses Terrains en paysage. Rien à
+    redresser.
+
+    Lorcana est l'exception, et elle a coûté une mesure pour être vue : ses 106
+    Lieux sont **physiquement couchés** mais publiés en 488 × 681, contenu tourné
+    d'un quart de tour. Le champ `layout` de la source dit `landscape` — il décrit
+    le carton, pas le fichier. Empiler ces rendus sans les redresser a rendu une
+    paire à **1 bit** sur quarante cartes : le nombre disait « ces cartes sont
+    indiscernables » là où il fallait lire « l'image est de travers ».
+
+    Le quart de tour est **horaire**, celui qui rend le texte horizontal et met
+    l'illustration en haut. Même sens que les Terrains de Wankul.
+
+    **Le gabarit d'illustration s'exprime dans ce repère redressé**, et
+    l'application fera de même sur la photo : elle détecte une carte couchée,
+    puis essaie les deux quarts de tour. Les deux chemins doivent aboutir à la
+    même orientation, sans quoi les empreintes ne se rencontreront jamais.
+    """
+    if game == "lorcana" and layout == "Location":
+        return image.rotate(-90, expand=True)
+    return image
+
+
 def hash_one(
     client: httpx.Client, url: str, game: str = "magic", layout: str | None = None
 ) -> int | None:
@@ -161,6 +189,7 @@ def hash_one(
         response = client.get(image_url(url, game))
         response.raise_for_status()
         with Image.open(io.BytesIO(response.content)) as image:
+            image = upright(image, game, layout)
             box = box_for(game, layout)
             # Aucune conversion ici : `dhash` fait déjà `convert("RGB")`, et la
             # conversion commute avec le découpage — vérifié sur les PNG en

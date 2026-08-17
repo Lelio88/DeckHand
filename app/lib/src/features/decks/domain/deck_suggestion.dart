@@ -54,7 +54,15 @@ enum DeckFormat {
   /// l'identifiant avec Pokémon ferait construire un deck One Piece sur les
   /// proportions d'un autre jeu sans que rien ne l'annonce. Même raison que
   /// `premier` et `tournament`.
-  opStandard('op_standard', 'Standard');
+  opStandard('op_standard', 'Standard'),
+
+  /// Disney Lorcana. **Le format est déclaré par la source**, contrairement à
+  /// One Piece : `legalities.core` vaut `legal` pour 2 940 cartes, `not_legal`
+  /// pour 250 et `banned` pour 2. Le constructeur peut donc s'y fier.
+  ///
+  /// `lorcana_core` et non `core` : partager un identifiant ferait construire un
+  /// deck Lorcana sur les proportions d'un autre jeu sans que rien ne l'annonce.
+  lorcanaCore('lorcana_core', 'Core');
 
   const DeckFormat(this.id, this.label);
 
@@ -100,6 +108,7 @@ const _wankulFormats = [DeckFormat.tournament];
 
 const _swuFormats = [DeckFormat.premier];
 const _onepieceFormats = [DeckFormat.opStandard];
+const _lorcanaFormats = [DeckFormat.lorcanaCore];
 
 List<DeckFormat> deckFormatsFor(Game game) => switch (game) {
   Game.magic => _magicFormats,
@@ -109,6 +118,7 @@ List<DeckFormat> deckFormatsFor(Game game) => switch (game) {
   Game.wankul => _wankulFormats,
   Game.swu => _swuFormats,
   Game.onepiece => _onepieceFormats,
+  Game.lorcana => _lorcanaFormats,
 };
 
 class DeckSuggestion {

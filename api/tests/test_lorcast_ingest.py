@@ -165,3 +165,80 @@ def test_l_espace_de_nommage_est_propre_au_jeu():
 
     assert NAMESPACE != ONEPIECE
     assert uuid.uuid5(NAMESPACE, "x") != uuid.uuid5(ONEPIECE, "x")
+
+
+# --- l'identité regroupe les rééditions, et rien d'autre ---------------------
+
+
+def test_une_reedition_rend_la_meme_carte():
+    """Cette source ne distingue pas la carte du tirage.
+
+    « Jolly Roger - Hook's Ship » y figure deux fois — promo P1 n°27 et
+    extension 3 n°135 —, avec la même illustration. L'index l'a révélé par une
+    paire à **1 bit**, deux entrées que la reconnaissance ne pourrait jamais
+    départager.
+    """
+    promo, tirage_promo = parse(
+        entree(
+            id="crd_promo",
+            name="Jolly Roger",
+            version="Hook's Ship",
+            type=["Location"],
+            set={"code": "P1", "name": "Promo Set 1"},
+            collector_number="27",
+        )
+    )
+    extension, tirage_ext = parse(
+        entree(
+            id="crd_ext",
+            name="Jolly Roger",
+            version="Hook's Ship",
+            type=["Location"],
+            set={"code": "3", "name": "Into the Inklands"},
+            collector_number="135",
+        )
+    )
+
+    assert promo.oracle_id == extension.oracle_id
+    # Mais deux tirages distincts, avec chacun son illustration.
+    assert tirage_promo.key != tirage_ext.key
+    assert tirage_promo.illustration_id != tirage_ext.illustration_id
+
+
+def test_deux_cartes_aux_statistiques_differentes_ne_fusionnent_pas():
+    """39 groupes fusionnaient sous `nom + version` seuls — le défaut Yu-Gi-Oh.
+
+    Les statistiques sont ce qui les sépare, et c'est mesuré : la clé retenue
+    laisse **zéro** groupe divergent, contre 39 pour `nom + version` et 22 en y
+    ajoutant le coût.
+    """
+    base = dict(name="Stitch", version="Rock Star", type=["Character"])
+    une, _ = parse(entree(id="a", cost=4, **base))
+    autre, _ = parse(entree(id="b", cost=7, **base))
+
+    assert une.oracle_id != autre.oracle_id
+
+
+def test_le_texte_n_entre_pas_dans_l_identite():
+    """La source le reformule d'une réédition à l'autre.
+
+    « Shift 4 (You may pay 4 {I} to play this on top of one of your Stitch
+    characters.) » devient « … one of your characters named Stitch. » puis
+    « Shift 4 {I} (… ». L'inclure produirait 3 192 identités, donc aucun
+    regroupement — exactement le défaut qu'on cherche à éviter.
+    """
+    base = dict(name="Stitch", version="Rock Star", type=["Character"], cost=4)
+    une, _ = parse(entree(id="a", text="Shift 4 (… your Stitch characters.)", **base))
+    autre, _ = parse(
+        entree(id="b", text="Shift 4 {I} (… your characters named Stitch.)", **base)
+    )
+
+    assert une.oracle_id == autre.oracle_id
+
+
+def test_l_identifiant_de_la_source_reste_celui_du_tirage():
+    """C'est son rôle naturel : opaque et stable, il désigne une impression."""
+    _, un = parse(entree(id="crd_aaa"))
+    _, deux = parse(entree(id="crd_bbb"))
+
+    assert un.key != deux.key

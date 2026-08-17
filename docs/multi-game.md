@@ -2821,7 +2821,129 @@ personnages de recherche, les coûts 4 les finisseurs.
 
 ### Ce qui reste dû
 - **la carte de papier** : aucune photo n'a été prise, le propriétaire n'ayant
-  pas de cartes de ce jeu. Même situation que Yu-Gi-Oh et Pokémon ;
-- **le corpus de decks passé**, chez Limitless (`game=OP`) : le connecteur de Pokémon
-  y mène, et les listes y sont structurées par code d'impression — ~7 300
-  decklists relevées sur six mois.
+  pas de cartes de ce jeu. Même situation que Yu-Gi-Oh et Pokémon.
+
+---
+
+## 12. Disney Lorcana — septième jeu
+
+**2 517 cartes, 3 192 impressions cotées à 97,9 %, 3 192 empreintes, 124 decks.**
+Il boucle la promesse entière.
+
+Deux sources : **Lorcast** (`api.lorcast.com`) pour le catalogue *et* les prix,
+**Limitless** (`?game=LORCANA`) pour les decks. Lorcast ne publie ni conditions
+d'utilisation (`/terms` répond 404) ni `robots.txt` exploitable ; le § IV.9
+s'applique tel quel — régime Scryfall, `User-Agent` descriptif, débit bas,
+attribution visible, aucune illustration réhébergée.
+
+### Ce que la source apporte, et qui est unique
+
+**C'est le premier catalogue du projet qui porte ses propres prix.** Partout
+ailleurs il a fallu un second connecteur — TCGCSV pour quatre jeux — et rien du
+tout pour Wankul. Ici `prices.usd` et `prices.usd_foil` viennent avec la carte :
+83,9 % en ordinaire, 96,6 % en brillante, **97,9 % des impressions cotées** d'une
+manière ou de l'autre. Un `tcgplayer_id` est publié en secours, inutile tant que
+`prices` tient.
+
+Le catalogue est aussi **le plus propre rencontré** : 3 192 cartes, aucune sans
+illustration, 22 extensions en 22 requêtes, une liste nue sans pagination — donc
+aucun des pièges de Wankul (503 au-delà de la page 1) ou de SWU Meta Stats
+(`limit` ignoré, seul `skip` marche).
+
+### L'identité — cette source ne distingue pas la carte du tirage
+
+Chaque réédition est une entrée à part entière : « Mickey Mouse - Brave Little
+Tailor » figure quatre fois — promo P1, Legendary de l'extension 1, promo D23,
+promo Coconut. Prendre l'identifiant de la source pour identité de *carte*
+produirait 3 192 cartes là où le jeu en compte 2 517, et une collection
+compterait quatre Mickey là où le joueur en voit un.
+
+**C'est l'index qui l'a révélé, pas le catalogue.** Le banc de fenêtre a rendu
+une paire à **1 bit** ; les nommer a suffi — « Jolly Roger - Hook's Ship », promo
+P1 n°27 et extension 3 n°135, la même carte, la même illustration.
+
+Quatre clés ont été éprouvées côte à côte, le critère étant le nombre de groupes
+qui **fusionnent encore des cartes aux statistiques différentes** :
+
+| Clé | Cartes | Regroupent | Fusions abusives |
+|---|---|---|---|
+| nom + version | 2 488 | 585 | **39** |
+| nom + version + type | 2 488 | 585 | **39** |
+| nom + version + type + coût | 2 506 | 580 | **22** |
+| **nom + version + type + stats** | **2 517** | **572** | **0** |
+
+Le texte en est **exclu**, et c'est mesuré : la source le reformule d'une
+réédition à l'autre — « Shift 4 (You may pay 4 {I} to play this on top of one of
+your Stitch characters.) » devient « … characters named Stitch. » puis
+« Shift 4 {I} (… ». L'inclure produirait 3 192 identités, donc aucun
+regroupement.
+
+**Un piège dans le piège** : la clé lisait d'abord `ink` seul, et les deux Jolly
+Roger restaient séparés — la promo omet son encre. Or **les 160 cartes que la
+source laisse sans `ink` sont toutes bi-encre** : elles déclarent `inks` à la
+place. Le connecteur le savait déjà pour remplir `color_identity` ; la clé
+d'identité, elle, lisait le champ brut. Une incohérence entre deux fonctions du
+même module, que seul le rapprochement de deux nombres a montrée.
+
+### Les maquettes — deux cadres, et un rendu qui ment sur son orientation
+
+**Les trois types debout sont interchangeables.** `--compare` les a éprouvés
+sous la fenêtre l'un de l'autre : toutes les paires restent entre 13 et 17 bits,
+au-dessus du seuil de confiance de 12.
+
+|  | Character | Action | Item |
+|---|---|---|---|
+| Character | 15* | 17 | 16 |
+| Action | 13 | 15* | 17 |
+| Item | 15 | 15 | 12* |
+
+**C'est la fenêtre des Actions qui est retenue, pas celle des Personnages** —
+pourtant huit fois plus nombreux. Le critère est la pire paire sous chaque
+fenêtre : 15 bits pour les Actions, 13 pour les Personnages, 12 pour les Objets.
+Elle fait même mieux chez les Objets que la leur (17 contre 12). *Un échantillon
+plus grand ne fait pas un meilleur gabarit* — la leçon des 812 verticales de
+Wankul, à l'identique.
+
+**Les 106 Lieux sont imprimés en travers, et leur rendu est publié debout.**
+C'est unique au projet : Riftbound rend ses champs de bataille en 1039 × 744,
+Wankul ses Terrains en paysage ; ici les Lieux sortent en 488 × 681 comme le
+reste, texte tourné d'un quart de tour. Le champ `layout` de la source dit
+`landscape` — il décrit le carton, pas le fichier.
+
+Une première mesure les a redimensionnés en 681 × 488, donc **écrasés**, sans
+tourner. Le banc a rendu une paire à **1 bit** sur quarante cartes : le nombre
+disait « ces cartes sont indiscernables » là où il fallait lire « l'image est
+déformée ». **L'orientation se vérifie sur l'image, jamais sur un champ** — le
+piège Wankul, mot pour mot. Un quart de tour **horaire** les redresse, et
+`index_builder.upright` l'applique avant de hacher.
+
+### Le gabarit de deck — le plus petit corpus du projet
+
+Mesuré sur **124 listes** : 60 cartes, écart interquartile **0**. Aucune carte de
+commandement — un deck Lorcana n'a ni leader ni général. Plafond de 4
+exemplaires, et **le corpus ne le dépasse jamais** : c'est le seul du projet sans
+une seule saisie fautive au-dessus du plafond.
+
+**`usesColorIdentity` est vrai, et la règle y est plus stricte que partout
+ailleurs : les 124 decks jouent exactement deux encres**, pas moins, pas plus.
+One Piece tient à 100 % sur une inclusion ; ici c'est un cardinal.
+
+La Chanson **recouvre** l'Action au lieu de la découper : sa ligne de type vaut
+« Action Song » et elle compte dans les deux familles. C'est l'inverse du
+partitionnement strict de SWU et One Piece, et le même recouvrement volontaire
+que chez Magic. La somme des parts dépasse donc 100 %, et c'est correct.
+
+La courbe est **remarquablement plate** — de 13,3 % à 20,0 % sur les cinq
+premiers paliers —, ce qui décrit un jeu où l'on joue une carte par tour du début
+à la fin.
+
+**Le corpus est mince, et il faut le savoir** : 124 listes contre 1 490 pour One
+Piece et 17 295 pour Pokémon. Les écarts interquartiles sont larges (21,7 points
+sur les personnages) parce que le corpus est petit, non parce que le jeu est
+libre. Les Lieux y sont à 0,0 % avec un écart nul — aucun des 124 decks n'en
+joue —, ce qui décrit ce corpus-là et pas forcément le jeu.
+
+### Ce qui reste dû
+- **la carte de papier** : le propriétaire n'en a pas ;
+- **un corpus plus large**, qui viendra de lui-même à mesure que Limitless
+  publiera : la fenêtre de collecte est déjà à deux ans.

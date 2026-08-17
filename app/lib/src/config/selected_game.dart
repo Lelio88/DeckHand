@@ -27,7 +27,8 @@ enum Game {
   pokemon('pokemon', 'Pokémon'),
   wankul('wankul', 'Wankul'),
   swu('swu', 'Star Wars Unlimited'),
-  onepiece('onepiece', 'One Piece Card Game');
+  onepiece('onepiece', 'One Piece Card Game'),
+  lorcana('lorcana', 'Disney Lorcana');
 
   const Game(this.id, this.label);
 

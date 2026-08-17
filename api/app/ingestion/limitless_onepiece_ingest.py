@@ -379,7 +379,7 @@ def ingest(days: int, before: dt.datetime | None) -> tuple[int, int, int]:
     print(f"  {gardes} decks enregistrés, {ecartes} écartés (trop lacunaires)")
     if manques:
         print(f"  {len(manques)} tournois perdus malgré les reprises — relancer pour les rattraper")
-    unresolved = resolver.unresolved()
+    unresolved = resolver.unresolved
     if unresolved:
         print(f"  {len(unresolved)} codes non résolus, les plus fréquents :")
         frequents = sorted(unresolved.items(), key=lambda kv: -kv[1])[:8]

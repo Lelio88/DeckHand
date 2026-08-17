@@ -5,19 +5,43 @@ catalogue, illustrations et cotes. Partout ailleurs il a fallu deux connecteurs
 — Scryfall puis rien pour Magic, un catalogue puis TCGCSV pour quatre jeux, et
 rien du tout pour Wankul qu'aucun index public ne cote.
 
-**L'identité est l'identifiant de la source**, `crd_d9f3b86af…`. Quatre clés ont
-été éprouvées côte à côte au banc, et deux tiennent : l'identifiant de la source
-et le couple extension-numéro, tous deux à 3 192 valeurs distinctes pour
-3 192 cartes. Les deux autres fusionnent massivement — **le nom seul en fusionne
-1 910**, « Mickey Mouse » désignant à lui seul des dizaines de cartes, et même
-`nom + version` en fusionne 704. C'est la leçon de Pokémon, où 92 % des cartes
-partagent leur nom, et elle se répète ici à l'identique.
+**Cette source ne distingue pas la carte du tirage, et c'est sa particularité.**
+Chaque réédition est une entrée à part entière : « Mickey Mouse - Brave Little
+Tailor » y figure quatre fois — promo P1, Legendary de l'extension 1, promo D23,
+promo Coconut. Prendre l'identifiant de la source pour identité de *carte*
+produirait 3 192 cartes là où le jeu en compte 2 528, et une collection
+compterait quatre Mickey différents là où le joueur en voit un.
 
-Entre les deux clés valables, l'identifiant de la source gagne pour la raison
-qui a fait choisir celui de Wankul : il est **opaque et stable**, là où un couple
-reconstitué dépend de la façon dont la source nomme ses extensions — et c'est
-précisément cette reconstitution qui a coûté 1 100 impressions non cotées chez
-One Piece.
+**C'est l'index qui l'a révélé, pas le catalogue.** Le banc de fenêtre a rendu
+une paire à **1 bit** — deux entrées que la reconnaissance ne pourrait jamais
+départager. Les nommer a suffi : « Jolly Roger - Hook's Ship », promo P1 n°27 et
+extension 3 n°135. La même carte, la même illustration, deux entrées.
+
+L'identité retenue est **(nom, version, type, statistiques)** — coût, force,
+volonté, lore, encre. Quatre clés ont été éprouvées côte à côte, et le critère
+est le nombre de groupes qui **fusionnent encore des cartes aux statistiques
+différentes**, c'est-à-dire des cartes réellement distinctes :
+
+| Clé | Cartes | Regroupent | Fusions abusives |
+|---|---|---|---|
+| nom + version | 2 488 | 585 | **39** |
+| nom + version + type | 2 488 | 585 | **39** |
+| nom + version + type + coût | 2 506 | 580 | **22** |
+| **nom + version + type + stats** | **2 528** | **562** | **0** |
+
+Le texte en est **exclu**, et c'est mesuré : la source le reformule d'une
+réédition à l'autre — « Shift 4 (You may pay 4 {I} to play this on top of one of
+your Stitch characters.) » devient « … on top of one of your characters named
+Stitch. » puis « Shift 4 {I} (… ». L'inclure produirait 3 192 identités, donc
+aucun regroupement, donc le défaut qu'on cherche à éviter.
+
+Ce que ce choix coûte : un errata qui changerait une statistique créerait une
+nouvelle identité et orphelinerait la collection. C'est le risque assumé, et il
+est bien moindre que celui d'une fusion — une carte fusionnée est inaccessible
+pour toujours, une carte réidentifiée se retrouve.
+
+L'identifiant de la source, lui, devient l'identité de **l'impression** : c'est
+son rôle naturel, et il est opaque et stable.
 
 **Ce que porte chaque colonne**, et ce que ça décide :
 
@@ -158,10 +182,41 @@ def money(value: Any) -> Decimal | None:
         return None
 
 
+def identity_key(row: dict[str, Any]) -> str:
+    """La clé qui désigne une carte, par-delà ses rééditions.
+
+    Nom, version, type et statistiques — **et surtout pas le texte**, que la
+    source reformule d'une réédition à l'autre. Voir le commentaire du module
+    pour le tableau des quatre clés éprouvées.
+    """
+    return "|".join(
+        [
+            str(row.get("name") or ""),
+            str(row.get("version") or ""),
+            ",".join(row.get("type") or []),
+            str(row.get("cost")),
+            str(row.get("strength")),
+            str(row.get("willpower")),
+            str(row.get("lore")),
+            # **`inks_of`, et non `ink` seul.** Les 160 cartes que la source
+            # laisse sans `ink` sont toutes bi-encre : elles déclarent `inks` à
+            # la place. Lire le premier champ seul leur donnait la valeur
+            # littérale « None », ce qui les séparait des rééditions déclarant
+            # leur encre — le cas « Jolly Roger », promo P1 sans encre et
+            # extension 3 en Ruby, dont l'index a rendu une paire à 1 bit.
+            ",".join(inks_of(row)),
+        ]
+    )
+
+
 def parse(row: dict[str, Any]) -> tuple[Card, Printing]:
-    """Une entrée de la source, dépliée en sa carte et son tirage."""
+    """Une entrée de la source, dépliée en sa carte et son tirage.
+
+    **Plusieurs entrées peuvent rendre la même carte** — 562 groupes sur
+    3 192 entrées. C'est l'appelant qui les rassemble, par `oracle_id`.
+    """
     source_id = str(row.get("id") or "")
-    oracle_id = uuid.uuid5(NAMESPACE, source_id)
+    oracle_id = uuid.uuid5(NAMESPACE, identity_key(row))
     card_set = row.get("set") or {}
 
     prices = row.get("prices") or {}
@@ -218,9 +273,15 @@ def parse(row: dict[str, Any]) -> tuple[Card, Printing]:
             collector_number=str(row.get("collector_number") or ""),
             rarity=str(row.get("rarity") or "").lower(),
             image=str(images.get("normal") or images.get("large") or ""),
-            # Un rendu par carte : l'identité de l'illustration suit celle de la
-            # carte. Aucune impression n'en partage une autre, contrairement à
-            # One Piece où 56 entrées partageaient leur rendu.
+            # **Un rendu par tirage, non par carte.** Les 562 groupes de
+            # rééditions ont chacun leurs illustrations : « Mickey Mouse - Brave
+            # Little Tailor » en a quatre, toutes différentes. Faire dériver
+            # l'illustration de la carte n'en indexerait qu'une sur quatre.
+            #
+            # Reste le cas inverse, mesuré : « Jolly Roger » est réédité avec la
+            # *même* illustration, et l'index y verra deux entrées à 1 bit. C'est
+            # bénin — les deux tirages portent désormais la même carte, donc se
+            # tromper entre eux ne change ni le nom, ni les règles, ni le deck.
             illustration_id=uuid.uuid5(NAMESPACE, f"art|{source_id}"),
             finishes=tuple(finishes),
             usd=usd,

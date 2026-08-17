@@ -104,6 +104,24 @@ enum CardRole {
   character,
 
   stage,
+
+  /// Disney Lorcana — les familles propres à ce jeu.
+  ///
+  /// `character` et `item` sont **partagés avec d'autres jeux**, et ne sont donc
+  /// pas redéclarés ici : One Piece nomme aussi « Character » sa famille
+  /// principale, et Pokémon appelle « Objet » ce que Lorcana nomme « Item ».
+  /// Deux membres pour la même notion feraient deux quotas là où le jeu en dose
+  /// un.
+  ///
+  /// `song` est une **sous-famille** d'`action`, comme le Supporter est une
+  /// sous-famille du Dresseur chez Pokémon : la ligne de type d'une Chanson vaut
+  /// « Action Song », et elle compte dans les deux. Ce recouvrement est
+  /// volontaire — le partitionnement l'est chez SWU et One Piece, pas ici.
+  action,
+
+  song,
+
+  location,
 }
 
 /// Les rôles que ce jeu sait reconnaître, dans l'ordre où on les affiche.
@@ -128,6 +146,13 @@ Set<CardRole> rolesFor(String game) => switch (game) {
   },
   'swu' => const {CardRole.unit, CardRole.event, CardRole.upgrade},
   'onepiece' => const {CardRole.character, CardRole.event, CardRole.stage},
+  'lorcana' => const {
+    CardRole.character,
+    CardRole.action,
+    CardRole.item,
+    CardRole.song,
+    CardRole.location,
+  },
   _ => const {
     CardRole.creature,
     CardRole.draw,
@@ -164,6 +189,7 @@ Set<CardRole> rolesOf(BuildableCard card) =>
       'pokemon' => _pokemonRoles(card),
       'swu' => _swuRoles(card),
       'onepiece' => _onepieceRoles(card),
+      'lorcana' => _lorcanaRoles(card),
       _ => _magicRoles(card),
     };
 
@@ -257,5 +283,27 @@ Set<CardRole> _onepieceRoles(BuildableCard card) {
   if (type.startsWith('Character')) return const {CardRole.character};
   if (type.startsWith('Event')) return const {CardRole.event};
   if (type.startsWith('Stage')) return const {CardRole.stage};
+  return const {};
+}
+
+/// **Le type imprimé suffit**, comme chez les quatre autres jeux non-Magic.
+///
+/// La particularité tient à la Chanson : sa ligne de type vaut « Action Song »,
+/// et elle compte **dans les deux** familles. C'est le même recouvrement
+/// volontaire que chez Magic, où une créature qui produit du mana est créature
+/// *et* rampe — et l'inverse du partitionnement strict de SWU et One Piece.
+///
+/// Le lister comme famille propre découperait les Actions en deux et ferait
+/// annoncer un manque d'Actions à qui joue des Chansons.
+Set<CardRole> _lorcanaRoles(BuildableCard card) {
+  final type = card.typeLine;
+  if (type.startsWith('Character')) return const {CardRole.character};
+  if (type.startsWith('Item')) return const {CardRole.item};
+  if (type.startsWith('Location')) return const {CardRole.location};
+  if (type.startsWith('Action')) {
+    return type.contains('Song')
+        ? const {CardRole.action, CardRole.song}
+        : const {CardRole.action};
+  }
   return const {};
 }

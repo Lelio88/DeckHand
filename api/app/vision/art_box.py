@@ -53,7 +53,7 @@ RIFTBOUND_LANDSCAPE = ArtBox(0.041, 0.199, 0.962, 0.777)
 #: Jumeau de `CardFrame.landscape`.
 #: SWU y figure pour ses **599 cartes couchées** — 445 Leaders et 154 Bases,
 #: soit un quart de son catalogue, la plus forte proportion des trois jeux.
-GAMES_WITH_LANDSCAPE = frozenset({"riftbound", "wankul", "swu"})
+GAMES_WITH_LANDSCAPE = frozenset({"riftbound", "wankul", "swu", "lorcana"})
 
 #: Yu-Gi-Oh, cadre ordinaire — 14 101 cartes sur 14 491.
 #:
@@ -258,6 +258,47 @@ SWU_BASE = ArtBox(0.0712, 0.1692, 0.9263, 0.6267)
 #: ne le dise. Jumeau de `CardFrame.onePiece`.
 ONEPIECE = ArtBox(0.0567, 0.0835, 0.9550, 0.4212)
 
+#: Lorcana debout — Personnages, Actions et Objets, soit 3 086 cartes sur 3 192.
+#:
+#: **Une seule fenêtre pour les trois types**, et c'est `--compare` qui l'a
+#: choisie. Chaque type a été éprouvé sous la fenêtre des deux autres : toutes
+#: les paires restent entre 13 et 17 bits, au-dessus du seuil de confiance de
+#: 12. Les trois sont donc interchangeables — comme les quatre époques de Pokémon
+#: et les quatre types de One Piece.
+#:
+#: **C'est la fenêtre des Actions qui est retenue, et pas celle des
+#: Personnages** — pourtant huit fois plus nombreux. Le critère est la pire paire
+#: sous chaque fenêtre : 15 bits sous celle des Actions, 13 sous celle des
+#: Personnages, 12 sous celle des Objets. Elle fait même mieux chez les Objets
+#: que la leur (17 contre 12). Un échantillon plus grand ne fait pas un meilleur
+#: gabarit — la leçon des 812 verticales de Wankul, à l'identique.
+#:
+#: Jumeau de `CardFrame.lorcana`.
+LORCANA = ArtBox(0.0451, 0.1101, 0.9570, 0.5639)
+
+#: Lorcana couché — les 106 Lieux.
+#:
+#: **Le rendu est publié DEBOUT, contenu tourné**, ce qu'aucune autre source ne
+#: fait. Les Lieux sortent en 488 × 681 comme toutes les autres cartes, mais leur
+#: texte s'y lit de bas en haut : c'est une carte physiquement couchée, mise dans
+#: un cadre portrait. Le champ `layout` de la source dit `landscape` — il décrit
+#: le carton, pas le fichier.
+#:
+#: Une première mesure a redimensionné ces rendus en 681 × 488, donc **écrasés**,
+#: sans tourner. Le banc a rendu une paire à **1 bit** sur quarante cartes : le
+#: nombre disait « ces cartes sont indiscernables » là où il fallait lire
+#: « l'image est déformée ». C'est le piège Wankul, où `orientation` ne disait
+#: pas non plus comment la carte est imprimée — **l'orientation se vérifie sur
+#: l'image, jamais sur un champ.**
+#:
+#: Un quart de tour **horaire** redresse le Lieu — texte horizontal, illustration
+#: en haut —, c'est-à-dire la carte telle qu'elle est posée sur la table, et donc
+#: telle que l'appareil la photographie. Même sens que les Terrains de Wankul.
+#: Cette fenêtre s'exprime dans ce repère redressé.
+#:
+#: Jumeau de `CardFrame.lorcanaLocation`.
+LORCANA_LOCATION = ArtBox(0.0367, 0.1516, 0.9662, 0.4877)
+
 #: Valeurs de `layout` qui désignent l'une des deux maquettes couchées.
 #:
 #: **Déclarées ici et non dans `wankul_frame`**, qui les produit : ce module doit
@@ -295,6 +336,11 @@ def box_for(game: str, layout: str | None) -> ArtBox | None:
         return _wankul_box(layout)
     if game == "swu":
         return _swu_box(layout)
+    if game == "lorcana":
+        # `layout` porte le type. Seul `Location` est imprimé en travers, et les
+        # 106 cartes concernées sont exactement les 106 que la source déclare
+        # `landscape` — vérifié carte par carte au banc de taxonomie.
+        return LORCANA_LOCATION if layout == "Location" else LORCANA
     if game == "onepiece":
         # **Une seule fenêtre pour les quatre types**, `layout` n'y décidant
         # rien : les quatre sont interchangeables, mesuré en bits. Le type

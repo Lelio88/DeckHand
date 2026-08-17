@@ -177,6 +177,7 @@ class DeckBlueprint {
     DeckFormat.tournament => null,
     DeckFormat.premier => swuPremier,
     DeckFormat.opStandard => onepieceStandard,
+    DeckFormat.lorcanaCore => lorcanaCore,
   };
 
   /// Star Wars Unlimited — **mesuré sur 220 listes de tournoi**, et le premier
@@ -302,6 +303,65 @@ class DeckBlueprint {
     // Un seul format, tous archétypes mêlés : 12 points d'écart sur les deux
     // familles principales, 20 sur le bas de courbe. La médiane décrit un deck
     // plausible, pas un deck existant.
+    reliability: BlueprintReliability.averaged,
+  );
+
+  /// Disney Lorcana — **mesuré sur 124 listes**, le plus petit corpus du projet.
+  ///
+  /// **La taille est un contrat** : 60 cartes, écart interquartile 0 — la même
+  /// figure que Pokémon et One Piece. Aucune carte de commandement : un deck
+  /// Lorcana n'a ni leader ni général, contrairement à SWU, One Piece et
+  /// Commander.
+  ///
+  /// **`usesColorIdentity` est vrai, et la règle est plus stricte que partout
+  /// ailleurs : les 124 decks jouent EXACTEMENT deux encres**, pas moins, pas
+  /// plus. One Piece tient à 100 % sur l'inclusion dans l'identité du leader ;
+  /// ici c'est un cardinal, et le corpus ne s'en écarte jamais.
+  ///
+  /// **Le corpus est mince, et il faut le savoir.** 124 listes contre 1 490 pour
+  /// One Piece et 17 295 pour Pokémon : les écarts interquartiles sont larges
+  /// (21,7 points sur les personnages) parce que le corpus est petit, non parce
+  /// que le jeu est libre. Les Lieux y sont à 0,0 % avec un écart nul — aucun
+  /// des 124 decks n'en joue —, ce qui décrit ce corpus-là et pas forcément le
+  /// jeu. Le gabarit se resserrera à mesure que Limitless publiera.
+  static const lorcanaCore = DeckBlueprint(
+    size: 60,
+    // La règle du jeu, et le corpus ne la dépasse jamais : maximum observé 4,
+    // sur 124 listes. C'est le seul corpus du projet sans une seule saisie
+    // fautive au-dessus du plafond.
+    maxCopies: 4,
+    needsCommander: false,
+    // Aucun terrain : l'encre se paie en défaussant une carte de sa main.
+    // `null` et non zéro — il n'y a rien à manquer.
+    lands: null,
+    curveLabel: 'encre',
+    roles: {
+      CardRole.character: Quota(83.3, 21.7),
+      CardRole.action: Quota(14.6, 18.3),
+      // **La Chanson recouvre l'Action**, elle ne la découpe pas : sa ligne de
+      // type vaut « Action Song » et elle compte dans les deux. C'est le même
+      // recouvrement volontaire que chez Magic, où une créature qui produit du
+      // mana est créature *et* rampe. La somme des parts dépasse donc 100 %,
+      // et c'est correct.
+      CardRole.song: Quota(10.0, 7.8),
+      CardRole.item: Quota(0.0, 5.0),
+      // Écart nul sur 124 listes dont aucune n'en joue. Le quota reste déclaré
+      // pour que le rôle existe à l'écran ; il ne fera rien proposer tant que
+      // le corpus n'en montrera pas.
+      CardRole.location: Quota(0.0, 0.0),
+    },
+    // **Une vraie courbe**, contrairement à Pokémon dont le `cmc` porte les
+    // points de vie. Elle est remarquablement plate — de 13,3 % à 20,0 % sur
+    // les cinq premiers paliers —, ce qui décrit un jeu où l'on joue une carte
+    // par tour du début à la fin.
+    curve: [
+      CurveStep(0, 1, Quota(13.3, 6.7)),
+      CurveStep(2, 2, Quota(20.0, 6.7)),
+      CurveStep(3, 3, Quota(18.3, 18.3)),
+      CurveStep(4, 4, Quota(18.3, 6.7)),
+      CurveStep(5, 6, Quota(18.3, 11.7)),
+      CurveStep(7, 99, Quota(8.3, 18.3)),
+    ],
     reliability: BlueprintReliability.averaged,
   );
 

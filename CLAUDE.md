@@ -29,7 +29,7 @@ Topologie rapide :
 - **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `camera` (flux temps réel), `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg`
 - **`api/`** : Python 3.11+, httpx, psycopg, Pillow, numpy — **chaque contrainte porte un plafond de majeure** : `numpy` et `Pillow` sont le seul chemin par lequel une bibliothèque peut dégrader la reconnaissance en silence, une empreinte au calcul modifié restant valide mais devenant incomparable au jumeau Dart
 - **Données** : Supabase — Postgres, Auth, Storage. Cloud uniquement, rien à déployer
-- **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks), MTGJSON (précons), Riftcodex (catalogue Riftbound), TCGCSV (prix Riftbound, Yu-Gi-Oh et Pokémon), BCE (taux de change), YGOPRODeck (catalogue Yu-Gi-Oh), TCGdex (catalogue Pokémon), Limitless TCG (decks Pokémon), Wankuldex (catalogue Wankul, sous autorisation)
+- **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks), MTGJSON (précons), Riftcodex (catalogue Riftbound), Lorcast (catalogue et prix Lorcana), TCGCSV (prix Riftbound, Yu-Gi-Oh et Pokémon), BCE (taux de change), YGOPRODeck (catalogue Yu-Gi-Oh), TCGdex (catalogue Pokémon), Limitless TCG (decks Pokémon), Wankuldex (catalogue Wankul, sous autorisation)
 
 ## IV. Garde-Fous non négociables
 
@@ -110,6 +110,10 @@ cd api && .venv/Scripts/python -m app.ingestion.optcg_ingest        # catalogue 
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_onepiece_prices # prix One Piece (--force)
 cd api && .venv/Scripts/python -m app.ingestion.limitless_onepiece_ingest # decks One Piece (--days N)
 cd api && .venv/Scripts/python -m app.measure.onepiece_decks       # ce que Limitless publie du jeu
+cd api && .venv/Scripts/python -m app.ingestion.lorcast_ingest     # catalogue Lorcana ET ses prix
+cd api && .venv/Scripts/python -m app.ingestion.limitless_lorcana_ingest # decks Lorcana (--days N)
+cd api && .venv/Scripts/python -m app.measure.lorcana_taxonomy     # perimetre, identite, maquettes, prix
+cd api && .venv/Scripts/python -m app.measure.lorcana_art_window   # --compare / --dump
 # Bancs One Piece — voir docs/multi-game.md §11
 cd api && .venv/Scripts/python -m app.measure.onepiece_taxonomy       # périmètre, identité, homonymes
 cd api && .venv/Scripts/python -m app.measure.onepiece_art_window     # --size N --group T --dump DIR --compare

@@ -133,6 +133,18 @@ const _onepieceTypes = [
   CardType('Leader', 'Leader'),
 ];
 
+/// Disney Lorcana — quatre types publiés, la Chanson étant une Action.
+///
+/// « Action Song » est la ligne de type d'une Chanson : la lister à part
+/// laisserait croire qu'elle n'est pas une Action, alors que tout ce qui vaut
+/// pour l'une vaut pour l'autre.
+const _lorcanaTypes = [
+  CardType('Character', 'Personnage'),
+  CardType('Action', 'Action'),
+  CardType('Item', 'Objet'),
+  CardType('Location', 'Lieu'),
+];
+
 List<CardType> cardTypesFor(Game game) => switch (game) {
   Game.magic => _magicTypes,
   Game.riftbound => _riftboundTypes,
@@ -141,4 +153,5 @@ List<CardType> cardTypesFor(Game game) => switch (game) {
   Game.wankul => _wankulTypes,
   Game.swu => _swuTypes,
   Game.onepiece => _onepieceTypes,
+  Game.lorcana => _lorcanaTypes,
 };
