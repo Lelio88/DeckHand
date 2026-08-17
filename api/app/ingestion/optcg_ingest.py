@@ -302,10 +302,17 @@ def fold_printings(entries: Iterable[Entry]) -> list[Printing]:
             origin=entry.origin,
             code=entry.code,
             image_id=entry.image_id,
-            # Le nom tel qu'imprimé sur ce tirage : c'est ce qui permet à
-            # l'utilisateur de dire lequel il possède, comme le `printed_name`
-            # de Riftbound porte « (Alternate Art) ».
-            printed_name=entry.name if entry.name != entry.base_name else "",
+            # Le nom tel que la source le publie pour ce tirage — **toujours**,
+            # et pas seulement quand il diffère du nom de la carte.
+            #
+            # Il sert deux choses. À l'écran, il dit quelle version on possède,
+            # comme le `printed_name` de Riftbound porte « (Alternate Art) ». Et
+            # il est la **clé de rapprochement des prix** : TCGplayer distingue
+            # les variantes par le nom du produit, avec les mêmes suffixes —
+            # « Trafalgar Law (002) » et « … (Parallel) » y sont deux produits.
+            # Sans le nom de l'entrée ordinaire, le prix d'un Box Topper à 45 $
+            # irait sur la carte ordinaire à 0,94 $.
+            printed_name=entry.name,
             rarity=entry.rarity,
             image=entry.image,
         )

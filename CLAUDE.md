@@ -107,6 +107,7 @@ cd api && .venv/Scripts/python -m app.ingestion.swu_ingest         # catalogue S
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_swu_prices  # prix SWU (--force)
 cd api && .venv/Scripts/python -m app.ingestion.swumetastats_ingest # decks SWU (--days N, défaut 30)
 cd api && .venv/Scripts/python -m app.ingestion.optcg_ingest        # catalogue One Piece
+cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_onepiece_prices # prix One Piece (--force)
 # Bancs One Piece — voir docs/multi-game.md §11
 cd api && .venv/Scripts/python -m app.measure.onepiece_taxonomy       # périmètre, identité, homonymes
 cd api && .venv/Scripts/python -m app.measure.onepiece_art_window     # --size N --group T --dump DIR --compare

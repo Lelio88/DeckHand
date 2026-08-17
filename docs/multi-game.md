@@ -2705,13 +2705,43 @@ appliquée pendant sa construction.
 travaille dessus.* Les deux fois, rien n'a été perdu — les modules sont
 reprenables — mais les deux fois, le symptôme n'avait rien à voir avec la cause.
 
+### Les prix — 98,6 %, et le nom fait la moitié du travail
+
+`api/app/ingestion/tcgcsv_onepiece_prices.py`, catégorie TCGCSV **68**.
+
+Le rapprochement se situe entre les deux extrêmes déjà rencontrés. Riftbound et
+SWU se lient par un `tcgplayer_id` publié ; Yu-Gi-Oh et Pokémon rapprochent
+extension et numéro, ce qui a coûté deux tables d'alias et un veto par date.
+Ici, **TCGCSV publie le code complet** — `extendedData` porte un champ `Number`
+valant `OP17-028`, exactement le `card_set_id` du catalogue.
+
+**Mais le code ne suffit pas.** Sur la seule extension *Romance Dawn*, **32
+codes sur 121 sont portés par plusieurs produits** : TCGplayer distingue les
+tirages par le nom, avec les mêmes suffixes que le catalogue. Rapprocher par le
+seul code écrirait le prix d'un Box Topper à 45 $ sur la carte ordinaire à
+0,94 $. Vérifié après coup sur « Perona » : ses tirages valent 321 €, 132 € et
+61 € — trois prix que le code seul aurait confondus.
+
+| Voie | Impressions |
+|---|---|
+| code et nom | **3 876** |
+| code porté par plusieurs produits, aucun nom ne correspond | 48 |
+| code seul, non ambigu | 3 |
+| code inconnu de TCGplayer | 8 |
+
+**3 881 sur 3 935 cotées, soit 98,6 %** — le meilleur taux du projet après
+Magic. Contrôle du § 6 : **aucune impression n'est insaisissable**.
+
+**Un défaut a coûté 1 100 impressions, et il ne se voyait pas.** La première
+version reconstituait le code depuis l'extension et le numéro — `OP-01` + `077`
+donnant `OP01-077` — et cela marchait pour vingt origines sur vingt-neuf. Les
+autres l'ont démenti : `OP14-EB04` **agrège deux extensions**, et ses cartes
+portent des codes `OP14-…` ou `EB04-…` que le nom de l'origine ne permet pas de
+deviner. La reconstitution y produisait `OP14EB04-…`, un code qui n'existe nulle
+part. Le taux est passé de 70,5 % à 98,6 % en prenant le code **à la source**
+plutôt qu'en le rebâtissant.
+
 ### Ce qui reste dû
-- **le chaînage des prix** : cette source ne publie aucun identifiant
-  TCGplayer, contrairement à Riftcodex et SWU-DB. Le rapprochement passera par
-  extension et numéro, comme pour Yu-Gi-Oh — dont le catalogue écrit `LOB-EN005`
-  là où TCGplayer écrit `LOB-005`, si bien que sans normalisation **aucune**
-  carte n'aurait été cotée, et l'échec aurait été muet. 52 codes promo de forme
-  `P-055` sortent du vocabulaire attendu et demanderont leur propre règle ;
 - **le corpus de decks**, chez Limitless (`game=OP`) : le connecteur de Pokémon
   y mène, et les listes y sont structurées par code d'impression — ~7 300
   decklists relevées sur six mois.

@@ -78,6 +78,19 @@ def test_une_carte_qui_n_existe_qu_en_variante_garde_une_entree():
     assert cartes[0].name == "Perona"
 
 
+def test_l_impression_porte_toujours_le_nom_publie():
+    """**Toujours, et pas seulement quand il diffère du nom de la carte.** Il
+    est la clé de rapprochement des prix : TCGplayer distingue les variantes par
+    le nom du produit, avec les mêmes suffixes. Sans le nom de l'entrée
+    ordinaire, le prix d'un Box Topper à 45 $ irait sur la carte ordinaire à
+    0,94 $."""
+    ordinaire = fold_printings([entree(name="Perona")])[0]
+    variante = fold_printings([entree(image_id="OP01-077_p1",
+                                      name="Perona (Box Topper)")])[0]
+    assert ordinaire.printed_name == "Perona"
+    assert variante.printed_name == "Perona (Box Topper)"
+
+
 def test_une_reedition_a_l_identique_ne_fait_qu_une_impression():
     """56 entrées partagent leur identifiant de rendu : ce sont les cartes
     qu'un deck de démarrage réédite à l'identique, `OP02-018` paraissant dans
