@@ -105,7 +105,7 @@ cd app && dart run tool/probe_photo.dart <photo> --game riftbound --out <dossier
 cd app && dart run tool/stream_bench.dart   # --cards N --regime <nom> --noise N
 cd api && .venv/Scripts/python -m app.ingestion.swu_ingest         # catalogue Star Wars Unlimited
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_swu_prices  # prix SWU (--force)
-cd api && .venv/Scripts/python -m app.ingestion.swumetastats_ingest # decks SWU (--days N, défaut 30)
+cd api && .venv/Scripts/python -m app.ingestion.swumetastats_ingest # decks SWU (--days N ; --skip N pour reprendre)
 cd api && .venv/Scripts/python -m app.ingestion.optcg_ingest        # catalogue One Piece
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_onepiece_prices # prix One Piece (--force)
 cd api && .venv/Scripts/python -m app.ingestion.limitless_onepiece_ingest # decks One Piece (--days N)

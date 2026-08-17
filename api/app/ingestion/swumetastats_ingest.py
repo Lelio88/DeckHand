@@ -37,7 +37,7 @@ Riftbound et Pokémon. Elle se fait en trois temps, mesurés sur 220 listes :
 * le reste est **refusé** plutôt que deviné (0,26 %).
 
 `load_name_index` ne suffit pas pour ce jeu : il construit un dictionnaire
-nom → carte où une collision **écrase silencieusement** la précédente. Ce module
+nom -> carte où une collision **écrase silencieusement** la précédente. Ce module
 retire donc les noms ambigus avant de résoudre.
 
 Usage :
@@ -165,16 +165,31 @@ def _fetch(url: str) -> bytes:
     raise IngestError(f"{url} : {last}")
 
 
-def fetch_decklists(start: str, end: str, limit: int | None = None) -> Iterator[dict]:
-    """Parcourt les decklists de la fenêtre, page par page.
+def fetch_decklists(
+    start: str, end: str, limit: int | None = None, skip_from: int = 0
+) -> Iterator[dict]:
+    """Parcourt les decklists de la fenetre, page par page.
 
-    S'arrête dès qu'une page ne rapporte **aucune entrée nouvelle** : c'est le
-    garde-fou contre le piège de pagination décrit en tête de module. Si `skip`
-    cessait d'être honoré, la boucle s'arrêterait au lieu de tourner
-    indéfiniment sur la première page.
+    S'arrete des qu'une page ne rapporte **aucune entree nouvelle** : c'est le
+    garde-fou contre le piege de pagination decrit en tete de module. Si `skip`
+    cessait d'etre honore, la boucle s'arreterait au lieu de tourner
+    indefiniment sur la premiere page.
+
+    [skip_from] reprend une course interrompue, et il paie un cout reel : la
+    source debite **80 secondes par page de vingt**, si bien que repasser sur
+    1 796 listes deja acquises coute pres de deux heures avant d'atteindre du
+    neuf. L'ingestion etant idempotente, ce temps ne produit rien.
+
+    **La borne est un rang, pas une date**, contrairement au `--before` des
+    connecteurs Limitless. C'est ce que cette source permet : elle n'accepte que
+    `skip`, `limit` / `page` / `offset` etant ignores. Un rang derive donc de
+    l'ordre de la source, et cet ordre bouge — un tournoi publie depuis la
+    course precedente decale tout d'un cran. **Sauter moins que ce qu'on croit
+    acquis** est donc la regle : le surcout est quelques pages relues, l'erreur
+    inverse est un trou silencieux dans le corpus.
     """
     seen: set[int] = set()
-    skip = 0
+    skip = max(0, skip_from)
     while True:
         params = {"startDate": start, "endDate": end}
         if skip:
@@ -196,7 +211,7 @@ def fetch_decklists(start: str, end: str, limit: int | None = None) -> Iterator[
 
 
 def load_unambiguous_names(conn: psycopg.Connection) -> dict[str, str]:
-    """Index nom normalisé → carte, **les noms ambigus retirés**.
+    """Index nom normalisé -> carte, **les noms ambigus retirés**.
 
     `load_name_index` construit un dictionnaire où une collision écrase
     silencieusement la précédente : « Black One » y désignerait l'une des deux
@@ -272,10 +287,12 @@ def deck_name(deck: dict[str, Any]) -> str:
     return tournament
 
 
-def run(days: int, limit: int | None) -> None:
+def run(days: int, limit: int | None, skip: int = 0) -> None:
     end = dt.date.today()
     start = end - dt.timedelta(days=days)
     print(f"decks Star Wars Unlimited, du {start} au {end}")
+    if skip:
+        print(f"  reprise au rang {skip} — les pages precedentes ne sont pas relues")
 
     config = SupabaseConfig.load()
     with Session(config.db_url) as session:
@@ -283,7 +300,9 @@ def run(days: int, limit: int | None) -> None:
         resolver = CardResolver(index)
         report = IngestReport()
 
-        for deck in fetch_decklists(start.isoformat(), end.isoformat(), limit):
+        for deck in fetch_decklists(
+            start.isoformat(), end.isoformat(), limit, skip_from=skip
+        ):
             main, side, leader_name = boards(deck)
             if not main:
                 report.skipped += 1
@@ -346,8 +365,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--days", type=int, default=30, help="fenêtre (défaut 30 jours)")
     parser.add_argument("--limit", type=int, default=None, help="plafond de listes")
+    parser.add_argument(
+        "--skip",
+        type=int,
+        default=0,
+        help=(
+            "reprend a ce rang au lieu du debut. Sauter MOINS que ce qu'on croit "
+            "acquis : l'ordre de la source bouge, et un trou est plus couteux "
+            "que quelques pages relues"
+        ),
+    )
     args = parser.parse_args()
-    run(args.days, args.limit)
+    run(args.days, args.limit, args.skip)
 
 
 if __name__ == "__main__":
