@@ -120,6 +120,19 @@ const _swuTypes = [
   CardType('Base', 'Base'),
 ];
 
+/// One Piece — cinq types, dont le Leader qui ne se joue pas dans le deck.
+///
+/// Il figure quand même : on le possède, on le range en classeur, et on le
+/// cherche pour choisir son deck. Ne pas le lister le rendrait introuvable
+/// alors qu'il est la carte la plus structurante du jeu. Même raison que la
+/// Base et le Leader de SWU.
+const _onepieceTypes = [
+  CardType('Character', 'Personnage'),
+  CardType('Event', 'Événement'),
+  CardType('Stage', 'Décor'),
+  CardType('Leader', 'Leader'),
+];
+
 List<CardType> cardTypesFor(Game game) => switch (game) {
   Game.magic => _magicTypes,
   Game.riftbound => _riftboundTypes,
@@ -127,4 +140,5 @@ List<CardType> cardTypesFor(Game game) => switch (game) {
   Game.pokemon => _pokemonTypes,
   Game.wankul => _wankulTypes,
   Game.swu => _swuTypes,
+  Game.onepiece => _onepieceTypes,
 };

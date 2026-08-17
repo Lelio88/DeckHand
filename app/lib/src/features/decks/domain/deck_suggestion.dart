@@ -44,7 +44,17 @@ enum DeckFormat {
   /// qu'un partage de `constructed` : `DeckBlueprint.of` ne reçoit que le
   /// format, jamais le jeu, et partager l'identifiant ferait construire un deck
   /// SWU sur les proportions d'un autre jeu sans que rien ne l'annonce.
-  premier('premier', 'Premier');
+  premier('premier', 'Premier'),
+
+  /// One Piece. **Le format est mesuré, et il est muet** : sur 500 tournois
+  /// relevés chez Limitless, 474 ne déclarent aucun format — c'est le format
+  /// standard implicite d'un jeu qui n'en a qu'un.
+  ///
+  /// `op_standard` et non `standard`, bien que le jeu le nomme ainsi : partager
+  /// l'identifiant avec Pokémon ferait construire un deck One Piece sur les
+  /// proportions d'un autre jeu sans que rien ne l'annonce. Même raison que
+  /// `premier` et `tournament`.
+  opStandard('op_standard', 'Standard');
 
   const DeckFormat(this.id, this.label);
 
@@ -89,6 +99,7 @@ const _pokemonFormats = [DeckFormat.standard];
 const _wankulFormats = [DeckFormat.tournament];
 
 const _swuFormats = [DeckFormat.premier];
+const _onepieceFormats = [DeckFormat.opStandard];
 
 List<DeckFormat> deckFormatsFor(Game game) => switch (game) {
   Game.magic => _magicFormats,
@@ -97,6 +108,7 @@ List<DeckFormat> deckFormatsFor(Game game) => switch (game) {
   Game.pokemon => _pokemonFormats,
   Game.wankul => _wankulFormats,
   Game.swu => _swuFormats,
+  Game.onepiece => _onepieceFormats,
 };
 
 class DeckSuggestion {

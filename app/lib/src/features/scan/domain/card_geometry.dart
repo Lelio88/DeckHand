@@ -81,6 +81,12 @@ const Map<String, double> cardAspects = {
   // là où les autres n'en ont qu'un. Le rapport, lui, ne bouge pas : c'est
   // l'échelle qui varie, pas la géométrie.
   'swu': 63 / 88,
+  // One Piece : même carton que Magic, 63 × 88 mm.
+  //
+  // **Le rendu s'y aligne**, mesuré sur les deux tailles publiées : 600 × 838
+  // et 868 × 1213, soit 0,7160 et 0,7156 — le carton valant 0,7159, elles
+  // l'encadrent à un dix-millième. Toutes les cartes sont debout.
+  'onepiece': 63 / 88,
 };
 
 /// Ce sur quoi retombe un jeu absent de [cardAspects].

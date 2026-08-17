@@ -91,6 +91,19 @@ enum CardRole {
   event,
 
   upgrade,
+
+  /// One Piece — les trois familles du deck principal.
+  ///
+  /// `event` est partagé avec SWU : les deux jeux nomment ainsi une carte à
+  /// effet unique que l'on joue puis défausse, et rien ne justifie deux membres
+  /// pour la même notion. `character` et `stage` sont propres à One Piece.
+  ///
+  /// Le leader n'en est pas un : il occupe `commander_oracle_id`, comme celui
+  /// de SWU et la Légende de Riftbound. On ne dose pas une carte dont il y a
+  /// exactement un exemplaire.
+  character,
+
+  stage,
 }
 
 /// Les rôles que ce jeu sait reconnaître, dans l'ordre où on les affiche.
@@ -114,6 +127,7 @@ Set<CardRole> rolesFor(String game) => switch (game) {
     CardRole.stadium,
   },
   'swu' => const {CardRole.unit, CardRole.event, CardRole.upgrade},
+  'onepiece' => const {CardRole.character, CardRole.event, CardRole.stage},
   _ => const {
     CardRole.creature,
     CardRole.draw,
@@ -149,6 +163,7 @@ Set<CardRole> rolesOf(BuildableCard card) =>
       'yugioh' => _yugiohRoles(card),
       'pokemon' => _pokemonRoles(card),
       'swu' => _swuRoles(card),
+      'onepiece' => _onepieceRoles(card),
       _ => _magicRoles(card),
     };
 
@@ -225,5 +240,22 @@ Set<CardRole> _swuRoles(BuildableCard card) {
   if (type.startsWith('Unit')) return const {CardRole.unit};
   if (type.startsWith('Event')) return const {CardRole.event};
   if (type.startsWith('Upgrade')) return const {CardRole.upgrade};
+  return const {};
+}
+
+/// **Le type imprimé suffit**, comme chez SWU, Yu-Gi-Oh et Pokémon.
+///
+/// Le catalogue publie « Character — Straw Hat Crew », « Event », « Stage » :
+/// la famille est le premier mot, la sous-famille est l'équipage — qui décore
+/// la carte sans rien imposer à la construction, et n'est donc pas un rôle.
+///
+/// Les trois familles **partitionnent** le deck principal : une carte est un
+/// personnage, un événement ou un décor, jamais deux à la fois. Le leader est
+/// absent de ce dosage, comme celui de SWU.
+Set<CardRole> _onepieceRoles(BuildableCard card) {
+  final type = card.typeLine;
+  if (type.startsWith('Character')) return const {CardRole.character};
+  if (type.startsWith('Event')) return const {CardRole.event};
+  if (type.startsWith('Stage')) return const {CardRole.stage};
   return const {};
 }

@@ -318,6 +318,30 @@ enum CardFrame {
     (left: 0.0712, top: 0.1692, right: 0.9263, bottom: 0.6267),
     'swu',
     landscape: true,
+  ),
+
+  /// One Piece — **un seul cadre pour les quatre types**, et c'est mesuré.
+  ///
+  /// Chaque type a été éprouvé sous la fenêtre des trois autres : toutes les
+  /// paires restent entre 14 et 21 bits, au-dessus du seuil de confiance de 12,
+  /// et aucune fenêtre n'est significativement meilleure. C'est la conclusion de
+  /// Pokémon sur ses quatre époques, mot pour mot — à l'opposé de SWU, dont les
+  /// cinq types ont chacun le sien.
+  ///
+  /// **La borne basse est celle du filigrane, pas celle de l'illustration.** Les
+  /// rendus publiés portent « SAMPLE » en travers, et il vient de l'éditeur :
+  /// Bandai marque ainsi sa liste de cartes, la source ne fait que la reprendre.
+  /// Mesuré sur les quatre types par la luminance de l'image moyenne, la bande
+  /// claire commence à **0,4224 sur les quatre**, à la ligne près.
+  ///
+  /// C'est ce plafond qui rend le scan possible : la zone retenue est de
+  /// l'illustration pure, **présente à l'identique sur une photo de carton**,
+  /// qui n'est pas marqué. Descendre plus bas comparerait une empreinte marquée
+  /// à une empreinte qui ne l'est pas, et la reconnaissance échouerait sans que
+  /// rien ne le dise.
+  onePiece(
+    (left: 0.0567, top: 0.0835, right: 0.9550, bottom: 0.4212),
+    'onepiece',
   );
 
   const CardFrame(this.box, this.game, {this.landscape = false});

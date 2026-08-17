@@ -26,7 +26,8 @@ enum Game {
   yugioh('yugioh', 'Yu-Gi-Oh!'),
   pokemon('pokemon', 'Pokémon'),
   wankul('wankul', 'Wankul'),
-  swu('swu', 'Star Wars Unlimited');
+  swu('swu', 'Star Wars Unlimited'),
+  onepiece('onepiece', 'One Piece Card Game');
 
   const Game(this.id, this.label);
 

@@ -176,6 +176,7 @@ class DeckBlueprint {
     // catalogue qui tranchera.
     DeckFormat.tournament => null,
     DeckFormat.premier => swuPremier,
+    DeckFormat.opStandard => onepieceStandard,
   };
 
   /// Star Wars Unlimited — **mesuré sur 220 listes de tournoi**, et le premier
@@ -241,6 +242,66 @@ class DeckBlueprint {
     // Un seul format, mais tous les archétypes du méta y sont mêlés : 10,3
     // points d'écart sur les unités, 17,4 sur le haut de courbe. La médiane
     // décrit un deck plausible, pas un deck existant.
+    reliability: BlueprintReliability.averaged,
+  );
+
+  /// One Piece — **mesuré sur 1 490 listes**, et le gabarit le plus contraint
+  /// du projet après Pokémon.
+  ///
+  /// **La taille est un contrat, pas une médiane.** 50 cartes, écart
+  /// interquartile **0** — la même figure exacte que Pokémon à 60. Le leader
+  /// n'en fait pas partie : il occupe `commander_oracle_id`, un exemplaire par
+  /// deck, hors du compte.
+  ///
+  /// **`usesColorIdentity` est vrai, et c'est le chiffre le plus net qu'un jeu
+  /// ait rendu sur ce point : 100 % des 2 033 decks tiennent entièrement dans
+  /// l'identité de leur leader**, médiane et maximum à 0 % hors identité. SWU
+  /// était à 79,1 %, Yu-Gi-Oh à zéro — son Attribut ressemblait à une identité
+  /// de couleur sans rien imposer. Ici c'est une règle dure, et le corpus ne la
+  /// viole jamais.
+  ///
+  /// Ce 100 % a d'abord valu 36,5 %, et c'est ce qui a révélé un défaut
+  /// d'ingestion : la source sépare les couleurs par un **espace**, le
+  /// connecteur découpait sur une barre oblique, et les 66 cartes bicolores
+  /// entraient sous une couleur unique nommée « Blue Green ». Rien ne le
+  /// signalait — le catalogue paraissait complet. Seule la distribution l'a
+  /// trahi : **médiane 100 % hors identité avec 36,5 % des decks à 0 %**, une
+  /// forme binaire qu'aucune règle de jeu ne produit.
+  static const onepieceStandard = DeckBlueprint(
+    size: 50,
+    // La règle du jeu, et le corpus la confirme. Les rares listes au-dessus
+    // (jusqu'à 20 exemplaires) sont des saisies fautives, même figure que le
+    // deck HAT à six exemplaires chez Yu-Gi-Oh.
+    maxCopies: 4,
+    needsCommander: true,
+    // Aucun terrain : la ressource est le DON!!, distribué automatiquement à
+    // chaque tour. `null` et non zéro — il n'y a rien à manquer.
+    lands: null,
+    curveLabel: 'DON!!',
+    roles: {
+      CardRole.character: Quota(84.0, 12.0),
+      CardRole.event: Quota(14.0, 12.0),
+      // Médiane nulle : la moitié des decks n'en joue aucun. Le quota reste
+      // déclaré parce que l'autre moitié en joue jusqu'à 6 %, et qu'un rôle
+      // absent du gabarit ne serait jamais proposé.
+      CardRole.stage: Quota(0.0, 6.0),
+    },
+    // **Un vrai coût de mise en jeu**, contrairement à Pokémon dont le `cmc`
+    // porte les points de vie. Le creux à 3 DON!! est authentique et non un
+    // artefact : 3,5 % du corpus contre 9,5 % à 2 et 19,2 % à 4 — vérifié en
+    // regardant les cartes, les coûts 1 étant les personnages de recherche et
+    // les coûts 4 les finisseurs.
+    curve: [
+      CurveStep(0, 1, Quota(28.0, 20.0)),
+      CurveStep(2, 2, Quota(8.0, 16.0)),
+      CurveStep(3, 3, Quota(0.0, 6.0)),
+      CurveStep(4, 4, Quota(20.0, 10.0)),
+      CurveStep(5, 6, Quota(22.0, 12.0)),
+      CurveStep(7, 99, Quota(18.0, 16.0)),
+    ],
+    // Un seul format, tous archétypes mêlés : 12 points d'écart sur les deux
+    // familles principales, 20 sur le bas de courbe. La médiane décrit un deck
+    // plausible, pas un deck existant.
     reliability: BlueprintReliability.averaged,
   );
 

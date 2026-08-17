@@ -167,8 +167,26 @@ class Entry:
 
     @property
     def colors(self) -> list[str]:
-        """Les couleurs, la source les séparant par une barre pour les bicolores."""
-        return [c.strip() for c in (self.color or "").split("/") if c.strip()]
+        """Les couleurs, **séparées par un espace** chez cette source.
+
+        Une première version découpait sur une barre oblique, et le séparateur
+        était supposé et non relevé. Le découpage ne s'appliquait donc jamais :
+        les 96 cartes bicolores entraient en base sous la forme d'une couleur
+        unique nommée « Blue Green », et 313 decks se retrouvaient avec un leader
+        dont l'identité n'était incluse dans celle d'aucune carte.
+
+        **Rien ne le signalait.** Le catalogue paraissait complet — 100 % des
+        cartes portaient une couleur —, et l'inventaire des identités affichait
+        `['Green Red']: 8` d'une façon qui se lisait « huit cartes bicolores ».
+        Le défaut n'est apparu qu'en mesurant la part d'un deck hors de
+        l'identité de son leader : **médiane 100 %** avec 36,5 % des decks à 0 %,
+        une distribution binaire qu'aucune règle de jeu ne produit.
+
+        Ce que ça aurait coûté : la contrainte de couleur est ce qui empêche le
+        constructeur de proposer un deck illégal. Inexploitable, elle aurait
+        laissé mêler six couleurs dans un jeu qui n'en autorise que deux.
+        """
+        return [c.strip() for c in (self.color or "").split() if c.strip()]
 
 
 def parse(row: dict, origin: str) -> Entry:

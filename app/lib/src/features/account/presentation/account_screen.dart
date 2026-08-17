@@ -184,6 +184,7 @@ class _GamePicker extends ConsumerWidget {
               // là où c'est une propriété du jeu.
               Game.wankul => 'le TCG de Wankil Studio — 958 cartes',
               Game.swu => 'le TCG Star Wars — 2 180 cartes',
+              Game.onepiece => '2 541 cartes, 2 526 decks',
             },
             // **Les prix Riftbound sont convertis, et ça se dit ici.** Ils sont
             // relevés en dollars chez TCGplayer ; l'euro affiché passe par le
@@ -202,7 +203,8 @@ class _GamePicker extends ConsumerWidget {
               Game.riftbound ||
               Game.yugioh ||
               Game.pokemon ||
-              Game.swu => 'Prix convertis du dollar au taux de la BCE',
+              Game.swu ||
+              Game.onepiece => 'Prix convertis du dollar au taux de la BCE',
               Game.magic => null,
               // **Wankul n'aura pas de prix, et ce n'est pas un retard.** Les
               // quatre autres jeux sont cotés parce qu'ils ont un marché

@@ -188,7 +188,54 @@ POKEMON = GameAnatomy(
     copies_scope=f"NOT ({POKEMON_BASIC_ENERGY})",
 )
 
-GAMES = {"magic": MAGIC, "yugioh": YUGIOH, "pokemon": POKEMON}
+#: One Piece — trois familles, un coût réel, aucun terrain.
+#:
+#: **Le leader est hors du dosage**, et c'est structurel : il occupe
+#: `decks.commander_oracle_id`, un exemplaire par deck, jamais dans les
+#: cinquante cartes. Le doser reviendrait à mesurer la proportion d'une carte
+#: dont il y a toujours exactement une.
+ONEPIECE = GameAnatomy(
+    formats=("op_standard",),
+    body="TRUE",
+    traits={
+        "personnages": "c.type_line LIKE 'Character%'",
+        "événements": "c.type_line LIKE 'Event%'",
+        "décors": "c.type_line LIKE 'Stage%'",
+    },
+    # **Un vrai coût de mise en jeu**, contrairement à Pokémon dont le `cmc`
+    # porte les points de vie et à Yu-Gi-Oh dont il porte le Niveau. Ici c'est
+    # le coût en DON!!, qu'on paie chaque tour, et la courbe décrit donc bien
+    # une contrainte de construction.
+    curve=((0, 1), (2, 2), (3, 3), (4, 4), (5, 6), (7, 99)),
+    curve_label="DON!!",
+    curve_scope="TRUE",
+    copies_scope="TRUE",
+)
+
+#: Disney Lorcana — cinq familles, un coût en encre, deux encres au plus.
+LORCANA = GameAnatomy(
+    formats=("lorcana_core",),
+    body="TRUE",
+    traits={
+        "personnages": "c.type_line LIKE 'Character%'",
+        "actions": "c.type_line LIKE 'Action%'",
+        "objets": "c.type_line LIKE 'Item%'",
+        "chansons": "c.type_line LIKE 'Song%'",
+        "lieux": "c.type_line LIKE 'Location%'",
+    },
+    curve=((0, 1), (2, 2), (3, 3), (4, 4), (5, 6), (7, 99)),
+    curve_label="encre",
+    curve_scope="TRUE",
+    copies_scope="TRUE",
+)
+
+GAMES = {
+    "magic": MAGIC,
+    "yugioh": YUGIOH,
+    "pokemon": POKEMON,
+    "onepiece": ONEPIECE,
+    "lorcana": LORCANA,
+}
 
 
 @dataclass

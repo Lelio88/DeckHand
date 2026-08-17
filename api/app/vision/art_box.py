@@ -235,6 +235,29 @@ SWU_LEADER = ArtBox(0.0321, 0.0877, 0.4513, 0.8084)
 #: Jumeau de `CardFrame.swuBase`.
 SWU_BASE = ArtBox(0.0712, 0.1692, 0.9263, 0.6267)
 
+#: One Piece — **une seule fenêtre pour les quatre types**, et c'est la mesure
+#: qui le dit.
+#:
+#: `--compare` a éprouvé chaque type sous la fenêtre des trois autres : toutes
+#: les paires restent entre 14 et 21 bits, au-dessus du seuil de confiance de
+#: 12, et aucune fenêtre n'est significativement meilleure. C'est la conclusion
+#: de Pokémon sur ses quatre époques, mot pour mot.
+#:
+#: **La borne basse est celle du filigrane, pas celle de l'illustration.** Les
+#: rendus publiés portent « SAMPLE » en travers, et il vient de l'éditeur —
+#: Bandai marque ainsi sa liste de cartes, optcgapi ne fait que la reprendre.
+#: Mesuré sur les quatre types par la luminance de l'image moyenne, la bande
+#: claire commence à **0,4224 sur les quatre**, à la ligne près. Les Personnages
+#: et les Événements s'y arrêtaient d'eux-mêmes ; les Leaders et les Décors la
+#: traversaient, dérivant de 156 et 130 px entre deux tirages disjoints.
+#:
+#: C'est ce plafond qui rend le scan possible : la zone retenue est de
+#: l'illustration pure, **présente à l'identique sur une photo de carton**, qui
+#: n'est pas marquée. Une fenêtre plus basse comparerait une empreinte marquée à
+#: une empreinte qui ne l'est pas, et la reconnaissance échouerait sans que rien
+#: ne le dise. Jumeau de `CardFrame.onePiece`.
+ONEPIECE = ArtBox(0.0567, 0.0835, 0.9550, 0.4212)
+
 #: Valeurs de `layout` qui désignent l'une des deux maquettes couchées.
 #:
 #: **Déclarées ici et non dans `wankul_frame`**, qui les produit : ce module doit
@@ -272,6 +295,12 @@ def box_for(game: str, layout: str | None) -> ArtBox | None:
         return _wankul_box(layout)
     if game == "swu":
         return _swu_box(layout)
+    if game == "onepiece":
+        # **Une seule fenêtre pour les quatre types**, `layout` n'y décidant
+        # rien : les quatre sont interchangeables, mesuré en bits. Le type
+        # reste écrit en base — le constructeur en a besoin — mais il ne
+        # gouverne pas le découpage, contrairement aux cinq autres jeux.
+        return ONEPIECE
     return None
 
 

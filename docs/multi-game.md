@@ -2741,7 +2741,87 @@ deviner. La reconstitution y produisait `OP14EB04-…`, un code qui n'existe nul
 part. Le taux est passé de 70,5 % à 98,6 % en prenant le code **à la source**
 plutôt qu'en le rebâtissant.
 
+### L'index d'empreintes — complet, et la fenêtre s'arrête au filigrane
+
+3 933 empreintes sur 3 933 impressions portant une illustration, six échecs de
+téléchargement, **aucune impression sans illustration**.
+
+Un seul cadre sert les quatre types. `--compare` a éprouvé chaque type sous la
+fenêtre des trois autres : toutes les paires restent entre 14 et 21 bits,
+au-dessus du seuil de confiance de 12, et aucune fenêtre n'est
+significativement meilleure. C'est la conclusion de Pokémon sur ses quatre
+époques, mot pour mot — à l'opposé de SWU, dont les cinq types ont chacun le
+sien.
+
+**La borne basse est celle du filigrane, pas celle de l'illustration.** Les
+rendus publiés portent « SAMPLE » en travers, et il vient de l'éditeur : Bandai
+marque ainsi sa liste de cartes. Mesuré sur les quatre types par la luminance de
+l'image moyenne, la bande claire commence à **0,4224 sur les quatre**, à la
+ligne près. C'est ce plafond qui rend le scan possible : la zone retenue est de
+l'illustration pure, présente à l'identique sur une photo de carton, qui n'est
+pas marqué.
+
+### Les decks — 2 526 listes, et un leader qui n'est pas une zone
+
+`api/app/ingestion/limitless_onepiece_ingest.py`, Limitless sous `?game=OP`.
+**Deuxième jeu servi par cette source**, après Pokémon, et la forme des listes
+diffère sur trois points :
+
+1. **Le leader est un objet, pas une zone.** Les trois autres rubriques
+   (`character`, `event`, `stage`) portent une liste d'entrées avec un `count` ;
+   `leader` porte un objet unique, sans `count`. Le banc l'a d'abord rangé parmi
+   les zones et lu comme une liste : `isinstance(…, list)` était faux, la
+   rubrique était sautée **sans un mot**, et le rapport annonçait « 0 leaders
+   distincts » — un zéro qui se lit comme une absence alors qu'il signalait une
+   forme inattendue. Le leader occupe `decks.commander_oracle_id`, comme celui
+   de SWU : il ne compte pas dans les cinquante cartes.
+2. **La source ne publie aucun format** — `null` sur les 60 tournois sondés, là
+   où Pokémon rend `STANDARD`. Tous les decks sont rangés en `op_standard`.
+3. **Un tournoi sur deux seulement porte des listes** (51,7 % contre 99 % chez
+   Pokémon) : les petits tournois de boutique sont déclarés sans que les joueurs
+   y déposent leur liste.
+
+Le code se reconstitue en deux morceaux (`OP07` + `022`), et **88,7 % des lignes
+se résolvent**. Le reste tient à quatre decks de démarrage (`ST31` à `ST34`) que
+le catalogue n'a pas encore.
+
+**La source coupe à 429**, et la première course l'a payé : deux tournois ont
+perdu leurs classements en route sans que la course s'arrête, l'erreur étant
+attrapée par tournoi. Le connecteur reprend désormais cinq fois à attente
+croissante et **dit lesquels manquent**.
+
+### Le gabarit de deck — et le défaut de couleur qu'il a révélé
+
+Mesuré sur 1 490 listes : **50 cartes, écart interquartile 0** — la même figure
+exacte que Pokémon à 60. Trois familles (personnages 84,0 %, événements 14,0 %,
+décors 0,0 %), plafond de 4 exemplaires, un leader hors du compte.
+
+**`usesColorIdentity` est vrai, et c'est le chiffre le plus net qu'un jeu ait
+rendu sur ce point : 100 % des 2 033 decks tiennent entièrement dans l'identité
+de leur leader**, médiane et maximum à 0 % hors identité. SWU tient à 79,1 %,
+Yu-Gi-Oh à zéro.
+
+Ce 100 % a d'abord valu **36,5 %**, et c'est ainsi qu'un défaut d'ingestion est
+apparu. La source sépare ses couleurs par un **espace** ; le connecteur découpait
+sur une barre oblique, séparateur supposé et jamais relevé. Les 66 cartes
+bicolores entraient donc sous une couleur unique nommée « Blue Green », et
+313 decks se retrouvaient avec un leader dont l'identité n'était incluse dans
+celle d'aucune carte.
+
+**Rien ne le signalait.** Le catalogue paraissait complet — 100 % des cartes
+portaient une couleur —, et l'inventaire des identités affichait `['Green Red']:
+8` d'une façon qui se lisait « huit cartes bicolores ». Seule la distribution l'a
+trahi : **médiane 100 % hors identité avec 36,5 % des decks à 0 %**, une forme
+binaire qu'aucune règle de jeu ne produit. Ce que ça aurait coûté : la contrainte
+de couleur est ce qui empêche le constructeur de proposer un deck illégal.
+
+La courbe garde un **creux authentique à 3 DON!!** — 3,5 % du corpus contre
+9,5 % à 2 et 19,2 % à 4 —, vérifié en regardant les cartes : les coûts 1 sont les
+personnages de recherche, les coûts 4 les finisseurs.
+
 ### Ce qui reste dû
-- **le corpus de decks**, chez Limitless (`game=OP`) : le connecteur de Pokémon
+- **la carte de papier** : aucune photo n'a été prise, le propriétaire n'ayant
+  pas de cartes de ce jeu. Même situation que Yu-Gi-Oh et Pokémon ;
+- **le corpus de decks passé**, chez Limitless (`game=OP`) : le connecteur de Pokémon
   y mène, et les listes y sont structurées par code d'impression — ~7 300
   decklists relevées sur six mois.

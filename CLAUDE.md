@@ -108,6 +108,8 @@ cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_swu_prices  # prix SWU (-
 cd api && .venv/Scripts/python -m app.ingestion.swumetastats_ingest # decks SWU (--days N, défaut 30)
 cd api && .venv/Scripts/python -m app.ingestion.optcg_ingest        # catalogue One Piece
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_onepiece_prices # prix One Piece (--force)
+cd api && .venv/Scripts/python -m app.ingestion.limitless_onepiece_ingest # decks One Piece (--days N)
+cd api && .venv/Scripts/python -m app.measure.onepiece_decks       # ce que Limitless publie du jeu
 # Bancs One Piece — voir docs/multi-game.md §11
 cd api && .venv/Scripts/python -m app.measure.onepiece_taxonomy       # périmètre, identité, homonymes
 cd api && .venv/Scripts/python -m app.measure.onepiece_art_window     # --size N --group T --dump DIR --compare

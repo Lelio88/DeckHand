@@ -137,11 +137,28 @@ def test_les_deux_familles_de_suffixe_de_rendu_marquent_une_variante():
 
 
 def test_une_carte_bicolore_declare_ses_deux_couleurs():
-    """La source les sépare par une barre. N'en garder qu'une écarterait la
-    carte d'un deck où elle est légale."""
-    assert entree(color="Red/Green").colors == ["Red", "Green"]
+    """La source sépare ses couleurs par un **espace**, relevé sur le catalogue.
+
+    **Ce test affirmait une barre oblique, et il passait.** Il avait été écrit
+    sur la même supposition que le code qu'il éprouvait, avec une valeur —
+    `"Red/Green"` — que la source ne produit jamais : elle écrit `"Green Red"`,
+    et le découpage ne s'appliquait donc à rien. Un test qui confirme une
+    supposition ne la vérifie pas.
+
+    Ce que le défaut coûtait : les 66 cartes bicolores entraient sous une
+    couleur unique nommée « Blue Green », et 313 decks avaient un leader dont
+    l'identité n'était incluse dans celle d'aucune carte. La contrainte de
+    couleur — ce qui empêche le constructeur de proposer un deck illégal —
+    était inexploitable. Après correction, **100 % des 2 033 decks** tiennent
+    entièrement dans l'identité de leur leader.
+
+    Les valeurs ci-dessous sont celles que le catalogue publie réellement.
+    """
+    assert entree(color="Green Red").colors == ["Green", "Red"]
+    assert entree(color="Blue Purple").colors == ["Blue", "Purple"]
     assert entree(color="Blue").colors == ["Blue"]
     assert entree(color="").colors == []
+    assert entree(color=None).colors == []
 
 
 def test_un_leader_sans_cout_recoit_zero_car_la_colonne_le_refuse():
