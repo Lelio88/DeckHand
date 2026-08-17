@@ -2038,6 +2038,14 @@ pèse un quart de mégaoctet et met environ 80 secondes à venir. Couvrir les
 11 744 listes demanderait **une douzaine d'heures**. C'est ce chiffre qui
 décidera de la fenêtre retenue à l'ingestion.
 
+**Un seul format porte le corpus**, et il fallait le mesurer plutôt que le
+déduire d'un nom : sur les tournois relevés, **`Premier` en couvre 19 sur 20**
+— tous officiels — et le vingtième n'en déclare aucun. `decks.format`
+n'accueillera donc que `premier`. Yu-Gi-Oh a payé la déduction inverse :
+`Advanced` y avait été déclaré parce qu'il porte le nom du format courant du
+jeu, et il ne comptait que 3 decklists sur 168 tournois — un onglet vide, sur un
+écran qui a l'air en panne alors qu'il dit vrai.
+
 ### Le gabarit d'un deck
 
 Mesuré sur 220 listes (`python -m app.measure.swu_decks`) :
@@ -2160,37 +2168,110 @@ seulement se lire. Trois indicateurs chiffrés criaient qu'une chose n'allait
 pas, aucun ne disait laquelle, et deux accusaient le mauvais coupable. C'est à
 cela que sert `--dump`, qui écrit l'image moyenne et son gradient.
 
+### La même erreur, une seconde fois, sur l'autre axe
+
+Le correctif horizontal réparait les cartes couchées et laissait les **Events**
+dans un état plus troublant encore : une fenêtre **stable à 1 px près entre deux
+tirages disjoints**, et pourtant fausse — 16,5 bits de séparation contre 31
+partout ailleurs, avec une paire à **3 bits**, très en deçà du seuil de
+confiance de 12. *Une fenêtre reproductible n'est pas une fenêtre juste*, et
+c'est précisément le piège que la séparation existe pour attraper : la dérive,
+seule, aurait signé un excellent résultat.
+
+L'image moyenne, à nouveau, a nommé la cause en un regard : **sur une carte
+Event, l'illustration est en bas et le pavé de texte en haut** — l'inverse de
+l'Unit. La bande de sondage verticale (0,20–0,40) y tombait en plein texte.
+
+La maquette suit donc le **type**, et rien d'autre ne la prédit — c'est le
+constat de `category` chez Pokémon, où la fenêtre d'un Pokémon s'arrête quarante
+pixels avant celle d'un Dresseur :
+
+| Type | Illustration | Sondage |
+|---|---|---|
+| `Unit`, `Upgrade` | en haut | (0,20–0,40), au centre |
+| `Event` | **en bas** | (0,60–0,80), au centre |
+| `Leader`, `Base` | à gauche, carte couchée | (0,35–0,60), à 0,25 |
+
+Un type inconnu emprunte le repli des cartes debout, et **le banc le dit** :
+une maquette non prévue, mesurée sous une bande empruntée, rendrait un rectangle
+sans qu'on sache qu'il est emprunté.
+
 ### Où en est la mesure, groupe par groupe
 
-Deux critères sont solides et se lisent ensemble : la **séparation en bits** —
-une fenêtre qui embarque du cadre gèle des bits identiques sur toutes les
-cartes et la distance s'effondre — et la **dérive entre deux tirages
-disjoints**, qui dit si la fenêtre décrit le gabarit ou l'échantillon.
+Deux critères se lisent ensemble : la **séparation en bits** — une fenêtre qui
+embarque du cadre gèle des bits identiques sur toutes les cartes et la distance
+s'effondre — et la **dérive entre deux tirages disjoints**, qui dit si la
+fenêtre décrit le gabarit ou l'échantillon.
 
-| Groupe | Séparation | Paire la plus serrée | Dérive |
+Après les deux correctifs, **les 21 groupes tiennent entre 30,1 et 32,1 bits** :
+
+| Groupe | Séparation | Paire | Dérive |
 |---|---|---|---|
-| `Leader/Hyperspace` | 31,6 | 18 | **2 px** |
+| `Event/Normal` | 16,5 → **31,2** | 3 → **15** | 15 px |
+| `Event/Hyperspace` | 18,3 → **31,7** | 9 → **19** | 2 px |
+| `Leader/Normal` | 18,7 → **31,1** | 8 → **21** | 53 px |
 | `Base/Normal` | 32,1 | 19 | 3 px |
-| `Leader/Normal` | 31,1 | **21** | 53 px |
 | `Unit/Normal` | 31,5 | 19 | 66 px |
-| `Unit/Hyperspace` | 31,4 | 18 | 66 px |
-| `Leader/Showcase` | 31,7 | 17 | **181 px** |
-| `Unit/OP Promo` | 31,0 | 16 | **177 px** |
-| `Unit/Prestige` | 31,1 | 17 | **309 px** |
-| **`Event/Hyperspace`** | **18,3** | **9** | 1 px |
-| **`Event/Normal`** | **16,5** | **3** | 1 px |
+| `Upgrade/Normal` | 31,1 | 19 | 58 px |
 
-Deux familles de défauts restent, et elles ne se ressemblent pas :
+Ce qui reste s'explique, et deux motifs se lisent d'un coup :
 
-- **les Events**, dont la fenêtre est stable d'un tirage à l'autre — 1 px de
-  dérive — mais **fausse** : 16,5 bits de séparation quand les autres groupes
-  en donnent 31, et une paire à **3 bits**, très en deçà du seuil de confiance
-  de 12. Une fenêtre reproductible n'est pas une fenêtre juste, et c'est
-  exactement le piège que la séparation existe pour attraper ;
-- **les groupes à forte dérive** — `Unit/Prestige` à 309 px, `Leader/Showcase`
-  à 181 — dont la séparation est pourtant bonne. Ce sont des traitements à
-  illustration débordante, où aucun trait ne borne la plage calme : plusieurs
-  de leurs arêtes touchent le bord du rendu.
+- **les arêtes qui touchent le bord du rendu** appartiennent presque toutes à
+  des traitements `Hyperspace`, dont l'illustration va **bord à bord**. L'arête
+  butée y est la bonne réponse et non un échec — c'est le cas des
+  `Special illustration rare` de Pokémon, où l'illustration *est* la carte. Les
+  fortes dérives résiduelles (`Unit/Prestige` 309 px, `Leader/Showcase` 181)
+  sont le même phénomène : un bord de carte n'est pas un trait, sa position
+  varie donc avec le tirage ;
+- **les quatre paires à 0 bit** sont toutes des couples `P25` / `P26` — les
+  promos 2025 et 2026, c'est-à-dire **la même carte rééditée d'une année sur
+  l'autre avec la même illustration**. Ce n'est pas une confusion de l'index
+  mais une question d'identité, que le titre imprimé règle déjà : ce sont deux
+  impressions d'une seule carte. Le précédent existe des deux côtés — les 17
+  cartes Riftbound recollées par `propagate_shared_art`, et le
+  *Professor Turo's Scenario* de Pokémon, à 0 bit pour la même raison.
+
+### Cinq gabarits, un par type — et c'est la mesure qui le dit
+
+La question « un gabarit ou plusieurs » se tranche **en bits, pas en pixels** :
+c'est ainsi que Pokémon a conclu que ses quatre époques étaient
+interchangeables. `--compare` éprouve donc chaque groupe sous la fenêtre de ses
+voisins de même type.
+
+Le résultat est franc, et identique dans les cinq types : **la fenêtre du
+traitement `Normal` est la meilleure ou l'égale de toutes les autres.**
+
+| Cartes | Sous leur propre fenêtre | Sous la fenêtre `Normal` |
+|---|---|---|
+| `Base/Hyperspace` | 31,9 / 18 | 31,7 / **20** |
+| `Leader/Hyperspace` | 31,6 / 18 | 31,1 / **19** |
+| `Unit/Prestige` | 31,1 / 17 | 32,0 / **20** |
+| `Unit/OP Promo` | 31,0 / 16 | 31,2 / **19** |
+| `Event/OP Promo` | 31,9 / 21 | 31,1 / 20 |
+| `Event/Hyperspace` | 31,7 / 19 | 31,6 / 19 |
+
+L'inverse est faux partout : `Base/Normal` tombe à **25,2 / 13** sous la fenêtre
+`Hyperspace`, `Upgrade/Normal` à 26,8 / 13, et la fenêtre `Showcase` est
+ruineuse sur les autres Leaders — **13,8 / 6** et 15,4 / 7, très en deçà du
+seuil de confiance.
+
+La raison est celle que Pokémon avait déjà relevée : la fenêtre étroite **tient
+entièrement dans l'illustration** des cartes bord à bord, où elle capte donc de
+l'illustration pure ; la fenêtre large, elle, embarque du cadre sur une carte
+standard et lui coûte sa marge. *Un seul gabarit, le plus étroit.*
+
+Les cinq retenus, mesurés sur le traitement `Normal` de chaque type :
+
+| Type | Gabarit | Orientation |
+|---|---|---|
+| `Unit` | (0,1495 · 0,1397 · 0,9042 · 0,6269) | debout |
+| `Upgrade` | (0,0976 · 0,1212 · 0,9069 · 0,5622) | debout |
+| `Event` | (0,1038 · **0,5212** · 0,8979 · **0,9103**) | debout, illustration basse |
+| `Leader` | (0,0321 · 0,0877 · **0,4513** · 0,8084) | couchée, illustration à gauche |
+| `Base` | (0,0712 · 0,1692 · 0,9263 · 0,6267) | couchée |
+
+Un gabarit de moins est un gabarit de moins à essayer sur chaque photo : cinq,
+et non les vingt-et-un couples (type, traitement) que le catalogue distingue.
 
 ### Le contrôle de luminance n'est pas transposable, et on ne l'ajustera pas
 
@@ -2209,8 +2290,12 @@ dire est préférable à le faire taire.
 
 ### Ce qui reste dû
 
-- **arrêter les fenêtres** des Events, dont la mesure est reproductible et
-  fausse, et des traitements à illustration débordante ;
+- **éprouver les gabarits sur des photos**, et non sur des rendus : c'est le
+  dernier verrou, celui que Riftbound a franchi avec huit cartes de papier ;
+- **les quatre promos à 0 bit** : leurs paires `P25` / `P26` sont des
+  rééditions à illustration identique, ce que le titre imprimé réunit déjà —
+  reste à vérifier que l'ingestion les traite comme deux impressions d'une
+  carte, et non comme deux cartes ;
 - **l'ingestion elle-même** — migration, catalogue, prix, index d'empreintes,
   decks, constructeur, application ;
 - **une carte de papier**. Le format 63 × 88 est présumé pour ce jeu comme il

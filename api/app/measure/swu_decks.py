@@ -46,7 +46,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.measure.swu_probe import Probe, ProbeError
-from app.measure.swumetastats_probe import PAGE_SIZE, PAUSE_SECONDS, DeckProbe
+from app.measure.swumetastats_probe import (
+    PAGE_SIZE,
+    PAUSE_SECONDS,
+    DeckProbe,
+    ProbeError as DeckProbeError,
+)
 
 #: Les zones que la source publie. `Sideboard` est la seule qui ne compte pas
 #: dans la complétion : on peut jouer le deck sans elle, exactement comme pour
@@ -231,6 +236,43 @@ def report_volume(
 
     tournaments = {d.get("tournamentId") for d in decks}
     print(f"  tournois représentés : {len(tournaments)}")
+
+
+def report_formats(probe: DeckProbe) -> None:
+    """1 bis. Les formats : lesquels portent réellement des listes ?
+
+    **C'est ce qui décidera des valeurs admises par `decks.format`**, et il ne
+    faut pas les déduire d'un nom. Yu-Gi-Oh l'a payé : `Advanced` y avait été
+    déclaré parce qu'il porte le nom du format courant du jeu, et il ne comptait
+    que 3 decklists sur 168 tournois — 97 % du corpus étant dans les formats
+    rétro. Un onglet déclaré sans decks s'affiche vide et l'écran a l'air en
+    panne alors qu'il dit vrai.
+    """
+    print("\n=== 1 bis. formats déclarés par les tournois ===")
+    try:
+        tournaments = probe.tournaments()
+    except DeckProbeError as exc:
+        print(f"  liste des tournois injoignable : {exc}")
+        return
+
+    counts: Counter[str] = Counter()
+    with_lists: Counter[str] = Counter()
+    for entry in tournaments:
+        label = entry.get("format") or "(sans format)"
+        counts[label] += 1
+        # Le décompte des decklists est publié avec le tournoi : c'est lui qui
+        # sépare un format qui existe d'un format qui sert.
+        published = ((entry.get("_count") or {}).get("decklists")) or 0
+        if published:
+            with_lists[label] += published
+
+    print(f"  {len(tournaments)} tournois rendus")
+    for label, n in counts.most_common():
+        print(f"      {label:<24} {n:>5} tournois, "
+              f"{with_lists.get(label, 0):>6} decklists")
+
+    official = sum(1 for t in tournaments if t.get("official"))
+    print(f"  dont officiels : {official} / {len(tournaments)}")
 
 
 def report_zones(decks: list[dict[str, Any]]) -> None:
@@ -418,6 +460,7 @@ def run(days: int, limit: int) -> None:
         sys.exit("aucune decklist lue — la fenêtre est peut-être vide")
 
     report_volume(decks, declared, days, probe)
+    report_formats(probe)
     report_zones(decks)
     report_blueprint(decks)
 

@@ -77,27 +77,37 @@ CANONICAL_LAID = (1560, 1117)
 #: inventerait des arêtes ; il est écarté, et le rapport dit combien.
 MIN_LONG_SIDE = 900
 
-#: Bande de sondage verticale, en fractions de la hauteur : une zone dont on
-#: part du principe qu'elle est dans l'illustration, pour amorcer la recherche.
-PROBE_UPRIGHT = (0.20, 0.40)
-PROBE_LAID = (0.35, 0.60)
+#: Où sonder, par **type de carte** : bande verticale en fractions de la
+#: hauteur, puis abscisse de départ en fraction de la largeur.
+#:
+#: **La maquette suit le type, et rien d'autre ne la prédit.** C'est le même
+#: constat que `category` chez Pokémon, où la fenêtre d'un Pokémon s'arrête
+#: quarante pixels avant celle d'un Dresseur — et il s'est imposé ici de la
+#: même façon, en regardant les images moyennes :
+#:
+#: * **Unit** et **Upgrade** portent l'illustration en haut, le pavé de texte
+#:   en bas. C'est la maquette que l'on suppose spontanément.
+#: * **Event** fait **l'inverse** — texte en haut, illustration en bas. Sonder
+#:   à 0,20–0,40 y tombe en plein texte, et le banc rendait le pavé comme
+#:   fenêtre : reproductible à 1 px près, et faux. 16,5 bits de séparation
+#:   contre 31 ailleurs, avec une paire à 3 bits.
+#: * **Leader** et **Base** sont couchés et portent l'illustration à gauche.
+#:
+#: Une bande est volontairement étroite : la plage calme s'étend d'elle-même
+#: jusqu'aux traits. Ce qui compte est qu'elle tombe **dans** l'illustration.
+PROBE_BY_TYPE: dict[str, tuple[tuple[float, float], float]] = {
+    "Unit": ((0.20, 0.40), 0.50),
+    "Upgrade": ((0.20, 0.40), 0.50),
+    "Event": ((0.60, 0.80), 0.50),
+    "Leader": ((0.35, 0.60), 0.25),
+    "Base": ((0.35, 0.60), 0.25),
+}
 
-#: **Où sonder horizontalement, et c'est là que la méthode Pokémon cède.**
-#:
-#: `derive` sonde les colonnes depuis un point qu'il suppose dans
-#: l'illustration, et Pokémon prend le centre de la carte — ce qui va de soi
-#: quand l'illustration est centrée. Sur une carte SWU **couchée**, elle ne
-#: l'est pas : l'image moyenne des 154 Leaders le montre sans ambiguïté,
-#: l'illustration occupe la moitié gauche et le pavé de texte la moitié droite.
-#: Partir du centre y tombe dans le texte, et le banc rendait alors le pavé de
-#: texte comme « fenêtre » — fenêtre (0,485 … 0,911), luminance 204 contre 147
-#: au-dessous, et une dérive de 520 px entre deux tirages disjoints.
-#:
-#: Les trois symptômes disaient la même chose et aucun ne la nommait ; c'est
-#: l'image moyenne, regardée, qui a tranché. Un banc doit pouvoir se regarder,
-#: pas seulement se lire — c'est à quoi sert `--dump`.
-PROBE_X_UPRIGHT = 0.50
-PROBE_X_LAID = 0.25
+#: Repli pour un type inconnu — celui des cartes debout, le cas majoritaire.
+#: Il est **signalé** plutôt que silencieux : une maquette non prévue mesurée
+#: sous une bande empruntée rendrait un rectangle sans qu'on sache qu'il est
+#: emprunté.
+PROBE_FALLBACK = ((0.20, 0.40), 0.50)
 
 #: Nombre minimal de cartes pour qu'un empilement veuille dire quelque chose.
 #: En deçà, une illustration claire ou sombre déplace la moyenne à elle seule.
@@ -109,6 +119,7 @@ class Group:
     """Un lot d'impressions censées partager une mise en page."""
 
     name: str
+    kind: str
     laid: bool
     prints: list[Print]
 
@@ -118,11 +129,16 @@ class Group:
 
     @property
     def probe_band(self) -> tuple[float, float]:
-        return PROBE_LAID if self.laid else PROBE_UPRIGHT
+        return PROBE_BY_TYPE.get(self.kind, PROBE_FALLBACK)[0]
 
     @property
     def probe_x(self) -> float:
-        return PROBE_X_LAID if self.laid else PROBE_X_UPRIGHT
+        return PROBE_BY_TYPE.get(self.kind, PROBE_FALLBACK)[1]
+
+    @property
+    def probe_is_borrowed(self) -> bool:
+        """Ce type a-t-il sa propre bande, ou emprunte-t-il le repli ?"""
+        return self.kind not in PROBE_BY_TYPE
 
     def draw(self, size: int, offset: int = 0) -> list[Print]:
         """Tirage stable : même groupe, même taille, mêmes cartes.
@@ -356,7 +372,7 @@ def build_groups(probe: Probe) -> dict[str, Group]:
         if laid is None:
             mixed.append(f"{name} ({len(entries)})")
             continue
-        groups[name] = Group(name=name, laid=laid, prints=entries)
+        groups[name] = Group(name=name, kind=kind, laid=laid, prints=entries)
 
     if thin:
         print(f"\n{len(thin)} groupes trop maigres pour être empilés "
@@ -408,6 +424,10 @@ def measure(probe: Probe, group: Group, size: int, dump: Path | None) -> None:
           f"pavé de texte {window.outside_luminance:.0f}"
           + ("" if window.art_luminance < window.outside_luminance
              else "   <-- ATTENDU PLUS SOMBRE, controle en echec"))
+    if group.probe_is_borrowed:
+        print(f"  <-- type « {group.kind} » sans bande de sondage propre : "
+              f"le repli a servi, la fenêtre est donc mesurée sous une bande "
+              f"empruntée")
     if window.touches_border:
         print("  <-- une arête touche le bord du rendu : aucun trait ne l'a "
               "arrêtée, la fenêtre n'a pas été trouvée mais butée")
@@ -447,13 +467,62 @@ def measure(probe: Probe, group: Group, size: int, dump: Path | None) -> None:
         print(f"  écrit dans {dump}")
 
 
-def run(size: int, only: str | None, dump: Path | None) -> None:
+def compare(probe: Probe, groups: dict[str, Group], size: int) -> None:
+    """Éprouve chaque groupe sous la fenêtre de ses voisins de même type.
+
+    **La question « un gabarit ou deux » se tranche en bits, pas en pixels.**
+    C'est ainsi que Pokémon a conclu que ses quatre époques étaient
+    interchangeables — la distance moyenne restait entre 31,1 et 32,3 bits sous
+    n'importe laquelle des quatre — et qu'un second gabarit pour sa famille à
+    fenêtre haute ne se justifiait pas, la fenêtre standard tenant entièrement
+    dans son illustration.
+
+    Le motif à éprouver ici est visible sur les fenêtres mesurées :
+    `Hyperspace` partage les bornes verticales de `Normal` et s'étend pleine
+    largeur. Si la fenêtre étroite fait aussi bien sur les deux, elle suffit —
+    et un gabarit de moins est un gabarit de moins à essayer sur chaque photo.
+    """
+    print("\n=== un gabarit ou plusieurs, par type ===")
+    by_kind: dict[str, list[Group]] = defaultdict(list)
+    for group in groups.values():
+        by_kind[group.kind].append(group)
+
+    for kind, members in sorted(by_kind.items()):
+        if len(members) < 2:
+            continue
+        print(f"\n--- {kind} ---")
+        stacks: dict[str, Stack] = {}
+        windows: dict[str, Window] = {}
+        for group in members:
+            stack = build_stack(probe, group, size)
+            if stack is None:
+                continue
+            stacks[group.name] = stack
+            windows[group.name] = derive(stack, group.probe_band, group.probe_x)
+
+        header = "  " + " " * 26 + "".join(f"{n.split('/')[1][:11]:>13}" for n in windows)
+        print(header)
+        for name, stack in stacks.items():
+            cells = []
+            for other, window in windows.items():
+                mean_distance, tightest = separation(crop_hashes(stack, window.box))
+                mark = "*" if other == name else " "
+                cells.append(f"{mean_distance:8.1f}/{tightest:<2}{mark}")
+            print(f"  {name[:26]:<26}" + "".join(f"{c:>13}" for c in cells))
+        print("  (moyenne / paire la plus serrée ; * = sa propre fenêtre)")
+
+
+def run(size: int, only: str | None, dump: Path | None, want_compare: bool) -> None:
     probe = Probe(quiet=True)
     groups = build_groups(probe)
     print(f"\n{len(groups)} groupes assez fournis pour être mesurés")
     for name, group in sorted(groups.items()):
         laid = "couchée" if group.laid else "debout"
         print(f"  {name:<28} {len(group.prints):>5} impressions  {laid}")
+
+    if want_compare:
+        compare(probe, groups, size)
+        return
 
     for name, group in sorted(groups.items()):
         if only and name != only:
@@ -466,8 +535,13 @@ def main() -> None:
     parser.add_argument("--size", type=int, default=40, help="cartes par pile (défaut 40)")
     parser.add_argument("--group", default=None, help="ne mesurer que ce groupe")
     parser.add_argument("--dump", type=Path, default=None, help="dossier de sortie")
+    parser.add_argument(
+        "--compare",
+        action="store_true",
+        help="éprouver chaque groupe sous la fenêtre de ses voisins de même type",
+    )
     args = parser.parse_args()
-    run(args.size, args.group, args.dump)
+    run(args.size, args.group, args.dump, args.compare)
 
 
 if __name__ == "__main__":

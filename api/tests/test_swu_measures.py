@@ -18,7 +18,7 @@ from app.measure.pokemon_art_window import Stack
 from app.measure.swu_art_window import (
     CANONICAL_LAID,
     CANONICAL_UPRIGHT,
-    PROBE_UPRIGHT,
+    PROBE_BY_TYPE,
     Group,
     derive,
 )
@@ -247,7 +247,7 @@ def test_la_fenetre_retrouve_un_rectangle_connu():
     d'illustration qu'en gagner un de cadre, identique sur toutes les cartes."""
     width, height = CANONICAL_UPRIGHT
     box = (80, 200, width - 80, 900)
-    window = derive(synthetic_stack(box), PROBE_UPRIGHT)
+    window = derive(synthetic_stack(box), PROBE_BY_TYPE['Unit'][0])
     left, top, right, bottom = window.pixels
     assert abs(left - box[0]) <= 1
     assert abs(top - box[1]) <= 1
@@ -261,7 +261,7 @@ def test_la_fenetre_est_rendue_en_fractions_de_la_carte():
     rien au résultat, les treize formats publiés partageant leur rapport à
     0,4 % près."""
     width, height = CANONICAL_UPRIGHT
-    window = derive(synthetic_stack((80, 200, width - 80, 900)), PROBE_UPRIGHT)
+    window = derive(synthetic_stack((80, 200, width - 80, 900)), PROBE_BY_TYPE['Unit'][0])
     assert 0.0 < window.box.left < window.box.right < 1.0
     assert 0.0 < window.box.top < window.box.bottom < 1.0
     assert abs(window.box.left - 80 / width) < 0.01
@@ -275,11 +275,35 @@ def test_une_aretedu_bord_signale_une_fenetre_butee_et_non_trouvee():
     rend alors un rectangle qui n'est pas une fenêtre. C'est la figure ci-
     dessous — une illustration peinte tout en bas, sondée en haut."""
     width, _ = CANONICAL_UPRIGHT
-    juste = derive(synthetic_stack((80, 200, width - 80, 900)), PROBE_UPRIGHT)
+    juste = derive(synthetic_stack((80, 200, width - 80, 900)), PROBE_BY_TYPE['Unit'][0])
     assert not juste.touches_border
 
-    butee = derive(synthetic_stack((80, 1200, width - 80, 1400)), PROBE_UPRIGHT)
+    butee = derive(synthetic_stack((80, 1200, width - 80, 1400)), PROBE_BY_TYPE['Unit'][0])
     assert butee.touches_border
+
+
+def test_chaque_type_a_sa_bande_de_sondage():
+    """La maquette suit le type, et l'Event **inverse** celle de l'Unit :
+    illustration en bas, texte en haut. Sonder l'Event à la bande de l'Unit
+    tombait en plein texte, et le banc rendait le pavé comme fenêtre — 16,5
+    bits de séparation contre 31, avec une paire à 3 bits."""
+    unit_band, unit_x = PROBE_BY_TYPE["Unit"]
+    event_band, event_x = PROBE_BY_TYPE["Event"]
+    leader_band, leader_x = PROBE_BY_TYPE["Leader"]
+
+    assert unit_band[1] < event_band[0], "les deux bandes doivent être disjointes"
+    assert unit_x == event_x == 0.50, "les cartes debout se sondent au centre"
+    assert leader_x < 0.50, "une carte couchée porte son illustration à gauche"
+
+
+def test_un_type_sans_bande_propre_est_signale():
+    """Une maquette non prévue, mesurée sous une bande empruntée, rendrait un
+    rectangle sans qu'on sache qu'il est emprunté."""
+    connu = Group(name="Unit/Normal", kind="Unit", laid=False, prints=[])
+    inconnu = Group(name="Vaisseau/Normal", kind="Vaisseau", laid=False, prints=[])
+    assert not connu.probe_is_borrowed
+    assert inconnu.probe_is_borrowed
+    assert inconnu.probe_band == PROBE_BY_TYPE["Unit"][0]
 
 
 def test_un_tirage_decale_est_disjoint_du_premier():
@@ -287,7 +311,7 @@ def test_un_tirage_decale_est_disjoint_du_premier():
     Pokémon, deux familles mêlées : il n'a de valeur que si les deux lots ne
     partagent aucune carte."""
     prints = [impression(number=f"{i:03d}") for i in range(20)]
-    group = Group(name="Unit/Normal", laid=False, prints=prints)
+    group = Group(name="Unit/Normal", kind="Unit", laid=False, prints=prints)
     premier = {p.number for p in group.draw(8)}
     second = {p.number for p in group.draw(8, offset=8)}
     assert len(premier) == len(second) == 8

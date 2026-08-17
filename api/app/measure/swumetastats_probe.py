@@ -148,6 +148,31 @@ class DeckProbe:
         target.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         return data
 
+    def tournaments(self, limit: int = 500) -> list[dict[str, Any]]:
+        """Les tournois, avec leur format déclaré.
+
+        **Le format n'est pas sur la decklist, il est sur le tournoi.** C'est
+        pourtant lui qui décidera des valeurs admises par `decks.format`, et la
+        leçon Yu-Gi-Oh interdit de le déduire d'un nom : `Advanced` y avait été
+        déclaré parce qu'il porte le nom du format courant, et il ne comptait
+        que trois decklists sur 168 tournois.
+        """
+        target = self.cache / f"tournaments_{limit}.json"
+        if target.is_file():
+            return json.loads(target.read_text(encoding="utf-8")).get("tournaments") or []
+
+        url = f"{BASE}/tournaments?" + urllib.parse.urlencode({"limit": str(limit)})
+        self._log(f"  GET {url}")
+        started = time.monotonic()
+        payload = _fetch(url)
+        self.seconds += time.monotonic() - started
+        self.requests += 1
+        time.sleep(PAUSE_SECONDS)
+
+        data = json.loads(payload.decode("utf-8"))
+        target.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        return data.get("tournaments") or []
+
     def count(self, start: str, end: str) -> int:
         """Nombre de decklists que la source déclare sur la fenêtre.
 
