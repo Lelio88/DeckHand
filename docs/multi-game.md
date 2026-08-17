@@ -2761,6 +2761,23 @@ ligne près. C'est ce plafond qui rend le scan possible : la zone retenue est de
 l'illustration pure, présente à l'identique sur une photo de carton, qui n'est
 pas marqué.
 
+### Ce que l'index annonce quand il ne devrait rien dire
+
+`app.measure.art_collisions --game onepiece`, seuils mesurés : distance ≤ 12,
+marge ≥ 4.
+
+| | One Piece |
+|---|---|
+| confondables (une autre carte sous le seuil) | 173 (4,40 %) |
+| **annoncées à tort avec assurance** | 43 (1,09 %) |
+| dont **sous un autre nom** — le chiffre comparable | 54 (1,37 %) |
+| paire la plus serrée | 2 bits |
+
+Les intrusions — une carte d'un autre jeu présentée à cet index — restent entre
+0,65 % et 1,60 %, la plus proche à 6 bits. C'est la fourchette des six autres
+jeux, et elle ne se voit pas en pratique : l'application n'interroge que l'index
+du jeu sélectionné.
+
 ### Les decks — 2 526 listes, et un leader qui n'est pas une zone
 
 `api/app/ingestion/limitless_onepiece_ingest.py`, Limitless sous `?game=OP`.
@@ -2916,6 +2933,27 @@ disait « ces cartes sont indiscernables » là où il fallait lire « l'image e
 déformée ». **L'orientation se vérifie sur l'image, jamais sur un champ** — le
 piège Wankul, mot pour mot. Un quart de tour **horaire** les redresse, et
 `index_builder.upright` l'applique avant de hacher.
+
+### Ce que l'index annonce quand il ne devrait rien dire
+
+`app.measure.art_collisions --game lorcana`, mêmes seuils.
+
+| | Lorcana |
+|---|---|
+| confondables (une autre carte sous le seuil) | 356 (11,15 %) |
+| annoncées à tort avec assurance | 81 (2,54 %) |
+| dont **sous un autre nom** — le chiffre comparable | 53 (**1,66 %**) |
+| paire la plus serrée | 0 bit |
+
+**L'écart entre 2,54 % et 1,66 % est le prix des rééditions**, et il est bénin :
+la différence est faite de tirages d'une *même* carte qui se confondent entre
+eux. « Jolly Roger » en promo et en extension partagent leur illustration ; se
+tromper entre les deux ne change ni le nom, ni les règles, ni le deck — seulement
+le prix affiché. C'est pourquoi le banc rend les deux chiffres séparément : le
+premier compterait comme défaut ce qui n'en est pas un.
+
+1,66 % situe Lorcana entre One Piece (1,37 %) et le pire cas du projet, dans la
+fourchette où les six autres jeux se tiennent.
 
 ### Le gabarit de deck — le plus petit corpus du projet
 
