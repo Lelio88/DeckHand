@@ -2499,3 +2499,105 @@ tous leur leader.
 - **une carte de papier**. Le format 63 × 88 est présumé pour ce jeu comme il
   l'était pour Wankul ; et le précédent Riftbound rappelle qu'un gabarit mesuré
   sur des rendus doit encore rencontrer une photo.
+
+---
+
+## 11. One Piece — la mesure, avant toute ingestion
+
+**Rien de One Piece n'est en base.** Comme pour Pokémon (#28) et SWU (§ 10), ce
+chantier commence par mesurer ce que les sources publient vraiment.
+
+### Trois catalogues, et deux se ferment d'eux-mêmes
+
+| Source | Ce que ses règles publiées disent |
+|---|---|
+| **apitcg.com** | `Disallow: /api/` — l'API qui servirait est nommément interdite. C'est le motif exact qui avait écarté piltoverarchive |
+| **onepiece-cardgame.dev** | répond à toute requête par une page Cloudflare « Just a moment… ». C'est une **détection de robot**, non une absence — et on ne contourne pas une protection |
+| **optcgapi.com** | ni `robots.txt` ni conditions (404 sur les deux), API documentée publiquement → **§IV.9**, conditions de Scryfall |
+
+La distinction du deuxième cas mérite d'être tenue : Cardmarket avait rendu 403
+sur une requête simple alors qu'il fallait conclure « ce jeu n'y est pas », et
+ici il faut conclure « cette porte est fermée ». Les deux erreurs sont
+symétriques, et toutes deux se règlent en regardant *ce que le site dit*, pas
+seulement ce qu'il répond.
+
+### Le catalogue se lit par deux portes, et l'oublier en couperait un huitième
+
+Les 21 extensions viennent de `/api/allSets/` ; les **29 decks de démarrage**
+ont leur propre chemin, `/api/allDecks/`, et `/api/sets/ST-01/` répond « Card
+was not found! ».
+
+| | Entrées | |
+|---|---|---|
+| Extensions | 3 485 | |
+| Decks de démarrage | **507** | dont **286 codes que rien d'autre n'apporte** |
+| Total | **3 992** | 2 541 cartes |
+
+Ce n'est pas un supplément : les decklists de tournoi citent ces cartes
+couramment — `ST32` apparaît dès le premier deck relevé chez Limitless. Sans le
+second parcours, ces citations seraient restées introuvables sans que rien ne
+dise pourquoi.
+
+### L'identité est le code, et il a fallu deux corrections pour le voir
+
+`card_set_id` (`OP01-077`) désigne la carte ; `card_image_id` (`OP01-077_p1`)
+désigne l'impression. Mais la source suffixe aussi les **noms**, et c'est là que
+le banc s'est trompé deux fois :
+
+| Règle de retrait | Codes qui semblaient réunir deux cartes |
+|---|---|
+| un seul suffixe parenthésé | **316** |
+| tous les suffixes parenthésés | 79 |
+| plus le code accolé par tiret (« Buggy **- OP03-008** ») | **4** |
+
+Les quatre qui restent sont des **fautes de la source**, non de la règle : une
+entrée « Buggy » rangée sous le code de Zoro-Juurou, un tiret sans espace
+(« Jewelry Bonney **-**PRB02-004 »), un suffixe qui est un nom d'extension, et
+une coquille — « Sakazuk » pour « Sakazuki ». Les absorber demanderait de
+normaliser jusqu'à ce que tout concorde, ce qui produit des faux couples.
+
+**Ce sont les espaces autour du tiret qui protègent les noms**, et ce n'est pas
+cosmétique : « Zoro-Juurou » en porte un. Un motif plus lâche l'amputerait, et
+deux cartes deviendraient une.
+
+**Le nom ne dit pas la variante, le rendu si.** Les deux marques ne concordent
+que sur 3 225 entrées sur 3 992 : « Donquixote Doflamingo (073) » porte un
+suffixe qui est le **numéro**, pas un tirage. C'est `card_image_id` qui tranche.
+
+### Le résultat qui décide de la reconnaissance : 361 homonymes
+
+| | |
+|---|---|
+| Cartes | 2 541 |
+| Noms de base distincts | **1 127** |
+| Noms portés par plusieurs cartes | **361** |
+| Séparables par type, couleur et coût | 247 sur 361 |
+
+« Monkey.D.Luffy » désigne **62 cartes**, « Trafalgar Law », « Sanji »,
+« Roronoa Zoro » et « Jinbe » vingt-huit chacun. C'est bien au-delà des 80
+homonymes de Riftbound, qui avaient suffi à faire primer l'illustration sur le
+nom pour ce jeu.
+
+Et **114 groupes ne se séparent ni par le type, ni par la couleur, ni par le
+coût** : seule l'illustration les distingue. Deux conséquences à porter dans la
+suite du chantier — la reconnaissance devra s'appuyer sur l'empreinte, et la
+saisie devra montrer les vignettes, comme elle le fait déjà pour Riftbound.
+
+### Quatre types, et les Leaders n'ont pas de coût
+
+Character 3 094 · Event 548 · Leader 285 · Stage 65. Les **285 Leaders** sont
+sans coût — ils portent une vie —, ce qui est le même piège que `cmc` chez
+Pokémon : le champ existe, la grandeur n'est pas celle qu'on croit.
+
+### Ce qui reste dû
+
+- **les fenêtres d'illustration**, une par maquette ;
+- **le chaînage des prix** : cette source ne publie aucun identifiant
+  TCGplayer, contrairement à Riftcodex et SWU-DB. Le rapprochement passera par
+  extension et numéro, comme pour Yu-Gi-Oh — dont le catalogue écrit `LOB-EN005`
+  là où TCGplayer écrit `LOB-005`, si bien que sans normalisation **aucune**
+  carte n'aurait été cotée, et l'échec aurait été muet. 52 codes promo de forme
+  `P-055` sortent du vocabulaire attendu et demanderont leur propre règle ;
+- **le corpus de decks**, chez Limitless (`game=OP`) : le connecteur de Pokémon
+  y mène, et les listes y sont structurées par code d'impression — ~7 300
+  decklists relevées sur six mois.

@@ -106,6 +106,8 @@ cd app && dart run tool/stream_bench.dart   # --cards N --regime <nom> --noise N
 cd api && .venv/Scripts/python -m app.ingestion.swu_ingest         # catalogue Star Wars Unlimited
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_swu_prices  # prix SWU (--force)
 cd api && .venv/Scripts/python -m app.ingestion.swumetastats_ingest # decks SWU (--days N, défaut 30)
+# One Piece : mesure seule, aucune ingestion — voir docs/multi-game.md §11
+cd api && .venv/Scripts/python -m app.measure.onepiece_taxonomy       # périmètre, identité, homonymes
 # Bancs Star Wars Unlimited — voir docs/multi-game.md §10
 cd api && .venv/Scripts/python -m app.measure.swu_taxonomy           # périmètre, identité, orientation, finitions
 cd api && .venv/Scripts/python -m app.measure.swu_decks              # --days N --limit N : gabarit, résolution, aspects
