@@ -34,7 +34,17 @@ enum DeckFormat {
   /// et un deck Wankul se construirait sur les proportions d'un autre jeu sans
   /// que rien ne l'annonce. Le nom vient des « règles de tournoi » publiées par
   /// l'éditeur, qui est le vocabulaire du jeu.
-  tournament('tournament', 'Tournoi');
+  tournament('tournament', 'Tournoi'),
+
+  /// Star Wars Unlimited. **Le seul format qui porte le corpus**, et il est
+  /// mesuré : `Premier` couvre 19 tournois sur 20, tous officiels, le
+  /// vingtième n'en déclarant aucun.
+  ///
+  /// Comme `tournament` pour Wankul, c'est un identifiant distinct plutôt
+  /// qu'un partage de `constructed` : `DeckBlueprint.of` ne reçoit que le
+  /// format, jamais le jeu, et partager l'identifiant ferait construire un deck
+  /// SWU sur les proportions d'un autre jeu sans que rien ne l'annonce.
+  premier('premier', 'Premier');
 
   const DeckFormat(this.id, this.label);
 
@@ -78,12 +88,15 @@ const _pokemonFormats = [DeckFormat.standard];
 
 const _wankulFormats = [DeckFormat.tournament];
 
+const _swuFormats = [DeckFormat.premier];
+
 List<DeckFormat> deckFormatsFor(Game game) => switch (game) {
   Game.magic => _magicFormats,
   Game.riftbound => _riftboundFormats,
   Game.yugioh => _yugiohFormats,
   Game.pokemon => _pokemonFormats,
   Game.wankul => _wankulFormats,
+  Game.swu => _swuFormats,
 };
 
 class DeckSuggestion {

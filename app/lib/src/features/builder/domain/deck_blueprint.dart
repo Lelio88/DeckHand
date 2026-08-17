@@ -175,7 +175,74 @@ class DeckBlueprint {
     // sera en base : les deux manques s'y trouveront ou non, et c'est le
     // catalogue qui tranchera.
     DeckFormat.tournament => null,
+    DeckFormat.premier => swuPremier,
   };
+
+  /// Star Wars Unlimited — **mesuré sur 220 listes de tournoi**, et le premier
+  /// gabarit d'un jeu qui a tout ce qu'il faut du premier coup.
+  ///
+  /// Riftbound n'a pas le sien parce que ses notions n'ont pas été mesurées ;
+  /// Yu-Gi-Oh a fallu refaire le constructeur sur ses axes ; Wankul connaît ses
+  /// règles mais manque des champs pour les vérifier. Ici les trois familles
+  /// sont **imprimées dans le type**, la taille est un contrat, et le coût est
+  /// un vrai coût de mise en jeu.
+  ///
+  /// **La taille est 50 et non la médiane de 51.** C'est à la fois le mode du
+  /// corpus — 100 listes sur 220 — et le minimum réglementaire du jeu : viser
+  /// la médiane produirait un deck légal mais une carte au-dessus du plancher,
+  /// là où viser le plancher produit le deck le plus accessible, ce qui est la
+  /// question que ce produit pose.
+  ///
+  /// **`usesColorIdentity` est vrai, et c'est mesuré — pas supposé.** Yu-Gi-Oh
+  /// a montré qu'un champ ressemblant à une identité de couleur peut n'imposer
+  /// aucune contrainte, et y filtrer écartait 32 % de son catalogue. SWU est
+  /// l'inverse : **79,1 % des decks tiennent entièrement dans les aspects** de
+  /// leur leader et de leur base, la part hors aspect ayant une médiane de
+  /// 0,0 % et un écart interquartile de 0,0 point.
+  ///
+  /// La réserve à connaître : un deck sur cinq joue hors aspect, jusqu'à 22 %
+  /// de ses cartes — le jeu le pénalise de deux ressources sans l'interdire.
+  /// Le filtre est donc un peu plus strict que le méta réel, dans le sens sûr :
+  /// il propose des decks jouables sans surcoût plutôt que des decks que la
+  /// collection ne peut pas payer.
+  ///
+  /// Le leader tient la place du commandant, comme la Légende de Riftbound :
+  /// il est à un exemplaire dans 220 listes sur 220, et c'est par lui qu'on
+  /// choisit un deck.
+  static const swuPremier = DeckBlueprint(
+    size: 50,
+    // La règle du jeu, et le corpus la confirme sur 4 722 entrées — avec une
+    // seule liste à 15 exemplaires, qui trahit une saisie fautive plutôt
+    // qu'une infraction. Même figure que le deck HAT à six exemplaires chez
+    // Yu-Gi-Oh.
+    maxCopies: 3,
+    needsCommander: true,
+    // Aucun terrain : on ne joue pas de carte-ressource dans ce jeu, on
+    // défausse une carte de sa main pour en faire une ressource. `null` et non
+    // zéro — il n'y a rien à manquer, comme pour Yu-Gi-Oh.
+    lands: null,
+    curveLabel: 'ressources',
+    roles: {
+      CardRole.unit: Quota(81.0, 10.3),
+      CardRole.event: Quota(12.0, 8.0),
+      CardRole.upgrade: Quota(5.0, 4.3),
+    },
+    // Mesurée sur les mêmes listes. Le coût 0 n'existe pas dans le deck
+    // principal — 0,0 % avec un écart nul —, et le palier 6+ est le plus
+    // dispersé (17,4 points) : c'est là que les archétypes divergent.
+    curve: [
+      CurveStep(1, 1, Quota(2.0, 10.0)),
+      CurveStep(2, 2, Quota(25.0, 6.2)),
+      CurveStep(3, 3, Quota(25.5, 7.2)),
+      CurveStep(4, 4, Quota(15.7, 6.0)),
+      CurveStep(5, 5, Quota(11.8, 4.4)),
+      CurveStep(6, 99, Quota(19.6, 17.4)),
+    ],
+    // Un seul format, mais tous les archétypes du méta y sont mêlés : 10,3
+    // points d'écart sur les unités, 17,4 sur le haut de courbe. La médiane
+    // décrit un deck plausible, pas un deck existant.
+    reliability: BlueprintReliability.averaged,
+  );
 
   /// Mesuré sur 190 précons. Le format le plus régulier du corpus.
   static const commander = DeckBlueprint(

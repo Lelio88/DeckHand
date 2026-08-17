@@ -2441,6 +2441,51 @@ connexion et la base restait **vide** — le connecteur comptait ce qu'il croyai
 compteur d'écritures n'est pas un compteur de résultats*, et seul le décompte
 en base les sépare.
 
+### Le constructeur — le premier jeu qui a tout ce qu'il faut du premier coup
+
+Les quatre jeux précédents ont chacun buté quelque part : Riftbound n'a
+toujours pas de gabarit faute d'avoir mesuré ses notions ; Yu-Gi-Oh a demandé de
+**refaire le constructeur sur ses axes** ; Pokémon n'a ni terrain ni courbe,
+`cmc` y portant les points de vie ; Wankul connaît ses règles publiées et manque
+des champs pour les vérifier. SWU a les trois choses d'un coup — des familles
+**imprimées dans le type**, une taille qui est un plancher réglementaire, et un
+coût qui est un vrai coût de mise en jeu.
+
+| Gabarit `premier` | Mesuré sur 220 listes |
+|---|---|
+| Taille | **50** — le mode (100 listes sur 220) *et* le minimum légal |
+| Exemplaires | 3, confirmé sur 4 722 entrées |
+| Leader | exigé, à la place du commandant |
+| Terrains | **`null`**, pas zéro : on ne joue pas de carte-ressource dans ce jeu |
+| Unités | 81,0 % (écart 10,3) |
+| Événements | 12,0 % (écart 8,0) |
+| Améliorations | 5,0 % (écart 4,3) |
+| Courbe | coût 1 : 2,0 % · 2 : 25,0 % · 3 : 25,5 % · 4 : 15,7 % · 5 : 11,8 % · **6+ : 19,6 %** (écart 17,4) |
+
+**La taille vise le plancher et non la médiane** : viser 51 produirait un deck
+légal mais une carte au-dessus du minimum, là où viser 50 produit le deck le
+plus accessible — ce qui est la question que ce produit pose.
+
+**`usesColorIdentity` vaut vrai, et c'est l'inverse exact de Yu-Gi-Oh.** Là-bas,
+un champ qui ressemblait à une identité de couleur n'imposait aucune contrainte,
+et y filtrer écartait 32 % du catalogue. Ici la contrainte existe et se mesure :
+79,1 % des decks tiennent entièrement dans les aspects de leur leader et de leur
+base. La réserve à connaître : un deck sur cinq joue hors aspect, jusqu'à 22 %
+de ses cartes — le filtre est donc un peu plus strict que le méta réel, dans le
+sens sûr, puisqu'il propose des decks jouables sans surcoût.
+
+**Le coût 0 n'existe pas** dans le deck principal — 0,0 % avec un écart nul — et
+le palier 6+ est le plus dispersé, à 17,4 points : c'est là que les archétypes
+divergent.
+
+### Vérifié de bout en bout, sous le rôle qui subira les règles
+
+Sous `authenticated`, dans une transaction annulée :
+`deck_suggestions(p_format => 'premier', p_game => 'swu')` rend des decks avec
+leur attribution SWU Meta Stats. **Aucune carte d'un autre jeu n'est entrée dans
+un deck SWU** — vérifié par jointure, zéro ligne — et les decks importés portent
+tous leur leader.
+
 ### Ce qui reste dû
 
 - **éprouver les gabarits sur des photos**, et non sur des rendus : c'est le

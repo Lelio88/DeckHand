@@ -25,7 +25,8 @@ enum Game {
   riftbound('riftbound', 'Riftbound'),
   yugioh('yugioh', 'Yu-Gi-Oh!'),
   pokemon('pokemon', 'Pokémon'),
-  wankul('wankul', 'Wankul');
+  wankul('wankul', 'Wankul'),
+  swu('swu', 'Star Wars Unlimited');
 
   const Game(this.id, this.label);
 

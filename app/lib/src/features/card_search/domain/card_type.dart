@@ -104,10 +104,27 @@ const _wankulTypes = [
   CardType('Terrain', 'Terrain'),
 ];
 
+/// **Cinq types, et ce sont ceux du jeu** — le vocabulaire de la source, qui
+/// est aussi celui imprimé sur la carte. Ils partitionnent le catalogue sans
+/// reste : 1 369 unités, 414 événements, 154 leaders, 154 améliorations,
+/// 90 bases.
+///
+/// C'est le même vocabulaire qui décide de la fenêtre d'illustration, un
+/// événement portant la sienne en bas et un leader étant imprimé en travers.
+/// Un type ne sert donc pas qu'à filtrer ici : il traverse le produit.
+const _swuTypes = [
+  CardType('Unit', 'Unité'),
+  CardType('Event', 'Événement'),
+  CardType('Upgrade', 'Amélioration'),
+  CardType('Leader', 'Leader'),
+  CardType('Base', 'Base'),
+];
+
 List<CardType> cardTypesFor(Game game) => switch (game) {
   Game.magic => _magicTypes,
   Game.riftbound => _riftboundTypes,
   Game.yugioh => _yugiohTypes,
   Game.pokemon => _pokemonTypes,
   Game.wankul => _wankulTypes,
+  Game.swu => _swuTypes,
 };

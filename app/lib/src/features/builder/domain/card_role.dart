@@ -75,6 +75,22 @@ enum CardRole {
 
   /// Stade : un seul en jeu, et il remplace celui de l'adversaire.
   stadium,
+
+  // --- Star Wars Unlimited ---------------------------------------------
+  /// **Trois familles qui partitionnent le deck principal**, et le type les
+  /// imprime — comme chez Yu-Gi-Oh et Pokémon, rien n'est deviné dans un texte.
+  /// Mesuré sur 220 listes : 81,0 % d'unités, 12,0 % d'événements, 5,0 %
+  /// d'améliorations.
+  ///
+  /// Le leader et la base n'y figurent pas : ils sont à **un exemplaire chacun
+  /// dans 220 listes sur 220**, ce qui est une règle et non une proportion à
+  /// doser. Le leader occupe `commander_oracle_id`, comme la Légende de
+  /// Riftbound.
+  unit,
+
+  event,
+
+  upgrade,
 }
 
 /// Les rôles que ce jeu sait reconnaître, dans l'ordre où on les affiche.
@@ -97,6 +113,7 @@ Set<CardRole> rolesFor(String game) => switch (game) {
     CardRole.item,
     CardRole.stadium,
   },
+  'swu' => const {CardRole.unit, CardRole.event, CardRole.upgrade},
   _ => const {
     CardRole.creature,
     CardRole.draw,
@@ -131,6 +148,7 @@ Set<CardRole> rolesOf(BuildableCard card) =>
     switch (card.game) {
       'yugioh' => _yugiohRoles(card),
       'pokemon' => _pokemonRoles(card),
+      'swu' => _swuRoles(card),
       _ => _magicRoles(card),
     };
 
@@ -190,4 +208,22 @@ Set<CardRole> _yugiohRoles(BuildableCard card) {
   if (type.contains('Quick-Play Spell')) roles.add(CardRole.quickSpell);
   if (type.contains('Continuous Trap')) roles.add(CardRole.continuousTrap);
   return roles;
+}
+
+/// **Le type imprimé suffit, une troisième fois.** La ligne de type SWU
+/// commence par le type publié par la source — « Unit — REBEL TROOPER »,
+/// « Event », « Upgrade » — et c'est ce même vocabulaire qui décide de la
+/// fenêtre d'illustration.
+///
+/// Les trois familles **partitionnent** le deck principal, contrairement aux
+/// rôles Magic qui se recouvrent : une carte est une unité, un événement ou une
+/// amélioration, jamais deux à la fois. Le leader et la base ne sont pas dosés
+/// — un exemplaire chacun dans 220 listes sur 220 est une règle, pas une
+/// proportion.
+Set<CardRole> _swuRoles(BuildableCard card) {
+  final type = card.typeLine;
+  if (type.startsWith('Unit')) return const {CardRole.unit};
+  if (type.startsWith('Event')) return const {CardRole.event};
+  if (type.startsWith('Upgrade')) return const {CardRole.upgrade};
+  return const {};
 }
