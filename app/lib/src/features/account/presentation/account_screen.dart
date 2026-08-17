@@ -178,10 +178,11 @@ class _GamePicker extends ConsumerWidget {
                 'le TCG League of Legends — 929 cartes, 2 500 decks',
               Game.yugioh => '13 866 cartes, 3 935 decks',
               Game.pokemon => '20 964 cartes, 23 574 decks',
-              // **Le seul jeu dont le catalogue n'est pas encore en base.** La
-              // tuile le dit plutôt que d'annoncer zéro : « 0 carte » se lit
-              // comme une panne, « à venir » comme un état.
-              Game.wankul => 'le TCG de Wankil Studio — catalogue à venir',
+              // **Le seul jeu sans decks, et ce n'est pas un retard** : aucun
+              // corpus de listes n'est publié pour lui. La tuile annonce donc
+              // les cartes seules — écrire « 0 deck » se lirait comme une panne
+              // là où c'est une propriété du jeu.
+              Game.wankul => 'le TCG de Wankil Studio — 958 cartes',
             },
             // **Les prix Riftbound sont convertis, et ça se dit ici.** Ils sont
             // relevés en dollars chez TCGplayer ; l'euro affiché passe par le
@@ -204,10 +205,11 @@ class _GamePicker extends ConsumerWidget {
               // **Wankul n'aura pas de prix, et ce n'est pas un retard.** Les
               // quatre autres jeux sont cotés parce qu'ils ont un marché
               // secondaire indexé — TCGplayer, relevé par TCGCSV. Wankul se
-              // vend en direct par son éditeur : il n'existe aucune cote carte
-              // par carte à ingérer. La collection s'y compte et s'y range,
-              // elle ne s'y valorise pas.
-              Game.wankul => 'Sans valorisation : ce jeu n\'a pas de marché coté',
+              // vend en direct par son éditeur, et la recherche a été menée :
+              // ni TCGCSV, ni Cardmarket, ni aucun index public ne le cote carte
+              // par carte (voir `docs/multi-game.md` §9). La collection s'y
+              // compte et s'y range, elle ne s'y valorise pas.
+              Game.wankul => 'Sans valorisation : aucun index ne cote ce jeu',
             },
             selected: game == selected,
             onTap: game == selected
