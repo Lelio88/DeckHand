@@ -76,10 +76,11 @@ CE QU'IL FAIT
 • Journal : ce qui est entré et sorti de la collection, et quand.
 • Partage : montrez un classeur à un ami par un lien, si vous le décidez. Rien n'est public par défaut.
 
-QUATRE JEUX
+CINQ JEUX
 
-Magic: The Gathering (Pauper, Commander, Modern), Pokémon, Yu-Gi-Oh et Riftbound. Chaque jeu a ses
-règles de construction, ses formats et ses prix propres — pas un moule commun.
+Magic: The Gathering (Pauper, Commander, Modern), Pokémon, Yu-Gi-Oh, Riftbound et Wankul. Chaque jeu
+a ses règles de construction, ses formats et ses prix propres — pas un moule commun. Wankul se
+saisit, se range et se compte, mais ne se valorise pas : aucun index public ne cote ce jeu.
 
 LA RECONNAISSANCE SE FAIT SUR VOTRE APPAREIL
 
@@ -215,7 +216,28 @@ Le compte de service ne peut pas atteindre la production — la permission n'a p
 été accordée, à dessein. Voir `INFRASTRUCTURE.md` §compte de service à la racine
 des projets.
 
-## 7. Ce qui manque encore
+## 7. Les captures de la fiche
 
-- **Les captures d'écran** de la fiche — au moins deux, à faire sur l'appareil.
-  Seule pièce que rien ne peut produire sans lui.
+**Quatre, prises sur l'appareil**, toutes en 1224 × 2720 (9:16), dans
+`app/store/` :
+
+| Fichier | Ce qu'elle montre |
+|---|---|
+| `01-classeurs.png` | l'étagère, et le **regroupement par sortie** — une extension mère, ses satellites Commander et jetons |
+| `02-classeur.png` | une page de classeur : possédées en clair avec leur nombre, manquantes en fantôme avec leur numéro |
+| `03-decks.png` | le constructeur : **trois decks jouables en même temps, aucune carte partagée**, et ce que chacun vise |
+| `04-recherche.png` | la saisie — prix, formats légaux, et les quatre modes d'entrée (clavier, voix, photo, étalement) |
+
+Elles couvrent les quatre piliers de la description longue. Play en accepte
+jusqu'à huit ; ces quatre suffisent à raconter l'application.
+
+**Rien ne bloque plus la production côté matière.** Ce qui reste est de la
+console, et ne peut pas passer par l'API : créer la version de production,
+répondre aux questionnaires (déjà rédigés en § 5), et publier. Le compte de
+service n'a pas le droit d'atteindre la production, à dessein.
+
+⚠ **Passer en production rend l'application publique.** La fiche devient
+trouvable par n'importe qui et le contact `heianenterpriseyt@gmail.com` visible.
+Le dépôt est déjà public, mais l'usage décrit dans le `CLAUDE.md` — « le
+propriétaire et quelques amis » — reste vrai fonctionnellement sans l'être en
+vitrine. Un test fermé suffit si ce n'est pas le but.
