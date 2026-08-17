@@ -330,6 +330,40 @@ def test_une_url_sans_identifiant_ne_produit_pas_de_cle_inventee():
     assert media_uuid("/media/origins/031-garagiste/vignette.jpg") is None
 
 
+def test_seules_les_raretes_qui_disent_holo_declarent_la_brillante():
+    """**Deux raretés sur vingt-sept, et c'est tout ce que la source affirme.**
+    Son point `/rarities` publie le taux de tirage, pas la finition ; `holoMasks`
+    n'en dit rien non plus — 48 cartes en portent quand 71 « Ultra rare holo »
+    n'en ont pas, ce sont des calques de rendu pour le site.
+
+    « Légendaire Or » à 0,08 % de tirage est probablement brillante elle aussi.
+    C'est justement pour ça qu'elle rend `None` : « probablement » n'est pas une
+    donnée, et `None` laisse le comportement d'avant au lieu d'inventer."""
+    holo = card_from({**payload_carte("1", "BIGFLO"),
+                      "rarity": {"name": "Ultra rare holo 1",
+                                 "slug": "ultra-rare-holo-1"}})
+    dore = card_from({**payload_carte("2", "ROI"),
+                      "rarity": {"name": "Légendaire Or", "slug": "legendaire-or"}})
+    commune = card_from(payload_carte("3", "BRAQUEUR"))
+
+    assert holo.finishes == ["foil"]
+    assert dore.finishes is None
+    assert commune.finishes is None
+
+
+def test_une_carte_wankul_ne_porte_jamais_les_deux_finitions():
+    """**La brillance y est une propriété de la carte, pas de son impression.**
+    Il n'existe pas de « Mort-Vivant ordinaire » et de « Mort-Vivant brillant » :
+    une carte est Ultra rare holo, ou elle ne l'est pas. Riftbound et Pokémon, à
+    l'inverse, en déclarent couramment deux."""
+    holo = card_from({**payload_carte("1", "BIGFLO"),
+                      "rarity": {"name": "Ultra rare holo 2",
+                                 "slug": "ultra-rare-holo-2"}})
+
+    assert holo.finishes == ["foil"]
+    assert "nonfoil" not in (holo.finishes or [])
+
+
 def test_l_impression_ne_porte_ni_prix_ni_identifiant_marchand():
     """**Wankul n'a aucun marché secondaire coté** : le jeu se vend en direct
     par son éditeur (§IV.10). Ranger un zéro se lirait « cette carte ne vaut
@@ -339,8 +373,10 @@ def test_l_impression_ne_porte_ni_prix_ni_identifiant_marchand():
 
     (row,) = conn.rows
     # scryfall_id, oracle_id, lang, printed_name, set_code, set_name,
-    # collector_number, rarity, art_crop_url, illustration_id — et rien d'autre.
-    assert len(row) == 10
+    # collector_number, rarity, art_crop_url, illustration_id, finishes — et
+    # rien d'autre. Aucune colonne de prix, dans aucun sens.
+    assert len(row) == 11
+    assert not any(isinstance(v, (int, float)) for v in row[2:])
     assert row[2] == "fr", "un jeu français annoncé anglais fausse l'affichage"
     assert row[4] == "origins" and row[5] == "Origins"
 

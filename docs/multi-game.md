@@ -860,9 +860,29 @@ pas touché : le filtre `cards.game` protège la colonne que Scryfall renseigne.
 **Cette table de traduction ne se transpose pas aux jeux voisins, et c'est
 mesuré.** Chez Yu-Gi-Oh, `subTypeName` porte une **édition** — `Unlimited`,
 `1st Edition`, `Limited` — et non une finition : l'appliquer là-bas déclarerait
-« existe en brillante » sur la foi d'un tirage. Chez Pokémon c'en est bien une
-(`Holofoil`, `Reverse Holofoil`), et la même correction s'y appliquerait avec sa
-propre table.
+« existe en brillante » sur la foi d'un tirage. Un test le verrouille.
+
+### Le même trou, jeu par jeu
+
+Le défaut touchait les quatre jeux non-Magic. Trois sont réglés, chacun avec sa
+propre source de vérité — et c'est le point : **la finition ne se déduit pas
+d'un principe, elle se lit là où le jeu la déclare.**
+
+| Jeu | Ce qui dit la finition | Déclarent la brillante |
+|---|---|---|
+| **Riftbound** | `subTypeName` de TCGCSV : `Normal`, `Foil` | **1 157** sur 1 451 |
+| **Pokémon** | `subTypeName` : `Normal`, `Holofoil`, `Reverse Holofoil` — trois valeurs, mesurées sur 15 016 lignes. La brillante inversée est repliée sur `foil`, comme le faisaient déjà les prix | **15 350** sur 20 964 |
+| **Wankul** | la **rareté**, faute de mieux — voir [§ 9](#9-wankul--un-catalogue-sans-prix-sans-decks-et-sans-images) | **89** sur 958 |
+| **Yu-Gi-Oh** | rien : son `subTypeName` est une édition | 0 — **et c'est un état, pas un oubli** |
+
+Chez Pokémon, la combinaison la plus courante est `Normal` + `Reverse Holofoil`
+— un tiers des produits mesurés. C'est le motif classique du jeu : une carte
+commune existe en ordinaire et en fond brillant.
+
+**Le contrôle qui importait, sur les cinq jeux : aucune impression n'offre plus
+zéro finition.** Une impression sans finition serait impossible à saisir ; la
+vérification passe par l'expression exacte de `card_editions`, `etched` compris —
+l'omettre faisait compter 1 505 faux positifs chez Magic.
 
 **Les 227 impressions de `VEN` restent sans prix**, faute de `tcgplayer_id` chez
 Riftcodex. TCGCSV connaît pourtant le groupe : on pourrait rapprocher par nom et
@@ -1791,8 +1811,46 @@ Eagle » sont deux cartes, pas deux tirages —, chez Riftbound 41. La règle es
 donc bornée par jeu (`GAMES_WITH_VARIANT_SUFFIX`), et ajouter un jeu demande de
 vérifier qu'aucune fusion ne réunit deux illustrations distinctes.
 
+### La brillance est une propriété de la carte, pas de son impression
+
+Wankul n'a ni prix ni `subTypeName` : sa finition ne peut venir que de la
+**rareté**. Et là, la source est avare — `/api/wankuldex/rarities` publie
+`dropRate`, `horsSerie` et `sortOrder`, aucun indicateur de brillance.
+
+**`holoMasks` n'en est pas un non plus, et c'était le piège.** Le champ existe et
+son nom promet exactement ce qu'on cherche. Mesuré : **48 cartes en portent,
+quand 71 « Ultra rare holo » n'en ont pas**. Ce sont les calques d'un effet de
+brillance animé pour le site — les 308 fichiers `opw_*`, `diag_mask_*`,
+`metal_inverted` du dossier local —, pas une propriété du carton.
+
+Deux raretés sur vingt-sept sont donc retenues, et pour une raison qui n'est pas
+une déduction : **leur nom contient « holo »**.
+
+| Rareté | Cartes | Finition déclarée |
+|---|---|---|
+| Ultra rare holo 1 | 48 | `foil` |
+| Ultra rare holo 2 | 41 | `foil` |
+| Légendaire Bronze / Argent / Or | 61 | *aucune* |
+| Edition Gold | 24 | *aucune* |
+| Gagnant Ticket Or | 19 | *aucune* |
+| DUO | 10 | *aucune* |
+| Commune, Peu Commune, Rare, Terrain | 720 | *aucune* |
+
+« Légendaire Or » à **0,08 % de tirage** est probablement brillante elle aussi —
+et c'est précisément pourquoi elle n'y est pas. « Probablement » n'est pas une
+donnée ; l'absence de déclaration laisse le comportement d'avant plutôt qu'une
+affirmation inventée. Pour en sortir, il faut quelqu'un qui ait les cartes en
+main : c'est la même nature de trou que le format du carton.
+
+**Et la liste ne porte jamais les deux valeurs.** Chez Wankul il n'existe pas de
+« Mort-Vivant ordinaire » et de « Mort-Vivant brillant » : une carte est Ultra
+rare holo, ou elle ne l'est pas. Riftbound et Pokémon, à l'inverse, en déclarent
+couramment deux.
+
 ### Ce qui reste dû
 
+- **quelles raretés sont brillantes**, pour les 114 cartes ci-dessus que la
+  source ne tranche pas. Une réponse humaine, carte en main ;
 - une **carte de papier**. Le format 63 × 88 est présumé, non vérifié sur
   carton : c'est la seule entrée de `CARD_ASPECTS` dans ce cas ;
 - un **regard sur l'appareil**. Tout ce qui précède a été vérifié en composant

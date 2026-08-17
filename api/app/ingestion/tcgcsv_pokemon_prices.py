@@ -49,6 +49,7 @@ from __future__ import annotations
 import re
 import sys
 import time
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Iterable
@@ -85,6 +86,29 @@ PLACEHOLDER_DAYS = 3
 #: seconde la variante à fond brillant d'un tirage ordinaire.
 FINISH_PLAIN = ("Normal",)
 FINISH_FOIL = ("Holofoil", "Reverse Holofoil")
+
+#: Traduction vers le vocabulaire de `card_prints.finishes`, celui de Scryfall —
+#: c'est lui que lit `card_editions` pour décider quelles finitions proposer.
+#:
+#: **Trois sous-types, et trois seulement.** Mesuré sur 15 016 lignes tirées de
+#: 60 extensions : `Normal`, `Holofoil`, `Reverse Holofoil`, rien d'autre. La
+#: table est donc fermée, comme celle de Riftbound.
+#:
+#: **La brillante inversée est repliée sur `foil`, et c'est déjà le cas des
+#: prix.** [FINISH_FOIL] les range depuis toujours dans une même colonne. En
+#: faire une troisième valeur demanderait de l'apprendre à `card_editions`, à la
+#: collection et à l'écran, pour distinguer deux nuances de brillant — alors que
+#: l'inventaire cherche à savoir si l'exemplaire possédé brille.
+#:
+#: **Le vocabulaire n'est pas celui de Riftbound**, dont la table dit
+#: `Foil` : deux jeux servis par la même source nomment différemment la même
+#: notion, d'où deux tables et non une constante partagée. Chez Yu-Gi-Oh, le même
+#: champ porte une *édition* — la transposer là-bas serait une faute.
+FINISH_BY_SUBTYPE = {
+    "Normal": "nonfoil",
+    "Holofoil": "foil",
+    "Reverse Holofoil": "foil",
+}
 
 #: Extensions que le nom ne rapproche pas et que la date ne peut pas sauver,
 #: faute de candidat. Toutes systématiques : TCGplayer ne dit ni « Black Star »
@@ -279,48 +303,102 @@ def best_prices(
     }
 
 
+def declared_finishes(rows: Iterable[dict[str, Any]]) -> dict[int, list[str]]:
+    """Les finitions que la source **déclare exister**, cotées ou non.
+
+    **La présence de la ligne est le signal, pas la présence du prix.** TCGCSV
+    publie une ligne par couple produit-finition, et elle existe même quand
+    `marketPrice` est nul — mesuré, 112 lignes dans ce cas sur 15 016. Déduire
+    les finitions des prix conclurait « cette carte n'existe pas en brillante »
+    à partir de « personne n'en vend en ce moment », ce qui n'est pas la même
+    phrase.
+
+    C'est ce qui manquait pour que le classeur propose la case « brillante » :
+    `card_editions` la refuse dès que `finishes` est vide, et seul le connecteur
+    Scryfall la remplissait. Chez Pokémon, la combinaison la plus courante est
+    précisément `Normal` + `Reverse Holofoil` — 3 493 produits sur l'échantillon
+    mesuré, soit un tiers.
+    """
+    par_produit: dict[int, set[str]] = {}
+    for row in rows:
+        finish = FINISH_BY_SUBTYPE.get(row.get("subTypeName") or "")
+        if finish is None:
+            continue
+        par_produit.setdefault(int(row["productId"]), set()).add(finish)
+    # Ordre stable : deux courses écrivent le même tableau, et un diff de base ne
+    # signale pas un changement là où il n'y en a pas.
+    return {pid: sorted(f) for pid, f in par_produit.items()}
+
+
+@dataclass(frozen=True)
+class Quote:
+    """Ce que la source dit d'une impression : ses prix, et ses finitions.
+
+    Les trois voyagent ensemble parce qu'ils sortent de la **même** réponse. Une
+    impression peut n'avoir aucun prix et une finition déclarée : c'est
+    exactement le cas que cette classe existe pour ne plus perdre.
+    """
+
+    plain: Decimal | None = None
+    foil: Decimal | None = None
+    finishes: tuple[str, ...] = ()
+
+    @property
+    def worth_writing(self) -> bool:
+        return self.plain is not None or self.foil is not None or bool(self.finishes)
+
+
 def fetch(
     client: httpx.Client, pairs: dict[str, int]
-) -> dict[tuple[str, str], tuple[Decimal | None, Decimal | None]]:
-    """Les prix, indexés par (extension du catalogue, numéro nu)."""
-    prices: dict[tuple[str, str], tuple[Decimal | None, Decimal | None]] = {}
+) -> dict[tuple[str, str], Quote]:
+    """Prix et finitions, indexés par (extension du catalogue, numéro nu)."""
+    quotes: dict[tuple[str, str], Quote] = {}
     for index, (set_id, group_id) in enumerate(pairs.items(), start=1):
         root = f"{BASE}/{CATEGORY_POKEMON}/{group_id}"
         try:
             products = _get(client, f"{root}/products")["results"]
             time.sleep(PAUSE_SECONDS)
-            by_product = best_prices(_get(client, f"{root}/prices")["results"])
+            rows = _get(client, f"{root}/prices")["results"]
         except httpx.HTTPError:
             # Une extension absente laisse ses cartes non cotées — visible —
             # plutôt que d'emporter les cent quarante autres.
             time.sleep(PAUSE_SECONDS)
             continue
+        by_product = best_prices(rows)
+        finishes = declared_finishes(rows)
         for product in products:
             extended = {d["name"]: d["value"] for d in product.get("extendedData", [])}
             number = print_number(extended.get("Number"))
-            found = by_product.get(int(product["productId"]))
+            product_id = int(product["productId"])
+            plain, foil = by_product.get(product_id, (None, None))
+            quote = Quote(plain, foil, tuple(finishes.get(product_id, ())))
             # Les produits scellés (coffrets, displays) n'ont pas de numéro.
-            if number and found and any(v is not None for v in found):
-                prices[(set_id, number)] = found
+            if number and quote.worth_writing:
+                quotes[(set_id, number)] = quote
         time.sleep(PAUSE_SECONDS)
         if index % 25 == 0:
             print(f"  {index}/{len(pairs)} extensions", end="\r", flush=True)
-    return prices
+    return quotes
 
 
 def write_prices(
     conn: psycopg.Connection,
-    prices: dict[tuple[str, str], tuple[Decimal | None, Decimal | None]],
+    quotes: dict[tuple[str, str], Quote],
     rate: Decimal,
 ) -> int:
-    """Écrit les prix sur les impressions Pokémon. Renvoie le nombre touché.
+    """Écrit prix et finitions sur les impressions Pokémon. Rend le nombre touché.
 
-    Une seule requête : `unnest` transpose six tableaux en autant de lignes, que
+    Une seule requête : `unnest` transpose les tableaux en autant de lignes, que
     la jointure consomme d'un coup — vingt mille allers-retours porteraient
     l'écriture à la demi-heure. Le filtre sur `cards.game` protège des
-    identifiants d'extension qui ne sont réservés d'aucun jeu.
+    identifiants d'extension qui ne sont réservés d'aucun jeu, et il protège
+    aussi `finishes` chez Magic, que Scryfall renseigne et qu'on ne veut surtout
+    pas réécrire depuis un vocabulaire étranger.
+
+    `COALESCE` sur les finitions : une course qui ne sait rien d'une impression
+    ne doit pas effacer ce qu'une précédente avait appris.
     """
-    if not prices:
+    if not quotes:
         return 0
 
     statement = """
@@ -328,12 +406,19 @@ def write_prices(
         SET price_usd      = v.usd,
             price_eur      = v.eur,
             price_usd_foil = v.usd_foil,
-            price_eur_foil = v.eur_foil
+            price_eur_foil = v.eur_foil,
+            -- **Les finitions voyagent en texte, découpé ici.** `unnest` ne sait
+            -- pas transposer un tableau de tableaux : il aplatirait les deux
+            -- dimensions et décalerait toutes les colonnes d'une ligne à
+            -- l'autre. Une chaîne « foil,nonfoil » par impression reste un
+            -- `text[]` ordinaire du point de vue de la transposition.
+            finishes       = COALESCE(string_to_array(v.finishes, ','), p.finishes)
         FROM public.cards c,
              unnest(%(sets)s::text[], %(nums)s::text[],
                     %(usd)s::numeric[], %(eur)s::numeric[],
-                    %(usd_foil)s::numeric[], %(eur_foil)s::numeric[])
-                 AS v(set_code, num, usd, eur, usd_foil, eur_foil)
+                    %(usd_foil)s::numeric[], %(eur_foil)s::numeric[],
+                    %(finishes)s::text[])
+                 AS v(set_code, num, usd, eur, usd_foil, eur_foil, finishes)
         WHERE c.oracle_id = p.oracle_id
           AND c.game = 'pokemon'
           AND p.set_code = v.set_code
@@ -343,22 +428,46 @@ def write_prices(
                              '\1\2', 'g') = v.num
     """
 
-    keys = list(prices)
+    keys = list(quotes)
     with conn.cursor() as cur:
         cur.execute(
             statement,
             {
                 "sets": [k[0] for k in keys],
                 "nums": [k[1] for k in keys],
-                "usd": [prices[k][0] for k in keys],
-                "eur": [to_euros(prices[k][0], rate) for k in keys],
-                "usd_foil": [prices[k][1] for k in keys],
-                "eur_foil": [to_euros(prices[k][1], rate) for k in keys],
+                "usd": [quotes[k].plain for k in keys],
+                "eur": [to_euros(quotes[k].plain, rate) for k in keys],
+                "usd_foil": [quotes[k].foil for k in keys],
+                "eur_foil": [to_euros(quotes[k].foil, rate) for k in keys],
+                "finishes": [",".join(quotes[k].finishes) or None for k in keys],
             },
         )
         touched = cur.rowcount
     conn.commit()
     return touched
+
+
+def coverage(conn: psycopg.Connection) -> dict[str, int]:
+    """Ce que la base porte **après** écriture, et non ce qu'on a écrit.
+
+    Un compteur d'écritures n'est pas un compteur de résultats : la leçon vient
+    du corpus Limitless, et la valorisation Riftbound l'a repayée en annonçant
+    1 194 impressions cotées là où 492 portaient un prix ordinaire.
+    """
+    with conn.cursor() as cur:
+        row = cur.execute(
+            """
+            SELECT count(*),
+                   count(*) FILTER (WHERE p.price_eur IS NOT NULL
+                                       OR p.price_eur_foil IS NOT NULL),
+                   count(*) FILTER (WHERE 'foil' = ANY(p.finishes)),
+                   count(*) FILTER (WHERE 'nonfoil' = ANY(p.finishes))
+            FROM public.card_prints p
+            JOIN public.cards c ON c.oracle_id = p.oracle_id
+            WHERE c.game = 'pokemon'
+            """
+        ).fetchone()
+    return dict(zip(("impressions", "cotees", "en_brillante", "en_ordinaire"), row))
 
 
 def run(*, force: bool = False) -> int:
@@ -387,11 +496,16 @@ def run(*, force: bool = False) -> int:
                 f"{len(orphans)} sans prix"
             )
 
-            prices = fetch(client, pairs)
-            print(f"  {len(prices)} impressions cotées chez TCGplayer")
+            quotes = fetch(client, pairs)
+            print(f"  {len(quotes)} impressions connues chez TCGplayer")
 
-        touched = write_prices(conn, prices, rate)
-        print(f"  {touched} impressions valorisées")
+        touched = write_prices(conn, quotes, rate)
+        etat = coverage(conn)
+        print(f"  {touched} lignes écrites — et voici ce que la base porte :")
+        print(f"    {etat['cotees']}/{etat['impressions']} impressions cotées "
+              f"dans au moins une finition")
+        print(f"    {etat['en_ordinaire']} existent en ordinaire, "
+              f"{etat['en_brillante']} en brillante")
         record(
             conn,
             SOURCE,

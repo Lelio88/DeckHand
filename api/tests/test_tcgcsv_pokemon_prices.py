@@ -156,6 +156,66 @@ def test_holofoil_prime_sur_reverse_holofoil():
     assert best_prices(rows)[2] == (None, Decimal("9.0"))
 
 
+def test_une_finition_sans_prix_existe_quand_meme():
+    """**Le cœur de la correction.** `card_editions` refuse la case « brillante »
+    dès que `finishes` est vide, et seul le connecteur Scryfall la remplissait :
+    aucune carte Pokémon ne pouvait être déclarée holographique. TCGCSV publie
+    pourtant une ligne par couple produit-finition, et elle existe même sans
+    `marketPrice` — mesuré, 112 lignes sur 15 016."""
+    from app.ingestion.tcgcsv_pokemon_prices import declared_finishes
+
+    rows = [
+        {"productId": 1, "subTypeName": "Normal", "marketPrice": 0.25},
+        {"productId": 1, "subTypeName": "Reverse Holofoil", "marketPrice": None},
+    ]
+
+    # Le prix reste absent : on ne valorise pas sur une annonce aberrante.
+    assert best_prices(rows) == {1: (Decimal("0.25"), None)}
+    # La finition, elle, est déclarée — c'est la combinaison la plus courante du
+    # jeu, un tiers des produits mesurés.
+    assert declared_finishes(rows)[1] == ["foil", "nonfoil"]
+
+
+def test_la_brillante_inversee_compte_comme_brillante():
+    """Elle l'est déjà pour les prix : `FINISH_FOIL` range les deux dans une même
+    colonne depuis toujours. En faire une troisième valeur demanderait de
+    l'apprendre à `card_editions`, à la collection et à l'écran, pour distinguer
+    deux nuances de brillant — alors que l'inventaire cherche à savoir si
+    l'exemplaire possédé brille."""
+    from app.ingestion.tcgcsv_pokemon_prices import FINISH_BY_SUBTYPE
+
+    assert FINISH_BY_SUBTYPE["Holofoil"] == "foil"
+    assert FINISH_BY_SUBTYPE["Reverse Holofoil"] == "foil"
+    assert FINISH_BY_SUBTYPE["Normal"] == "nonfoil"
+    # Table fermée : trois sous-types mesurés sur 15 016 lignes, rien d'autre.
+    assert set(FINISH_BY_SUBTYPE) == {"Normal", "Holofoil", "Reverse Holofoil"}
+
+
+def test_un_sous_type_etranger_ne_declare_rien():
+    """Le vocabulaire de Riftbound dit `Foil`, celui de Yu-Gi-Oh une édition. Deux
+    jeux servis par la même source, deux tables — et aucune ne doit accepter les
+    mots de l'autre."""
+    from app.ingestion.tcgcsv_pokemon_prices import declared_finishes
+
+    rows = [
+        {"productId": 4, "subTypeName": "Normal", "marketPrice": 1.0},
+        {"productId": 4, "subTypeName": "Foil", "marketPrice": 5.0},
+        {"productId": 4, "subTypeName": "1st Edition", "marketPrice": 90.0},
+    ]
+
+    assert declared_finishes(rows)[4] == ["nonfoil"]
+
+
+def test_une_impression_declaree_sans_prix_reste_a_ecrire():
+    """Le filtre d'avant exigeait un prix ; il perdait exactement les cartes que
+    cette correction récupère."""
+    from app.ingestion.tcgcsv_pokemon_prices import Quote
+
+    assert Quote(finishes=("foil",)).worth_writing
+    assert Quote(plain=Decimal("1")).worth_writing
+    assert not Quote().worth_writing
+
+
 def test_un_produit_sans_prix_de_marche_est_absent():
     """Mieux vaut non coté qu'une valorisation sur une annonce aberrante."""
     rows = [{"productId": 3, "subTypeName": "Normal", "marketPrice": None}]

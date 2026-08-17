@@ -91,6 +91,26 @@ EXPECTED_TOTAL = sum(EXPECTED_CARDS.values())  # 958
 #: `imageUR`, `imageLeg`, `holoMasks`, `set`, `rarity`, `artist`.
 
 
+#: Raretés dont le **nom dit** que la carte est holographique.
+#:
+#: **Deux sur vingt-sept, et c'est tout ce que la source affirme.** Le point
+#: `/api/wankuldex/rarities` publie `dropRate`, `horsSerie` et `sortOrder` — aucun
+#: indicateur de finition. `holoMasks` n'en est pas un non plus : mesuré, 48
+#: cartes en portent quand 71 « Ultra rare holo » n'en ont pas ; ce sont les
+#: calques d'un effet de brillance pour le site, pas une propriété du carton.
+#:
+#: Ces deux raretés-là ne sont donc pas une déduction : leur nom **contient**
+#: « holo ». Les autres — « Légendaire Or » à 0,08 % de tirage, « Edition Gold »,
+#: « DUO » — sont probablement brillantes elles aussi, et c'est précisément
+#: pourquoi elles n'y sont pas : « probablement » n'est pas une donnée. Elles
+#: restent sans finition déclarée, ce qui laisse le comportement d'avant
+#: (l'ordinaire proposé par défaut) plutôt qu'une affirmation inventée.
+#:
+#: Pour en sortir, il faut quelqu'un qui ait les cartes en main. C'est la même
+#: nature de trou que le format du carton, présumé 63 × 88 sans vérification.
+HOLO_RARITIES = frozenset({"ultra-rare-holo-1", "ultra-rare-holo-2"})
+
+
 def orientation_of(card: dict) -> str:
     """`horizontal` ou `vertical`, déduits du rendu et non du champ homonyme.
 
@@ -184,6 +204,10 @@ class WankulCard:
     set_code: str
     type_line: str
     rarity: str | None = None
+    #: Identifiant stable de la rareté. **C'est lui qui décide de la finition**,
+    #: pas le nom affiché : celui-ci porte accents et majuscules, et il a déjà
+    #: changé de casse une fois entre deux courses.
+    rarity_slug: str | None = None
     #: `vertical` ou `horizontal`. **C'est elle qui va dans `layout`, et non
     #: l'effigie**, contrairement à ce que ce module prévoyait d'abord.
     #:
@@ -251,6 +275,24 @@ class WankulCard:
         la bonne réponse si l'éditeur ouvrait son CDN.
         """
         return media_url(self.image_paysage or self.image_url)
+
+    @property
+    def finishes(self) -> list[str] | None:
+        """Les finitions que la rareté **affirme**, ou `None` si elle n'affirme rien.
+
+        **Chez Wankul, la brillance est une propriété de la carte, pas une
+        finition de son impression.** Il n'existe pas de « Mort-Vivant ordinaire »
+        et de « Mort-Vivant brillant » : une carte est Ultra rare holo, ou elle ne
+        l'est pas. La liste rendue ne porte donc jamais les deux valeurs, là où
+        Riftbound et Pokémon en déclarent couramment deux.
+
+        `None` plutôt qu'une liste vide : `write_prints` le traduit en « ne touche
+        pas à ce qui est déjà écrit », et `card_editions` retombe alors sur
+        l'ordinaire — le comportement d'avant, sans rien prétendre.
+        """
+        if self.rarity_slug in HOLO_RARITIES:
+            return ["foil"]
+        return None
 
     def art_url(self, base_url: str) -> str | None:
         """L'URL que l'application ira chercher : celle du dépôt d'images.
@@ -337,8 +379,9 @@ def write_prints(
     statement = """
         INSERT INTO public.card_prints (scryfall_id, oracle_id, lang, printed_name,
                                         set_code, set_name, collector_number,
-                                        rarity, art_crop_url, illustration_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        rarity, art_crop_url, illustration_id,
+                                        finishes)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (scryfall_id) DO UPDATE SET
             -- L'identité doit suivre : sans cette ligne, une impression déjà
             -- connue resterait rattachée à l'ancienne carte le jour où la règle
@@ -350,7 +393,12 @@ def write_prints(
             printed_name     = EXCLUDED.printed_name,
             rarity           = EXCLUDED.rarity,
             art_crop_url     = EXCLUDED.art_crop_url,
-            illustration_id  = EXCLUDED.illustration_id
+            illustration_id  = EXCLUDED.illustration_id,
+            -- `COALESCE` : une rareté dont on ne sait rien laisse en place ce
+            -- qu'une course précédente — ou une main humaine — aurait appris.
+            -- L'écraser à `NULL` ferait perdre la seule information que la
+            -- source ne donne pas.
+            finishes         = COALESCE(EXCLUDED.finishes, public.card_prints.finishes)
     """
 
     written = 0
@@ -377,6 +425,7 @@ def write_prints(
                     card.rarity,
                     card.art_url(base_url),
                     str(card.illustration_id) if card.illustration_id else None,
+                    card.finishes,
                 ),
             )
             written += 1
@@ -436,6 +485,7 @@ def card_from(payload: dict) -> WankulCard:
         # paysage, lui, ne suit que la maquette, et la maquette suit le type.
         type_line="Terrain" if orientation == "horizontal" else "Personnage",
         rarity=rarity,
+        rarity_slug=(payload.get("rarity") or {}).get("slug"),
         orientation=orientation,
         effigy=effigy,
         set_name=(payload.get("set") or {}).get("name"),
