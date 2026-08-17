@@ -16,7 +16,13 @@ from decimal import Decimal
 
 import pytest
 
-from app.ingestion.tcgcsv_prices import market_prices, to_euros
+from app.ingestion.tcgcsv_prices import (
+    FINISH_BY_SUBTYPE,
+    Products,
+    declared_finishes,
+    market_prices,
+    to_euros,
+)
 
 
 class TestConversion:
@@ -79,6 +85,76 @@ class TestPrixDeMarche:
             [{"productId": 9, "subTypeName": "Normal", "marketPrice": 0.1}]
         )
         assert prices[9]["Normal"] == Decimal("0.1")
+
+
+class TestFinitionsDeclarees:
+    """**Le cœur de la correction, et son piège.**
+
+    `card_editions` refuse la case « brillante » dès que `finishes` est vide, et
+    seul le connecteur Scryfall la remplissait : aucune carte Riftbound,
+    Pokémon, Yu-Gi-Oh ou Wankul ne pouvait être déclarée holographique. Sur
+    Riftbound, cela concernait 511 impressions qui existent réellement dans les
+    deux finitions, avec des écarts de prix allant jusqu'à dix-huit fois.
+    """
+
+    def test_une_finition_sans_prix_existe_quand_meme(self):
+        """**C'est tout l'enjeu.** TCGCSV publie une ligne par couple
+        produit-finition, et cette ligne existe même sans `marketPrice` —
+        mesuré, 15 lignes sur 1 993, dont une portant pourtant un `lowPrice`.
+        Déduire les finitions des prix conclurait « n'existe pas en brillante »
+        à partir de « personne n'en vend en ce moment »."""
+        rows = [
+            {"productId": 1, "subTypeName": "Normal", "marketPrice": 2.0},
+            {"productId": 1, "subTypeName": "Foil", "marketPrice": None,
+             "lowPrice": 299.9},
+        ]
+
+        # Le prix, lui, reste absent : on ne valorise pas sur une annonce isolée.
+        assert market_prices(rows)[1] == {"Normal": Decimal("2.0")}
+        # La finition, elle, est déclarée.
+        assert declared_finishes(rows)[1] == ["foil", "nonfoil"]
+
+    def test_le_vocabulaire_est_celui_de_scryfall(self):
+        """`card_editions` lit `nonfoil` et `foil` — celui de Scryfall. Écrire
+        les noms de TCGplayer y serait invisible : la colonne se remplirait et
+        la case resterait refusée."""
+        assert FINISH_BY_SUBTYPE == {"Normal": "nonfoil", "Foil": "foil"}
+
+    def test_une_edition_n_est_pas_une_finition(self):
+        """**Le piège des jeux voisins, mesuré.** Chez Yu-Gi-Oh `subTypeName`
+        porte `Unlimited`, `1st Edition`, `Limited` : des tirages, pas des
+        finitions. Les accepter déclarerait « existe en brillante » sur la foi
+        d'une édition — d'où une table de traduction fermée."""
+        rows = [
+            {"productId": 3, "subTypeName": "Normal", "marketPrice": 1.0},
+            {"productId": 3, "subTypeName": "1st Edition", "marketPrice": 90.0},
+            {"productId": 3, "subTypeName": "Reverse Holofoil", "marketPrice": 5.0},
+        ]
+
+        assert declared_finishes(rows)[3] == ["nonfoil"]
+
+    def test_l_ordre_est_stable(self):
+        """Deux courses doivent écrire le même tableau, sans quoi un diff de base
+        signale un changement là où il n'y en a pas."""
+        a = declared_finishes([
+            {"productId": 5, "subTypeName": "Foil", "marketPrice": 1.0},
+            {"productId": 5, "subTypeName": "Normal", "marketPrice": 1.0},
+        ])
+        b = declared_finishes([
+            {"productId": 5, "subTypeName": "Normal", "marketPrice": 1.0},
+            {"productId": 5, "subTypeName": "Foil", "marketPrice": 1.0},
+        ])
+        assert a == b == {5: ["foil", "nonfoil"]}
+
+    def test_un_produit_declare_sans_prix_reste_a_ecrire(self):
+        """Itérer sur les seuls produits cotés perdrait exactement les cartes que
+        cette correction récupère."""
+        produits = Products(
+            market={7: {"Normal": Decimal("1.0")}},
+            finishes={7: ["nonfoil"], 8: ["foil"]},
+        )
+
+        assert produits.product_ids == [7, 8]
 
 
 @pytest.mark.parametrize(

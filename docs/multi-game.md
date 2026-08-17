@@ -815,6 +815,54 @@ une finition », et la réponse est **1 196 sur 1 451, 82,4 %** — le reste ét
 les 227 `VEN` non chaînées ci-dessous et 28 produits que TCGCSV connaît sans
 leur trouver de prix de marché. C'est la même leçon que le corpus Limitless :
 un compteur qui ne mesure pas ce qu'on croit rend un diagnostic, pas une donnée.
+Le connecteur lit désormais la base **après** écriture et publie cet état, au
+lieu d'annoncer le nombre de lignes touchées.
+
+### La finition brillante était inatteignable, et le silence était total
+
+`card_editions` décide quelles finitions proposer en lisant
+`card_prints.finishes`, avec ce repli :
+
+```sql
+COALESCE('nonfoil' = ANY(p.finishes), true),                 -- has_nonfoil
+COALESCE('foil'    = ANY(p.finishes), false)                 -- has_foil
+```
+
+**Seul le connecteur Scryfall remplissait cette colonne.** Pour Riftbound —
+comme pour Pokémon, Yu-Gi-Oh et Wankul — elle était nulle, donc `has_foil`
+valait `false` partout : *aucune* carte de ces jeux ne pouvait être déclarée
+holographique. Rien ne le signalait, la colonne étant simplement vide.
+
+Ce que ça coûtait, mesuré sur Riftbound : **511 impressions existent dans les
+deux finitions**, avec des écarts allant jusqu'à dix-huit fois — « Pack of
+Wonders » vaut 0,53 € en ordinaire et 9,71 € en brillante. Une brillante saisie
+comme ordinaire était donc sous-évaluée d'autant. Les 704 cotées **en brillante
+seulement** ne perdaient rien, en revanche : `print_price` retombe sur l'autre
+finition faute de mieux.
+
+**La finition se lit sur la déclaration de la source, pas sur ses prix.** TCGCSV
+publie une ligne par couple produit-finition, et cette ligne existe même quand
+`marketPrice` est nul — 15 lignes dans ce cas sur 1 993, dont une portant
+pourtant un `lowPrice`. Déduire les finitions des prix conclurait « n'existe pas
+en brillante » à partir de « personne n'en vend en ce moment ».
+
+| Produits Riftbound chez TCGCSV | |
+|---|---|
+| brillante seulement | 822 |
+| les deux finitions | 511 |
+| ordinaire seulement | 149 |
+
+Résultat en base : **1 157 impressions déclarent la brillante** contre zéro
+avant, 749 l'ordinaire, et **aucune n'en offre plus une seule** — le contrôle qui
+importait, une impression sans finition étant impossible à saisir. Magic n'est
+pas touché : le filtre `cards.game` protège la colonne que Scryfall renseigne.
+
+**Cette table de traduction ne se transpose pas aux jeux voisins, et c'est
+mesuré.** Chez Yu-Gi-Oh, `subTypeName` porte une **édition** — `Unlimited`,
+`1st Edition`, `Limited` — et non une finition : l'appliquer là-bas déclarerait
+« existe en brillante » sur la foi d'un tirage. Chez Pokémon c'en est bien une
+(`Holofoil`, `Reverse Holofoil`), et la même correction s'y appliquerait avec sa
+propre table.
 
 **Les 227 impressions de `VEN` restent sans prix**, faute de `tcgplayer_id` chez
 Riftcodex. TCGCSV connaît pourtant le groupe : on pourrait rapprocher par nom et

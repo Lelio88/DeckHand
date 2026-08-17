@@ -47,6 +47,7 @@ from __future__ import annotations
 import sys
 import time
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Iterable
@@ -78,6 +79,18 @@ PAUSE_SECONDS = 0.3
 #: Le nom que TCGplayer donne à la finition ordinaire et à la brillante.
 SUBTYPE_NORMAL = "Normal"
 SUBTYPE_FOIL = "Foil"
+
+#: Traduction vers le vocabulaire de `card_prints.finishes`, qui est celui de
+#: Scryfall — c'est lui que lit `card_editions` pour décider quelles finitions
+#: proposer, et il ne se négocie pas jeu par jeu.
+#:
+#: **Ce vocabulaire n'est pas transposable aux autres jeux servis par TCGCSV, et
+#: c'est mesuré.** Chez Yu-Gi-Oh, `subTypeName` porte une **édition** —
+#: `Unlimited`, `1st Edition`, `Limited` — et non une finition : appliquer cette
+#: table là-bas déclarerait « existe en brillante » sur la foi d'un tirage.
+#: Chez Pokémon c'en est bien une (`Holofoil`, `Reverse Holofoil`), mais son
+#: vocabulaire est plus riche et demande sa propre table.
+FINISH_BY_SUBTYPE = {SUBTYPE_NORMAL: "nonfoil", SUBTYPE_FOIL: "foil"}
 
 
 def _get(client: httpx.Client, url: str) -> Any:
@@ -148,34 +161,92 @@ def market_prices(rows: Iterable[dict[str, Any]]) -> dict[int, dict[str, Decimal
     return result
 
 
-def fetch_prices(client: httpx.Client) -> dict[int, dict[str, Decimal]]:
-    """Tous les prix Riftbound, une requête par extension."""
-    prices: dict[int, dict[str, Decimal]] = {}
+def declared_finishes(rows: Iterable[dict[str, Any]]) -> dict[int, list[str]]:
+    """Les finitions que la source **déclare exister**, cotées ou non.
+
+    **La présence de la ligne est le signal, pas la présence du prix.** TCGCSV
+    publie une ligne par couple produit-finition, et cette ligne existe même
+    quand `marketPrice` est nul — mesuré : 15 lignes dans ce cas sur 1 993, dont
+    une qui porte pourtant un `lowPrice`. Déduire les finitions des prix
+    conclurait « cette carte n'existe pas en brillante » à partir de « personne
+    n'en vend en ce moment », ce qui n'est pas la même phrase.
+
+    C'est ce qui manquait pour que le classeur propose la case « brillante » :
+    `card_editions` la refuse dès que `finishes` est vide, et seul le connecteur
+    Scryfall la remplissait. Sur Riftbound, cela cachait 511 impressions qui
+    existent dans les deux finitions — avec des écarts de prix allant jusqu'à
+    dix-huit fois.
+    """
+    par_produit: dict[int, set[str]] = {}
+    for row in rows:
+        finish = FINISH_BY_SUBTYPE.get(row.get("subTypeName"))
+        if finish is None:
+            continue
+        par_produit.setdefault(int(row["productId"]), set()).add(finish)
+    # Ordre stable : deux courses écrivent le même tableau, et un diff de base
+    # ne signale pas un changement là où il n'y en a pas.
+    return {pid: sorted(f) for pid, f in par_produit.items()}
+
+
+@dataclass(frozen=True)
+class Products:
+    """Ce que TCGCSV dit du catalogue : les prix, et les finitions qui existent.
+
+    Les deux voyagent ensemble parce qu'ils sortent de la **même** réponse : les
+    séparer en deux courses doublerait les requêtes et ouvrirait la porte à ce
+    qu'un produit soit coté dans une finition qu'on ne déclare pas.
+    """
+
+    market: dict[int, dict[str, Decimal]]
+    finishes: dict[int, list[str]]
+
+    @property
+    def product_ids(self) -> list[int]:
+        """Tous les produits connus, cotés **ou seulement déclarés**.
+
+        Itérer sur les seuls produits cotés perdrait précisément les cartes que
+        cette correction cherche à récupérer : celles dont la finition est
+        publiée sans prix.
+        """
+        return sorted(set(self.market) | set(self.finishes))
+
+
+def fetch_products(client: httpx.Client) -> Products:
+    """Prix et finitions de tout Riftbound, une requête par extension."""
+    market: dict[int, dict[str, Decimal]] = {}
+    finishes: dict[int, list[str]] = {}
     for group_id in groups(client):
         payload = _get(client, f"{BASE}/{CATEGORY_RIFTBOUND}/{group_id}/prices")
-        prices.update(market_prices(payload["results"]))
+        market.update(market_prices(payload["results"]))
+        finishes.update(declared_finishes(payload["results"]))
         time.sleep(PAUSE_SECONDS)
-    return prices
+    return Products(market=market, finishes=finishes)
 
 
 def write_prices(
     conn: psycopg.Connection,
-    prices: dict[int, dict[str, Decimal]],
+    products: Products,
     rate: Decimal,
 ) -> int:
-    """Écrit les prix sur les impressions Riftbound. Renvoie le nombre touché.
+    """Écrit prix et finitions sur les impressions Riftbound.
 
     Le rapprochement se fait par `tcgplayer_id` et **seulement** par lui : c'est
     un identifiant, pas une ressemblance. Le filtre sur `cards.game` protège du
     reste — TCGplayer numérote tous ses jeux dans le même espace, et une
-    collision d'identifiant écrirait un prix Riftbound sur une carte Magic.
+    collision d'identifiant écrirait un prix Riftbound sur une carte Magic. Il
+    protège aussi `finishes` chez Magic, que Scryfall renseigne et qu'on ne veut
+    surtout pas réécrire depuis un vocabulaire étranger.
+
+    `COALESCE` sur les finitions et non `EXCLUDED` seul : une course qui ne sait
+    rien d'un produit ne doit pas effacer ce qu'une précédente avait appris.
     """
     statement = """
         UPDATE public.card_prints p
         SET price_usd      = %(usd)s,
             price_usd_foil = %(usd_foil)s,
             price_eur      = %(eur)s,
-            price_eur_foil = %(eur_foil)s
+            price_eur_foil = %(eur_foil)s,
+            finishes       = COALESCE(%(finishes)s, p.finishes)
         FROM public.cards c
         WHERE c.oracle_id = p.oracle_id
           AND c.game = 'riftbound'
@@ -184,7 +255,8 @@ def write_prices(
 
     touched = 0
     with conn.cursor() as cur:
-        for product_id, by_finish in prices.items():
+        for product_id in products.product_ids:
+            by_finish = products.market.get(product_id, {})
             usd = by_finish.get(SUBTYPE_NORMAL)
             usd_foil = by_finish.get(SUBTYPE_FOIL)
             cur.execute(
@@ -195,11 +267,36 @@ def write_prices(
                     "usd_foil": usd_foil,
                     "eur": to_euros(usd, rate),
                     "eur_foil": to_euros(usd_foil, rate),
+                    "finishes": products.finishes.get(product_id),
                 },
             )
             touched += cur.rowcount
     conn.commit()
     return touched
+
+
+def coverage(conn: psycopg.Connection) -> dict[str, int]:
+    """Ce que la base porte **après** écriture, et non ce qu'on a écrit.
+
+    **Un compteur d'écritures n'est pas un compteur de résultats**, et ce
+    connecteur l'a payé : il annonçait « 1 194 impressions valorisées » quand
+    492 seulement portaient un prix ordinaire — les autres n'étant cotées qu'en
+    brillante. La lecture d'après coup est la seule qui décrive l'état réel.
+    """
+    with conn.cursor() as cur:
+        row = cur.execute(
+            """
+            SELECT count(*) AS impressions,
+                   count(*) FILTER (WHERE p.price_eur IS NOT NULL
+                                       OR p.price_eur_foil IS NOT NULL) AS cotees,
+                   count(*) FILTER (WHERE 'foil' = ANY(p.finishes))      AS en_brillante,
+                   count(*) FILTER (WHERE 'nonfoil' = ANY(p.finishes))   AS en_ordinaire
+            FROM public.card_prints p
+            JOIN public.cards c ON c.oracle_id = p.oracle_id
+            WHERE c.game = 'riftbound'
+            """
+        ).fetchone()
+    return dict(zip(("impressions", "cotees", "en_brillante", "en_ordinaire"), row))
 
 
 def run(*, force: bool = False) -> int:
@@ -218,11 +315,17 @@ def run(*, force: bool = False) -> int:
             rate_date, rate = euro_rate(client)
             print(f"  taux BCE du {rate_date} : 1 € = {rate} $")
 
-            prices = fetch_prices(client)
-            print(f"  {len(prices)} produits cotés chez TCGCSV")
+            products = fetch_products(client)
+            print(f"  {len(products.market)} produits cotés chez TCGCSV, "
+                  f"{len(products.finishes)} dont les finitions sont déclarées")
 
-        touched = write_prices(conn, prices, rate)
-        print(f"  {touched} impressions Riftbound valorisées")
+        touched = write_prices(conn, products, rate)
+        etat = coverage(conn)
+        print(f"  {touched} lignes écrites — et voici ce que la base porte :")
+        print(f"    {etat['cotees']}/{etat['impressions']} impressions cotées "
+              f"dans au moins une finition")
+        print(f"    {etat['en_ordinaire']} existent en ordinaire, "
+              f"{etat['en_brillante']} en brillante")
 
         record(
             conn,
