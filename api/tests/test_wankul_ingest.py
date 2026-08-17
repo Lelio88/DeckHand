@@ -330,25 +330,27 @@ def test_une_url_sans_identifiant_ne_produit_pas_de_cle_inventee():
     assert media_uuid("/media/origins/031-garagiste/vignette.jpg") is None
 
 
-def test_seules_les_raretes_qui_disent_holo_declarent_la_brillante():
-    """**Deux raretés sur vingt-sept, et c'est tout ce que la source affirme.**
-    Son point `/rarities` publie le taux de tirage, pas la finition ; `holoMasks`
-    n'en dit rien non plus — 48 cartes en portent quand 71 « Ultra rare holo »
-    n'en ont pas, ce sont des calques de rendu pour le site.
-
-    « Légendaire Or » à 0,08 % de tirage est probablement brillante elle aussi.
-    C'est justement pour ça qu'elle rend `None` : « probablement » n'est pas une
-    donnée, et `None` laisse le comportement d'avant au lieu d'inventer."""
-    holo = card_from({**payload_carte("1", "BIGFLO"),
-                      "rarity": {"name": "Ultra rare holo 1",
-                                 "slug": "ultra-rare-holo-1"}})
-    dore = card_from({**payload_carte("2", "ROI"),
-                      "rarity": {"name": "Légendaire Or", "slug": "legendaire-or"}})
-    commune = card_from(payload_carte("3", "BRAQUEUR"))
+def test_la_brillance_se_lit_sur_le_rendu_ur_et_non_sur_la_rarete():
+    """**Trois candidats, un seul tient.** La rareté ne dit rien — son point
+    `/rarities` publie le taux de tirage, pas la finition, et deux noms sur
+    vingt-sept seulement contiennent « holo », ce qui manquait les Légendaires,
+    les Edition Gold et les DUO. `holoMasks` est un faux ami par incomplétude :
+    48 cartes en portent quand 71 « Ultra rare holo » n'en ont pas. `imageUR`,
+    lui, couvre 200 cartes et recoupe les deux autres signaux sans exception."""
+    holo = card_from({**payload_carte("1", "BIGFLO"), "imageUR": "/…_ur.png"})
+    commune = card_from(payload_carte("2", "BRAQUEUR"))
 
     assert holo.finishes == ["foil"]
-    assert dore.finishes is None
     assert commune.finishes is None
+
+
+def test_un_calque_d_animation_absent_ne_dement_pas_la_brillance():
+    """`holoMasks` n'est produit que pour une partie du catalogue : son absence
+    dit que le site n'a pas fait l'animation, pas que la carte est mate."""
+    sans_masque = card_from({**payload_carte("1", "LAINK"),
+                             "imageUR": "/…_ur.png", "holoMasks": None})
+
+    assert sans_masque.finishes == ["foil"]
 
 
 def test_une_carte_wankul_ne_porte_jamais_les_deux_finitions():
@@ -356,9 +358,7 @@ def test_une_carte_wankul_ne_porte_jamais_les_deux_finitions():
     Il n'existe pas de « Mort-Vivant ordinaire » et de « Mort-Vivant brillant » :
     une carte est Ultra rare holo, ou elle ne l'est pas. Riftbound et Pokémon, à
     l'inverse, en déclarent couramment deux."""
-    holo = card_from({**payload_carte("1", "BIGFLO"),
-                      "rarity": {"name": "Ultra rare holo 2",
-                                 "slug": "ultra-rare-holo-2"}})
+    holo = card_from({**payload_carte("1", "BIGFLO"), "imageUR": "/…_ur.png"})
 
     assert holo.finishes == ["foil"]
     assert "nonfoil" not in (holo.finishes or [])

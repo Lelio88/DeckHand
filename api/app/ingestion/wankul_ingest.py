@@ -91,24 +91,47 @@ EXPECTED_TOTAL = sum(EXPECTED_CARDS.values())  # 958
 #: `imageUR`, `imageLeg`, `holoMasks`, `set`, `rarity`, `artist`.
 
 
-#: Raretés dont le **nom dit** que la carte est holographique.
-#:
-#: **Deux sur vingt-sept, et c'est tout ce que la source affirme.** Le point
-#: `/api/wankuldex/rarities` publie `dropRate`, `horsSerie` et `sortOrder` — aucun
-#: indicateur de finition. `holoMasks` n'en est pas un non plus : mesuré, 48
-#: cartes en portent quand 71 « Ultra rare holo » n'en ont pas ; ce sont les
-#: calques d'un effet de brillance pour le site, pas une propriété du carton.
-#:
-#: Ces deux raretés-là ne sont donc pas une déduction : leur nom **contient**
-#: « holo ». Les autres — « Légendaire Or » à 0,08 % de tirage, « Edition Gold »,
-#: « DUO » — sont probablement brillantes elles aussi, et c'est précisément
-#: pourquoi elles n'y sont pas : « probablement » n'est pas une donnée. Elles
-#: restent sans finition déclarée, ce qui laisse le comportement d'avant
-#: (l'ordinaire proposé par défaut) plutôt qu'une affirmation inventée.
-#:
-#: Pour en sortir, il faut quelqu'un qui ait les cartes en main. C'est la même
-#: nature de trou que le format du carton, présumé 63 × 88 sans vérification.
-HOLO_RARITIES = frozenset({"ultra-rare-holo-1", "ultra-rare-holo-2"})
+def is_foil(card: dict) -> bool:
+    """Vrai si la carte porte un traitement brillant, d'après la source.
+
+    **Le signal est `imageUR`, et il a fallu trois candidats pour le trouver.**
+
+    1. La **rareté** : `/api/wankuldex/rarities` publie `dropRate`, `horsSerie`
+       et `sortOrder`, aucun indicateur de finition. Seuls deux noms sur
+       vingt-sept contiennent « holo », ce qui manquait les Légendaires, les
+       Edition Gold et les DUO — 114 cartes.
+    2. `holoMasks` : le nom promet exactement ce qu'on cherche, et c'est un faux
+       ami **par incomplétude**. 48 cartes en portent quand 71 « Ultra rare
+       holo » n'en ont pas : le site n'a produit l'animation que pour une partie
+       du catalogue.
+    3. `imageUR` : un rendu de remplacement, présent sur **200 cartes**. C'est
+       lui qui décide.
+
+    **Ce qui rend `imageUR` fiable, ce sont deux recoupements sans exception :**
+
+    - toute carte qui déclare un `foilEffect` a un `imageUR` — 48 sur 48 ;
+    - aucune carte à `imageUR` n'est Commune, Peu Commune, Rare ou Terrain —
+      0 sur 720.
+
+    Et les `holoMasks` sont bien des calques de brillance, vérifié en les
+    ouvrant : bandes diagonales, pluie de paillettes, masque isolant les
+    éléments imprimés en métal, décomposition d'un reflet en trois bandes. On
+    n'écrit pas ça pour une illustration alternative.
+
+    **Ce qui reste extrapolé, et jusqu'où.** Les sept raretés premium — Ultra
+    rare holo 1 et 2, Légendaire Bronze, Argent, Or, Edition Gold, DUO, soit 184
+    cartes — ont **chacune** au moins une carte dont la source nomme l'effet
+    (`holo`, `dot`, `diag`) : la brillance y est prouvée dans le lot même, pas
+    déduite d'un lot voisin. Restent **16 cartes** de sous-collections Hors Série
+    (Starter Packs, Édition Spéciale, PGW 2025, Noël 2023, Gemmes Pack) où
+    `imageUR` est présent sans qu'aucune carte du lot ne prouve l'effet. Le fait
+    que `imageUR` y soit **partiel** — 2 sur 7, 2 sur 6, 2 sur 4 — est d'ailleurs
+    ce qui montre que c'est une propriété de la carte et non du lot.
+
+    À l'inverse « Gagnant Ticket Or » (19 cartes) n'a ni `imageUR` ni effet : elle
+    n'est pas brillante, malgré son nom.
+    """
+    return bool(card.get("imageUR"))
 
 
 def orientation_of(card: dict) -> str:
@@ -204,10 +227,13 @@ class WankulCard:
     set_code: str
     type_line: str
     rarity: str | None = None
-    #: Identifiant stable de la rareté. **C'est lui qui décide de la finition**,
-    #: pas le nom affiché : celui-ci porte accents et majuscules, et il a déjà
-    #: changé de casse une fois entre deux courses.
+    #: Identifiant stable de la rareté. Conservé pour la recherche et le tri ;
+    #: la finition, elle, ne s'en déduit pas — voir [is_foil].
     rarity_slug: str | None = None
+    #: Vrai quand la source publie un rendu « UR » pour cette carte, c'est-à-dire
+    #: quand elle porte un traitement brillant. Voir [is_foil] pour ce qui rend ce
+    #: signal fiable, et ce qu'il laisse extrapolé.
+    foil: bool = False
     #: `vertical` ou `horizontal`. **C'est elle qui va dans `layout`, et non
     #: l'effigie**, contrairement à ce que ce module prévoyait d'abord.
     #:
@@ -286,13 +312,12 @@ class WankulCard:
         l'est pas. La liste rendue ne porte donc jamais les deux valeurs, là où
         Riftbound et Pokémon en déclarent couramment deux.
 
-        `None` plutôt qu'une liste vide : `write_prints` le traduit en « ne touche
-        pas à ce qui est déjà écrit », et `card_editions` retombe alors sur
-        l'ordinaire — le comportement d'avant, sans rien prétendre.
+        `None` plutôt qu'une liste vide pour une carte ordinaire : `write_prints`
+        le traduit en « ne touche pas à ce qui est déjà écrit », et
+        `card_editions` retombe sur l'ordinaire — même comportement qu'une
+        déclaration explicite, sans affirmer ce que la source ne dit pas.
         """
-        if self.rarity_slug in HOLO_RARITIES:
-            return ["foil"]
-        return None
+        return ["foil"] if self.foil else None
 
     def art_url(self, base_url: str) -> str | None:
         """L'URL que l'application ira chercher : celle du dépôt d'images.
@@ -486,6 +511,7 @@ def card_from(payload: dict) -> WankulCard:
         type_line="Terrain" if orientation == "horizontal" else "Personnage",
         rarity=rarity,
         rarity_slug=(payload.get("rarity") or {}).get("slug"),
+        foil=is_foil(payload),
         orientation=orientation,
         effigy=effigy,
         set_name=(payload.get("set") or {}).get("name"),

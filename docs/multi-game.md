@@ -872,7 +872,7 @@ d'un principe, elle se lit là où le jeu la déclare.**
 |---|---|---|
 | **Riftbound** | `subTypeName` de TCGCSV : `Normal`, `Foil` | **1 157** sur 1 451 |
 | **Pokémon** | `subTypeName` : `Normal`, `Holofoil`, `Reverse Holofoil` — trois valeurs, mesurées sur 15 016 lignes. La brillante inversée est repliée sur `foil`, comme le faisaient déjà les prix | **15 350** sur 20 964 |
-| **Wankul** | la **rareté**, faute de mieux — voir [§ 9](#9-wankul--un-catalogue-sans-prix-sans-decks-et-sans-images) | **89** sur 958 |
+| **Wankul** | `imageUR`, un rendu de remplacement — la rareté et `holoMasks` ont tous deux échoué, voir [§ 9](#9-wankul--un-catalogue-sans-prix-sans-decks-et-sans-images) | **200** sur 958 |
 | **Yu-Gi-Oh** | rien : son `subTypeName` est une édition | 0 — **et c'est un état, pas un oubli** |
 
 Chez Pokémon, la combinaison la plus courante est `Normal` + `Reverse Holofoil`
@@ -1811,48 +1811,60 @@ Eagle » sont deux cartes, pas deux tirages —, chez Riftbound 41. La règle es
 donc bornée par jeu (`GAMES_WITH_VARIANT_SUFFIX`), et ajouter un jeu demande de
 vérifier qu'aucune fusion ne réunit deux illustrations distinctes.
 
-### La brillance est une propriété de la carte, pas de son impression
+### La brillance : trois candidats, et le troisième tient
 
-Wankul n'a ni prix ni `subTypeName` : sa finition ne peut venir que de la
-**rareté**. Et là, la source est avare — `/api/wankuldex/rarities` publie
-`dropRate`, `horsSerie` et `sortOrder`, aucun indicateur de brillance.
+Wankul n'a ni prix ni `subTypeName`. Il a fallu chercher, et **les deux premiers
+signaux étaient faux** :
 
-**`holoMasks` n'en est pas un non plus, et c'était le piège.** Le champ existe et
-son nom promet exactement ce qu'on cherche. Mesuré : **48 cartes en portent,
-quand 71 « Ultra rare holo » n'en ont pas**. Ce sont les calques d'un effet de
-brillance animé pour le site — les 308 fichiers `opw_*`, `diag_mask_*`,
-`metal_inverted` du dossier local —, pas une propriété du carton.
+1. **La rareté.** `/api/wankuldex/rarities` publie `dropRate`, `horsSerie` et
+   `sortOrder` — aucun indicateur de finition. Deux noms sur vingt-sept
+   contiennent « holo », ce qui manquait les Légendaires, les Edition Gold et les
+   DUO : 111 cartes perdues.
+2. **`holoMasks`.** Le nom promet exactement ce qu'on cherche, et c'est un faux
+   ami **par incomplétude** : 48 cartes en portent quand 71 « Ultra rare holo »
+   n'en ont pas. Le site n'a produit l'animation que pour une partie du
+   catalogue ; l'absence du calque ne dit pas que la carte est mate.
+3. **`imageUR`** — un rendu de remplacement, présent sur **200 cartes**. C'est
+   lui qui décide.
 
-Deux raretés sur vingt-sept sont donc retenues, et pour une raison qui n'est pas
-une déduction : **leur nom contient « holo »**.
+**Ce qui rend `imageUR` fiable, ce sont deux recoupements sans une exception :**
 
-| Rareté | Cartes | Finition déclarée |
+| Contrôle | Résultat |
+|---|---|
+| cartes déclarant un `foilEffect` qui ont aussi `imageUR` | **48 / 48** |
+| cartes à `imageUR` parmi Commune, Peu Commune, Rare, Terrain | **0 / 720** |
+
+Et les `holoMasks` **sont** bien des calques de brillance, vérifié en les
+ouvrant : bandes diagonales, pluie de paillettes, masque isolant les éléments
+imprimés en métal, décomposition d'un reflet en trois bandes (`opw_edges`,
+`opw_band_mid`, `opw_highfreq`). On n'écrit pas ça pour une illustration
+alternative. La source nomme d'ailleurs le patron : `holo`, `dot`, `diag`.
+
+**Ce qui est prouvé, et ce qui est extrapolé — la distinction compte.**
+
+| | Cartes | État |
 |---|---|---|
-| Ultra rare holo 1 | 48 | `foil` |
-| Ultra rare holo 2 | 41 | `foil` |
-| Légendaire Bronze / Argent / Or | 61 | *aucune* |
-| Edition Gold | 24 | *aucune* |
-| Gagnant Ticket Or | 19 | *aucune* |
-| DUO | 10 | *aucune* |
-| Commune, Peu Commune, Rare, Terrain | 720 | *aucune* |
+| Ultra rare holo 1 · 2, Légendaire Bronze / Argent / Or, Edition Gold, DUO | **184** | **prouvé** : chacune de ces sept raretés a au moins une carte dont la source nomme l'effet, layers à l'appui |
+| Starter Packs, Édition Spéciale, PGW 2025, Noël 2023, Gemmes Pack | **16** | extrapolé : `imageUR` présent, aucun effet nommé dans le lot |
+| Gagnant Ticket Or | 19 | **non brillante** — ni `imageUR` ni effet, malgré son nom |
+| Commune, Peu Commune, Rare, Terrain | 720 | non brillantes |
 
-« Légendaire Or » à **0,08 % de tirage** est probablement brillante elle aussi —
-et c'est précisément pourquoi elle n'y est pas. « Probablement » n'est pas une
-donnée ; l'absence de déclaration laisse le comportement d'avant plutôt qu'une
-affirmation inventée. Pour en sortir, il faut quelqu'un qui ait les cartes en
-main : c'est la même nature de trou que le format du carton.
+La brillance n'est donc jamais déduite d'un lot voisin : elle est établie **dans
+le lot même** pour 184 cartes sur 200. Les 16 restantes viennent de
+sous-collections Hors Série où `imageUR` est **partiel** — 2 sur 7, 2 sur 6, 2
+sur 4 — ce qui est précisément ce qui montre que le signal est une propriété de
+la carte et non du lot.
 
 **Et la liste ne porte jamais les deux valeurs.** Chez Wankul il n'existe pas de
-« Mort-Vivant ordinaire » et de « Mort-Vivant brillant » : une carte est Ultra
-rare holo, ou elle ne l'est pas. Riftbound et Pokémon, à l'inverse, en déclarent
-couramment deux.
+« Mort-Vivant ordinaire » et de « Mort-Vivant brillant » : une carte est brillante
+ou elle ne l'est pas. Riftbound et Pokémon, à l'inverse, en déclarent couramment
+deux.
 
 ### Ce qui reste dû
 
-- **quelles raretés sont brillantes**, pour les 114 cartes ci-dessus que la
-  source ne tranche pas. Une réponse humaine, carte en main ;
 - une **carte de papier**. Le format 63 × 88 est présumé, non vérifié sur
-  carton : c'est la seule entrée de `CARD_ASPECTS` dans ce cas ;
+  carton : c'est la seule entrée de `CARD_ASPECTS` dans ce cas. Elle trancherait
+  aussi les 16 cartes dont la brillance est extrapolée ;
 - un **regard sur l'appareil**. Tout ce qui précède a été vérifié en composant
   des pages depuis les images réellement servies, ce qui a livré deux défauts —
   mais aucune capture n'a encore été prise sur le téléphone.
