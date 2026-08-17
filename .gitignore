@@ -26,6 +26,12 @@ art_hashes.bin
 # Images du même banc, mises en cache pour ne pas retélécharger à chaque
 # exécution — ce que le débit demandé par Scryfall rend nécessaire.
 /app/tool/.framing_cache/
+# Caches des sondes de mesure : reponses JSON des sources et illustrations
+# telechargees. Ce sont des DONNEES DE SOURCE, que le SS-IV.11 interdit de
+# committer sur un depot public — et 18 Mio d'illustrations Lorcana y sont
+# effectivement entrees avant que cette ligne n'existe. Regeneres a la demande
+# par les sondes, qui les retelechargent si le dossier est vide.
+/api/.cache/
 
 # --- Python ------------------------------------------------------------------
 __pycache__/
