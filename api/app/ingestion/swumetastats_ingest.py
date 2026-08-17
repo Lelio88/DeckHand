@@ -190,6 +190,7 @@ def fetch_decklists(
     """
     seen: set[int] = set()
     skip = max(0, skip_from)
+    annonce = False
     while True:
         params = {"startDate": start, "endDate": end}
         if skip:
@@ -197,6 +198,22 @@ def fetch_decklists(
         payload = json.loads(
             _fetch(f"{API}/decklists?" + urllib.parse.urlencode(params)).decode("utf-8")
         )
+        # **La source dit combien la fenetre en contient, et on ne le lisait
+        # pas.** `totalCount` est publie a cote des listes, dans chaque reponse.
+        # Sans lui, une course de plusieurs heures n'annonce que son compteur
+        # brut : impossible de savoir s'il reste dix minutes ou deux heures.
+        #
+        # Ce n'est pas une commodite. Faute de ce chiffre, l'ordre de grandeur a
+        # ete estime en extrapolant lineairement les 11 744 listes de 120 jours,
+        # ce qui donnait ~2 900 pour un mois. Le total reel est **5 109** : le
+        # mois ecoule est bien plus dense que la moyenne, et l'estimation etait
+        # fausse d'un facteur deux.
+        if not annonce:
+            total = payload.get("totalCount")
+            if total:
+                reste = max(0, int(total) - skip)
+                print(f"  {total} listes dans la fenetre, {reste} a parcourir", flush=True)
+            annonce = True
         rows = payload.get("decklists") or []
         fresh = [r for r in rows if r.get("id") not in seen]
         if not fresh:
