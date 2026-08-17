@@ -108,6 +108,7 @@ cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_swu_prices  # prix SWU (-
 cd api && .venv/Scripts/python -m app.ingestion.swumetastats_ingest # decks SWU (--days N, défaut 30)
 # One Piece : mesure seule, aucune ingestion — voir docs/multi-game.md §11
 cd api && .venv/Scripts/python -m app.measure.onepiece_taxonomy       # périmètre, identité, homonymes
+cd api && .venv/Scripts/python -m app.measure.onepiece_art_window     # --size N --group T --dump DIR --compare
 # Bancs Star Wars Unlimited — voir docs/multi-game.md §10
 cd api && .venv/Scripts/python -m app.measure.swu_taxonomy           # périmètre, identité, orientation, finitions
 cd api && .venv/Scripts/python -m app.measure.swu_decks              # --days N --limit N : gabarit, résolution, aspects

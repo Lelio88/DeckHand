@@ -111,3 +111,40 @@ def test_les_champs_se_lisent_avec_leur_origine():
     assert lu.code == "ST01-001"
     assert lu.cost == ""
     assert lu.type == "Leader"
+
+
+# --- les suffixes d'identifiant de rendu ------------------------------------
+
+
+def test_les_deux_familles_de_suffixe_marquent_une_variante():
+    """**Deux lettres, pas une**, et la seconde s'est fait oublier. Une
+    première version ne lisait que `_p`, et manquait 335 variantes en `_r` : le
+    vocabulaire complet va de `p1` à `p8` et de `r1` à `r3`.
+
+    Le symptôme n'était pas une erreur mais un chiffre légèrement trop bon — la
+    pile des Personnages contenait une variante, et sa paire la plus serrée
+    tombait pile sur le seuil de confiance."""
+    assert entree(image_id="OP01-077_p1").is_variant
+    assert entree(image_id="OP01-077_p8").is_variant
+    assert entree(image_id="ST18-001_r1").is_variant
+    assert entree(image_id="OP01-077_r3").is_variant
+    assert not entree(image_id="OP01-077").is_variant
+
+
+def test_le_filigrane_borne_toutes_les_fenetres():
+    """Les rendus publiés portent « SAMPLE » en travers de l'illustration, et
+    il vient de l'**éditeur** — Bandai marque ainsi sa liste de cartes,
+    optcgapi ne fait que la reprendre.
+
+    Mesuré sur les quatre types par la luminance de l'image moyenne : la bande
+    claire commence à 0,4224 sur les quatre, à la ligne près. Les Personnages
+    et les Événements s'y arrêtaient d'eux-mêmes — un trait constant arrête la
+    plage calme — quand les Leaders et les Décors le traversaient, dérivant de
+    156 et 130 px entre deux tirages disjoints.
+
+    C'est ce plafond qui rend le scan possible : la zone retenue est de
+    l'illustration pure, présente à l'identique sur une photo de carton, qui
+    n'est pas marquée."""
+    from app.measure.onepiece_art_window import WATERMARK_TOP
+
+    assert 0.42 < WATERMARK_TOP < 0.43

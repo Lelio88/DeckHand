@@ -61,7 +61,14 @@ VARIANT_CODE_SUFFIX = re.compile(r"\s+-\s+[A-Z]{1,4}\d*-\d+\s*$")
 
 #: Ce qui sépare une illustration alternative de sa carte dans `card_image_id` :
 #: `OP01-077_p1` contre `OP01-077`.
-PRINT_SUFFIX = re.compile(r"_p\d+$")
+#:
+#: **Deux lettres, pas une**, et la seconde s'est fait oublier. Une première
+#: version ne lisait que `_p`, et manquait **335 variantes** en `_r` — le
+#: vocabulaire complet, relevé sur les 3 992 entrées, va de `p1` à `p8` et de
+#: `r1` à `r3`. Le symptôme n'était pas une erreur mais un chiffre légèrement
+#: trop bon : la pile des Personnages contenait une variante, et sa paire la
+#: plus serrée tombait pile sur le seuil de confiance.
+PRINT_SUFFIX = re.compile(r"_[a-z]\d+$")
 
 
 @dataclass(frozen=True)

@@ -2589,9 +2589,84 @@ Character 3 094 · Event 548 · Leader 285 · Stage 65. Les **285 Leaders** sont
 sans coût — ils portent une vie —, ce qui est le même piège que `cmc` chez
 Pokémon : le champ existe, la grandeur n'est pas celle qu'on croit.
 
-### Ce qui reste dû
+### Le filigrane de l'éditeur, et pourquoi le scan reste possible malgré lui
 
-- **les fenêtres d'illustration**, une par maquette ;
+**Les rendus publiés portent « SAMPLE » en travers de l'illustration.** Ce n'est
+pas un défaut d'optcgapi : Bandai marque ainsi les images de sa propre liste de
+cartes, et optcgapi ne fait que les reprendre — vérifié en téléchargeant la même
+carte aux deux endroits. Aucune source légitime n'en publiera sans.
+
+Les chiffres ne le disaient pas. Le banc rendait 31,8 bits de séparation sur les
+Événements, ce qui est un bon résultat. C'est **l'image moyenne, regardée**, qui
+l'a montré — la troisième fois dans ce chantier qu'un regard tranche ce que les
+nombres taisaient.
+
+Ce que le filigrane n'est pas : il est **semi-transparent**, et ne gèle donc pas
+l'information. Mesuré par l'écart-type entre cartes, les seules zones vraiment
+constantes sont les bords du carton ; sous le filigrane, l'illustration varie
+toujours. Il **éclaircit** sa bande, d'une façon identique partout.
+
+Ce qui compte alors est sa **position**, et elle est remarquablement stable :
+
+| Type | Bande claire | Fenêtre trouvée |
+|---|---|---|
+| Character | 0,4224 – 0,5764 | **0,4224** — s'y arrête seule |
+| Event | 0,4224 – 0,5752 | **0,4224** — s'y arrête seule |
+| Leader | 0,4224 – 0,5823 | 0,6086 — **le traverse** |
+| Stage | 0,4224 – 0,5800 | 0,5776 — **le traverse** |
+
+**0,4224 sur les quatre, à la ligne près.** Les deux premiers s'y arrêtaient déjà
+d'eux-mêmes — un trait constant arrête la plage calme — et les deux autres le
+traversaient, ce qui explique leurs dérives de 156 et 130 px entre tirages
+disjoints. Le plafond est donc imposé aux quatre.
+
+**C'est ce plafond qui rend le scan possible.** La zone retenue est de
+l'illustration pure, présente à l'identique sur une photo de carton — qui, elle,
+n'est pas marquée. Une fenêtre qui descendrait plus bas comparerait une
+empreinte marquée à une empreinte qui ne l'est pas, et la reconnaissance
+échouerait **sans que rien ne le dise**.
+
+L'effet est immédiat : Leader passe de 156 px de dérive à **22**, Stage de 130 à
+**29**, et les quatre types atteignent 31 bits de séparation.
+
+### Une seule fenêtre, et c'est la mesure qui le dit
+
+`--compare` éprouve chaque type sous la fenêtre des trois autres :
+
+| Cartes | Character | Event | Leader | Stage |
+|---|---|---|---|---|
+| Character | **31,3 / 18** | 29,9 / 18 | 30,6 / 18 | 30,5 / 19 |
+| Event | 32,0 / 17 | **31,3 / 21** | 32,0 / 18 | 31,9 / 17 |
+| Leader | 31,3 / 17 | 30,8 / 15 | **31,5 / 18** | 30,7 / 14 |
+| Stage | 31,7 / 17 | 30,9 / 18 | 31,8 / 18 | **31,6 / 20** |
+
+**Toutes les paires restent entre 14 et 21 bits**, au-dessus du seuil de
+confiance de 12, et aucune fenêtre n'est significativement meilleure que les
+autres. C'est mot pour mot la conclusion de Pokémon sur ses quatre époques :
+*les gabarits sont interchangeables.*
+
+La fenêtre retenue est donc celle des **Personnages** — trouvée franchement
+(0 px de dérive), la plus étroite, et le groupe le plus fourni. Celle des
+Événements est écartée bien qu'elle donne la meilleure paire : son arête haute
+**touche le bord du rendu**, ce qui veut dire qu'elle a été butée et non trouvée.
+
+**(0,0567 · 0,0835 · 0,9550 · 0,4212)**
+
+### Deux pièges de plus, tous deux silencieux
+
+**Le vocabulaire des variantes a deux lettres, pas une.** La première version ne
+lisait que `_p` dans `card_image_id` et manquait **335 variantes en `_r`** — le
+vocabulaire complet va de `p1` à `p8` et de `r1` à `r3`, soit 1 439 entrées. Le
+symptôme n'était pas une erreur mais un chiffre *légèrement trop bon* : la pile
+des Personnages contenait une variante, et sa paire la plus serrée tombait pile
+sur le seuil de confiance.
+
+**56 entrées partagent leur identifiant de rendu** : ce sont les cartes qu'un
+deck de démarrage réédite à l'identique — `OP02-018` paraît dans `OP-02` et dans
+`ST-15`. Empilées deux fois, elles rendaient une paire à **0 bit**, qui se lit
+comme une collision de l'index alors que c'est deux fois la même image.
+
+### Ce qui reste dû
 - **le chaînage des prix** : cette source ne publie aucun identifiant
   TCGplayer, contrairement à Riftcodex et SWU-DB. Le rapprochement passera par
   extension et numéro, comme pour Yu-Gi-Oh — dont le catalogue écrit `LOB-EN005`
