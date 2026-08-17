@@ -2288,6 +2288,49 @@ qui n'est plus un contrôle. Il est donc **conservé et affiché, mais il ne vau
 pas pour ce jeu** ; la séparation et la dérive portent seules le jugement. Le
 dire est préférable à le faire taire.
 
+### Le catalogue est en base — 2 181 cartes, 5 282 impressions
+
+`api/app/ingestion/swu_ingest.py`, migration `20260817110000_swu.sql`.
+
+**L'écart entre 8 424 entrées et 5 282 impressions est le résultat principal du
+connecteur** : une entrée brillante n'est pas une impression de plus. Les
+compter séparément aurait gonflé `card_prints` de moitié et fait apparaître deux
+lignes de collection pour un seul exemplaire — le défaut que Riftbound a payé
+sur ses 243 variantes suffixées. Une impression est donc identifiée par le
+triplet (extension, traitement, carte), et l'entrée brillante n'y ajoute que sa
+case ; l'entrée ordinaire fournit le numéro imprimé et le rendu, celui de la
+brillante répondant 403.
+
+| En base | |
+|---|---|
+| Cartes | **2 181** — les 2 180 titres, plus « Snapshot Reflexes » qui en fait deux |
+| Impressions | **5 282**, dont 4 qui n'existent qu'en brillante |
+| Noms de recherche | **3 070** — le titre entier et le nom seul |
+| `tcgplayer_id` | 5 244 sur 5 282 (99,3 %) |
+| Déclarent la brillante | **3 087** |
+| Sans aucune finition | **0** — le contrôle du § 6, vérifié avec l'expression exacte de `card_editions` |
+| Par type | Unit 1 369 · Event 414 · Leader 154 · Upgrade 154 · Base 90 |
+
+**Deux formes de nom sont indexées par carte**, et c'est mesuré sur le corpus de
+decks : les listes citent les unités sous leur titre entier et les bases sous
+leur seul nom. Sans la seconde, `Data Vault` serait introuvable à la saisie
+alors que le catalogue la porte sous « Data Vault | Scarif ».
+
+Ce que le schéma impose et qu'il faut dire : `cards.cmc` étant
+`NOT NULL DEFAULT 0`, une Base — qui n'a pas de coût, on ne la joue pas, on la
+pose — s'y voit attribuer un zéro qui se lira « gratuite ». La perte est bornée :
+90 cartes, jamais plus d'une par deck, et le constructeur les traite par leur
+type.
+
+**Vérifié sous le rôle qui subira les règles.** Dans une transaction annulée,
+sous `authenticated` : `search_cards('boba fett', 'swu')` rend 13 cartes,
+`search_cards('data vault', 'swu')` en rend une — la Base retrouvée par son seul
+nom —, et la même requête en `magic` n'en rend aucune. Aucun `oracle_id` n'est
+partagé entre SWU et un autre jeu.
+
+**`TASH` reste injoignable** (502 déterministe), et le connecteur le dit à
+chaque course au lieu de compter son contenu pour vide.
+
 ### Ce qui reste dû
 
 - **éprouver les gabarits sur des photos**, et non sur des rendus : c'est le
