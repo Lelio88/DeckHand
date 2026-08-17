@@ -2666,6 +2666,45 @@ deck de démarrage réédite à l'identique — `OP02-018` paraît dans `OP-02` 
 `ST-15`. Empilées deux fois, elles rendaient une paire à **0 bit**, qui se lit
 comme une collision de l'index alors que c'est deux fois la même image.
 
+### Le catalogue est en base — 2 541 cartes, 3 935 impressions
+
+`api/app/ingestion/optcg_ingest.py`, migration `20260817120000_onepiece.sql`.
+
+| En base | |
+|---|---|
+| Cartes | **2 541** — Character 1 976 · Event 388 · Leader 131 · Stage 46 |
+| Impressions | **3 935**, dont 1 813 portent un nom de tirage |
+| Noms de recherche | 2 541 |
+
+**L'identité est le code, pas le nom**, et c'est ce jeu qui l'impose le plus
+franchement : 361 noms désignent plusieurs cartes. Le nom sert à chercher, le
+code à identifier — exactement le partage que Pokémon a dû faire pour les mêmes
+raisons.
+
+**`op_standard` et non `standard`**, bien que le jeu nomme ainsi son format :
+`DeckBlueprint.of` ne reçoit que le format, jamais le jeu, et partager
+l'identifiant avec Pokémon ferait construire un deck One Piece sur les
+proportions d'un autre. C'est la raison pour laquelle Wankul porte `tournament`
+et SWU `premier`.
+
+**Vérifié sous `authenticated`**, dans une transaction annulée :
+`search_cards('luffy', 'onepiece')` rend 20 cartes, `search_cards('perona', …)`
+en rend 12 — dont deux nommées « Perona », les homonymes mesurés —, et la même
+requête en `magic` n'en rend aucune. Aucun `oracle_id` n'est partagé avec un
+autre jeu.
+
+### Une leçon d'orchestration, payée deux fois
+
+La migration a d'abord échoué sur un **interblocage** : elle demandait un verrou
+exclusif sur `decks` pendant que l'ingestion des decks SWU y écrivait. C'est la
+seconde fois dans ce chantier — la première avait fait tomber l'index
+d'empreintes sur une clé étrangère, une correction d'identité ayant été
+appliquée pendant sa construction.
+
+*On ne modifie pas le schéma, ni la règle d'identité, pendant qu'une ingestion
+travaille dessus.* Les deux fois, rien n'a été perdu — les modules sont
+reprenables — mais les deux fois, le symptôme n'avait rien à voir avec la cause.
+
 ### Ce qui reste dû
 - **le chaînage des prix** : cette source ne publie aucun identifiant
   TCGplayer, contrairement à Riftcodex et SWU-DB. Le rapprochement passera par
