@@ -1868,3 +1868,351 @@ deux.
 - un **regard sur l'appareil**. Tout ce qui précède a été vérifié en composant
   des pages depuis les images réellement servies, ce qui a livré deux défauts —
   mais aucune capture n'a encore été prise sur le téléphone.
+
+---
+
+## 10. Star Wars Unlimited — la mesure, avant toute ingestion
+
+**Rien de SWU n'est en base, et ce n'est pas le but de ce chantier.** Comme #28
+pour Pokémon, il s'agit d'abord de savoir ce que les sources publient vraiment,
+et à quel prix. Tout ce qui suit est relevé par quatre bancs —
+`api/app/measure/swu_taxonomy`, `swu_decks`, `swu_art_window`, et les deux
+sondes `swu_probe` / `swumetastats_probe` — et non repris d'une documentation.
+
+### La source officielle est ouverte techniquement, et fermée contractuellement
+
+L'API qui alimente le site de l'éditeur (`admin.starwarsunlimited.com`, un
+Strapi) ne demande aucune clé, son `robots.txt` n'interdit rien, et elle sert
+**le français** — « Ami Fidèle » pour *Faithful Friend* — ainsi que deux champs
+que les jeux précédents ont payé cher : `artFrontHorizontal`, qui déclare
+l'orientation, et `hasFoil`, qui déclare la finition.
+
+Ses conditions la ferment. Verbatim, dans les *Terms of Use* d'Asmodee North
+America / Fantasy Flight Games :
+
+> You will not transmit any bugs, viruses, trojan horses, **bots, scrapers**, or
+> any like or related programming through or to the Website.
+
+C'est le cas EDHREC du garde-fou §IV.1 — accessible, interdit — et le cas
+Wankul avant l'accord : la porte existe, elle se demande à un humain. Tant
+qu'elle n'est pas ouverte, **le français est hors d'atteinte pour ce jeu**, qui
+rejoint donc Riftbound : l'illustration prime sur le nom, un nom lu sur un
+carton français ne correspondant à rien dans un catalogue anglais.
+
+### Les deux sources retenues, et sous quelles conditions
+
+| Pilier | Source | Statut |
+|---|---|---|
+| Catalogue | `api.swu-db.com` | Aucune condition publiée — `/terms` et `/about` rendent 404, le domaine n'a pas de `robots.txt`, et la page `/api` documente publiquement l'API. **§IV.9** : on lui applique celles de Scryfall |
+| Decks | `swumetastats.com/api` | « a public read-only REST API […] require no authentication », `robots.txt` permissif, pas de `/terms`. **§IV.9** également, plus le respect de son 429 |
+| Prix | TCGCSV catégorie **79** | Déjà couvert par les connecteurs existants |
+
+**Trois autres portes ont été essayées et refermées**, ce qui vaut d'être écrit
+pour ne pas les rouvrir : **TopDeck.gg** — la source de Magic, Riftbound et
+Yu-Gi-Oh — *connaît* le jeu, 36 tournois en `Premier` et 6 en `Twin Suns` sur un
+an, mais **aucun ne porte de decklist** ; **Limitless**, la source de Pokémon,
+ne couvre pas SWU (ses jeux, relevés sur 500 tournois : `PTCG`, `VGC`, `POCKET`,
+`OP`, `DCG`, `GUNDAM`) ; **SWU Stats** publie une API Melee sans clé, mais ses
+« decks » portent le leader, la base et le résultat, jamais la liste des cartes
+— c'est un corpus d'archétypes.
+
+### Le catalogue — 8 424 impressions, et quatre pièges déjoués avant l'écriture
+
+38 extensions publiées, dont deux vides (`SOROPJ`, `SS2J`) et **une
+injoignable** : `TASH` rend un 502 **déterministe**, mesuré trois fois de suite
+en une demi-seconde quand `TSOR` répond 200. Une extension injoignable n'est pas
+une extension vide, et les confondre ferait passer un trou de mesure pour un
+fait du catalogue — le banc les compte séparément, et la sonde met l'échec en
+cache pour ne pas repayer 31 secondes de reprise à chaque lancement.
+
+**L'identité est le titre imprimé, et rien d'autre.** 8 424 impressions pour
+**2 180 titres** (nom + sous-titre), dont 320 réimprimés d'une extension à
+l'autre par les promos OP. Un seul titre est porté par deux cartes réellement
+différentes — « Snapshot Reflexes », qui est un Event et un Upgrade — là où
+Riftbound en comptait 80.
+
+**`cid` ressemble à une clé de carte et n'en est pas une**, même piège que le
+`riftbound_id` de #29 : 1 770 titres en portent deux, 249 en portent trois, et
+**5 446 impressions n'en portent aucun**. Le couple (extension, numéro), lui,
+désigne une impression unique — zéro doublon sur tout le catalogue.
+
+**Les jetons se lisent sur le type, pas sur le nom d'extension.** Six cartes
+portent un `Type` commençant par `Token`, et elles se répartissent entre `TSOR`
+— dont le nom porte « Tokens » — et **`GG` (Gamegenic), dont le nom ne dit
+rien**. Un type est un vocabulaire, un nom d'extension un libellé d'affichage
+que rien n'oblige à rester exact.
+
+**`VariantType` porte deux choses à la fois**, et les confondre gonflerait
+`card_prints` de moitié. Ses 61 valeurs mêlent un *traitement d'impression*
+(`Normal`, `Hyperspace`, `Showcase`, `Prestige`, `OP Promo`…) et une *finition*
+(le suffixe ` Foil`). La preuve que ce sont bien deux finitions d'une même
+impression est dans les identifiants TCGplayer : sur 880 partagés, **436 sont
+`Foil` + `Normal` et 433 `Hyperspace` + `Hyperspace Foil`** — TCGplayer n'y voit
+qu'un seul produit. Une fois la finition retirée, **878 de ces 880 ne recouvrent
+qu'un seul traitement** ; les deux qui restent sont des anomalies de la source,
+un identifiant portant deux impressions réellement distinctes.
+
+**Et la source rompt sa propre règle de suffixe** : la version brillante de
+`Normal` ne s'appelle pas « Normal Foil » mais `Foil` tout court. Lire un
+suffixe et rien d'autre classe **1 148 impressions** parmi les ordinaires, et le
+rapport annonce « aucune brillante en traitement standard » avec l'assurance
+d'une mesure. C'est un test qui l'a attrapé, pas une relecture.
+
+Une fois les deux notions séparées, les 61 valeurs se ramènent à **57
+traitements**, dont quatre déclarent une brillante :
+
+| Traitement | ordinaires | brillantes |
+|---|---|---|
+| `Normal` | 2 277 | **1 148** |
+| `Hyperspace` | 2 044 | **1 628** |
+| `Prestige` | 211 | **211** |
+| `OP Promo` | 161 | **100** |
+| les 53 autres | — | 0 |
+
+**Par carte : 1 605 existent dans les deux finitions, 575 en ordinaire
+seulement, et aucune en brillante seulement.** Quatre entrées brillantes n'ont
+pourtant pas de jumelle ordinaire — les Bases Gamegenic `GG-1` à `GG-4`, qui
+n'existent qu'en `Hyperspace Foil` : c'est la figure des 704 impressions
+Riftbound cotées en brillante seulement, à une échelle négligeable.
+
+**Le chaînage vers les prix est presque complet** : `tcgplayerId` sur
+**8 366 / 8 424 (99,3 %)**. Les manques sont concentrés — `ASHOP` entière (40),
+`ASH` (16 sur 925) — et non répartis : c'est un retard de la source, pas un trou
+de couverture, la même figure que les 227 `VEN` de Riftbound.
+
+### L'orientation ne se lit ni sur un champ, ni sur un échantillon
+
+SWU imprime en travers ses **Leaders** — 445 impressions, toutes double-face —
+et ses **Bases**. C'est la configuration Riftbound, qui vaut à ce jeu le
+bénéfice du travail déjà fait sur les deux orientations.
+
+Mais le type ne suffit pas à prédire l'orientation, et **un échantillon ne peut
+pas établir qu'un groupe est homogène**. Cinq rendus tirés parmi les 85 Bases
+`Hyperspace` sont tous tombés couchés ; la passe exhaustive en trouve **cinq
+imprimées debout**. Une fenêtre mesurée sur un lot qu'on croit homogène et qui
+ne l'est pas décrit une carte qui n'existe pas. Le banc vérifie donc
+exhaustivement les seuls groupes où un rendu couché apparaît — la masse du
+catalogue (Unit, Event, Upgrade : debout sans exception) n'est pas
+retéléchargée.
+
+Ce que la passe rend, sur les 620 impressions concernées :
+
+| Groupe | Couchées | Debout |
+|---|---|---|
+| Leader — les six traitements | **445** | 0 |
+| Base / `Normal` | 91 | 0 |
+| Base / `Hyperspace` | 80 | **5** |
+| Base / `GC VIP Promo` | 4 | 0 |
+
+**Un seul groupe est donc hétérogène**, et ses cinq exceptions sont nommées :
+*Security Complex* (Scarif), *Droid Manufactory* et *Petranaki Arena*
+(Geonosis), *KCM Mining Facility* (Mustafar), *Pau City* (Utapau). Aucune règle
+tirée du type, du traitement ni de l'extension ne les isole — elles se lisent
+sur l'image, et c'est déjà la règle du projet : `CardImage.uprightInCell`
+redresse une carte couchée d'après son rendu, jamais d'après un champ.
+
+**Les rendus n'ont pas non plus une taille constante**, contrairement à Pokémon
+et ses 600 × 825 partout : treize formats, de 1117 × 1560 (39 %) à 418 × 300.
+La normalisation est donc obligatoire ici, là où Pokémon pouvait empiler sans
+rééchantillonner. Ce qu'elle ne casse pas : les **rapports** sont stables à
+0,4 % près (0,7154–0,7186 debout, 1,3929–1,3978 couché), et le banc ne rend que
+des fractions. Les vignettes sont écartées plutôt qu'agrandies — les agrandir
+inventerait des arêtes que l'original n'a pas.
+
+### Le corpus de decks — 11 744 listes, et deux pièges de pagination
+
+`swumetastats.com/api/decklists` déclare **11 744 decklists sur 120 jours**,
+avec les quatre zones du jeu : `Leader`, `Base`, `MainDeck`, `Sideboard`.
+
+**Deux pièges silencieux, mesurés.** `limit` est **ignoré** — la page fait vingt
+entrées qu'on en demande trois ou vingt-cinq ; `page` et `offset` le sont
+aussi, et rendent la première page sans broncher. Seul **`skip`** déplace la
+fenêtre. Les trois auraient produit une ingestion qui tourne, qui n'échoue
+jamais, et qui réécrit vingt decks en boucle — c'est la leçon Pokémon, où un
+compteur d'écritures passait pour un compteur de résultats et masquait 5 533
+decks manquants. La sonde s'arrête donc dès qu'une page ne rapporte aucune
+entrée nouvelle.
+
+**Le débit est un résultat, pas une statistique d'agrément** : une page de vingt
+pèse un quart de mégaoctet et met environ 80 secondes à venir. Couvrir les
+11 744 listes demanderait **une douzaine d'heures**. C'est ce chiffre qui
+décidera de la fenêtre retenue à l'ingestion.
+
+### Le gabarit d'un deck
+
+Mesuré sur 220 listes (`python -m app.measure.swu_decks`) :
+
+| | Valeur |
+|---|---|
+| Deck principal | médiane **51**, écart interquartile **2**, étendue 50–64 |
+| Modes | **50 cartes** (100 listes) et **60** (26) |
+| Leader, Base | exactement 1 chacun, dans 220/220 listes |
+| Réserve | médiane 10, présente dans 213/220 |
+| Unit | **81,0 %** (écart 10,3) |
+| Event | **12,0 %** (écart 8,0) |
+| Upgrade | **5,0 %** (écart 4,3, présent dans 181/220) |
+| Exemplaires | 1 (536 entrées), 2 (1 538), 3 (2 648) — **et une seule à 15** |
+
+Toutes les zones sauf la réserve comptent dans la complétion : on ne pose pas un
+deck sans sa base. La médiane à viser est donc **53 cartes**, non 51.
+
+La règle des trois exemplaires tient sur 4 722 entrées et **cède une fois** :
+une liste en déclare 15. C'est le même signal que le deck HAT à six exemplaires
+relevé chez Yu-Gi-Oh — une liste mal saisie à la source plutôt qu'une
+infraction —, et il est écrit ici parce qu'un seuil de contrôle posé sur « trois
+au maximum » écarterait ce deck sans le dire.
+
+**Une limite de l'échantillon, à ne pas taire** : la source rend les listes les
+plus récentes d'abord, si bien que ces 220 couvrent **deux jours** et sept
+tournois, pas 120 jours. Le gabarit est net, sa représentativité dans le temps
+reste à établir.
+
+### La résolution des citations — de 7,35 % de perte à 0,26 %
+
+Les listes citent un **nom**, pas un code d'impression — contrairement à
+Riftbound et Pokémon. Une lecture littérale perd 7,35 % des citations et touche
+**220 decks sur 220**, ce qui est le symptôme d'un défaut de méthode et non
+d'une source pauvre. Trois causes, séparées par la mesure :
+
+| Cause | Exemple |
+|---|---|
+| La **casse** | la liste écrit « Hold **f**or Questioning », le catalogue « Hold **F**or Questioning » |
+| Le **sous-titre omis** | la liste cite « Data Vault » quand le catalogue publie le nom « Data Vault » et le sous-titre « Scarif » — c'est le cas des Bases |
+| La **ponctuation typographique** | « Benthic **“**Two Tubes**”** » et « Mesa Propose**…** » contre des guillemets droits et pas d'ellipse |
+
+D'où une résolution en trois temps, et **le repli n'est pas inconditionnel** :
+« Black One » désigne deux cartes réellement différentes, et un repli aveugle en
+choisirait une au hasard — le faux couple, que nul écran ne détrompe.
+
+| Temps | Effet mesuré |
+|---|---|
+| Le **titre entier** décide, casse et ponctuation repliées | 96,32 % des citations |
+| Le **nom seul** tranche, *et seulement s'il ne désigne qu'une carte* | 3,41 % |
+| Le reste est **refusé** plutôt que deviné | 0,26 % |
+
+Toute normalisation de noms produit des faux couples autant qu'elle comble des
+manques — c'est ce que les extensions Pokémon ont coûté, où réduire « Base
+Set » à une clé vide appariait 1999 avec 2017. Le banc vérifie donc qu'aucune
+paire de titres distincts ne se rejoint, et distingue les réunions **bénignes**
+(la source écrit « Prepare **F**or Takeoff » et « Prepare **f**or Takeoff »)
+des vraies.
+
+Les 17 citations qui restent ne sont pas des défauts du banc : deux cartes
+manquent au catalogue, et une est une **coquille de la source** — « Poe
+Dameron | One Hell of **a a** Pilot ».
+
+### Les aspects contraignent réellement, contrairement à l'Attribut de Yu-Gi-Oh
+
+La question n'était pas rhétorique : SWU **pénalise** le hors-aspect de deux
+ressources sans l'interdire, et Yu-Gi-Oh a montré qu'un champ ressemblant à une
+identité de couleur peut n'imposer aucune contrainte — l'y avoir supposée
+écartait 32 % de son catalogue sur une règle inexistante.
+
+Mesuré sur 220 decks : **79,1 % sont entièrement dans les aspects de leur leader
+et de leur base**, la part hors aspect a une médiane de **0,0 %** et un écart
+interquartile de **0,0 point**. Le filtrage du pool par aspect est donc
+légitime pour ce jeu — avec une nuance qui doit survivre au résumé : un deck sur
+cinq joue hors aspect, jusqu'à **22 %** de ses cartes. Le filtre doit être une
+préférence, pas un mur.
+
+### La fenêtre d'illustration — la méthode Pokémon cède, et l'image dit pourquoi
+
+Reprise telle quelle, la méthode qui a abouti pour Pokémon — empiler des cartes
+alignées, lire la plage calme du gradient de l'image moyenne — **ne converge
+pas** sur SWU. Trois symptômes, sur les 21 groupes assez fournis pour être
+empilés :
+
+- des **dérives énormes** entre deux tirages disjoints : 520 px pour
+  `Leader/Normal`, 309 px pour `Unit/Prestige`, 181 px pour `Leader/Showcase`.
+  Chez Pokémon, la dérive allait de 0 à 12 px ;
+- le **contrôle de luminance en échec sur neuf groupes**, l'« illustration »
+  ressortant plus claire que ce qui la suit — l'inverse de ce qu'une
+  illustration fait ;
+- des **séparations trop basses** là où la fenêtre était fausse :
+  `Event/Normal` à 16,5 bits de moyenne, avec une paire à **3 bits**, très en
+  deçà du seuil de confiance de 12.
+
+**Aucun de ces trois symptômes ne nomme la cause**, et deux d'entre eux
+pointaient vers l'alignement — le suspect naturel, ce jeu publiant treize
+formats de rendu qu'il faut normaliser. C'est l'image moyenne, *regardée*, qui a
+tranché : le cadre y est parfaitement net, les 154 Leaders sont alignés au
+pixel. L'alignement n'était pas en cause.
+
+Ce que la même image montre, en revanche : **sur une carte couchée,
+l'illustration occupe la moitié gauche et le pavé de texte la moitié droite**.
+Or `derive` sonde les colonnes **en partant du centre de la carte** — ce qui va
+de soi chez Pokémon, dont les illustrations y sont, et qui tombe en plein texte
+ici. Le banc rendait donc le pavé de texte comme « fenêtre », avec une assurance
+parfaite : fenêtre (0,485 · 0,220 · 0,911 · 0,682), luminance 204 contre 147.
+
+Le point de sondage horizontal est devenu une propriété de l'orientation
+(`PROBE_X_LAID = 0.25`). L'effet, sur `Leader/Normal` :
+
+| | avant | après |
+|---|---|---|
+| Fenêtre | (0,485 … 0,911) — le texte | **(0,032 · 0,088 · 0,451 · 0,808)** — l'illustration |
+| Séparation moyenne | 18,7 bits | **31,1 bits** |
+| Paire la plus serrée | 8 bits — **sous le seuil** | **21 bits** |
+| Dérive entre tirages disjoints | 520 px | **53 px** |
+
+**La leçon de méthode est là** : un banc doit pouvoir *se regarder*, pas
+seulement se lire. Trois indicateurs chiffrés criaient qu'une chose n'allait
+pas, aucun ne disait laquelle, et deux accusaient le mauvais coupable. C'est à
+cela que sert `--dump`, qui écrit l'image moyenne et son gradient.
+
+### Où en est la mesure, groupe par groupe
+
+Deux critères sont solides et se lisent ensemble : la **séparation en bits** —
+une fenêtre qui embarque du cadre gèle des bits identiques sur toutes les
+cartes et la distance s'effondre — et la **dérive entre deux tirages
+disjoints**, qui dit si la fenêtre décrit le gabarit ou l'échantillon.
+
+| Groupe | Séparation | Paire la plus serrée | Dérive |
+|---|---|---|---|
+| `Leader/Hyperspace` | 31,6 | 18 | **2 px** |
+| `Base/Normal` | 32,1 | 19 | 3 px |
+| `Leader/Normal` | 31,1 | **21** | 53 px |
+| `Unit/Normal` | 31,5 | 19 | 66 px |
+| `Unit/Hyperspace` | 31,4 | 18 | 66 px |
+| `Leader/Showcase` | 31,7 | 17 | **181 px** |
+| `Unit/OP Promo` | 31,0 | 16 | **177 px** |
+| `Unit/Prestige` | 31,1 | 17 | **309 px** |
+| **`Event/Hyperspace`** | **18,3** | **9** | 1 px |
+| **`Event/Normal`** | **16,5** | **3** | 1 px |
+
+Deux familles de défauts restent, et elles ne se ressemblent pas :
+
+- **les Events**, dont la fenêtre est stable d'un tirage à l'autre — 1 px de
+  dérive — mais **fausse** : 16,5 bits de séparation quand les autres groupes
+  en donnent 31, et une paire à **3 bits**, très en deçà du seuil de confiance
+  de 12. Une fenêtre reproductible n'est pas une fenêtre juste, et c'est
+  exactement le piège que la séparation existe pour attraper ;
+- **les groupes à forte dérive** — `Unit/Prestige` à 309 px, `Leader/Showcase`
+  à 181 — dont la séparation est pourtant bonne. Ce sont des traitements à
+  illustration débordante, où aucun trait ne borne la plage calme : plusieurs
+  de leurs arêtes touchent le bord du rendu.
+
+### Le contrôle de luminance n'est pas transposable, et on ne l'ajustera pas
+
+Chez Pokémon, l'illustration doit ressortir plus sombre que le pavé de texte qui
+la suit, et ce contrôle croisé a du sens parce que le texte y suit toujours
+l'illustration vers le bas. Sur SWU il échoue **partout**, y compris là où la
+fenêtre est manifestement juste : pour `Base/Normal`, la zone au-delà de la
+fenêtre n'est pas le pavé de texte mais le **bord noir de la carte**, à une
+luminance de 32 contre 114 pour l'illustration.
+
+Le corriger une deuxième fois — après l'avoir déjà réorienté vers la droite
+pour les cartes couchées — reviendrait à l'ajuster jusqu'à ce qu'il approuve, ce
+qui n'est plus un contrôle. Il est donc **conservé et affiché, mais il ne vaut
+pas pour ce jeu** ; la séparation et la dérive portent seules le jugement. Le
+dire est préférable à le faire taire.
+
+### Ce qui reste dû
+
+- **arrêter les fenêtres** des Events, dont la mesure est reproductible et
+  fausse, et des traitements à illustration débordante ;
+- **l'ingestion elle-même** — migration, catalogue, prix, index d'empreintes,
+  decks, constructeur, application ;
+- **une carte de papier**. Le format 63 × 88 est présumé pour ce jeu comme il
+  l'était pour Wankul ; et le précédent Riftbound rappelle qu'un gabarit mesuré
+  sur des rendus doit encore rencontrer une photo.
