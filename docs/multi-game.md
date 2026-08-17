@@ -2377,6 +2377,70 @@ trente et une requêtes suffisent à faire lâcher le réseau de ce poste une fo
 sur deux : le connecteur reprend désormais avec une attente croissante, ce dont
 celui de Riftbound n'a pas besoin avec ses vingt et une.
 
+### L'index d'empreintes — 5 282 sur 5 282, et aucune carte sans
+
+Les cinq gabarits sont entrés dans `art_box.py` et son jumeau Dart, dont un
+test relit les valeurs. `card_geometry` déclare le format du carton : 63 × 88,
+et **le rendu s'y aligne** — mesuré sur les 1 428 rendus mis en cache par les
+bancs, 0,7154 à 0,7186 debout et 1,3929 à 1,3978 couché, l'inverse exact.
+
+L'index couvre **toutes** les impressions et **toutes** les cartes. SWU rejoint
+`GAMES_WITH_LANDSCAPE` pour ses 599 cartes couchées — 445 Leaders et 154 Bases,
+un quart du catalogue, la plus forte proportion des trois jeux concernés.
+
+**Une faute d'orchestration a coûté un redémarrage**, et elle mérite d'être
+écrite : l'index tournait quand une correction d'identité a été appliquée au
+catalogue, si bien qu'une empreinte s'est calculée pour une impression que la
+purge venait de supprimer — `ForeignKeyViolation`, à 4 618 empreintes sur
+5 282. Le module est reprenable par conception et n'a rien perdu ; mais *on ne
+change pas la règle d'identité pendant qu'un index se construit dessus*.
+
+### Le corpus de decks — et trois défauts que seule la base a révélés
+
+`api/app/ingestion/swumetastats_ingest.py`, format `premier`.
+
+Les zones suivent le précédent Riftbound : **Leader, Base et MainDeck comptent
+dans la complétion**, la réserve non — on ne pose pas un deck sans sa base. Le
+Leader est en outre retenu à part pour occuper `decks.commander_oracle_id`,
+comme la Légende : c'est par lui qu'on choisit un deck.
+
+Trois défauts se sont succédé, et **aucun ne se voyait depuis le connecteur** :
+
+1. **Le nom seul écrasait silencieusement les homonymes.** `load_name_index`
+   construit un dictionnaire nom → carte où une collision remplace la
+   précédente : « Boba Fett » aurait désigné l'une de ses cartes selon l'ordre
+   des lignes rendues par la base. Le connecteur charge donc un index **dont
+   les noms ambigus sont retirés** — 163 noms de personnages réutilisés —, et
+   une citation ambiguë est refusée plutôt que résolue au hasard.
+2. **Une même carte comptait pour deux.** Le catalogue portait « Prepare For
+   Takeoff » et « Prepare for Takeoff », deux écritures de la source pour une
+   seule carte, donc deux `oracle_id` — et un nom devenu ambigu, donc écarté.
+   L'ingestion canonicalise désormais les titres avant d'en dériver l'identité.
+   La canonicalisation est **ciblée** : dériver l'identité du titre *normalisé*
+   serait plus direct et changerait toutes les clés du catalogue, invalidant
+   l'index entier pour corriger une carte.
+3. **La purge manquait.** Changer la règle d'identité laisse des lignes
+   derrière : le connecteur produisait 2 180 cartes et 5 282 impressions quand
+   la base en portait 2 181 et 5 284. L'écart ne se voyait pas depuis le
+   connecteur, qui compte ce qu'il écrit. `prune` retire d'abord les impressions
+   que la source ne publie plus, **puis** les cartes qu'aucune impression ne
+   porte — l'ordre inverse ne trouverait rien, l'ancienne carte gardant ses
+   anciennes impressions. Rien de cité par une collection ou un deck n'est
+   supprimé.
+
+Effet mesuré sur vingt listes : **17 decks enregistrés sur 20 avant, 20 sur 20
+après**, et les citations non résolues tombent de quatre à une — « Poe
+Dameron | One Hell of **a a** Pilot », une coquille du catalogue que rien de
+notre côté ne peut réparer.
+
+**Et un quatrième, le plus silencieux de tous** : `store_deck` n'engage rien,
+`Session.run` documentant que l'unité doit commiter ce qu'elle veut garder.
+Sans ce commit, vingt decks annoncés « enregistrés » repartaient avec la
+connexion et la base restait **vide** — le connecteur comptait ce qu'il croyait
+écrire. C'est exactement la leçon des 5 533 decks Pokémon manquants : *un
+compteur d'écritures n'est pas un compteur de résultats*, et seul le décompte
+en base les sépare.
+
 ### Ce qui reste dû
 
 - **éprouver les gabarits sur des photos**, et non sur des rendus : c'est le

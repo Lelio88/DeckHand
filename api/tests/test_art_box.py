@@ -33,6 +33,11 @@ from app.vision.art_box import (
     POKEMON_TRAINER,
     RIFTBOUND_LANDSCAPE,
     RIFTBOUND_PORTRAIT,
+    SWU_BASE,
+    SWU_EVENT,
+    SWU_LEADER,
+    SWU_UNIT,
+    SWU_UPGRADE,
     WANKUL,
     WANKUL_BANDS_BOTTOM,
     WANKUL_BANDS_TOP,
@@ -58,6 +63,10 @@ DECOUPES = {
     # mesurée : le cadre debout existait des deux côtés sans que rien ne vérifie
     # qu'ils coïncidaient.
     "wankul": {WANKUL, WANKUL_BANDS_TOP, WANKUL_BANDS_BOTTOM},
+    # SWU en a cinq, un par type — et non un par couple (type, traitement),
+    # que le catalogue distingue pourtant vingt-et-une fois. `--compare` a
+    # montré que la fenêtre du traitement ordinaire les sert tous.
+    "swu": {SWU_UNIT, SWU_UPGRADE, SWU_EVENT, SWU_LEADER, SWU_BASE},
 }
 
 #: Le motif tolère les espaces et les sauts de ligne partout où `dart format`
@@ -247,3 +256,43 @@ def test_le_gabarit_pendule_est_plus_large_que_l_ordinaire():
     # échelles latérales repoussent l'illustration vers les bords.
     assert YUGIOH_PENDULUM.left < YUGIOH.left
     assert YUGIOH_PENDULUM.right > YUGIOH.right
+
+
+def test_l_illustration_d_un_event_swu_est_sous_celle_d_une_unite():
+    """**Le fait mesuré le plus coûteux de ce jeu.** Un Event porte son
+    illustration en bas et son texte en haut — l'inverse d'une Unit. Le banc,
+    qui sondait en haut, rendait le pavé de texte comme fenêtre avec 1 px de
+    dérive entre deux tirages disjoints et 16,5 bits de séparation contre 31
+    ailleurs : une fenêtre reproductible n'est pas une fenêtre juste.
+
+    Les deux fenêtres **se chevauchent** entre 0,521 et 0,627 — elles ne sont
+    pas disjointes, et l'affirmer serait dire plus que la mesure. Ce qui est
+    vrai et qui suffit : celle de l'Event commence sous le milieu de la carte,
+    celle de l'Unit bien au-dessus. Si l'une dérivait vers l'autre, le symptôme
+    réapparaîtrait sans qu'aucun chiffre de dérive ne le signale."""
+    assert SWU_EVENT.top > 0.5 > SWU_UNIT.top
+    assert SWU_EVENT.bottom > SWU_UNIT.bottom
+    # L'Event descend presque au bas du carton ; l'Unit s'arrête aux deux tiers.
+    assert SWU_EVENT.bottom > 0.9
+    assert SWU_UNIT.bottom < 0.7
+
+
+def test_les_deux_maquettes_couchees_swu_ne_couvrent_pas_la_meme_largeur():
+    """Un Leader porte son illustration sur la moitié gauche, une Base sur
+    toute la largeur. Sonder le Leader au centre tombait dans son pavé de
+    texte — 18,7 bits avec une paire à 8, sous le seuil de confiance."""
+    assert SWU_LEADER.right < 0.5
+    assert SWU_BASE.right > 0.9
+
+
+def test_chaque_type_swu_a_son_gabarit():
+    """Cinq types, cinq fenêtres, et un type inconnu retombe sur celle de
+    l'Unit — la maquette majoritaire, 1 369 cartes sur 2 181. Rendre `None`
+    ferait hacher la carte entière sans que rien ne le signale."""
+    assert box_for("swu", "Unit") == SWU_UNIT
+    assert box_for("swu", "Event") == SWU_EVENT
+    assert box_for("swu", "Upgrade") == SWU_UPGRADE
+    assert box_for("swu", "Leader") == SWU_LEADER
+    assert box_for("swu", "Base") == SWU_BASE
+    assert box_for("swu", None) == SWU_UNIT
+    assert box_for("swu", "Vaisseau") == SWU_UNIT

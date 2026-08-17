@@ -105,6 +105,7 @@ cd app && dart run tool/probe_photo.dart <photo> --game riftbound --out <dossier
 cd app && dart run tool/stream_bench.dart   # --cards N --regime <nom> --noise N
 cd api && .venv/Scripts/python -m app.ingestion.swu_ingest         # catalogue Star Wars Unlimited
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_swu_prices  # prix SWU (--force)
+cd api && .venv/Scripts/python -m app.ingestion.swumetastats_ingest # decks SWU (--days N, défaut 30)
 # Bancs Star Wars Unlimited — voir docs/multi-game.md §10
 cd api && .venv/Scripts/python -m app.measure.swu_taxonomy           # périmètre, identité, orientation, finitions
 cd api && .venv/Scripts/python -m app.measure.swu_decks              # --days N --limit N : gabarit, résolution, aspects

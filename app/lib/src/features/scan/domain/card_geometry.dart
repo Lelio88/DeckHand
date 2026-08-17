@@ -70,6 +70,17 @@ const Map<String, double> cardAspects = {
   // signifie « jeu ajouté sans ses proportions », et le test qui l'attrape doit
   // continuer de servir à ça.
   'wankul': 63 / 88,
+  // Star Wars Unlimited : même carton que Magic, 63 × 88 mm.
+  //
+  // **Le rendu de la source s'y aligne**, mesuré sur 1 428 rendus : 0,7154 à
+  // 0,7186 pour les cartes debout, 1,3929 à 1,3978 pour les couchées —
+  // l'inverse exact, à 0,4 % près. C'est la même carte tournée d'un quart de
+  // tour, comme chez Riftbound.
+  //
+  // Cette source publie treize formats de rendu, de 1117 × 1560 à 418 × 300,
+  // là où les autres n'en ont qu'un. Le rapport, lui, ne bouge pas : c'est
+  // l'échelle qui varie, pas la géométrie.
+  'swu': 63 / 88,
 };
 
 /// Ce sur quoi retombe un jeu absent de [cardAspects].

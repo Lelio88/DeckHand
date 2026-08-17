@@ -12,6 +12,7 @@ from typing import Any
 from app.ingestion.swu_ingest import (
     Entry,
     _as_number,
+    canonicalise,
     fold_cards,
     fold_printings,
     parse_entry,
@@ -161,3 +162,45 @@ def test_le_code_d_extension_de_la_carte_prime_sur_celui_demande():
     les promos en sont pleines. C'est ce que la carte dit qui compte."""
     parsed = parse_entry({"Set": "P25", "Name": "X", "Type": "Unit"}, fallback_set="lof")
     assert parsed.set_code == "P25"
+
+
+# --- l'identité, quand la source s'écrit de deux façons ---------------------
+
+
+def test_deux_ecritures_d_un_meme_titre_font_une_seule_carte():
+    """**La source s'écrit parfois de deux façons.** « Prepare For Takeoff » et
+    « Prepare for Takeoff » sont la même carte, et faisaient deux `oracle_id` :
+    un seul cas sur 2 181, mais il coûtait une carte introuvable à la
+    résolution des decklists — le nom devenant ambigu, il était écarté par
+    prudence.
+
+    C'est la leçon Riftbound sous une autre forme : *une identité ne se dérive
+    pas d'un champ d'affichage*."""
+    a = entry(name="Prepare For Takeoff", subtitle="", type="Event")
+    b = entry(name="Prepare for Takeoff", subtitle="", type="Event", set_code="LOF")
+    fusionnees = canonicalise([a, b])
+    assert len({e.oracle_id for e in fusionnees}) == 1
+    assert len(fold_cards(fusionnees)) == 1
+
+
+def test_la_forme_retenue_est_la_premiere_rencontree():
+    """Et non une forme reconstruite : le titre affiché doit rester celui que
+    la source publie."""
+    a = entry(name="Prepare For Takeoff", subtitle="", type="Event")
+    b = entry(name="Prepare for Takeoff", subtitle="", type="Event", set_code="LOF")
+    assert fold_cards(canonicalise([a, b]))[0].name == "Prepare For Takeoff"
+    assert fold_cards(canonicalise([b, a]))[0].name == "Prepare for Takeoff"
+
+
+def test_la_canonicalisation_ne_fusionne_pas_deux_cartes_differentes():
+    """Elle ne réunit que ce qui ne diffère **que** par la casse ou la
+    ponctuation. Deux titres distincts restent distincts, et un même titre
+    porté par deux types aussi — « Snapshot Reflexes » est un Event et un
+    Upgrade."""
+    a = entry(name="Data Vault", subtitle="Scarif")
+    b = entry(name="Data Vault", subtitle="Jedha")
+    assert len({e.oracle_id for e in canonicalise([a, b])}) == 2
+
+    ev = entry(name="Snapshot Reflexes", subtitle="", type="Event")
+    up = entry(name="Snapshot Reflexes", subtitle="", type="Upgrade")
+    assert len({e.oracle_id for e in canonicalise([ev, up])}) == 2

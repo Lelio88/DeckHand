@@ -58,7 +58,7 @@ import urllib.error
 import urllib.request
 import uuid
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Iterable, Iterator
 
 import json
@@ -275,6 +275,41 @@ def fetch_catalogue() -> tuple[list[Entry], dict[str, str], list[str]]:
         if rows:
             print(f"  {code:<8} {len(rows):>5} entrées")
     return entries, names, unreachable
+
+
+def canonicalise(entries: list[Entry]) -> list[Entry]:
+    """Réécrit les titres qui ne diffèrent que par la casse ou la ponctuation.
+
+    **La source s'écrit parfois de deux façons**, et l'identité en héritait :
+    « Prepare For Takeoff » et « Prepare for Takeoff » sont la même carte, et
+    faisaient deux `oracle_id`. Un seul cas sur 2 181 — mais il coûtait une
+    carte introuvable à la résolution des decklists, le nom devenant ambigu et
+    se voyant écarté par prudence.
+
+    C'est la leçon Riftbound sous une autre forme : *une identité ne se dérive
+    pas d'un champ d'affichage*. Là-bas, la source réécrivait ses textes d'une
+    extension à l'autre et 63 identités s'étaient dédoublées.
+
+    **La canonicalisation est ciblée, et pas la normalisation elle-même.**
+    Dériver l'identité du titre *normalisé* serait plus direct — et changerait
+    **toutes** les clés du catalogue, donc invaliderait tout l'index
+    d'empreintes pour corriger une carte. Ici, seules les cartes réellement
+    dédoublées bougent : la forme retenue est celle rencontrée en premier, dans
+    l'ordre des extensions.
+    """
+    canonique: dict[tuple[str, str], tuple[str, str]] = {}
+    for entry in entries:
+        cle = (normalize_name(entry.title), entry.type)
+        canonique.setdefault(cle, (entry.name, entry.subtitle))
+
+    out: list[Entry] = []
+    for entry in entries:
+        name, subtitle = canonique[(normalize_name(entry.title), entry.type)]
+        if (name, subtitle) == (entry.name, entry.subtitle):
+            out.append(entry)
+        else:
+            out.append(replace(entry, name=name, subtitle=subtitle))
+    return out
 
 
 def fold_printings(entries: Iterable[Entry]) -> list[Printing]:
@@ -506,10 +541,72 @@ def write_search_names(conn: psycopg.Connection, cards: Iterable[Card]) -> int:
     return len(rows)
 
 
+def prune(conn: psycopg.Connection, kept: set[str]) -> tuple[int, int, int]:
+    """Retire ce que la source ne publie plus, **sans jamais casser un pointeur**.
+
+    **Une règle d'identité qui change laisse des lignes derrière elle**, et
+    c'est la leçon que Riftbound a payée sur ses 192 identités dédoublées. Ici,
+    canonicaliser les titres a fusionné « Prepare For / for Takeoff » en une
+    carte : le connecteur en produit désormais 2 180 et 5 282, mais la base en
+    portait 2 181 et 5 284. La différence n'était pas visible depuis le
+    connecteur, qui compte ce qu'il écrit — *un compteur d'écritures n'est pas
+    un compteur de résultats*.
+
+    Deux niveaux, dans cet ordre : les impressions que la source ne publie plus,
+    puis les cartes qu'aucune impression ne porte. L'inverse ne trouverait rien,
+    l'ancienne carte gardant ses anciennes impressions.
+
+    **Rien de cité n'est supprimé.** Collections et decks référencent ces clés
+    sans cascade : une ligne encore citée est conservée plutôt que de faire
+    échouer l'ingestion — le remède est de rejouer l'ingestion des decks, qui
+    les repointera, puis de relancer. Rend (impressions, cartes, retenues).
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            DELETE FROM public.card_prints p
+            USING public.cards c
+            WHERE c.oracle_id = p.oracle_id
+              AND c.game = %s
+              AND NOT (p.scryfall_id::text = ANY(%s))
+              AND NOT EXISTS (SELECT 1 FROM public.collection_items i
+                              WHERE i.print_id = p.scryfall_id)
+            """,
+            (GAME, list(kept)),
+        )
+        prints = cur.rowcount
+
+        orpheline = """
+            SELECT c.oracle_id FROM public.cards c
+            WHERE c.game = %s
+              AND NOT EXISTS (SELECT 1 FROM public.card_prints p
+                              WHERE p.oracle_id = c.oracle_id)
+        """
+        cur.execute(
+            f"""
+            DELETE FROM public.cards WHERE oracle_id IN (
+                SELECT oracle_id FROM ({orpheline}) o
+                WHERE NOT EXISTS (SELECT 1 FROM public.deck_cards d
+                                  WHERE d.oracle_id = o.oracle_id)
+                  AND NOT EXISTS (SELECT 1 FROM public.collection_items i
+                                  WHERE i.oracle_id = o.oracle_id)
+                  AND NOT EXISTS (SELECT 1 FROM public.decks k
+                                  WHERE k.commander_oracle_id = o.oracle_id))
+            """,
+            (GAME,),
+        )
+        cards = cur.rowcount
+
+        cur.execute(f"SELECT count(*) FROM ({orpheline}) t", (GAME,))
+        retenues = cur.fetchone()[0]
+        conn.commit()
+    return prints, cards, retenues
+
+
 def run(force: bool) -> None:
     print("catalogue Star Wars Unlimited, depuis SWU-DB")
     entries, set_names, unreachable = fetch_catalogue()
-    playable = [e for e in entries if not e.is_token]
+    playable = canonicalise([e for e in entries if not e.is_token])
     print(f"\n{len(entries)} entrées, dont {len(entries) - len(playable)} jetons écartés")
 
     cards = fold_cards(playable)
@@ -526,9 +623,19 @@ def run(force: bool) -> None:
         written_prints = write_prints(conn, printings, set_names)
         written_names = write_search_names(conn, cards)
         conn.commit()
+        pruned_prints, pruned_cards, retenues = prune(
+            conn, {str(p.key) for p in printings}
+        )
 
     print(f"\n{written_cards} cartes, {written_prints} impressions, "
           f"{written_names} noms de recherche écrits")
+    if pruned_prints or pruned_cards:
+        print(f"purge : {pruned_prints} impressions et {pruned_cards} cartes "
+              f"que la source ne publie plus")
+    if retenues:
+        print(f"  {retenues} cartes orphelines conservées car encore citées par "
+              f"une collection ou un deck — rejouer l'ingestion des decks les "
+              f"repointera")
     if unreachable:
         print(f"ATTENTION : {len(unreachable)} extensions injoignables, "
               f"leur contenu manque : {', '.join(unreachable)}")

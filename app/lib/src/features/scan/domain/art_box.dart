@@ -253,6 +253,71 @@ enum CardFrame {
     (left: 0.0440, top: 0.0615, right: 0.9536, bottom: 0.6300),
     'wankul',
     landscape: true,
+  ),
+
+  /// Star Wars Unlimited, Unité — 1 369 cartes, la maquette majoritaire.
+  ///
+  /// **Cinq gabarits pour ce jeu, un par type**, alors que son catalogue
+  /// distingue vingt-et-un couples (type, traitement). Chacun a été éprouvé
+  /// sous la fenêtre des autres, et le résultat est le même dans les cinq
+  /// types : la fenêtre du traitement ordinaire est la meilleure ou l'égale de
+  /// toutes. `Unit/Prestige` gagne même une paire sous elle — 32,0 / 20 contre
+  /// 31,1 / 17 sous la sienne — quand `Unit/Normal` tombe à 23,5 / 11 sous
+  /// celle de `Prestige`. La fenêtre étroite tient dans l'illustration des
+  /// cartes bord à bord ; la large embarque du cadre sur une carte standard.
+  swuUnit((
+    left: 0.1495,
+    top: 0.1397,
+    right: 0.9042,
+    bottom: 0.6269,
+  ), 'swu'),
+
+  /// SWU, Amélioration — même maquette que l'unité, illustration en haut, mais
+  /// une fenêtre à elle : elle commence plus à gauche et s'arrête plus haut.
+  swuUpgrade((
+    left: 0.0976,
+    top: 0.1212,
+    right: 0.9069,
+    bottom: 0.5622,
+  ), 'swu'),
+
+  /// SWU, Événement — **l'illustration est en bas**, le texte en haut.
+  ///
+  /// C'est l'inverse de l'unité, et rien ne le laissait prévoir. Le banc, qui
+  /// sondait en haut, rendait le pavé de texte comme fenêtre avec une
+  /// stabilité parfaite — 1 px de dérive entre deux tirages disjoints — et une
+  /// séparation de 16,5 bits contre 31 ailleurs, avec une paire à 3 bits :
+  /// *une fenêtre reproductible n'est pas une fenêtre juste*. C'est l'image
+  /// moyenne, regardée, qui a nommé la cause.
+  swuEvent((
+    left: 0.1038,
+    top: 0.5212,
+    right: 0.8979,
+    bottom: 0.9103,
+  ), 'swu'),
+
+  /// SWU, Leader — carte **couchée**, illustration sur la moitié gauche.
+  ///
+  /// Les 445 leaders sont imprimés en travers et double-face, et leur
+  /// illustration n'occupe que la moitié gauche du carton, le pavé de texte
+  /// prenant l'autre. Sonder au centre y tombait en plein texte : 18,7 bits
+  /// avec une paire à 8, contre 31,1 et 21 une fois le sondage déplacé.
+  swuLeader(
+    (left: 0.0321, top: 0.0877, right: 0.4513, bottom: 0.8084),
+    'swu',
+    landscape: true,
+  ),
+
+  /// SWU, Base — couchée elle aussi, mais illustration pleine largeur.
+  ///
+  /// 175 des 180 bases non brillantes sont couchées ; les cinq debout sont des
+  /// variantes `Hyperspace`, et aucune règle tirée du type, du traitement ou de
+  /// l'extension ne les isole. Elles se lisent sur l'image — ce que la
+  /// reconnaissance fait déjà, en essayant les deux quarts de tour.
+  swuBase(
+    (left: 0.0712, top: 0.1692, right: 0.9263, bottom: 0.6267),
+    'swu',
+    landscape: true,
   );
 
   const CardFrame(this.box, this.game, {this.landscape = false});

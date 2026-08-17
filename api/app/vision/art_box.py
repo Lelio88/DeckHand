@@ -51,7 +51,9 @@ RIFTBOUND_LANDSCAPE = ArtBox(0.041, 0.199, 0.962, 0.777)
 #: introuvable. Ouvrir l'orientation couchée à tous les jeux reviendrait à
 #: accepter n'importe quel rectangle en Magic, où toutes les cartes sont debout.
 #: Jumeau de `CardFrame.landscape`.
-GAMES_WITH_LANDSCAPE = frozenset({"riftbound", "wankul"})
+#: SWU y figure pour ses **599 cartes couchées** — 445 Leaders et 154 Bases,
+#: soit un quart de son catalogue, la plus forte proportion des trois jeux.
+GAMES_WITH_LANDSCAPE = frozenset({"riftbound", "wankul", "swu"})
 
 #: Yu-Gi-Oh, cadre ordinaire — 14 101 cartes sur 14 491.
 #:
@@ -180,6 +182,59 @@ WANKUL_BANDS_TOP = ArtBox(0.0440, 0.4150, 0.9536, 0.9385)
 #: Jumeau de `CardFrame.wankulWideBandsBottom`.
 WANKUL_BANDS_BOTTOM = ArtBox(0.0440, 0.0615, 0.9536, 0.6300)
 
+#: Star Wars Unlimited — **cinq gabarits, un par type**, et c'est la mesure qui
+#: le dit.
+#:
+#: Le catalogue distingue vingt-et-un couples (type, traitement). `--compare` les
+#: a éprouvés les uns sous la fenêtre des autres, et le résultat est identique
+#: dans les cinq types : **la fenêtre du traitement `Normal` est la meilleure ou
+#: l'égale de toutes les autres**. `Base/Hyperspace` gagne même une paire sous
+#: elle (31,7 / 20 contre 31,9 / 18 sous la sienne), et `Unit/Prestige` aussi
+#: (32,0 / 20 contre 31,1 / 17). L'inverse est faux partout : `Base/Normal`
+#: tombe à 25,2 / 13 sous la fenêtre `Hyperspace`, et la fenêtre `Showcase` est
+#: ruineuse sur les autres Leaders — 13,8 / 6.
+#:
+#: La raison est celle que Pokémon avait déjà relevée : la fenêtre étroite tient
+#: entièrement dans l'illustration des cartes bord à bord, où elle capte donc de
+#: l'illustration pure ; la fenêtre large embarque du cadre sur une carte
+#: standard et lui coûte sa marge. *Un seul gabarit, le plus étroit.*
+#:
+#: `layout` porte ici le **type de carte**, écrit par `swu_ingest`.
+#: Jumeau de `CardFrame.swuUnit`.
+SWU_UNIT = ArtBox(0.1495, 0.1397, 0.9042, 0.6269)
+
+#: SWU, Upgrade — même maquette que l'Unit, illustration en haut, mais une
+#: fenêtre à elle : elle commence plus à gauche et s'arrête plus haut.
+#: Jumeau de `CardFrame.swuUpgrade`.
+SWU_UPGRADE = ArtBox(0.0976, 0.1212, 0.9069, 0.5622)
+
+#: SWU, Event — **l'illustration est en bas**, le pavé de texte en haut.
+#:
+#: C'est l'inverse de l'Unit, et rien ne le laissait prévoir : le banc, qui
+#: sondait en haut, rendait le pavé de texte comme fenêtre avec une stabilité
+#: parfaite — 1 px de dérive entre deux tirages disjoints — et une séparation
+#: de 16,5 bits contre 31 ailleurs, avec une paire à 3 bits. *Une fenêtre
+#: reproductible n'est pas une fenêtre juste.* C'est l'image moyenne, regardée,
+#: qui a nommé la cause. Jumeau de `CardFrame.swuEvent`.
+SWU_EVENT = ArtBox(0.1038, 0.5212, 0.8979, 0.9103)
+
+#: SWU, Leader — carte **couchée**, illustration sur la moitié gauche.
+#:
+#: Les 445 Leaders sont imprimés en travers et double-face. Leur illustration
+#: n'occupe que la moitié gauche du carton, le pavé de texte prenant l'autre :
+#: sonder au centre, comme le fait Pokémon, y tombait en plein texte et rendait
+#: 18,7 bits avec une paire à 8. Jumeau de `CardFrame.swuLeader`.
+SWU_LEADER = ArtBox(0.0321, 0.0877, 0.4513, 0.8084)
+
+#: SWU, Base — carte **couchée** elle aussi, mais illustration pleine largeur.
+#:
+#: 175 des 180 Bases non brillantes sont couchées ; les cinq debout sont des
+#: variantes `Hyperspace`, et aucune règle tirée du type, du traitement ou de
+#: l'extension ne les isole. Elles se lisent sur l'image, ce que la
+#: reconnaissance fait déjà en essayant les deux quarts de tour.
+#: Jumeau de `CardFrame.swuBase`.
+SWU_BASE = ArtBox(0.0712, 0.1692, 0.9263, 0.6267)
+
 #: Valeurs de `layout` qui désignent l'une des deux maquettes couchées.
 #:
 #: **Déclarées ici et non dans `wankul_frame`**, qui les produit : ce module doit
@@ -215,7 +270,35 @@ def box_for(game: str, layout: str | None) -> ArtBox | None:
         return RIFTBOUND_LANDSCAPE if layout == "landscape" else RIFTBOUND_PORTRAIT
     if game == "wankul":
         return _wankul_box(layout)
+    if game == "swu":
+        return _swu_box(layout)
     return None
+
+
+def _swu_box(layout: str | None) -> ArtBox:
+    """Fenêtre d'une carte SWU, d'après son **type**.
+
+    `layout` porte ici le type publié par la source — `Unit`, `Event`,
+    `Upgrade`, `Leader`, `Base` —, écrit tel quel par `swu_ingest`. C'est le
+    seul discriminant : le traitement d'impression (`Hyperspace`, `Showcase`,
+    `Prestige`…) n'en demande pas d'autre, `--compare` ayant montré que la
+    fenêtre du traitement ordinaire les sert tous au moins aussi bien.
+
+    Un type inconnu retombe sur celle de l'Unit, qui est la maquette
+    majoritaire — 1 369 cartes sur 2 181. Ce n'est pas confortable : appliquée à
+    un Event, elle capterait le pavé de texte. Mais `None` ferait hacher la
+    carte entière **sans que rien ne le signale**, ce que le garde-fou de
+    `GAMES_WITH_PREDETOURED_ART` existe précisément pour empêcher.
+    """
+    if layout == "Event":
+        return SWU_EVENT
+    if layout == "Upgrade":
+        return SWU_UPGRADE
+    if layout == "Leader":
+        return SWU_LEADER
+    if layout == "Base":
+        return SWU_BASE
+    return SWU_UNIT
 
 
 def _wankul_box(layout: str | None) -> ArtBox:
