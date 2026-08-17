@@ -2331,6 +2331,52 @@ partagé entre SWU et un autre jeu.
 **`TASH` reste injoignable** (502 déterministe), et le connecteur le dit à
 chaque course au lieu de compter son contenu pour vide.
 
+### Les prix — 95,7 %, et une décision renversée par son propre contrôle
+
+`api/app/ingestion/tcgcsv_swu_prices.py`, catégorie TCGCSV **79**.
+
+Le rapprochement est le plus simple des cinq jeux cotés : SWU-DB sert un
+`tcgplayerId` sur 99,3 % de ses entrées, si bien qu'il s'agit d'un identifiant
+et non d'une ressemblance. Riftbound doit composer avec 227 impressions non
+chaînées ; Yu-Gi-Oh et Pokémon avec un rapprochement par extension et numéro qui
+a coûté deux tables d'alias et un veto par date. **5 053 impressions sur 5 282
+sont cotées, soit 95,7 %** — 4 603 en ordinaire, 1 781 en brillante.
+
+**Le connecteur devait ne pas écrire les finitions, et c'est son contrôle qui
+l'a détrompé.** Le raisonnement de départ semblait solide : le catalogue les
+déclare pour 100 % des impressions quand TCGCSV n'en chaîne que 99,3 %, donc la
+source la plus complète fait autorité. Le contrôle de concordance, ajouté « au
+cas où », a rendu **1 981 accords sur 5 154**.
+
+| Écart | Catalogue | TCGCSV |
+|---|---|---|
+| 2 165 | ordinaire + brillante | ordinaire seule |
+| **517** `Showcase` | **ordinaire seule** | **brillante seule** |
+| 465 `OP Promo` | ordinaire seule | les deux |
+| 26 `Hyperspace` | les deux | brillante seule |
+
+Les 517 `Showcase` tranchent : elles n'existent qu'en brillante, le catalogue
+les déclarait ordinaires, et une *Ahsoka Tano | Trust in the Force* à **290,51 €
+en brillante** aurait été valorisée à zéro — sa colonne ordinaire étant vide —
+tout en proposant à la saisie une case que le carton n'a jamais eue.
+
+*Couvrir n'est pas avoir raison.* `VariantType` ne publie une entrée brillante
+que lorsque la source l'a saisie ; `subTypeName` décrit ce qui se vend, et c'est
+lui qui répond à la question posée. TCGCSV fait donc autorité, comme pour
+Riftbound et Pokémon, et le catalogue n'est plus qu'un repli — `COALESCE` dans
+les deux sens protège chacun du travail de l'autre.
+
+Contrôle final : **aucune impression n'offre plus zéro finition**, vérifié avec
+l'expression exacte de `card_editions`, `etched` compris.
+
+**Deux limites d'exécution, mesurées en produisant l'erreur.** À 7 916 produits,
+un `UPDATE` par ligne vers une base distante *fait tomber la connexion* —
+« server closed the connection unexpectedly » en pleine course ; c'est le seuil
+qu'avait rencontré Yu-Gi-Oh à 44 139 impressions, et `executemany` le règle. Et
+trente et une requêtes suffisent à faire lâcher le réseau de ce poste une fois
+sur deux : le connecteur reprend désormais avec une attente croissante, ce dont
+celui de Riftbound n'a pas besoin avec ses vingt et une.
+
 ### Ce qui reste dû
 
 - **éprouver les gabarits sur des photos**, et non sur des rendus : c'est le

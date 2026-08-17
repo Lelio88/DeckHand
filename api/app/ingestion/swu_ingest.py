@@ -436,7 +436,17 @@ def write_prints(
             rarity           = EXCLUDED.rarity,
             art_crop_url     = EXCLUDED.art_crop_url,
             illustration_id  = EXCLUDED.illustration_id,
-            finishes         = EXCLUDED.finishes,
+            -- **Le catalogue est un repli sur les finitions, pas l'autorité**,
+            -- et c'est mesuré. `VariantType` ne publie une entrée brillante que
+            -- lorsque la source l'a saisie, et elle est incomplète : sur 5 154
+            -- impressions comparées à TCGCSV, 1 981 seulement concordent. Les
+            -- 517 `Showcase` n'existent **qu'en brillante** chez TCGplayer et
+            -- ce catalogue les déclare ordinaires — une case que le carton n'a
+            -- jamais eue. `tcgcsv_swu_prices` corrige donc après coup, comme
+            -- pour Riftbound et Pokémon, et le `COALESCE` protège son travail
+            -- d'une prochaine course du catalogue.
+            finishes         = COALESCE(public.card_prints.finishes,
+                                        EXCLUDED.finishes),
             tcgplayer_id     = COALESCE(EXCLUDED.tcgplayer_id,
                                         public.card_prints.tcgplayer_id)
     """
