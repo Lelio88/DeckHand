@@ -1,0 +1,5 @@
+Vous choisissez vos jeux à la création du compte, et dans l'ordre que vous voulez : le premier est celui que DeckHand ouvre. Les autres restent à portée, repliés sous la liste.
+
+Ce choix se modifie à tout moment depuis l'écran Compte, et suit votre compte d'un appareil à l'autre.
+
+Les illustrations du sélecteur de jeu ne sont plus déformées.
