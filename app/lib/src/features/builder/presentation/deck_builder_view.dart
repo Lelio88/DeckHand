@@ -32,17 +32,46 @@ import '../domain/deck_series.dart';
 
 /// Libellés français des rôles. Le domaine les nomme en anglais, comme le texte
 /// oracle qu'il inspecte ; l'écran, lui, parle à l'utilisateur.
+/// Le nom français de chaque rôle, tel que l'écran le montre.
+///
+/// **Un rôle absent d'ici s'affiche en anglais**, `entry.key.name` servant de
+/// repli — et c'est ce qui se passait pour les treize rôles ajoutés depuis
+/// Yu-Gi-Oh : un joueur Pokémon lisait « trainer », un joueur Lorcana lisait
+/// « song ». Le repli existe pour qu'un rôle neuf n'affiche pas du vide, pas
+/// pour tenir lieu de traduction.
 const _roleLabels = {
+  // Magic
   CardRole.creature: 'créatures',
   CardRole.draw: 'pioche',
   CardRole.ramp: 'accélération',
   CardRole.removal: 'retrait',
   CardRole.land: 'terrains',
+  // Yu-Gi-Oh
   CardRole.monster: 'monstres',
   CardRole.spell: 'magies',
   CardRole.trap: 'pièges',
   CardRole.quickSpell: 'magies rapides',
   CardRole.continuousTrap: 'pièges continus',
+  // Pokémon
+  CardRole.pokemon: 'pokémon',
+  CardRole.trainer: 'dresseurs',
+  CardRole.energy: 'énergies',
+  CardRole.supporter: 'supporters',
+  CardRole.stadium: 'stades',
+  // Star Wars Unlimited
+  CardRole.unit: 'unités',
+  CardRole.upgrade: 'améliorations',
+  // Partagés : `event` sert à SWU et One Piece, `item` à Pokémon et Lorcana,
+  // `character` à One Piece, Lorcana et Wankul.
+  CardRole.event: 'événements',
+  CardRole.item: 'objets',
+  CardRole.character: 'personnages',
+  // One Piece
+  CardRole.stage: 'décors',
+  // Lorcana
+  CardRole.action: 'actions',
+  CardRole.song: 'chansons',
+  CardRole.location: 'lieux',
 };
 
 /// Une liste de cartes en une ligne, exemplaires regroupés.
@@ -445,6 +474,10 @@ class _DeckView extends StatelessWidget {
           const _AveragedWarning(),
           const SizedBox(height: 12),
         ],
+        if (blueprint.reliability == BlueprintReliability.regulatory) ...[
+          const _RegulatoryNote(),
+          const SizedBox(height: 12),
+        ],
         _Summary(deck: deck),
         const SizedBox(height: 16),
         Text('Ce que le deck vise', style: theme.textTheme.titleSmall),
@@ -762,6 +795,51 @@ class _Note extends StatelessWidget {
 /// la médiane décrit un deck jouable mais qui ne ressemble à aucun d'eux. Le
 /// résultat reste utile ; le présenter comme aussi fondé qu'un deck Commander
 /// serait faux.
+/// Ce que l'écran dit d'un gabarit tiré du règlement et non d'un corpus.
+///
+/// **Le message contraire de `_AveragedWarning`.** Celui-là prévient que la
+/// cible est une moyenne dont les decks réels s'écartent ; celui-ci dit que la
+/// cible n'a pas d'écart du tout, parce que ce n'est pas une tendance mais une
+/// règle. Les afficher tous deux de la même façon ferait lire « à peu près dix
+/// terrains » là où le règlement en impose dix.
+class _RegulatoryNote extends StatelessWidget {
+  const _RegulatoryNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.gavel_outlined,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "Aucune liste de tournoi n'est publiée pour ce jeu : les "
+              "proportions ci-dessous viennent de son règlement, pas d'un "
+              "corpus. Elles ne sont donc pas des moyennes — ce sont les "
+              "contraintes qu'un deck doit respecter pour être légal.",
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AveragedWarning extends StatelessWidget {
   const _AveragedWarning();
 

@@ -35,6 +35,23 @@ enum BlueprintReliability {
   /// Le format mêle des archétypes incompatibles : la médiane décrit un deck
   /// moyen, jouable mais qui ne ressemble à aucun deck du corpus.
   averaged,
+
+  /// **Le gabarit ne vient pas d'un corpus : il vient des règles du jeu.**
+  ///
+  /// Les deux valeurs précédentes décrivent toutes deux une mesure — un corpus
+  /// serré, ou un corpus qui mêle des archétypes. Celle-ci décrit autre chose :
+  /// un format dont personne ne publie les listes, mais dont l'éditeur publie
+  /// les contraintes de construction.
+  ///
+  /// Un tel gabarit a un écart interquartile **nul**, et ce n'est pas un défaut
+  /// de mesure : « dix terrains » n'a pas de variance, c'est une règle. Il est
+  /// en un sens plus sûr qu'une médiane — celle-ci décrit ce que les gens
+  /// jouent, une règle décrit ce qui est légal.
+  ///
+  /// Ce que l'écran doit en dire diffère donc des deux autres : non pas « la
+  /// moitié des decks réels tient dans cette bande », mais « le règlement
+  /// l'impose ».
+  regulatory,
 }
 
 /// Une cible, avec la marge que le corpus tolère.
@@ -174,7 +191,7 @@ class DeckBlueprint {
     // La vue le dit plutôt que de le deviner. À reprendre quand le catalogue
     // sera en base : les deux manques s'y trouveront ou non, et c'est le
     // catalogue qui tranchera.
-    DeckFormat.tournament => null,
+    DeckFormat.tournament => wankulTournament,
     DeckFormat.premier => swuPremier,
     DeckFormat.opStandard => onepieceStandard,
     DeckFormat.lorcanaCore => lorcanaCore,
@@ -389,6 +406,55 @@ class DeckBlueprint {
       CurveStep(7, 99, Quota(8.3, 18.3)),
     ],
     reliability: BlueprintReliability.averaged,
+  );
+
+  /// Wankul — **le premier gabarit du projet qui ne vient pas d'un corpus.**
+  ///
+  /// Les six autres sont mesurés sur des listes de tournoi, de 124 pour Lorcana
+  /// à 17 295 pour Pokémon. Wankul n'en a aucune, et ce n'est pas un retard
+  /// d'ingestion : **aucune source ne publie de decklists pour ce jeu**, pas
+  /// plus qu'aucun index ne le cote carte par carte. Huit pistes ont été
+  /// vérifiées — voir `docs/multi-game.md` § 9.
+  ///
+  /// Ce qui existe en revanche, c'est le **règlement**, publié par le wiki
+  /// communautaire et servi par son API MediaWiki :
+  ///
+  /// - **50 cartes** exactement ;
+  /// - **10 terrains** ;
+  /// - **40 personnages**, dont cinq scoreurs au maximum ;
+  /// - **3 exemplaires** par carte, les variantes ultra-rares et légendaires ne
+  ///   comptant pas comme des cartes différentes.
+  ///
+  /// **Les écarts sont donc nuls, et c'est exact.** « Dix terrains » n'a pas de
+  /// variance : ce n'est pas une médiane dont la moitié des decks s'écarte, mais
+  /// une contrainte que tout deck légal respecte. D'où
+  /// [BlueprintReliability.regulatory], qui existe pour dire précisément ça à
+  /// l'écran.
+  ///
+  /// **Aucune courbe, et aucun coût.** Le catalogue ne porte pas de coût de mise
+  /// en jeu pour ce jeu — les personnages se posent, les terrains se défaussent.
+  /// Déclarer une courbe vide plutôt qu'une courbe inventée est la même décision
+  /// que chez Pokémon, dont le `cmc` porte les points de vie.
+  ///
+  /// **Ce que ce gabarit ne sait pas** : quelles cartes sont des « scoreurs ».
+  /// La source ne le publie pas. C'est un maximum et non un minimum, donc son
+  /// ignorance ne produit aucun deck illégal — seulement un deck qui pourrait
+  /// en compter plus de cinq sans qu'on le sache.
+  static const wankulTournament = DeckBlueprint(
+    size: 50,
+    maxCopies: 3,
+    needsCommander: false,
+    // Dix terrains sur cinquante cartes. L'écart est nul parce que c'est une
+    // règle : un deck à neuf terrains n'est pas rare, il est illégal.
+    lands: Quota(20.0, 0.0),
+    roles: {
+      CardRole.character: Quota(80.0, 0.0),
+    },
+    // Le catalogue ne porte aucun coût de mise en jeu pour ce jeu. Une courbe
+    // vide dit « ce jeu n'en a pas » ; une courbe inventée dirait n'importe
+    // quoi avec assurance.
+    curve: [],
+    reliability: BlueprintReliability.regulatory,
   );
 
   /// Mesuré sur 190 précons. Le format le plus régulier du corpus.

@@ -146,6 +146,11 @@ Set<CardRole> rolesFor(String game) => switch (game) {
   },
   'swu' => const {CardRole.unit, CardRole.event, CardRole.upgrade},
   'onepiece' => const {CardRole.character, CardRole.event, CardRole.stage},
+  // Wankul n'a que deux familles, et son règlement les dose toutes les deux :
+  // dix terrains et quarante personnages, exactement. `character` et `land`
+  // sont partagés avec d'autres jeux — un Terrain Wankul joue le rôle d'un
+  // terrain de Magic, on ne le joue pas, on le pose.
+  'wankul' => const {CardRole.character, CardRole.land},
   'lorcana' => const {
     CardRole.character,
     CardRole.action,
@@ -189,6 +194,7 @@ Set<CardRole> rolesOf(BuildableCard card) =>
       'pokemon' => _pokemonRoles(card),
       'swu' => _swuRoles(card),
       'onepiece' => _onepieceRoles(card),
+      'wankul' => _wankulRoles(card),
       'lorcana' => _lorcanaRoles(card),
       _ => _magicRoles(card),
     };
@@ -283,6 +289,21 @@ Set<CardRole> _onepieceRoles(BuildableCard card) {
   if (type.startsWith('Character')) return const {CardRole.character};
   if (type.startsWith('Event')) return const {CardRole.event};
   if (type.startsWith('Stage')) return const {CardRole.stage};
+  return const {};
+}
+
+/// **Deux familles, et le type imprimé les sépare** — `Personnage` (812 cartes)
+/// et `Terrain` (146).
+///
+/// C'est la seule information dont le règlement ait besoin : il impose dix
+/// terrains et quarante personnages. La contrainte « cinq scoreurs au maximum »
+/// n'est pas vérifiable — la source ne publie pas quelles cartes sont des
+/// scoreurs —, mais c'est un **maximum** et non un minimum : l'ignorer ne
+/// produit aucun deck illégal.
+Set<CardRole> _wankulRoles(BuildableCard card) {
+  final type = card.typeLine;
+  if (type.startsWith('Terrain')) return const {CardRole.land};
+  if (type.startsWith('Personnage')) return const {CardRole.character};
   return const {};
 }
 

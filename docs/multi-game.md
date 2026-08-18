@@ -2981,6 +2981,54 @@ sur les personnages) parce que le corpus est petit, non parce que le jeu est
 libre. Les Lieux y sont à 0,0 % avec un écart nul — aucun des 124 decks n'en
 joue —, ce qui décrit ce corpus-là et pas forcément le jeu.
 
+### Wankul — la recherche de sources, reprise en détail
+
+Le constat « aucun index ne cote ce jeu » reposait sur quatre pistes. Huit ont
+été vérifiées, et deux affirmations sont passées du supposé au prouvé.
+
+| piste | verdict |
+|---|---|
+| TCGCSV | absent de ses 90 catégories, et il n'indexe aucun jeu du marché français |
+| `wankul.trade` | **le domaine ne résout plus** — `getaddrinfo failed`. Les moteurs le citent encore |
+| Coleka | catalogue oui, prix derrière un compte ; son `robots.txt` interdit `/*/sale/`, `/*/shop/`, `/*/marketplace/`, `/*/buy/` |
+| Cardmarket | 403 anti-robot, et le jeu est absent de ses 20 jeux |
+| **API Cardmarket v2.0** | **410 Gone** — l'API publique est retirée |
+| **API CardTrader** | **401** — elle existe, mais demande une clé |
+| **Boutique officielle** | `products.json` répond : **60 produits, aucune carte à l'unité** |
+| eBay / Vinted / LeBonCoin | des annonces, pas une cote ; les collecter serait un cas EDHREC |
+
+Le point neuf est le dernier. **L'éditeur lui-même ne vend pas de cartes à
+l'unité** : sa boutique ne propose que du scellé et des accessoires. Il n'existe
+donc aucun prix de référence, même chez celui qui imprime les cartes. Ce n'est
+pas un index qui manque, c'est un marché unitaire qui n'existe pas.
+
+### Wankul — un gabarit de deck sans corpus
+
+Aucune source ne publie de decklists. Mais le **règlement** est publié par le
+wiki communautaire, et son API MediaWiki le sert proprement :
+
+- **50 cartes** exactement ;
+- **10 terrains** ;
+- **40 personnages**, dont cinq scoreurs au maximum ;
+- **3 exemplaires** par carte, les variantes ultra-rares et légendaires ne
+  comptant pas comme des cartes différentes — ce qui confirme au passage que
+  l'identité du modèle est la carte et non l'impression.
+
+Le catalogue en base porte exactement de quoi les appliquer : `type_line` vaut
+`Personnage` (812) ou `Terrain` (146).
+
+**Les écarts de ce gabarit sont nuls, et c'est exact.** « Dix terrains » n'a pas
+de variance : ce n'est pas une médiane dont la moitié des decks s'écarte, mais
+une contrainte que tout deck légal respecte. D'où un troisième niveau de
+fiabilité, `BlueprintReliability.regulatory`, à côté de `tight` et `averaged`
+qui décrivent tous deux un corpus — et une note d'écran qui dit l'inverse de
+celle des gabarits moyennés : non pas « la moitié des decks réels tient dans
+cette bande », mais « le règlement l'impose ».
+
+**Ce que ce gabarit ne sait pas** : quelles cartes sont des « scoreurs ». La
+source ne le publie pas. C'est un maximum et non un minimum, donc son ignorance
+ne produit aucun deck illégal.
+
 ### Ce qui reste dû
 - **la carte de papier** : le propriétaire n'en a pas ;
 - **un corpus plus large**, qui viendra de lui-même à mesure que Limitless
