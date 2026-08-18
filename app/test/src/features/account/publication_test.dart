@@ -73,6 +73,15 @@ Future<FakeCollectionRepository> pump(
     ),
   );
   await tester.pumpAndSettle();
+
+  // **La porte du partage vit sous le sélecteur de jeu**, et celui-ci occupe
+  // désormais quatre rangées de tuiles illustrées au lieu de huit lignes de
+  // texte. Sur la fenêtre de 800 × 600 du banc de test, elle sort du champ — et
+  // un widget hors champ d'une `ListView` n'est pas construit, donc `find.text`
+  // ne le voit pas. Le défilement n'est pas une commodité : sans lui, le test
+  // échouerait sur une mise en page parfaitement correcte.
+  await tester.drag(find.byType(ListView), const Offset(0, -900));
+  await tester.pumpAndSettle();
   return collection;
 }
 
