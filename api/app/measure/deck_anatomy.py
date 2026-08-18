@@ -212,6 +212,40 @@ ONEPIECE = GameAnatomy(
     copies_scope="TRUE",
 )
 
+#: Star Wars Unlimited — trois familles dosées, deux cartes hors du compte.
+#:
+#: Le Leader et la Base ne sont pas dosés : un exemplaire chacun dans toutes les
+#: listes, c'est une règle et non une proportion. Le Leader occupe
+#: `decks.commander_oracle_id` ; la Base entre dans le corps du deck faute d'une
+#: seconde colonne, et c'est une limite connue — elle y pèse une carte sur
+#: cinquante et un.
+#: Le corps du deck exclut le Leader ET la Base.
+#:
+#: **Les deux sont dans `deck_cards`**, en plus du Leader qui occupe déjà
+#: `commander_oracle_id`. Les compter dans le corps décale la taille de deux
+#: cartes : le banc annonçait une médiane de 52 là où le deck jouable en fait
+#: 50, et le mode passait de 50 à 52. Une taille de gabarit tirée de là ferait
+#: construire un deck de deux cartes au-dessus du plancher réglementaire.
+SWU_BODY = "c.type_line NOT LIKE 'Leader%' AND c.type_line NOT LIKE 'Base%'"
+
+SWU = GameAnatomy(
+    formats=("premier",),
+    body=SWU_BODY,
+    traits={
+        "unités": "c.type_line LIKE 'Unit%'",
+        "événements": "c.type_line LIKE 'Event%'",
+        "améliorations": "c.type_line LIKE 'Upgrade%'",
+    },
+    # Le coût en ressources, un vrai coût de mise en jeu. **Les paliers sont
+    # ceux du gabarit `swuPremier`** : mesurer sur d'autres découperait la
+    # courbe autrement, et les valeurs ne seraient plus comparables à celles
+    # qu'elles doivent remplacer.
+    curve=((0, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 99)),
+    curve_label="ressources",
+    curve_scope=SWU_BODY,
+    copies_scope=SWU_BODY,
+)
+
 #: Disney Lorcana — cinq familles, un coût en encre, deux encres au plus.
 LORCANA = GameAnatomy(
     formats=("lorcana_core",),
@@ -238,6 +272,7 @@ GAMES = {
     "yugioh": YUGIOH,
     "pokemon": POKEMON,
     "onepiece": ONEPIECE,
+    "swu": SWU,
     "lorcana": LORCANA,
 }
 

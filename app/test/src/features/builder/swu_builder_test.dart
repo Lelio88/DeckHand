@@ -8,9 +8,10 @@
 /// la taille est un plancher réglementaire, et le coût est un vrai coût de mise
 /// en jeu.
 ///
-/// Les proportions viennent de `app.measure.swu_decks`, mesurées sur **220
-/// listes de tournoi** : unités 81,0 %, événements 12,0 %, améliorations 5,0 %,
-/// pour un deck principal dont le mode est 50 cartes.
+/// Les proportions viennent de `app.measure.swu_decks`, mesurées sur **5 038
+/// listes de tournoi** — le corpus entier de la fenêtre : unités 81,0 %,
+/// événements 14,0 %, améliorations 4,0 %, pour un deck principal dont le mode
+/// est 50 cartes (2 689 listes sur 5 038, soit 53,4 %).
 library;
 
 import 'package:deckhand/src/config/selected_game.dart';
@@ -113,20 +114,27 @@ void main() {
       final total = gabarit.roles.values
           .map((q) => q.share)
           .reduce((a, b) => a + b);
-      // 98 % : les 2 % manquants sont l'arrondi de la mesure, les trois
-      // familles partitionnant réellement le deck principal.
-      expect(total, closeTo(98, 2));
+      // 99 % : le point manquant est l'arrondi de la mesure, les trois familles
+      // partitionnant réellement le deck principal.
+      expect(total, closeTo(99, 2));
     });
 
-    test('la courbe part du coût 1 : le coût 0 n_existe pas', () {
-      // Mesuré : 0,0 % avec un écart interquartile nul.
-      expect(gabarit.curve.first.min, 1);
-      expect(gabarit.curve.any((s) => s.contains(0)), isFalse);
+    test('la courbe part du coût 0, qui existe mais reste marginal', () {
+      // **La mesure sur 220 listes disait le contraire** — « 0,0 % avec un
+      // écart interquartile nul » — et le corpus complet la dément : 140
+      // exemplaires à coût 0 sur 273 980, soit 0,05 %. Invisible sur deux cent
+      // vingt listes, bien réel sur cinq mille.
+      //
+      // Les exclure du gabarit ferait refuser une carte parfaitement légale au
+      // motif qu'aucun palier ne l'accueille.
+      expect(gabarit.curve.first.min, 0);
+      expect(gabarit.curve.any((s) => s.contains(0)), isTrue);
     });
 
     test('le haut de courbe est le palier le plus dispersé', () {
-      // 17,4 points d'écart contre 4,4 à 7,2 ailleurs : c'est là que les
-      // archétypes divergent.
+      // 22,0 points d'écart contre 6,7 à 11,7 ailleurs : c'est là que les
+      // archétypes divergent, et cinq mille listes le montrent plus nettement
+      // que deux cent vingt (17,4 points alors).
       final haut = gabarit.curve.last;
       for (final autre in gabarit.curve.take(gabarit.curve.length - 1)) {
         expect(haut.quota.spread, greaterThan(autre.quota.spread));

@@ -180,8 +180,33 @@ class DeckBlueprint {
     DeckFormat.lorcanaCore => lorcanaCore,
   };
 
-  /// Star Wars Unlimited — **mesuré sur 220 listes de tournoi**, et le premier
-  /// gabarit d'un jeu qui a tout ce qu'il faut du premier coup.
+  /// Star Wars Unlimited — **mesuré sur 5 038 listes de tournoi**, le corpus
+  /// entier de la fenêtre de trente jours.
+  ///
+  /// **Vingt-trois fois plus de listes n'ont presque rien changé aux médianes,
+  /// et ont ÉLARGI les écarts.** Les unités valent 81,0 % dans les deux mesures,
+  /// à un dixième près ; le coût 4 bouge de 0,2 point. Mais l'écart
+  /// interquartile du haut de courbe passe de 17,4 à 22,0 points, celui des
+  /// améliorations de 4,3 à 6,0.
+  ///
+  /// Ce n'est pas une mesure moins bonne : **l'écart interquartile décrit la
+  /// diversité du méta, non l'incertitude de la mesure.** 220 listes
+  /// échantillonnaient une poignée d'archétypes ; 5 038 couvrent tout ce qui se
+  /// joue, y compris les archétypes minoritaires qui n'ont ni la même courbe ni
+  /// le même dosage. Attendre qu'un grand corpus resserre un gabarit, c'est
+  /// confondre les deux.
+  ///
+  /// Deux affirmations de la mesure précédente sont démenties :
+  ///
+  /// - **« le coût 0 n'existe pas dans le deck principal »** — il existe, à
+  ///   140 exemplaires sur 273 980. C'est 0,05 %, donc invisible sur 220 listes
+  ///   et bien réel sur cinq mille. Le palier part de 0.
+  /// - **la taille était lue à 51** parce que le banc comptait le Leader et la
+  ///   Base dans le corps du deck. Les deux sont dans `deck_cards` — le Leader
+  ///   en plus de `commander_oracle_id` —, et le deck jouable en fait 50 tout
+  ///   rond : 2 689 listes sur 5 038, soit **53,4 %**, en portent exactement
+  ///   cinquante. Le gabarit visait déjà 50 ; il le vise désormais pour la
+  ///   bonne raison.
   ///
   /// Riftbound n'a pas le sien parce que ses notions n'ont pas été mesurées ;
   /// Yu-Gi-Oh a fallu refaire le constructeur sur ses axes ; Wankul connaît ses
@@ -189,10 +214,10 @@ class DeckBlueprint {
   /// sont **imprimées dans le type**, la taille est un contrat, et le coût est
   /// un vrai coût de mise en jeu.
   ///
-  /// **La taille est 50 et non la médiane de 51.** C'est à la fois le mode du
-  /// corpus — 100 listes sur 220 — et le minimum réglementaire du jeu : viser
-  /// la médiane produirait un deck légal mais une carte au-dessus du plancher,
-  /// là où viser le plancher produit le deck le plus accessible, ce qui est la
+  /// **La taille est 50, et c'est à la fois le mode et le minimum
+  /// réglementaire.** 2 689 listes sur 5 038 en portent exactement cinquante,
+  /// et la médiane vaut 50 elle aussi une fois le Leader et la Base retirés du
+  /// compte. Viser le plancher produit le deck le plus accessible, ce qui est la
   /// question que ce produit pose.
   ///
   /// **`usesColorIdentity` est vrai, et c'est mesuré — pas supposé.** Yu-Gi-Oh
@@ -213,10 +238,10 @@ class DeckBlueprint {
   /// choisit un deck.
   static const swuPremier = DeckBlueprint(
     size: 50,
-    // La règle du jeu, et le corpus la confirme sur 4 722 entrées — avec une
-    // seule liste à 15 exemplaires, qui trahit une saisie fautive plutôt
-    // qu'une infraction. Même figure que le deck HAT à six exemplaires chez
-    // Yu-Gi-Oh.
+    // La règle du jeu, et le corpus la confirme sur 5 038 listes : **deux
+    // seulement** dépassent trois exemplaires, dont une à 15 qui trahit une
+    // saisie fautive plutôt qu'une infraction. Même figure que le deck HAT à
+    // six exemplaires chez Yu-Gi-Oh.
     maxCopies: 3,
     needsCommander: true,
     // Aucun terrain : on ne joue pas de carte-ressource dans ce jeu, on
@@ -225,23 +250,24 @@ class DeckBlueprint {
     lands: null,
     curveLabel: 'ressources',
     roles: {
-      CardRole.unit: Quota(81.0, 10.3),
-      CardRole.event: Quota(12.0, 8.0),
-      CardRole.upgrade: Quota(5.0, 4.3),
+      CardRole.unit: Quota(81.0, 10.0),
+      CardRole.event: Quota(14.0, 8.3),
+      CardRole.upgrade: Quota(4.0, 6.0),
     },
-    // Mesurée sur les mêmes listes. Le coût 0 n'existe pas dans le deck
-    // principal — 0,0 % avec un écart nul —, et le palier 6+ est le plus
-    // dispersé (17,4 points) : c'est là que les archétypes divergent.
+    // Mesurée sur les mêmes listes. Le palier 6+ reste le plus dispersé, et il
+    // l'est **davantage** qu'avant — 22,0 points contre 17,4 : c'est là que les
+    // archétypes divergent, et cinq mille listes en montrent plus que deux cent
+    // vingt.
     curve: [
-      CurveStep(1, 1, Quota(2.0, 10.0)),
-      CurveStep(2, 2, Quota(25.0, 6.2)),
-      CurveStep(3, 3, Quota(25.5, 7.2)),
-      CurveStep(4, 4, Quota(15.7, 6.0)),
-      CurveStep(5, 5, Quota(11.8, 4.4)),
-      CurveStep(6, 99, Quota(19.6, 17.4)),
+      CurveStep(0, 1, Quota(4.0, 11.7)),
+      CurveStep(2, 2, Quota(26.0, 7.0)),
+      CurveStep(3, 3, Quota(24.0, 9.8)),
+      CurveStep(4, 4, Quota(15.5, 6.7)),
+      CurveStep(5, 5, Quota(12.0, 7.0)),
+      CurveStep(6, 99, Quota(16.0, 22.0)),
     ],
-    // Un seul format, mais tous les archétypes du méta y sont mêlés : 10,3
-    // points d'écart sur les unités, 17,4 sur le haut de courbe. La médiane
+    // Un seul format, mais tous les archétypes du méta y sont mêlés : 10,0
+    // points d'écart sur les unités, 22,0 sur le haut de courbe. La médiane
     // décrit un deck plausible, pas un deck existant.
     reliability: BlueprintReliability.averaged,
   );
