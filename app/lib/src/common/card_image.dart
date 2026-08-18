@@ -31,6 +31,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import 'card_art_url.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/request_timeout.dart';
@@ -272,7 +274,13 @@ class _UprightInCellState extends State<UprightInCell> {
 /// écrans.
 @immutable
 class CardImageProvider extends ImageProvider<CardImageProvider> {
-  const CardImageProvider(this.url, {this.scale = 1.0});
+  /// **L'URL est composée ici, et nulle part ailleurs.** C'est le point de
+  /// passage unique de toute illustration affichée par l'application : la
+  /// recherche, les classeurs, l'aperçu et le constructeur passent tous par ce
+  /// fournisseur. Compléter au cas par cas aurait laissé un appelant derrière —
+  /// et c'est précisément ce qui est arrivé aux 20 964 cartes Pokémon, dont
+  /// aucune illustration ne s'affichait faute d'un suffixe que la source exige.
+  CardImageProvider(String url, {this.scale = 1.0}) : url = cardArtUrl(url);
 
   final String url;
   final double scale;
