@@ -14,12 +14,63 @@
 ///
 /// **Magic n'a pas de fenêtre**, et c'est normal : `art_crop` *est* déjà la
 /// zone illustrée. Passer `frame: null` laisse l'image intacte.
+///
+/// **Une fenêtre a des proportions, et les perdre déforme les visages.** La
+/// première version étirait l'image jusqu'à ce que la fenêtre épouse la tuile,
+/// facteur horizontal et facteur vertical calculés séparément : les deux ne sont
+/// presque jamais égaux — une fenêtre d'illustration est large et basse quand
+/// une tuile est presque carrée —, et l'écart passait tel quel dans le rendu.
+/// Ce fichier tient donc désormais le rapport de la carte, et s'en sert.
 library;
 
 import 'package:flutter/widgets.dart';
 
 import '../features/scan/domain/art_box.dart';
+import '../features/scan/domain/card_geometry.dart';
 import 'card_image.dart';
+
+/// La fenêtre réellement affichée, en fractions de la carte.
+///
+/// Séparée du widget pour être mesurable sans monter d'écran : c'est elle qui
+/// porte le resserrement et son garde-fou.
+///
+/// **Le resserrement ne peut pas retourner la fenêtre** : sur un cadre déjà
+/// étroit, on prend la moitié de ce qui reste plutôt que rien.
+({double left, double top, double width, double height}) artWindowRect(
+  ArtBox box,
+  double inset,
+) {
+  final marge = inset.clamp(0.0, ((box.right - box.left).clamp(0.0, 1.0)) / 4);
+  final gauche = box.left + marge;
+  final haut = box.top + marge;
+  return (
+    left: gauche,
+    top: haut,
+    width: (box.right - marge) - gauche,
+    height: (box.bottom - marge) - haut,
+  );
+}
+
+/// Rapport largeur sur hauteur du **rendu** que porte ce cadre.
+///
+/// **C'est le rendu qui compte ici, pas le carton** — contrairement à la
+/// reconnaissance, qui découpe une photo. `cardAspects` décrit le carton ; les
+/// deux coïncident partout sauf chez Pokémon, dont TCGdex publie 0,7273 pour un
+/// carton à 0,7159. Ce 1,6 % d'écart laisse une déformation résiduelle du même
+/// ordre, invisible à l'œil — là où l'étirement qu'il remplace atteignait 80 %.
+/// Une seconde table pour l'affichage coûterait plus qu'elle ne rapporte.
+///
+/// **Limite connue, et elle n'est pas exercée** : deux cadres couchés — les
+/// Terrains Wankul et les Lieux Lorcana — sont publiés *debout*, contenu tourné
+/// d'un quart de tour. Leur fenêtre s'exprime dans le repère de la carte posée
+/// sur la table, si bien qu'elle ne se pose pas telle quelle sur le fichier : il
+/// faudrait le redresser d'abord, comme le fait `UprightInCell`. Aucune des
+/// cartes emblématiques du sélecteur n'est dans ce cas ; le jour où l'une le
+/// sera, c'est ici que la rotation devra entrer, avant le découpage.
+double artWindowCardAspect(CardFrame frame) {
+  final debout = cardAspectFor(frame.game);
+  return frame.landscape ? 1 / debout : debout;
+}
 
 /// L'illustration d'une carte, remplissant la place qu'on lui donne.
 class ArtWindow extends StatelessWidget {
@@ -50,39 +101,69 @@ class ArtWindow extends StatelessWidget {
   /// Le cadre dont on retient la fenêtre, ou `null` pour afficher tel quel.
   final CardFrame? frame;
 
+  /// Côté d'une carte dans le repère interne du découpage.
+  ///
+  /// Unité arbitraire : [FittedBox] remet ensuite la fenêtre à l'échelle de la
+  /// place reçue. Elle est donc sans effet sur la netteté — le moteur
+  /// n'échantillonne l'image qu'une fois, avec la matrice complète — et ne joue
+  /// que sur les arrondis de mise en page, d'où une valeur large.
+  static const double _canvas = 1000;
+
   @override
   Widget build(BuildContext context) {
-    final box = frame?.box;
-    if (box == null) {
+    final cadre = frame;
+    if (cadre == null) {
       return CardImage(url: url, fit: BoxFit.cover);
     }
 
-    // Le resserrement ne peut pas retourner la fenêtre : sur un cadre déjà
-    // étroit, on prend la moitié de ce qui reste plutôt que rien.
-    final marge = inset.clamp(
-      0.0,
-      ((box.right - box.left).clamp(0.0, 1.0)) / 4,
-    );
-    final gauche = box.left + marge;
-    final haut = box.top + marge;
-    final largeur = (box.right - marge) - gauche;
-    final hauteur = (box.bottom - marge) - haut;
+    final fenetre = artWindowRect(cadre.box, inset);
+    final aspect = artWindowCardAspect(cadre);
 
-    // **On agrandit l'image jusqu'à ce que la FENÊTRE remplisse la place**,
-    // puis `alignment` décide quelle partie reste visible.
+    // **Le montage se lit de l'intérieur vers l'extérieur.**
     //
-    // `FractionallySizedBox` plutôt qu'un `OverflowBox` dans un
-    // `LayoutBuilder` : la première version faisait cela, et l'écran des
-    // comptes s'affichait **entièrement vide** — sans bandeau rouge, sans trace
-    // dans le journal. Le reste de l'application fonctionnait, ce qui rendait
-    // la panne d'autant plus discrète. Ce widget-ci travaille en fractions des
-    // contraintes reçues, sans avoir à les mesurer lui-même.
+    // 1. `FractionallySizedBox` agrandit l'image jusqu'à ce que la FENÊTRE
+    //    remplisse le `SizedBox` qui l'enveloppe, et `alignment` décide laquelle
+    //    de ses parties y tombe.
+    // 2. Le `SizedBox` porte exactement les proportions de la fenêtre dans le
+    //    fichier — d'où [artWindowCardAspect]. C'est ce qui garantit que
+    //    l'image, elle, garde les siennes : elle mesure `_canvas` sur
+    //    `_canvas / aspect`, donc `BoxFit.fill` ne l'étire d'aucun côté.
+    // 3. `FittedBox` en `cover` met cette fenêtre à l'échelle de la tuile. Il
+    //    conserve le rapport par construction : ce qui dépasse est rogné, et
+    //    rien n'est déformé.
+    //
+    // **Pourquoi pas un simple facteur de zoom unique.** Prendre le plus grand
+    // des deux facteurs supprime bien l'étirement, mais recadre au passage : sur
+    // une tuile du sélecteur, Riftbound perdait ainsi la moitié de la largeur de
+    // sa fenêtre et ne montrait plus le haut de l'illustration. Le rapport de la
+    // carte est ce qui manquait pour couvrir la fenêtre *et* rien de plus.
+    //
+    // **Ni `LayoutBuilder`, ni `OverflowBox`.** La toute première version en
+    // faisait un, et l'écran des comptes s'affichait **entièrement vide** — sans
+    // bandeau rouge, sans trace dans le journal. Ce montage-ci se passe de
+    // mesurer quoi que ce soit : `FittedBox` sait couvrir sa place sans qu'on la
+    // lui dise. Il attend en revanche des contraintes bornées, ce que lui donne
+    // le `Stack` de la tuile — placé dans une colonne sans hauteur, il prendrait
+    // la taille brute de `_canvas`.
     return ClipRect(
-      child: FractionallySizedBox(
-        widthFactor: 1 / largeur,
-        heightFactor: 1 / hauteur,
-        alignment: Alignment(_align(gauche, largeur), _align(haut, hauteur)),
-        child: CardImage(url: url, fit: BoxFit.fill),
+      child: FittedBox(
+        fit: BoxFit.cover,
+        clipBehavior: Clip.hardEdge,
+        child: SizedBox(
+          width: fenetre.width * _canvas,
+          height: fenetre.height * _canvas / aspect,
+          child: ClipRect(
+            child: FractionallySizedBox(
+              widthFactor: 1 / fenetre.width,
+              heightFactor: 1 / fenetre.height,
+              alignment: Alignment(
+                _align(fenetre.left, fenetre.width),
+                _align(fenetre.top, fenetre.height),
+              ),
+              child: CardImage(url: url, fit: BoxFit.fill),
+            ),
+          ),
+        ),
       ),
     );
   }

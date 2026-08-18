@@ -213,18 +213,17 @@ class _GamePicker extends ConsumerWidget {
                   // cartes dont la source réécrit le nom ou le texte d'une
                   // extension à l'autre. L'identité tient désormais au titre, au
                   // type et au champion.
-                  Game.riftbound =>
-                    'le TCG League of Legends — 929 cartes, 2 500 decks',
+                  Game.riftbound => '929 cartes, 2 500 decks',
                   Game.yugioh => '13 866 cartes, 3 935 decks',
                   Game.pokemon => '20 964 cartes, 23 574 decks',
                   // **Le seul jeu sans decks, et ce n'est pas un retard** : aucun
                   // corpus de listes n'est publié pour lui. La tuile annonce donc
                   // les cartes seules — écrire « 0 deck » se lirait comme une panne
                   // là où c'est une propriété du jeu.
-                  Game.wankul => 'le TCG de Wankil Studio — 958 cartes',
-                  Game.swu => 'le TCG Star Wars — 2 180 cartes, 5 038 decks',
+                  Game.wankul => '958 cartes',
+                  Game.swu => '2 180 cartes, 5 038 decks',
                   Game.onepiece => '2 541 cartes, 2 526 decks',
-                  Game.lorcana => 'le TCG Disney — 2 517 cartes, 124 decks',
+                  Game.lorcana => '2 517 cartes, 124 decks',
                 },
                 note: switch (game) {
                   // **Les prix Riftbound sont convertis, et ça se dit ici.** Ils
@@ -249,7 +248,8 @@ class _GamePicker extends ConsumerWidget {
                   // ni TCGCSV, ni Cardmarket, ni aucun index public ne le cote carte
                   // par carte (voir `docs/multi-game.md` §9). La collection s'y
                   // compte et s'y range, elle ne s'y valorise pas.
-                  Game.wankul => 'Sans valorisation : aucun index ne cote ce jeu',
+                  Game.wankul =>
+                    'Sans valorisation : aucun index ne cote ce jeu',
                 },
                 selected: game == selected,
                 onTap: game == selected
@@ -279,7 +279,6 @@ class _GamePicker extends ConsumerWidget {
     );
   }
 }
-
 
 /// Dispose des tuiles de largeur égale en rangées, sans zone défilante.
 ///
