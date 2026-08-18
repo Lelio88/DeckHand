@@ -17,7 +17,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/data_freshness_repository.dart';
 
 /// Sources de données, avec ce qu'on leur doit.
-const _credits = <({String name, String url, String role})>[
+///
+/// **Publique parce que l'écran des comptes en annonce le nombre.** Il citait
+/// trois noms figés — « Scryfall, TopDeck.gg, MTGJSON » — qui datent de
+/// l'époque où il y en avait trois, et qui n'ont pas bougé pendant que cinq
+/// jeux entraient. Un compte dérivé de la liste ne peut pas se périmer.
+const credits = <({String name, String url, String role})>[
   (
     name: 'Scryfall',
     url: 'scryfall.com',
@@ -26,7 +31,7 @@ const _credits = <({String name, String url, String role})>[
   (
     name: 'TopDeck.gg',
     url: 'topdeck.gg',
-    role: 'Decklists de tournoi, pour les trois jeux',
+    role: 'Decklists de tournoi — Magic, Riftbound, Yu-Gi-Oh',
   ),
   (name: 'MTGJSON', url: 'mtgjson.com', role: 'Decks préconstruits officiels'),
   (
@@ -47,7 +52,8 @@ const _credits = <({String name, String url, String role})>[
   (
     name: 'TCGplayer, via TCGCSV',
     url: 'tcgcsv.com',
-    role: 'Prix de marché des cartes Riftbound et Yu-Gi-Oh',
+    role: 'Prix de marché — Riftbound, Yu-Gi-Oh, Pokémon, '
+        'Star Wars Unlimited, One Piece',
   ),
   // Le guide de l'API YGOPRODeck tient lieu de conditions, faute de CGU
   // publiées, et il demande explicitement le stockage local des données. Le
@@ -69,6 +75,95 @@ const _credits = <({String name, String url, String role})>[
   // relevés en dollars ; l'euro affiché est une conversion au taux de référence
   // de la BCE, pas un prix de marché européen. Le taire ferait passer un chiffre
   // dérivé pour un chiffre relevé.
+  // --- Pokémon ---------------------------------------------------------
+  (
+    name: 'TCGdex',
+    url: 'tcgdex.net',
+    role: 'Catalogue des cartes Pokémon et leurs illustrations',
+  ),
+  (
+    name: 'The Pokémon Company',
+    url: 'pokemon.com',
+    role: 'Pokémon, ses cartes et leurs illustrations',
+  ),
+  // Limitless sert trois jeux, et c'est la source de decks la plus productive
+  // du projet — le corpus Pokémon à lui seul en compte plus de vingt mille.
+  (
+    name: 'Limitless TCG',
+    url: 'limitlesstcg.com',
+    role: 'Decklists de tournoi — Pokémon, One Piece, Disney Lorcana',
+  ),
+
+  // --- Wankul ----------------------------------------------------------
+  // **Le seul crédit qui découle d'un accord et non d'un usage.** Les
+  // conditions de LINK DIGITAL SPIRIT interdisent l'extraction automatisée ;
+  // une autorisation nominative l'a levée, et elle couvre aussi l'hébergement
+  // des illustrations — Wankul est la seule source dans ce cas. Retirer ce
+  // crédit remettrait la source hors la loi du projet (§ IV.10).
+  (
+    name: 'LINK DIGITAL SPIRIT',
+    url: 'wankul.fr',
+    role: 'Wankul, ses cartes et leurs illustrations, ingérées sous '
+        'autorisation de son éditeur',
+  ),
+  (
+    name: 'Wankil Studio',
+    url: 'wankilstudio.com',
+    role: "L'univers dont Wankul est tiré",
+  ),
+
+  // --- Star Wars Unlimited ---------------------------------------------
+  // L'API du site de l'éditeur est techniquement ouverte et contractuellement
+  // fermée : ses CGU interdisent nommément « bots, scrapers ». Le catalogue
+  // vient donc d'une source communautaire, au prix du français (§ IV.1).
+  (
+    name: 'SWU-DB',
+    url: 'swu-db.com',
+    role: 'Catalogue des cartes Star Wars Unlimited',
+  ),
+  (
+    name: 'SWU Meta Stats',
+    url: 'swumetastats.com',
+    role: 'Decklists de tournoi Star Wars Unlimited',
+  ),
+  (
+    name: 'Fantasy Flight Games',
+    url: 'fantasyflightgames.com',
+    role: 'Star Wars Unlimited, ses cartes et leurs illustrations',
+  ),
+
+  // --- One Piece --------------------------------------------------------
+  (
+    name: 'OPTCG API',
+    url: 'optcgapi.com',
+    role: 'Catalogue des cartes One Piece',
+  ),
+  (
+    name: 'Bandai',
+    url: 'bandai.com',
+    role: 'One Piece Card Game, ses cartes et leurs illustrations',
+  ),
+
+  // --- Disney Lorcana ---------------------------------------------------
+  // Seule source du projet à publier catalogue ET prix : partout ailleurs il a
+  // fallu deux services.
+  (
+    name: 'Lorcast',
+    url: 'lorcast.com',
+    role: 'Catalogue des cartes Disney Lorcana, leurs illustrations et '
+        'leurs prix',
+  ),
+  (
+    name: 'Ravensburger',
+    url: 'ravensburger.com',
+    role: 'Disney Lorcana, ses cartes et leurs illustrations',
+  ),
+
+  // --- Transverse -------------------------------------------------------
+  // **La conversion est une source comme une autre.** Les prix sont relevés en
+  // dollars ; l'euro affiché est une conversion au taux de référence de la BCE,
+  // pas un prix de marché européen. Le taire ferait passer un chiffre dérivé
+  // pour un chiffre relevé.
   (
     name: 'Banque centrale européenne',
     url: 'ecb.europa.eu',
@@ -121,7 +216,7 @@ class AboutScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                for (final credit in _credits) _Credit(credit: credit),
+                for (final credit in credits) _Credit(credit: credit),
 
                 const SizedBox(height: 24),
                 _SectionTitle('Fraîcheur des données'),
@@ -146,10 +241,14 @@ class AboutScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
                 _SectionTitle('Mentions'),
                 Text(
-                  'Contenu non officiel de fan. Non approuvé par Wizards of the '
-                  'Coast. Certains éléments sont la propriété de Wizards of the '
-                  'Coast LLC, filiale de Hasbro, Inc. DeckHand n\'est affilié ni '
-                  'à Wizards of the Coast, ni à aucune des sources citées.\n\n'
+                  'Contenu non officiel de fan. DeckHand n\'est affilié à '
+                  'aucun des éditeurs ni à aucune des sources citées, et '
+                  'n\'est approuvé par aucun d\'eux. Les cartes, noms, '
+                  'illustrations et symboles restent la propriété de leurs '
+                  'éditeurs respectifs — Wizards of the Coast LLC (filiale '
+                  'de Hasbro, Inc.), Riot Games, Konami, The Pokémon '
+                  'Company, LINK DIGITAL SPIRIT, Fantasy Flight Games, '
+                  'Bandai et Ravensburger.\n\n'
                   'Projet personnel, sans finalité commerciale.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,

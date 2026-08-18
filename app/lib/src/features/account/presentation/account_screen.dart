@@ -87,7 +87,12 @@ class AccountScreen extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.info_outline),
           title: const Text('À propos et crédits'),
-          subtitle: const Text('Scryfall, TopDeck.gg, MTGJSON'),
+          // **Une énumération de trois sources sur vingt ment par omission.**
+          // Elle datait de l'époque où il y en avait trois, et elle n'a pas
+          // bougé pendant que cinq jeux entraient — dont un dont l'ingestion
+          // repose sur une autorisation nominative de son éditeur. Un compte
+          // vaut mieux qu'un échantillon : il reste vrai à chaque ajout.
+          subtitle: Text('${credits.length} sources et éditeurs crédités'),
           onTap: () => Navigator.of(
             context,
           ).push(MaterialPageRoute<void>(builder: (_) => const AboutScreen())),
@@ -183,9 +188,9 @@ class _GamePicker extends ConsumerWidget {
               // les cartes seules — écrire « 0 deck » se lirait comme une panne
               // là où c'est une propriété du jeu.
               Game.wankul => 'le TCG de Wankil Studio — 958 cartes',
-              Game.swu => 'le TCG Star Wars — 2 180 cartes',
+              Game.swu => 'le TCG Star Wars — 2 180 cartes, 5 038 decks',
               Game.onepiece => '2 541 cartes, 2 526 decks',
-              Game.lorcana => 'le TCG Disney — 2 517 cartes',
+              Game.lorcana => 'le TCG Disney — 2 517 cartes, 124 decks',
             },
             // **Les prix Riftbound sont convertis, et ça se dit ici.** Ils sont
             // relevés en dollars chez TCGplayer ; l'euro affiché passe par le
@@ -225,12 +230,16 @@ class _GamePicker extends ConsumerWidget {
           const SizedBox(height: 8),
         ],
         Text(
-          "Le catalogue, la reconnaissance et les suggestions ne sont pas propres "
-          "à Magic : les deux jeux se saisissent, se valorisent et se confrontent "
-          "à des decks réels. Une réserve pour Riftbound — une carte cotée "
-          "seulement en brillante compte pour zéro si on la possède en ordinaire, "
-          "et c'est le cas de près de la moitié du catalogue, faute de cote et "
-          "non par oubli.",
+          // **Ce texte se périme à chaque jeu ajouté**, et il l'a fait : il
+          // annonçait « les deux jeux » quand il y en avait huit. Le nombre
+          // est donc calculé plutôt qu'écrit.
+          "Le catalogue, la reconnaissance et les suggestions ne sont propres "
+          "à aucun jeu : les ${Game.values.length} se saisissent et se rangent "
+          "de la même façon. Sept se valorisent et se confrontent à des decks "
+          "réels ; Wankul se construit sur son règlement, aucun index ne le "
+          "cotant ni ne publiant ses listes. Une réserve sur les prix — une "
+          "carte cotée seulement en brillante compte pour zéro si on la "
+          "possède en ordinaire, faute de cote et non par oubli.",
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
