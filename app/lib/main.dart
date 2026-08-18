@@ -11,6 +11,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/app/home_shell.dart';
 import 'src/config/supabase_config.dart';
+import 'src/features/account/data/profile_repository.dart';
+import 'src/features/account/presentation/pick_games_screen.dart';
 import 'src/features/auth/data/auth_repository.dart';
 import 'src/features/binders/presentation/overlay_screen.dart';
 import 'src/features/binders/presentation/public_binder_screen.dart';
@@ -124,8 +126,31 @@ class _AuthGate extends ConsumerWidget {
           ),
         ),
       ),
-      data: (value) => value == null ? const SignInScreen() : const HomeShell(),
+      data: (value) => value == null ? const SignInScreen() : const _Landing(),
     );
+  }
+}
+
+/// Ce que voit un compte connecté : l'application, ou l'étape de choix des jeux.
+///
+/// **L'étape ne s'ouvre que sur une réponse connue.** Tant que le profil charge
+/// — ou si sa lecture échoue —, c'est l'application qui s'affiche. L'inverse
+/// ferait attendre une requête réseau à chaque lancement pour un réglage de
+/// confort, et une panne de Supabase rendrait la collection inaccessible.
+/// `selected_game.dart` a tranché la même question dans le même sens.
+///
+/// La contrepartie est un bref passage par l'accueil avant que l'étape ne
+/// s'ouvre. Il ne concerne que les comptes qui n'ont jamais répondu — une fois
+/// dans la vie du compte, à l'inscription — puisqu'une réponse enregistrée, même
+/// vide, laisse cet écran sur l'accueil sans rien changer.
+class _Landing extends ConsumerWidget {
+  const _Landing();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final declared = ref.watch(playedGamesProvider);
+    final answered = !declared.hasValue || declared.value != null;
+    return answered ? const HomeShell() : const PickGamesScreen();
   }
 }
 

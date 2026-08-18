@@ -15,6 +15,7 @@ import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
 import 'package:deckhand/src/features/binders/domain/recent_addition.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
+import 'package:deckhand/src/features/account/data/profile_repository.dart';
 import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/printings/domain/card_printing.dart';
@@ -449,6 +450,34 @@ class FakePrintingRepository implements PrintingRepository {
 /// Il retient ce qu'on lui demande plutôt que d'y répondre : c'est ce qui permet
 /// d'affirmer qu'un écran **n'a pas** appelé le serveur — la moitié des tests de
 /// validation portent sur ce refus, et non sur ce qui s'affiche.
+/// Le profil du compte, sans base derrière.
+///
+/// **Ce qu'il permet d'affirmer, c'est ce qui a été enregistré** — l'ordre exact
+/// des jeux reçus — plutôt que ce que l'écran affiche : l'ordre est
+/// l'information, et un écran peut le montrer juste tout en l'écrivant faux.
+class FakeProfileRepository implements ProfileRepository {
+  FakeProfileRepository({this.declared});
+
+  /// Ce que la base rend : `null` tant que la question n'a jamais été posée.
+  List<Game>? declared;
+
+  /// Chaque enregistrement reçu, dans l'ordre.
+  final List<List<Game>> saved = [];
+
+  /// Levée par le prochain enregistrement, pour éprouver l'écran en panne.
+  Object? error;
+
+  @override
+  Future<List<Game>?> playedGames() async => declared;
+
+  @override
+  Future<void> save(List<Game> games) async {
+    if (error != null) throw error!;
+    saved.add(List.of(games));
+    declared = List.of(games);
+  }
+}
+
 class FakeAuthRepository implements AuthRepository {
   final List<(String, String)> signUps = [];
   final List<(String, String)> signIns = [];

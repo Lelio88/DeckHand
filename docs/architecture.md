@@ -816,6 +816,7 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 | `card_prints` | Impressions : édition, langue, prix, illustration — 162 000 lignes |
 | `art_hashes` | Index d'empreintes, servi à l'app |
 | `users` | Comptes Supabase Auth |
+| `profiles` | Préférences du compte — les jeux joués, dans leur ordre |
 | `collections` / `collection_items` | Possessions, par utilisateur |
 | `decks` / `deck_cards` | Corpus normalisé, toutes sources confondues |
 | `deck_sources` | Provenance et mentions d'attribution |
@@ -864,6 +865,51 @@ rejoue pas ce qui est passé, donc **l'abonnement doit précéder l'événement*
 c'est pourquoi l'aiguillage observe le drapeau dès son premier build. Un test
 écrit dans l'autre ordre a échoué, et c'est ce qui a rendu la contrainte
 visible.
+
+### Les jeux joués, déclarés à l'inscription
+
+Le sélecteur alignait les huit jeux dans l'ordre du code, le même pour tout le
+monde. Quelqu'un qui ne joue qu'à Pokémon passait devant sept jeux qui ne le
+concernent pas, à chaque fois qu'il ouvrait la page. `public.profiles` porte donc
+la liste de ses jeux, **dans l'ordre où il les a cochés** — `games[1]` est celui
+que l'application ouvre.
+
+**Le compte, et non l'appareil.** Le jeu *courant* vit dans les préférences
+locales (`selected_game.dart`) : il change plusieurs fois par séance et n'a
+aucune raison de voyager. Les jeux *joués* sont une propriété de la personne, au
+même titre que sa collection — ils suivent du téléphone au web et survivent à une
+réinstallation.
+
+**Trois états, pas deux.** C'est la **présence de la ligne** qui vaut réponse :
+
+| En base | Sens | Écran |
+|---|---|---|
+| pas de ligne | la question n'a jamais été posée | l'étape de choix s'ouvre |
+| `games = '{}'` | la question a été posée et passée | les huit jeux, à plat |
+| `games = {...}` | voici mes jeux, dans cet ordre | les siens devant, les autres repliés |
+
+Sans le premier état, « Plus tard » ferait revenir l'étape à chaque lancement.
+C'est aussi pourquoi le `DELETE` n'est pas accordé à `authenticated` : une
+préférence se vide, elle ne s'efface pas.
+
+**Aucune contrainte ne valide les identifiants**, et c'est délibéré : une liste
+figée en SQL devrait être réécrite à chaque jeu ajouté, or une migration jouée ne
+se modifie pas. La tolérance est côté application — `Game.tryFromId` écarte ce
+qu'elle ne connaît pas, là où `Game.fromId` replierait sur Magic et ferait
+déclarer au compte un jeu qu'il n'a jamais coché. Un jeu retiré du code laisse
+alors une ligne inerte, jamais une erreur.
+
+**Un réglage de confort ne bloque jamais la porte.** L'aiguillage de démarrage
+n'ouvre l'étape que sur une réponse *connue* : tant que le profil charge, ou si
+sa lecture échoue, c'est l'application qui s'affiche. L'inverse ferait attendre
+une requête réseau à chaque lancement, et une panne de Supabase rendrait la
+collection inaccessible. La contrepartie — un bref passage par l'accueil avant
+que l'étape ne s'ouvre — ne concerne que les comptes qui n'ont jamais répondu.
+
+La politique se vérifie sous le rôle qui la subit :
+`api/app/measure/profiles_rls.py` joue les deux sens — écrire et relire son
+profil, se voir refuser celui d'autrui et la suppression du sien — puis restaure
+l'état initial.
 
 ### Ce qui vit hors du dépôt, et que rien dans le code ne signale
 

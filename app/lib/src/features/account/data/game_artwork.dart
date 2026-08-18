@@ -109,7 +109,6 @@ Future<Map<String, String>> fetchGameArtwork(SupabaseClient client) async {
   };
 }
 
-
 /// Les huit illustrations, chargées une fois par ouverture de l'écran.
 ///
 /// **Sans `family` ni dépendance au jeu choisi** : la grille les montre toutes

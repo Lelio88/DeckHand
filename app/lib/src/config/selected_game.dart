@@ -47,6 +47,21 @@ enum Game {
 
   static Game fromId(String? id) =>
       Game.values.firstWhere((g) => g.id == id, orElse: () => Game.magic);
+
+  /// Le jeu portant cet identifiant, ou `null` s'il n'en existe aucun.
+  ///
+  /// **Le jumeau strict de [fromId], et il ne fait pas double emploi.** Le repli
+  /// sur Magic est le bon comportement pour la préférence de jeu courant : une
+  /// valeur illisible ne doit pas empêcher l'application de s'ouvrir. Il est le
+  /// mauvais dès qu'on lit une *liste* venue de la base — un identifiant inconnu
+  /// y deviendrait silencieusement Magic, et le compte se retrouverait à
+  /// déclarer un jeu qu'il n'a jamais coché. Là, il faut pouvoir l'écarter.
+  static Game? tryFromId(String? id) {
+    for (final game in Game.values) {
+      if (game.id == id) return game;
+    }
+    return null;
+  }
 }
 
 const _preferenceKey = 'selected_game';
