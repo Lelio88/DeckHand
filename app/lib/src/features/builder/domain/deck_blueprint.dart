@@ -447,6 +447,11 @@ class DeckBlueprint {
     // Dix terrains sur cinquante cartes. L'écart est nul parce que c'est une
     // règle : un deck à neuf terrains n'est pas rare, il est illégal.
     lands: Quota(20.0, 0.0),
+    // **Ce jeu n'a pas de couleurs**, et le défaut vaut `true`. Sans cette
+    // ligne, l'écran annonçait « remplir 50 cases dans ces couleurs » à un
+    // joueur Wankul — le filtre ne faisait rien, mais la phrase promettait une
+    // contrainte inexistante. Même correction que Yu-Gi-Oh.
+    usesColorIdentity: false,
     roles: {
       CardRole.character: Quota(80.0, 0.0),
     },

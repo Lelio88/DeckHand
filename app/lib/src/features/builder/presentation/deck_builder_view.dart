@@ -478,7 +478,7 @@ class _DeckView extends StatelessWidget {
           const _RegulatoryNote(),
           const SizedBox(height: 12),
         ],
-        _Summary(deck: deck),
+        _Summary(deck: deck, blueprint: blueprint),
         const SizedBox(height: 16),
         Text('Ce que le deck vise', style: theme.textTheme.titleSmall),
         const SizedBox(height: 6),
@@ -492,7 +492,14 @@ class _DeckView extends StatelessWidget {
         // **Rien sur les terrains dans un jeu qui n'en a pas.** Une rubrique
         // vide se lit comme un manque ; son absence dit qu'il n'y a rien à
         // manquer.
-        if (blueprint.lands != null) ...[
+        //
+        // La condition portait d'abord sur le seul gabarit, et ne couvrait donc
+        // que la moitié du cas : Wankul déclare des terrains — dix sur
+        // cinquante, c'est son règlement — mais ce sont des cartes de la
+        // collection, pas des terrains de base illimités. L'écran affichait un
+        // titre suivi de rien, ce qui se lit comme une panne. Le compte réel
+        // tranche : on n'annonce des terrains de base que lorsqu'il y en a.
+        if (blueprint.lands != null && deck.basicCount > 0) ...[
           const SizedBox(height: 20),
           Text('Terrains de base', style: theme.textTheme.titleSmall),
           const SizedBox(height: 6),
@@ -541,9 +548,16 @@ class _DeckView extends StatelessWidget {
 }
 
 class _Summary extends StatelessWidget {
-  const _Summary({required this.deck});
+  const _Summary({required this.deck, required this.blueprint});
 
   final BuiltDeck deck;
+
+  /// **Le gabarit, parce que la phrase du bas en dépend.** Elle annonçait
+  /// « cent cases dans ces couleurs » à tous les jeux : un chiffre écrit en dur
+  /// du temps où Commander était le seul format visé, et une notion de couleur
+  /// que Yu-Gi-Oh et Wankul n'ont pas. Un deck Wankul de cinquante cartes se
+  /// voyait donc reprocher de ne pas en remplir cent.
+  final DeckBlueprint blueprint;
 
   @override
   Widget build(BuildContext context) {
@@ -581,8 +595,13 @@ class _Summary extends StatelessWidget {
           if (!complete) ...[
             const SizedBox(height: 8),
             Text(
-              'Votre collection ne suffit pas à remplir cent cases dans ces '
-              'couleurs. Le deck reste jouable, en plus court.',
+              blueprint.usesColorIdentity
+                  ? 'Votre collection ne suffit pas à remplir '
+                        '${blueprint.size} cases dans ces couleurs. Le deck '
+                        'reste jouable, en plus court.'
+                  : 'Votre collection ne suffit pas à remplir '
+                        '${blueprint.size} cases. Le deck reste jouable, en '
+                        'plus court.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onPrimaryContainer,
               ),
