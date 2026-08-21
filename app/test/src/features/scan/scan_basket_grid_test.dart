@@ -80,12 +80,10 @@ void main() {
     expect(find.text('×3'), findsOneWidget);
   });
 
-  testWidgets('toucher la carte la montre, elle ne s\'écarte pas', (
-    tester,
-  ) async {
-    // **Le défaut vu sur le terrain.** L'appui sur la tuile écartait, et une
-    // passe s'est soldée par « Ajouter (0) » sur une carte pourtant reconnue :
-    // l'utilisateur avait touché la vignette pour la regarder.
+  testWidgets('un appui écarte la carte', (tester) async {
+    // Le geste courant de cette liste : on parcourt un booster fraîchement
+    // scanné en retirant ce que la reconnaissance a inventé. Le geste courant
+    // va au toucher simple, le geste rare — regarder — à l'appui long.
     final bascules = <String>[];
     final agrandies = <String>[];
     await pump(tester, onToggle: bascules.add, onEnlarge: agrandies.add);
@@ -93,26 +91,14 @@ void main() {
     await tester.tap(find.text('Pym Technologies'));
     await tester.pump();
 
-    expect(agrandies, ['a']);
-    expect(bascules, isEmpty);
-  });
-
-  testWidgets('la pastille écarte et rétablit', (tester) async {
-    // Le témoin d'état est la cible : petite à dessein, puisque le §IV.8 veut
-    // la carte gardée par défaut.
-    final bascules = <String>[];
-    await pump(tester, cards: [_cards.first], onToggle: bascules.add);
-
-    await tester.tap(find.byIcon(Icons.check));
-    await tester.pump();
-
     expect(bascules, ['a']);
+    expect(agrandies, isEmpty);
   });
 
-  testWidgets('l\'appui long agrandit, il ne supprime pas', (tester) async {
+  testWidgets('l\'appui long agrandit, il n\'écarte pas', (tester) async {
     // **Le geste doit dire ici ce qu'il dit partout ailleurs.** Une case de
     // classeur et une ligne du sélecteur d'édition agrandissent sur appui
-    // long ; ici il supprimait, et qui voulait seulement regarder une carte la
+    // long ; il a un temps supprimé ici, et qui voulait regarder une carte la
     // perdait.
     final bascules = <String>[];
     final agrandies = <String>[];
@@ -129,14 +115,9 @@ void main() {
     // On ne modifie pas une liste en cours d'écriture : la moitié des cartes
     // seraient déjà parties en collection.
     final touches = <String>[];
-    await pump(
-      tester,
-      cards: [_cards.first],
-      enabled: false,
-      onToggle: touches.add,
-    );
+    await pump(tester, enabled: false, onToggle: touches.add);
 
-    await tester.tap(find.byIcon(Icons.check));
+    await tester.tap(find.text('Pym Technologies'));
     await tester.pump();
 
     expect(touches, isEmpty);
