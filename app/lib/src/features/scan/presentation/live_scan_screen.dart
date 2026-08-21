@@ -339,50 +339,57 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
           if (_status != null)
             Expanded(child: Center(child: _Note(_status!)))
           else if (controller != null)
-            SizedBox(
-              height: 220,
-              width: double.infinity,
-              // **L'aperçu est clippé, et il ne l'était pas.** Mis à l'échelle
-              // pour couvrir, il débordait de sa boîte et passait derrière tout
-              // ce qui suit : le relevé s'affichait en travers de la carte
-              // filmée, et la liste par-dessus l'image.
-              child: ClipRect(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    FittedBox(
-                      fit: BoxFit.cover,
-                      child: SizedBox(
-                        width: controller.value.previewSize?.height ?? 720,
-                        height: controller.value.previewSize?.width ?? 1280,
-                        child: CameraPreview(controller),
+            // **L'aperçu prend la moitié, et non 220 pixels.** Une hauteur fixe
+            // donnait un quart de l'écran sur ce téléphone — trop peu pour
+            // viser, jugé sur l'appareil. Une part de l'espace disponible tient
+            // la promesse quelle que soit la dalle, là où un nombre de pixels
+            // vaut pour un seul modèle. L'autre moitié revient aux cartes, qui
+            // défilent.
+            Expanded(
+              child: SizedBox(
+                width: double.infinity,
+                // **L'aperçu est clippé, et il ne l'était pas.** Mis à l'échelle
+                // pour couvrir, il débordait de sa boîte et passait derrière tout
+                // ce qui suit : le relevé s'affichait en travers de la carte
+                // filmée, et la liste par-dessus l'image.
+                child: ClipRect(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.cover,
+                        child: SizedBox(
+                          width: controller.value.previewSize?.height ?? 720,
+                          height: controller.value.previewSize?.width ?? 1280,
+                          child: CameraPreview(controller),
+                        ),
                       ),
-                    ),
-                    // Le relevé en haut, et seulement quand la passe bloque :
-                    // il masquait la carte qu'on filmait pour dire des chiffres
-                    // dont on n'a besoin que lorsque rien ne marche.
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: ScanTroubleBar(
-                        tally: _tally,
-                        onReset: _resetTally,
+                      // Le relevé en haut, et seulement quand la passe bloque :
+                      // il masquait la carte qu'on filmait pour dire des chiffres
+                      // dont on n'a besoin que lorsque rien ne marche.
+                      Align(
+                        alignment: Alignment.topCenter,
+                        child: ScanTroubleBar(
+                          tally: _tally,
+                          onReset: _resetTally,
+                        ),
                       ),
-                    ),
-                    // **Dire ce que l'appareil regarde**, pas seulement ce
-                    // qu'il a retenu : sans cela, l'utilisateur ne sait pas si
-                    // la carte est mal posée ou si la reconnaissance réfléchit
-                    // encore.
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: _Watching(
-                        label: _watching == null
-                            ? 'Posez une carte sous l\'objectif'
-                            : (_known[_watching]?.matchedName ??
-                                  'Carte reconnue…'),
-                        active: _watching != null,
+                      // **Dire ce que l'appareil regarde**, pas seulement ce
+                      // qu'il a retenu : sans cela, l'utilisateur ne sait pas si
+                      // la carte est mal posée ou si la reconnaissance réfléchit
+                      // encore.
+                      Align(
+                        alignment: Alignment.bottomCenter,
+                        child: _Watching(
+                          label: _watching == null
+                              ? 'Posez une carte sous l\'objectif'
+                              : (_known[_watching]?.matchedName ??
+                                    'Carte reconnue…'),
+                          active: _watching != null,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
