@@ -499,11 +499,28 @@ void main() {
       expect(findCard(table, game: 'magic', sideways: true), isNull);
     });
 
-    test('ouvrir le capteur tourné ne retire rien au debout', () {
-      final quad = findCard(_photo(), game: 'magic', sideways: true);
+    test('le capteur tourné bascule l\'orientation, il ne l\'ajoute pas', () {
+      // **Ce que la première version faisait, et ce qu'elle a coûté.** Elle
+      // acceptait les deux orientations : la surface d'acceptation doublait, et
+      // le flux annonçait des cartes sur un parquet — dont les lames ont le
+      // format d'une carte couchée. Une passe réelle a fait entrer « Conduit de
+      // crevasse » alors qu'aucune carte n'était sous l'objectif.
+      //
+      // Si l'image est tournée d'un quart de tour, une carte debout y est
+      // forcément couchée : un quadrilatère droit n'y désigne plus rien de
+      // réel, et l'accepter rouvre le mode de défaillance que ce contrôle
+      // existe pour fermer.
+      expect(findCard(_photo(), game: 'magic', sideways: true), isNull);
+    });
 
-      expect(quad, isNotNull);
-      expect(quad!.topLeft.x.round(), 70);
+    test('un jeu qui imprime en travers garde les deux', () {
+      // Chez lui, les deux formats désignent quelque chose de réel : la carte
+      // couchée du jeu, et la carte debout que le capteur a tournée.
+      expect(findCard(_photo(), game: 'riftbound', sideways: true), isNotNull);
+      expect(
+        findCard(photoCouchee(), game: 'riftbound', sideways: true),
+        isNotNull,
+      );
     });
 
     test("un jeu qui en a la trouve", () {

@@ -80,11 +80,30 @@ void main() {
     expect(find.text('×3'), findsOneWidget);
   });
 
-  testWidgets('appuyer bascule la carte', (tester) async {
+  testWidgets('toucher la carte la montre, elle ne s\'écarte pas', (
+    tester,
+  ) async {
+    // **Le défaut vu sur le terrain.** L'appui sur la tuile écartait, et une
+    // passe s'est soldée par « Ajouter (0) » sur une carte pourtant reconnue :
+    // l'utilisateur avait touché la vignette pour la regarder.
     final bascules = <String>[];
-    await pump(tester, onToggle: bascules.add);
+    final agrandies = <String>[];
+    await pump(tester, onToggle: bascules.add, onEnlarge: agrandies.add);
 
     await tester.tap(find.text('Pym Technologies'));
+    await tester.pump();
+
+    expect(agrandies, ['a']);
+    expect(bascules, isEmpty);
+  });
+
+  testWidgets('la pastille écarte et rétablit', (tester) async {
+    // Le témoin d'état est la cible : petite à dessein, puisque le §IV.8 veut
+    // la carte gardée par défaut.
+    final bascules = <String>[];
+    await pump(tester, cards: [_cards.first], onToggle: bascules.add);
+
+    await tester.tap(find.byIcon(Icons.check));
     await tester.pump();
 
     expect(bascules, ['a']);
@@ -110,9 +129,14 @@ void main() {
     // On ne modifie pas une liste en cours d'écriture : la moitié des cartes
     // seraient déjà parties en collection.
     final touches = <String>[];
-    await pump(tester, enabled: false, onToggle: touches.add);
+    await pump(
+      tester,
+      cards: [_cards.first],
+      enabled: false,
+      onToggle: touches.add,
+    );
 
-    await tester.tap(find.text('Pym Technologies'));
+    await tester.tap(find.byIcon(Icons.check));
     await tester.pump();
 
     expect(touches, isEmpty);

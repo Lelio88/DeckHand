@@ -19,12 +19,18 @@
 ///
 /// **Les gestes sont ceux du reste de l'application.** L'appui long agrandit la
 /// carte — c'est ce que fait une case de classeur, une ligne du sélecteur
-/// d'édition, et un utilisateur l'essaie ici par réflexe. Il y supprimait,
-/// c'est-à-dire le contraire de ce que le geste promet ailleurs.
+/// d'édition, et un utilisateur l'essaie ici par réflexe.
 ///
-/// Écarter une carte se fait donc par un appui simple, qui la grise sans la
-/// retirer : réversible, visible, et suffisant — une carte décochée n'entre pas
-/// en collection, ce qui était tout l'objet du retrait.
+/// **Écarter demande de viser la pastille**, et c'est un revirement mesuré sur
+/// le terrain. L'appui sur la tuile entière écartait : c'est le geste le plus
+/// facile à déclencher sans le vouloir, et une passe réelle s'est soldée par
+/// « Ajouter (0) » sur une carte pourtant reconnue — l'utilisateur avait touché
+/// la vignette pour la regarder. Le §IV.8 veut que la carte soit gardée par
+/// défaut ; le geste qui l'écarte doit donc coûter quelque chose, ici de viser
+/// un témoin de trente pixels qui dit déjà l'état.
+///
+/// Toucher la tuile agrandit, comme l'appui long : aucun des deux gestes
+/// spontanés ne fait plus perdre une carte.
 ///
 /// Exemple canonique :
 /// ```dart
@@ -143,10 +149,8 @@ class _ScannedTile extends StatelessWidget {
       label: card.label,
       selected: card.keep,
       child: GestureDetector(
-        // **L'appui écarte, l'appui long agrandit** — le second est la
-        // convention de toute l'application, et l'enfreindre ici faisait
-        // supprimer une carte à qui voulait seulement la regarder.
-        onTap: onToggle,
+        // Les deux gestes spontanés montrent la carte ; aucun ne la perd.
+        onTap: onEnlarge,
         onLongPress: onEnlarge,
         // Sans cela, les espaces entre l'image et le nom ne repondent pas.
         behavior: HitTestBehavior.opaque,
@@ -180,14 +184,25 @@ class _ScannedTile extends StatelessWidget {
                           color: Colors.white70,
                         ),
                       ),
+                    // **Le témoin est aussi le bouton.** Il dit l'état et c'est
+                    // lui qu'on vise pour en changer — la cible est petite à
+                    // dessein, écarter une carte ne doit pas arriver par
+                    // mégarde.
                     Positioned(
-                      top: 4,
-                      right: 4,
-                      child: _Pastille(
-                        icon: card.keep ? Icons.check : Icons.close,
-                        color: card.keep
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.outline,
+                      top: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: onToggle,
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: _Pastille(
+                            icon: card.keep ? Icons.check : Icons.close,
+                            color: card.keep
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.outline,
+                          ),
+                        ),
                       ),
                     ),
                     if (card.quantity > 1)

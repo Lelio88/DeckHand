@@ -484,12 +484,30 @@ img.Image _boxReduce(img.Image photo, int width, int height) {
 /// seule le déclare. Le mode photo reçoit une image déjà redressée et laisse
 /// donc [sideways] à faux — sans quoi il perdrait le garde-fou ci-dessus sans
 /// rien gagner.
+///
+/// **[sideways] bascule l'orientation attendue, il ne l'ajoute pas**, et cette
+/// nuance a coûté une passe entière. Une première version acceptait les deux :
+/// la surface d'acceptation doublait, et le flux annonçait des cartes sur un
+/// parquet — dont les lames ont exactement le format d'une carte couchée. Or le
+/// redressement du capteur est *connu* : si l'image est tournée d'un quart de
+/// tour, une carte debout y est **forcément** couchée, et l'aspect droit n'y
+/// désigne plus rien de réel. L'accepter quand même, c'était rouvrir le mode de
+/// défaillance que tout ce contrôle existe pour fermer.
+///
+/// Les deux orientations restent acceptées pour les seuls jeux qui impriment en
+/// travers : chez eux, la carte couchée du jeu et la carte debout tournée par
+/// le capteur se présentent bien sous les deux formats.
 bool _hasCardAspect(double aspect, String game, {bool sideways = false}) {
   final debout = cardAspectFor(game);
-  if ((aspect - debout).abs() <= aspectTolerance) return true;
-  final couche =
-      sideways || CardFrame.values.any((f) => f.game == game && f.landscape);
-  return couche && (aspect - 1 / debout).abs() <= aspectTolerance;
+  final couche = 1 / debout;
+  // Ce qu'une carte *debout* présente dans cette image-ci.
+  final attendu = sideways ? couche : debout;
+  if ((aspect - attendu).abs() <= aspectTolerance) return true;
+
+  // Et ce qu'y présente une carte imprimée en travers — si le jeu en a.
+  final aussi = sideways ? debout : couche;
+  final jeuCouche = CardFrame.values.any((f) => f.game == game && f.landscape);
+  return jeuCouche && (aspect - aussi).abs() <= aspectTolerance;
 }
 
 /// Ce que la détection voit, avant qu'elle ne conclue.
