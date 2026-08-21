@@ -21,6 +21,14 @@ library;
 
 import 'live_scanner.dart';
 
+/// Images à observer avant de conclure qu'une passe patine.
+///
+/// **Le silence des premières images n'est pas une panne.** La caméra s'ouvre,
+/// la main approche, la mise au point cherche : à une trentaine d'images par
+/// seconde, soixante font deux secondes — assez pour qu'une carte ait eu le
+/// temps d'être posée, trop peu pour qu'on attende devant un écran muet.
+const int minFramesBeforeAdvice = 60;
+
 /// Compte ce que le flux a produit depuis le début d'une passe.
 class ScanTally {
   final Map<FrameOutcome, int> _counts = {
@@ -49,6 +57,36 @@ class ScanTally {
   int get accepted => _accepted;
 
   int count(FrameOutcome outcome) => _counts[outcome] ?? 0;
+
+  /// Sur quoi la passe bloque, ou `null` si elle ne bloque pas.
+  ///
+  /// **Trois pannes, trois gestes** — c'est la table en tête de ce fichier. Ce
+  /// getter désigne celle qui domine, pour que l'écran puisse dire quoi faire
+  /// plutôt que d'afficher des pourcentages qu'il faut savoir lire.
+  ///
+  /// Rend `null` dans les deux cas où il n'y a rien à reprocher : une passe
+  /// trop jeune (voir [minFramesBeforeAdvice]) et une passe qui a **retenu au
+  /// moins une carte**. Ce second cas compte : entre deux cartes, l'objectif ne
+  /// voit que la table, si bien qu'une passe qui marche très bien affiche
+  /// quand même une majorité d'images sans carte. En faire un reproche
+  /// apprendrait à l'utilisateur à ignorer le bandeau.
+  FrameOutcome? get stuckOn {
+    if (_frames < minFramesBeforeAdvice || _accepted > 0) return null;
+
+    FrameOutcome? worst;
+    var most = 0;
+    for (final o in const [
+      FrameOutcome.notFound,
+      FrameOutcome.silent,
+      FrameOutcome.unsure,
+    ]) {
+      if (count(o) > most) {
+        most = count(o);
+        worst = o;
+      }
+    }
+    return worst;
+  }
 
   /// Part des images où une carte était dans le champ.
   double get locatedShare =>
@@ -83,8 +121,7 @@ class ScanTally {
   String describe() {
     if (_frames == 0) return 'aucune image analysée';
     String pct(int n) => '${(100 * n / _frames).round()} %';
-    return
-        '$_frames images · '
+    return '$_frames images · '
         'sans carte ${pct(count(FrameOutcome.notFound))} · '
         'muet ${pct(count(FrameOutcome.silent))} · '
         'hésitant ${pct(count(FrameOutcome.unsure))} · '

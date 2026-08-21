@@ -35,11 +35,14 @@ import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../printings/data/printing_repository.dart';
+import '../../printings/domain/scryfall_image.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/art_index_repository.dart';
 import '../domain/live_scanner.dart';
 import '../domain/scan_basket.dart';
 import '../domain/scan_tally.dart';
+import 'scan_basket_grid.dart';
+import 'scan_trouble_bar.dart';
 
 class LiveScanScreen extends ConsumerStatefulWidget {
   const LiveScanScreen({super.key});
@@ -181,7 +184,8 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       // page plus souvent que la reconnaissance. Le compteur, lui, se rafraîchit
       // au rythme de la seconde — assez pour être lu, pas assez pour coûter.
       final now = DateTime.now();
-      final refresh = now.difference(_lastTallyPaint) > const Duration(seconds: 1);
+      final refresh =
+          now.difference(_lastTallyPaint) > const Duration(seconds: 1);
       if (accepted != null || seen.watching != _watching || refresh) {
         if (refresh) _lastTallyPaint = now;
         if (mounted) setState(() => _watching = seen.watching);
@@ -200,15 +204,15 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   Future<void> _resolve(String oracleId) async {
     if (_known.containsKey(oracleId)) return;
     try {
-      final hits = await ref
-          .read(cardRepositoryProvider)
-          .byOracleIds([oracleId]);
+      final hits = await ref.read(cardRepositoryProvider).byOracleIds([
+        oracleId,
+      ]);
       if (!mounted || hits.isEmpty) return;
       setState(() => _known[oracleId] = hits.first);
 
-      final sole = await ref
-          .read(printingRepositoryProvider)
-          .soleEditions({oracleId}, lang: hits.first.matchedLang);
+      final sole = await ref.read(printingRepositoryProvider).soleEditions({
+        oracleId,
+      }, lang: hits.first.matchedLang);
       final only = sole[oracleId];
       if (!mounted || only == null) return;
       setState(() {
@@ -279,15 +283,44 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       // effacer un booster entier : décocher ce qui est déjà passé est le seul
       // geste que l'utilisateur puisse faire à notre place, encore faut-il
       // qu'il voie ses lignes.
-      if (mounted) setState(() => _saveError = 'Enregistrement impossible : $e');
+      if (mounted) {
+        setState(() => _saveError = 'Enregistrement impossible : $e');
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
+  /// Les lignes du panier, telles que la grille les montre.
+  ///
+  /// **L'image vient de l'impression quand on la connaît**, de la carte sinon :
+  /// `_sole` ne porte une édition que lorsqu'une seule était possible (§IV.8),
+  /// et dans ce cas c'est bien ce carton-là qu'il faut montrer.
+  List<ScannedCard> _scannedCards() => [
+    for (final line in _basket.lines)
+      ScannedCard(
+        oracleId: line.oracleId,
+        label: _known[line.oracleId]?.matchedName ?? 'Carte reconnue',
+        imageUrl: fullCardImage(
+          _sole[line.oracleId]?.printing.artCropUrl ??
+              _known[line.oracleId]?.artUrl,
+        ),
+        quantity: line.quantity,
+        keep: line.keep,
+      ),
+  ];
+
+  void _toggleKeep(String oracleId) {
+    for (final line in _basket.lines) {
+      if (line.oracleId == oracleId) {
+        setState(() => line.keep = !line.keep);
+        return;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final controller = _controller;
 
     return Scaffold(
@@ -309,38 +342,55 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
             SizedBox(
               height: 220,
               width: double.infinity,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  FittedBox(
-                    fit: BoxFit.cover,
-                    child: SizedBox(
-                      width: controller.value.previewSize?.height ?? 720,
-                      height: controller.value.previewSize?.width ?? 1280,
-                      child: CameraPreview(controller),
+              // **L'aperçu est clippé, et il ne l'était pas.** Mis à l'échelle
+              // pour couvrir, il débordait de sa boîte et passait derrière tout
+              // ce qui suit : le relevé s'affichait en travers de la carte
+              // filmée, et la liste par-dessus l'image.
+              child: ClipRect(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: controller.value.previewSize?.height ?? 720,
+                        height: controller.value.previewSize?.width ?? 1280,
+                        child: CameraPreview(controller),
+                      ),
                     ),
-                  ),
-                  // **Dire ce que l'appareil regarde**, pas seulement ce qu'il
-                  // a retenu : sans cela, l'utilisateur ne sait pas si la carte
-                  // est mal posée ou si la reconnaissance réfléchit encore.
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: _Watching(
-                      label: _watching == null
-                          ? 'Posez une carte sous l\'objectif'
-                          : (_known[_watching]?.matchedName ?? 'Carte reconnue…'),
-                      active: _watching != null,
+                    // Le relevé en haut, et seulement quand la passe bloque :
+                    // il masquait la carte qu'on filmait pour dire des chiffres
+                    // dont on n'a besoin que lorsque rien ne marche.
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: ScanTroubleBar(
+                        tally: _tally,
+                        onReset: _resetTally,
+                      ),
                     ),
-                  ),
-                ],
+                    // **Dire ce que l'appareil regarde**, pas seulement ce
+                    // qu'il a retenu : sans cela, l'utilisateur ne sait pas si
+                    // la carte est mal posée ou si la reconnaissance réfléchit
+                    // encore.
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: _Watching(
+                        label: _watching == null
+                            ? 'Posez une carte sous l\'objectif'
+                            : (_known[_watching]?.matchedName ??
+                                  'Carte reconnue…'),
+                        active: _watching != null,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           if (_saveError != null) _Note(_saveError!),
-          // **Le diagnostic est sur place, pas dans un câble.** Trois pannes se
-          // cachent derrière « ça ne marche pas », et elles ne se corrigent pas
-          // au même endroit : recadrer, vérifier le jeu saisi, ou constater que
-          // la marge de confiance fait son travail.
-          if (_status == null) _TallyBar(tally: _tally, onReset: _resetTally),
+          // **L'espace libre revient aux cartes, en entier.** C'est ce qu'on
+          // parcourt après la passe, une fois les deux mains libres : une
+          // illustration se reconnaît d'un coup d'œil là où un nom demande de
+          // lire et de croire l'application sur parole.
           Expanded(
             child: _basket.isEmpty
                 ? Center(
@@ -349,77 +399,12 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
                       's\'ajouteront ici, et vous confirmerez à la fin.',
                     ),
                   )
-                : ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    children: [
-                      for (final line in _basket.lines)
-                        CheckboxListTile(
-                          value: line.keep,
-                          onChanged: _saving
-                              ? null
-                              : (v) => setState(() => line.keep = v ?? false),
-                          title: Text(
-                            _known[line.oracleId]?.matchedName ??
-                                'Carte reconnue',
-                            style: theme.textTheme.bodyLarge,
-                          ),
-                          subtitle: Text(
-                            [
-                              if (line.quantity > 1)
-                                '${line.quantity} exemplaires',
-                              if (_sole[line.oracleId] != null)
-                                _sole[line.oracleId]!.printing.setCode
-                                    .toUpperCase(),
-                            ].join('  ·  '),
-                          ),
-                          secondary: IconButton(
-                            tooltip: 'Retirer',
-                            icon: const Icon(Icons.close),
-                            onPressed: _saving
-                                ? null
-                                : () => setState(
-                                    () => _basket.remove(line.oracleId),
-                                  ),
-                          ),
-                        ),
-                    ],
+                : ScanBasketGrid(
+                    cards: _scannedCards(),
+                    enabled: !_saving,
+                    onToggle: _toggleKeep,
+                    onRemove: (id) => setState(() => _basket.remove(id)),
                   ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Le relevé de la passe, et de quoi le remettre à zéro entre deux essais.
-class _TallyBar extends StatelessWidget {
-  const _TallyBar({required this.tally, required this.onReset});
-
-  final ScanTally tally;
-  final VoidCallback onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      color: theme.colorScheme.surfaceContainerHighest,
-      padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              tally.describe(),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Repartir de zéro pour la passe suivante',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.restart_alt, size: 18),
-            onPressed: onReset,
           ),
         ],
       ),

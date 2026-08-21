@@ -208,6 +208,13 @@ debout dans un buffer paysage — une configuration qu'aucun capteur ne produit.
 Les deux simulent désormais la rotation, et un test témoin vérifie que sans
 `uprightTurns` la même image ne donne **rien**.
 
+Rejoué sur le banc corrigé, le seuil de saut se confirme — plancher de bruit de
+0 à 4 bits, échange à 35 bits, aucun échange manqué — mais **l'âge du
+quadrilatère passe de 5 à 3** : à 5, la stratégie annonçait une carte que la
+référence n'annonçait pas. Le gain tenait en 1,8 ms par image et trois
+reconnaissances sur quarante et une ; les deux premières monnaies se
+compensent, la troisième non. Détail dans `quad_tracker.dart`.
+
 ### Choix de l'algorithme — dHash 64 bits
 
 **dHash plutôt que pHash** parce que l'algorithme devra être réimplémenté à

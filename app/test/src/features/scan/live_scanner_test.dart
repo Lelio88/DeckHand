@@ -82,7 +82,8 @@ ArtHash hashOfPlane(int shade) {
 /// qui ne ressemble pas à l'index réel.
 ArtHashIndex indexOf(Map<String, int> cards) {
   final entries = <({String oracleId, ArtHash hash})>[
-    for (final e in cards.entries) (oracleId: e.key, hash: hashOfPlane(e.value)),
+    for (final e in cards.entries)
+      (oracleId: e.key, hash: hashOfPlane(e.value)),
     for (var i = 0; i < 200; i++)
       (
         oracleId: 'bourrage-$i',
@@ -96,12 +97,8 @@ ArtHashIndex indexOf(Map<String, int> cards) {
   return ArtHashIndex.fromEntries(entries);
 }
 
-LiveObservation feed(LiveScanner scanner, Uint8List luma) => scanner.observe(
-  luma,
-  width: width,
-  height: height,
-  rowStride: rowStride,
-);
+LiveObservation feed(LiveScanner scanner, Uint8List luma) =>
+    scanner.observe(luma, width: width, height: height, rowStride: rowStride);
 
 void main() {
   group('une carte posée', () {
@@ -330,7 +327,12 @@ void main() {
     /// L'empreinte de la carte telle que l'index la porte : prélevée sur la
     /// scène redressée, sans rotation.
     ArtHash empreinteDroite(Uint8List luma) {
-      final quad = findCardInLuma(luma, width: w, height: h, rowStride: stride)!;
+      final quad = findCardInLuma(
+        luma,
+        width: w,
+        height: h,
+        rowStride: stride,
+      )!;
       return artHashFromLuma(
         sampleArtFromLuma(
           luma,

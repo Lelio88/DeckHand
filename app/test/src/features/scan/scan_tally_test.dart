@@ -87,6 +87,55 @@ void main() {
     expect(line, contains('reconnu 50 %'));
   });
 
+  group('ce qui bloque la passe', () {
+    ScanTally passe(List<FrameOutcome> issues, {String? retenue}) {
+      final tally = ScanTally();
+      for (final o in issues) {
+        tally.record(
+          seen(o, accepted: o == FrameOutcome.confident ? retenue : null),
+        );
+      }
+      return tally;
+    }
+
+    test('une passe trop courte ne conclut rien', () {
+      // **Le silence des premières images n'est pas une panne.** La caméra
+      // s'ouvre, la main approche : conclure au bout de trois images ferait
+      // clignoter un reproche avant que l'utilisateur ait posé quoi que ce soit.
+      expect(passe(List.filled(10, FrameOutcome.notFound)).stuckOn, isNull);
+    });
+
+    test('une passe qui a retenu une carte ne bloque sur rien', () {
+      // Le bandeau ne s'affiche que pour les ennuis : une passe qui reconnaît
+      // n'en a pas, même si la plupart de ses images échouent — entre deux
+      // cartes, l'objectif ne voit que la table.
+      final tally = passe([
+        ...List.filled(minFramesBeforeAdvice, FrameOutcome.notFound),
+        FrameOutcome.confident,
+      ], retenue: 'alpha');
+
+      expect(tally.stuckOn, isNull);
+    });
+
+    test('sans rien de retenu, la panne dominante ressort', () {
+      final tally = passe([
+        ...List.filled(minFramesBeforeAdvice, FrameOutcome.notFound),
+        ...List.filled(5, FrameOutcome.unsure),
+      ]);
+
+      expect(tally.stuckOn, FrameOutcome.notFound);
+    });
+
+    test('c\'est bien la dominante, pas la première venue', () {
+      final tally = passe([
+        ...List.filled(10, FrameOutcome.notFound),
+        ...List.filled(minFramesBeforeAdvice, FrameOutcome.silent),
+      ]);
+
+      expect(tally.stuckOn, FrameOutcome.silent);
+    });
+  });
+
   test('la remise à zéro efface tout, refus le plus proche compris', () {
     final tally = ScanTally()
       ..record(seen(FrameOutcome.silent, distance: 30))

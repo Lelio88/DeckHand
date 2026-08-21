@@ -89,13 +89,31 @@ const int defaultJumpBits = 12;
 
 /// Images pendant lesquelles un quadrilatère reste valable sans être revérifié.
 ///
-/// **Provisoire, et c'est l'arbitrage principal.** Mesuré sur la séquence du
-/// banc, à seuil de saut égal : un âge de 3 images ne perd aucune
-/// reconnaissance pour 14,5 ms par image ; un âge de 5 en perd 3 pour 12,3 ms ;
-/// un âge de 10 en perd 8 pour 10,7 ms. Redétecter à chaque image coûte
-/// 27,4 ms. Cinq images — un sixième de seconde — garde l'essentiel du gain
-/// sans lâcher grand-chose.
-const int defaultMaxAge = 5;
+/// **C'est l'arbitrage principal, et il se tranche sur la troisième monnaie.**
+/// Remesuré sur quatorze cartes, une fois le banc corrigé de son buffer
+/// portrait (voir `tool/stream_bench.dart`) :
+///
+/// | Âge | Coût/image | Cartes perdues | Annoncées à tort |
+/// |---|---|---|---|
+/// | 3 | 15,8 ms | 5 | **0** |
+/// | 5 | 14,0 ms | 2 | **1** |
+/// | 10 | 12,7 ms | 21 | 0 |
+///
+/// Redétecter à chaque image coûte 27,4 ms, pour 33 disponibles.
+///
+/// **Cinq était la valeur retenue, et elle inventait une carte.** Le gain
+/// tenait en 1,8 ms et trois reconnaissances ; le prix était une annonce
+/// fausse, que la référence ne faisait pas. Les deux premières monnaies se
+/// compensent, la troisième ne se négocie pas : une carte manquée se rattrape
+/// en la repassant devant l'objectif, une carte inventée entre en collection
+/// si personne ne la remarque — et l'on sait maintenant que personne ne la
+/// remarque, une passe réelle en ayant fait entrer une.
+///
+/// **Les chiffres d'avant disaient l'inverse**, et pour cause : ils venaient
+/// d'un banc qui composait des images portrait, orientation qu'aucun capteur
+/// ne produit. Ils annonçaient « âge 3 ne perd aucune reconnaissance », ce qui
+/// n'est vrai d'aucun des deux bancs.
+const int defaultMaxAge = 3;
 
 /// Tient un quadrilatère entre deux détections, et dit quand le refaire.
 ///

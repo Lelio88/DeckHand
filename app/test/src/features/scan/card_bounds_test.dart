@@ -482,7 +482,10 @@ void main() {
       // Mesuré sur l'appareil avant correction : 978 images d'une carte
       // immobile, nette et bien cadrée, et pas une seule détection. Le mode
       // photo n'en souffrait pas, son image arrivant redressée.
-      expect(findCard(photoCouchee(), game: 'magic', sideways: true), isNotNull);
+      expect(
+        findCard(photoCouchee(), game: 'magic', sideways: true),
+        isNotNull,
+      );
     });
 
     test("le capteur tourné ne dispense pas du contrôle d'aspect", () {
