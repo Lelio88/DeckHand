@@ -144,9 +144,6 @@ void main() {
       // pour toujours : l'écran affichait « Carte reconnue… » en vert pendant
       // que le relevé, deux centimètres plus haut, disait « sans carte 91 % ».
       // Les deux se contredisaient au même instant, et le panier restait vide.
-      //
-      // Le seuil est celui qui sert déjà à décider qu'une carte a été retirée :
-      // au-delà, ce n'est plus un flou, c'est une absence.
       final tracker = CardTracker(minFrames: 3, gapFrames: 4);
 
       tracker.observe('a');
@@ -155,23 +152,45 @@ void main() {
       }
 
       expect(tracker.watching, isNull);
-      expect(tracker.streak, 0);
     });
 
-    test('la carte qui revient après une absence repart à zéro', () {
-      // Conséquence de la règle ci-dessus, et elle est voulue : après quatre
-      // images sans rien, la série précédente ne veut plus rien dire.
+    test('l\'annonce se tait, mais la série tient', () {
+      // **La régression que cette séparation répare.** Éteindre aussi la série
+      // rendait l'acceptation impossible : sur le terrain, 1 % des images
+      // portent une reconnaissance sûre, donc deux d'entre elles sont espacées
+      // d'une centaine d'images. Une série remise à zéro entre-temps
+      // n'atteignait jamais `minFrames`, et plus rien n'entrait au panier
+      // pendant que le relevé annonçait « reconnu 1 % ».
+      //
+      // Ce que l'écran montre et ce que la décision compte sont deux choses.
       final tracker = CardTracker(minFrames: 3, gapFrames: 4);
 
       tracker.observe('a');
-      tracker.observe('a');
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < 40; i++) {
         tracker.observe(null);
       }
-      tracker.observe('a');
+      expect(tracker.watching, isNull, reason: 'plus rien à annoncer');
 
-      expect(tracker.watching, 'a');
-      expect(tracker.streak, 1);
+      tracker.observe('a');
+      expect(tracker.streak, 2, reason: 'la série a survécu au trou');
+    });
+
+    test('trois reconnaissances éparses suffisent encore', () {
+      // C'est le régime réel : la carte est là, la reconnaissance décroche et
+      // raccroche. Exiger trois images vraiment consécutives ne retiendrait
+      // jamais rien.
+      final tracker = CardTracker(minFrames: 3, gapFrames: 4);
+      final retenues = <String>[];
+
+      for (var passage = 0; passage < 3; passage++) {
+        final vu = tracker.observe('a');
+        if (vu != null) retenues.add(vu);
+        for (var i = 0; i < 50; i++) {
+          tracker.observe(null);
+        }
+      }
+
+      expect(retenues, ['a']);
     });
 
     test('le suivi se remet à zéro', () {

@@ -127,7 +127,19 @@ class CardTracker {
   ///
   /// Exposé pour l'écran et le journal : ils ont besoin de dire ce que
   /// l'appareil regarde, pas seulement ce qu'il a fini par retenir.
-  String? get watching => _watching;
+  ///
+  /// **Se tait quand l'absence dure**, sans rien changer à l'état interne — et
+  /// cette distinction a coûté une passe entière. Une première correction
+  /// effaçait aussi la série au bout de [gapFrames] : l'affichage devenait
+  /// juste, et l'acceptation impossible. Sur le terrain, à peine 1 % des images
+  /// portent une reconnaissance sûre, donc deux d'entre elles sont espacées
+  /// d'une centaine d'images ; remettre la série à zéro dans l'intervalle
+  /// l'empêchait d'atteindre [minFrames], et **plus aucune carte n'entrait au
+  /// panier** alors que le relevé annonçait « reconnu 1 % ».
+  ///
+  /// Ce que l'écran montre et ce que la décision compte sont deux choses. Ce
+  /// getter ne sert que la première.
+  String? get watching => _absence >= gapFrames ? null : _watching;
 
   /// Nombre d'images consécutives déjà vues sur [watching].
   int get streak => _streak;
@@ -144,19 +156,6 @@ class CardTracker {
       // bougé ; remettre le compteur à zéro obligerait à tenir la carte
       // parfaitement immobile.
       _absence++;
-      // **Mais une absence qui dure éteint ce qu'on regarde.** [watching] dit
-      // ce que le flux montre *en ce moment* ; le laisser sur son dernier
-      // identifiant faisait afficher « Carte reconnue… » en vert pendant que le
-      // relevé, dans le même écran, annonçait « sans carte 91 % » — deux
-      // affirmations contraires au même instant, et un panier vide.
-      //
-      // Le seuil est [gapFrames], celui qui sert déjà à décider qu'une carte a
-      // été retirée : en deçà c'est un flou, au-delà c'est une absence. La
-      // série repart alors de zéro, ce qui est le sens même de ce seuil.
-      if (_absence >= gapFrames) {
-        _watching = null;
-        _streak = 0;
-      }
       return null;
     }
 
