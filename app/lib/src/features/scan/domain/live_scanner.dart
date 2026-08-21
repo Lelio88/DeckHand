@@ -133,6 +133,7 @@ class LiveScanner {
   LiveScanner({
     required ArtHashIndex index,
     this.game = 'magic',
+    this.uprightTurns = 0,
     QuadTracker? quads,
     CardTracker? cards,
   }) : _index = index,
@@ -141,6 +142,35 @@ class LiveScanner {
 
   final ArtHashIndex _index;
   final String game;
+
+  /// Quarts de tour **horaires** à appliquer aux images pour les redresser.
+  ///
+  /// **Une caméra ne livre pas ce que l'écran montre.** Son buffer arrive dans
+  /// l'orientation du capteur — en paysage sur la quasi-totalité des Android —
+  /// quel que soit le sens du téléphone. L'écran de scan étant verrouillé en
+  /// portrait, une carte posée droite sur la table arrive **couchée** dans ces
+  /// images. Le flux ne détectait alors rien du tout sur les quatre jeux qui
+  /// n'impriment aucune carte en travers : mesuré sur l'appareil, 978 images
+  /// d'une carte immobile et nette, zéro quadrilatère.
+  ///
+  /// **La valeur est celle que la caméra donne, sans conversion.** C'est
+  /// exactement `CameraDescription.sensorOrientation ~/ 90` : Flutter la
+  /// définit comme l'angle horaire dont l'image doit tourner pour être droite,
+  /// et [CardQuad.quarterTurned] compte dans le même sens. Nommer ce paramètre
+  /// d'après le redressement plutôt que d'après la rotation du capteur évite
+  /// l'inversion de signe à l'appel, qui est l'erreur que ce genre de
+  /// correction commet.
+  ///
+  /// **Ce que cette valeur ne fait pas.** Elle n'ouvre pas une hypothèse de
+  /// plus : le redressement est *connu*, il en remplace une. `art_box.dart`
+  /// documente pourquoi cela compte — un tirage supplémentaire dans l'index a
+  /// environ une chance sur cent de franchir les deux garde-fous, et la
+  /// réciproque essayée à l'aveugle y avait annoncé une carte qui n'était pas
+  /// là.
+  ///
+  /// Vaut zéro par défaut : une source déjà redressée, comme le mode photo,
+  /// n'a rien à déclarer.
+  final int uprightTurns;
   final QuadTracker _quads;
   final CardTracker _cards;
 
@@ -172,7 +202,15 @@ class LiveScanner {
       // c'est le blanc entre deux cartes qui autorise la suivante à être
       // retenue, et le lui cacher ferait passer deux exemplaires pour un.
       _cards.observe(null);
-      return LiveObservation(watching: _cards.watching, streak: _cards.streak);
+      // **`detected` vaut aussi pour une détection infructueuse**, et c'est le
+      // seul chemin où elle l'était : l'omettre ici ne comptait que les
+      // détections réussies, donnant un compteur qui annonçait 3 % quand le
+      // poste à 23 ms tournait sur 86 % des images.
+      return LiveObservation(
+        watching: _cards.watching,
+        streak: _cards.streak,
+        detected: detected,
+      );
     }
 
     final hypotheses = _hashesIn(
@@ -267,6 +305,10 @@ class LiveScanner {
     rowStride: rowStride,
     pixelStride: pixelStride,
     game: game,
+    // Un quart de tour impair présente une carte debout couchée : sans cela,
+    // le contrôle d'aspect la rejette, et les jeux qui n'impriment aucune
+    // carte en travers ne détectent jamais rien.
+    sideways: uprightTurns.isOdd,
   );
 
   /// Les empreintes candidates, une par cadre du jeu et par orientation
@@ -282,7 +324,15 @@ class LiveScanner {
     required int pixelStride,
     required CardQuad quad,
   }) {
-    final uprightQuad = quad.aspect <= 1;
+    // **L'orientation se juge sur la scène, pas sur l'image.** Le quadrilatère
+    // est mesuré dans le buffer du capteur ; un quart de tour impair y couche
+    // ce qui est debout sur la table. Sans ce redressement, une carte droite
+    // serait prise pour une carte imprimée en travers.
+    final quadIsUprightInImage = quad.aspect <= 1;
+    final uprightQuad = uprightTurns.isOdd
+        ? !quadIsUprightInImage
+        : quadIsUprightInImage;
+    final redressement = uprightTurns % 4;
     final candidates = <ArtHypothesis, ArtHash>{};
     for (final frame in CardFrame.values) {
       if (frame.game != game) continue;
@@ -292,7 +342,10 @@ class LiveScanner {
       // pas au demi-tour. La réciproque est refusée — un quadrilatère couché
       // autour d'une carte debout signale une détection fausse.
       final turns = frame.landscape && uprightQuad ? const [1, 3] : const [0];
-      for (final t in turns) {
+      for (final tour in turns) {
+        // Le redressement du capteur se compose avec le tour de l'hypothèse :
+        // le premier est connu, seul le second est un pari.
+        final t = (tour + redressement) % 4;
         candidates[(frame: frame, quarterTurns: t)] = artHashFromLuma(
           sampleArtFromLuma(
             luma,

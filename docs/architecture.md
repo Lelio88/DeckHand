@@ -180,6 +180,34 @@ concerné). Mesuré sur les quatorze reconnaissances du lot carton : aucun faux
 positif introduit, une carte gagnée, et un classement dégradé sur une carte déjà
 rejetée — la bonne carte y perd sa place en tête sans changer de verdict.
 
+#### Le capteur est une seconde orientation, sans rapport avec la première
+
+Tout ce qui précède parle de l'orientation d'**impression** : une carte imprimée
+en travers. Une caméra en impose une seconde, indépendante — elle livre son
+buffer dans l'orientation du **capteur**, en paysage sur la quasi-totalité des
+Android, quel que soit le sens du téléphone. L'écran de scan étant verrouillé en
+portrait, **une carte posée droite arrive couchée dans le flux**.
+
+Les confondre a rendu le flux entièrement aveugle sur les quatre jeux qui
+n'impriment aucune carte en travers — Magic, Yu-Gi-Oh, Pokémon, One Piece — et
+l'a fait marcher par accident sur les quatre autres, dont un cadre couché
+ouvrait la porte. Mesuré sur l'appareil : 978 images d'une carte immobile,
+nette et bien cadrée, **zéro détection**. Le mode photo n'en souffrait pas, son
+image arrivant redressée, et son repli au cadre centré masquait le reste.
+
+La correction ne rouvre pas la réciproque écartée ci-dessus. `findCardInLuma`
+reçoit un `sideways` que **seule une source non redressée déclare**, et
+`LiveScanner.uprightTurns` porte le nombre de quarts de tour horaires qui
+redressent l'image — exactement `CameraDescription.sensorOrientation ~/ 90`. Ce
+redressement est *connu* : il compose avec l'hypothèse de cadre au lieu d'en
+ajouter une, et le nombre de tirages dans l'index ne change pas.
+
+Ni le banc ni les tests ne pouvaient le voir : `tool/stream_bench.dart`
+composait des images portrait et `live_scanner_test.dart` dessinait une carte
+debout dans un buffer paysage — une configuration qu'aucun capteur ne produit.
+Les deux simulent désormais la rotation, et un test témoin vérifie que sans
+`uprightTurns` la même image ne donne **rien**.
+
 ### Choix de l'algorithme — dHash 64 bits
 
 **dHash plutôt que pHash** parce que l'algorithme devra être réimplémenté à

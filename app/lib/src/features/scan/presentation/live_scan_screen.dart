@@ -114,7 +114,19 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       }
       setState(() {
         _controller = controller;
-        _scanner = LiveScanner(index: index, game: game.id);
+        _scanner = LiveScanner(
+          index: index,
+          game: game.id,
+          // **Le capteur ne livre pas ce que l'écran montre.** Son buffer
+          // arrive en paysage, et l'écran de scan est verrouillé en portrait
+          // (`AndroidManifest.xml`) : une carte posée droite y est couchée.
+          // Sans cette valeur, le contrôle d'aspect la rejetait, et le flux ne
+          // détectait rien du tout sur les jeux qui n'impriment aucune carte en
+          // travers. Flutter définit `sensorOrientation` comme l'angle horaire
+          // qui redresse l'image, ce que [LiveScanner.uprightTurns] attend tel
+          // quel.
+          uprightTurns: back.sensorOrientation ~/ 90,
+        );
         _status = null;
       });
       await controller.startImageStream(_onFrame);

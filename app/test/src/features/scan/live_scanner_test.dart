@@ -203,6 +203,20 @@ void main() {
       }
     });
 
+    test('une détection qui ne trouve rien reste une détection', () {
+      // **Le compteur servait à décider si le suivi du quadrilatère payait**,
+      // et il ne comptait que les détections *réussies* : sur l'appareil il
+      // affichait « détections 3 % » alors que la détection tournait sur 86 %
+      // des images, à 23 ms pièce. Soit l'inverse de ce qu'il fallait lire,
+      // précisément dans le cas où on le consulte — celui où rien ne marche.
+      final scanner = LiveScanner(index: indexOf({'alpha': 0}));
+      final vide = plane();
+
+      final vues = [for (var i = 0; i < 5; i++) feed(scanner, vide)];
+
+      expect(vues.every((v) => v.detected), isTrue);
+    });
+
     test('est vu par le suivi temporel', () {
       // Le blanc entre deux cartes est ce qui autorise la suivante à être
       // retenue : le cacher au suivi ferait passer deux exemplaires pour un.
@@ -267,6 +281,126 @@ void main() {
         if (feed(scanner, carte).accepted != null && first < 0) first = i;
       }
       expect(first, 8, reason: 'neuf images consécutives, la neuvième retient');
+    });
+  });
+
+  group('le capteur livre son image tournée', () {
+    // **Ce que les autres tests de ce fichier ne pouvaient pas voir.** Ils
+    // dessinent une carte *debout* dans un buffer paysage — une configuration
+    // qu'aucun capteur ne produit. Une caméra livre son image tournée d'un
+    // quart de tour par rapport à la scène, et l'écran de scan étant verrouillé
+    // en portrait, une carte posée droite y arrive couchée. Sur l'appareil, le
+    // flux ne détectait rien du tout : 978 images, zéro quadrilatère.
+    //
+    // Les dimensions ci-dessous sont celles de la scène redressée, telle que
+    // l'écran la montre.
+    const w = 720, h = 1280, stride = 800;
+
+    /// Une carte debout, portant un motif que la rotation ne laisse pas
+    /// invariant : un damier seul est presque symétrique par quart de tour, et
+    /// le test passerait alors quel que soit le sens du redressement — donc
+    /// sans rien verrouiller. Le quart supérieur éclairci lève l'ambiguïté.
+    Uint8List carteDebout() {
+      final luma = Uint8List(stride * h)..fillRange(0, stride * h, 170);
+      const left = 180, top = 300, cw = 322, ch = 450;
+      for (var y = top; y < top + ch; y++) {
+        for (var x = left; x < left + cw; x++) {
+          final damier = ((x ~/ 7 + y ~/ 7) % 2 == 0) ? 18 : 60;
+          luma[y * stride + x] = y < top + ch ~/ 4 ? damier + 90 : damier;
+        }
+      }
+      return luma;
+    }
+
+    /// La même scène telle que le capteur la livre : tournée d'un quart de tour
+    /// horaire, dans un buffer paysage dont le pas de ligne dépasse la largeur.
+    ({Uint8List luma, int width, int height, int rowStride}) tournee(
+      Uint8List src,
+    ) {
+      const w2 = h, h2 = w, s2 = h + 128;
+      final out = Uint8List(s2 * h2);
+      for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+          out[x * s2 + (h - 1 - y)] = src[y * stride + x];
+        }
+      }
+      return (luma: out, width: w2, height: h2, rowStride: s2);
+    }
+
+    /// L'empreinte de la carte telle que l'index la porte : prélevée sur la
+    /// scène redressée, sans rotation.
+    ArtHash empreinteDroite(Uint8List luma) {
+      final quad = findCardInLuma(luma, width: w, height: h, rowStride: stride)!;
+      return artHashFromLuma(
+        sampleArtFromLuma(
+          luma,
+          width: w,
+          height: h,
+          rowStride: stride,
+          quad: quad,
+          box: CardFrame.modern.box,
+        ),
+        width: 256,
+        height: 190,
+        rowStride: 256,
+      );
+    }
+
+    ArtHashIndex indexAvec(ArtHash hash) => ArtHashIndex.fromEntries([
+      (oracleId: 'alpha', hash: hash),
+      for (var i = 0; i < 200; i++)
+        (
+          oracleId: 'bourrage-$i',
+          hash: ArtHash(
+            Uint8List.fromList([
+              for (var b = 0; b < hashBytes; b++) (i * 37 + b * 11) % 256,
+            ]),
+          ),
+        ),
+    ]);
+
+    test('une carte debout y est couchée, et reste la même carte', () {
+      final scene = carteDebout();
+      final vue = tournee(scene);
+      final scanner = LiveScanner(
+        index: indexAvec(empreinteDroite(scene)),
+        uprightTurns: 3,
+      );
+
+      final retenues = [
+        for (var i = 0; i < 12; i++)
+          scanner
+              .observe(
+                vue.luma,
+                width: vue.width,
+                height: vue.height,
+                rowStride: vue.rowStride,
+              )
+              .accepted,
+      ].whereType<String>();
+
+      expect(retenues, ['alpha']);
+    });
+
+    test('sans la rotation déclarée, la même image ne donne rien', () {
+      // Le témoin du défaut corrigé : c'est exactement ce que faisait
+      // l'application avant que l'écran ne transmette l'orientation du capteur.
+      final scene = carteDebout();
+      final vue = tournee(scene);
+      final scanner = LiveScanner(index: indexAvec(empreinteDroite(scene)));
+
+      final vues = [
+        for (var i = 0; i < 12; i++)
+          scanner.observe(
+            vue.luma,
+            width: vue.width,
+            height: vue.height,
+            rowStride: vue.rowStride,
+          ),
+      ];
+
+      expect(vues.map((v) => v.accepted).whereType<String>(), isEmpty);
+      expect(vues.every((v) => v.outcome == FrameOutcome.notFound), isTrue);
     });
   });
 }

@@ -280,12 +280,22 @@ class TrackUntilJump implements Strategy {
   }
 }
 
+/// Quarts de tour horaires qui redressent les images de ce banc.
+///
+/// **Le banc simule désormais un capteur, et non un appareil photo.** Il
+/// composait des images portrait — une configuration qu'aucune caméra ne
+/// produit —, si bien qu'il n'a jamais pu voir le défaut qui rendait le flux
+/// entièrement aveugle sur les jeux n'imprimant aucune carte en travers. Vaut
+/// 1 comme la quasi-totalité des Android, dont `sensorOrientation` est 90.
+const int benchUprightTurns = 1;
+
 CardQuad? _detect(Frame frame, String game) => findCardInLuma(
   frame.luma,
   width: frame.width,
   height: frame.height,
   rowStride: frame.width,
   game: game,
+  sideways: benchUprightTurns.isOdd,
 );
 
 ArtHash _hashWith(Frame frame, CardQuad quad, ArtBox box) {
@@ -294,7 +304,10 @@ ArtHash _hashWith(Frame frame, CardQuad quad, ArtBox box) {
     width: frame.width,
     height: frame.height,
     rowStride: frame.width,
-    quad: quad,
+    // Le redressement du capteur, comme le fait `LiveScanner` : sans lui,
+    // l'empreinte serait prélevée de travers et ne ressemblerait à rien de
+    // l'index.
+    quad: quad.quarterTurned(benchUprightTurns),
     box: box,
   );
   return artHashFromLuma(art, width: 256, height: 190, rowStride: 256);
@@ -415,6 +428,7 @@ void _reportTemporalThresholds(List<Frame> sequence, ArtHashIndex index) {
     for (final gapFrames in const [2, 4, 8]) {
       final scanner = LiveScanner(
         index: index,
+        uprightTurns: benchUprightTurns,
         quads: QuadTracker(),
         cards: CardTracker(minFrames: minFrames, gapFrames: gapFrames),
       );
@@ -510,9 +524,12 @@ List<Frame> _sequenceFor(
     final photo = source == null
         ? emptyTable(shot, rng)
         : compose(source, shot, rng);
-    frames.add(
-      Frame(_toLuma(photo, rng), photo.width, photo.height, truth, moment),
-    );
+    // **Ce que le capteur livre, pas ce que l'écran montre.** Une caméra rend
+    // son buffer dans l'orientation du capteur : la scène y arrive tournée, et
+    // une carte posée droite y est couchée. Composer des images portrait
+    // revenait à mesurer une configuration qui n'existe pas.
+    final vue = img.copyRotate(photo, angle: -90 * benchUprightTurns);
+    frames.add(Frame(_toLuma(vue, rng), vue.width, vue.height, truth, moment));
   }
 
   // 1. Posée : le cadrage ne bouge pas, seul le bruit change.

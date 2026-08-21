@@ -33,6 +33,20 @@
 /// n'en inventent pas. Le réglage arbitre donc entre du calcul et des cartes
 /// manquées, jamais entre du calcul et des cartes inventées.
 ///
+/// **Cette dernière phrase est vraie du banc, et le terrain l'a démentie.** Une
+/// passe réelle a fait entrer au panier une carte qui n'était pas dans le
+/// booster, annoncée « reconnue sans réserve ». L'écart ne vient pas du suivi
+/// mais de ce qui l'alimente : le contrôle d'aspect refusait alors toute carte
+/// couchée, donc toutes les cartes du flux (voir `card_bounds.dart`,
+/// `sideways`), et les rares quadrilatères qui passaient n'étaient pas des
+/// cartes — c'étaient les formes fausses. Or une empreinte prélevée sur une
+/// forme fausse a environ une chance sur cent de franchir les deux garde-fous
+/// de l'index (`app.measure.art_collisions`), et il suffit d'une.
+///
+/// La leçon n'est pas que le suivi invente : c'est qu'un banc nourri de
+/// quadrilatères toujours justes ne peut rien dire de ce qui arrive quand ils
+/// ne le sont pas.
+///
 /// Exemple canonique :
 /// ```dart
 /// final tracker = QuadTracker();

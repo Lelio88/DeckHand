@@ -472,6 +472,37 @@ void main() {
       expect(findCard(photoCouchee(), game: 'magic'), isNull);
     });
 
+    test("un capteur tourné la présente couchée, et il faut la voir", () {
+      // **Deux orientations que rien ne distinguait.** Le refus ci-dessus vise
+      // la carte *imprimée* en travers ; celui-ci vise la carte debout qu'un
+      // capteur livre couchée. Le buffer d'une caméra arrive en paysage quel
+      // que soit le sens du téléphone — l'écran de scan est verrouillé en
+      // portrait —, si bien qu'une carte Magic posée droite y est couchée.
+      //
+      // Mesuré sur l'appareil avant correction : 978 images d'une carte
+      // immobile, nette et bien cadrée, et pas une seule détection. Le mode
+      // photo n'en souffrait pas, son image arrivant redressée.
+      expect(findCard(photoCouchee(), game: 'magic', sideways: true), isNotNull);
+    });
+
+    test("le capteur tourné ne dispense pas du contrôle d'aspect", () {
+      // `sideways` ouvre l'orientation inverse, pas n'importe quel rectangle :
+      // le mode de défaillance de ce module reste le quadrilatère faux qui
+      // franchit le contrôle, et une image entière prise pour une carte en est
+      // la forme la plus commune.
+      final table = img.Image(width: 400, height: 300);
+      img.fill(table, color: img.ColorRgb8(170, 152, 126));
+
+      expect(findCard(table, game: 'magic', sideways: true), isNull);
+    });
+
+    test('ouvrir le capteur tourné ne retire rien au debout', () {
+      final quad = findCard(_photo(), game: 'magic', sideways: true);
+
+      expect(quad, isNotNull);
+      expect(quad!.topLeft.x.round(), 70);
+    });
+
     test("un jeu qui en a la trouve", () {
       final quad = findCard(photoCouchee(), game: 'riftbound');
 

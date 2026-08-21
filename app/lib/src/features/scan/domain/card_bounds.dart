@@ -199,11 +199,15 @@ class CardQuad {
 /// Rend `null` plutôt qu'un quadrilatère douteux : l'appelant retombe alors sur
 /// le cadrage centré, c'est-à-dire sur le comportement d'avant. **Une détection
 /// qui échoue ne doit jamais faire moins bien que son absence.**
-CardQuad? findCard(img.Image photo, {String game = 'magic'}) {
+CardQuad? findCard(
+  img.Image photo, {
+  String game = 'magic',
+  bool sideways = false,
+}) {
   if (photo.width < 8 || photo.height < 8) return null;
 
   final (:small, :scale) = _analysisImage(photo);
-  return _findIn(small, scale, game);
+  return _findIn(small, scale, game, sideways);
 }
 
 /// Coins de la carte, lus **directement dans le plan de luminance** d'une image
@@ -235,6 +239,7 @@ CardQuad? findCardInLuma(
   required int rowStride,
   int pixelStride = 1,
   String game = 'magic',
+  bool sideways = false,
 }) {
   if (width < 8 || height < 8) return null;
 
@@ -252,13 +257,13 @@ CardQuad? findCardInLuma(
     outWidth: target,
     outHeight: targetHeight,
   );
-  return _findIn(small, scale, game);
+  return _findIn(small, scale, game, sideways);
 }
 
 /// Le corps commun aux deux entrées : tout ce qui suit la mise à la taille
 /// d'analyse. **Aucune des deux ne doit en diverger** — c'est ce qui garantit
 /// qu'elles rendent le même quadrilatère.
-CardQuad? _findIn(img.Image small, double scale, String game) {
+CardQuad? _findIn(img.Image small, double scale, String game, bool sideways) {
   final mask = _cardMask(small);
   _fillHoles(mask, small.width, small.height);
   final shape = _largestComponent(mask, small.width, small.height);
@@ -272,7 +277,7 @@ CardQuad? _findIn(img.Image small, double scale, String game) {
 
   final quad = _cornersOf(shape, small.width, small.height);
   if (quad == null) return null;
-  if (!_hasCardAspect(quad.aspect, game)) return null;
+  if (!_hasCardAspect(quad.aspect, game, sideways: sideways)) return null;
 
   return quad.scaled(scale);
 }
@@ -462,10 +467,28 @@ img.Image _boxReduce(img.Image photo, int width, int height) {
 /// **Le rapport attendu vient du jeu**, et non d'une constante du module : les
 /// deux jeux couverts impriment en 63 × 88 mm, le suivant n'imprimera pas au
 /// même format. Voir `card_geometry.dart`.
-bool _hasCardAspect(double aspect, String game) {
+///
+/// **[sideways] est une seconde orientation, et elle n'a rien à voir avec la
+/// première.** Celle du jeu vient de l'*impression* — un champ de bataille
+/// Riftbound est imprimé en travers. Celle-ci vient du *capteur* : une caméra
+/// livre son buffer en paysage quel que soit le sens du téléphone, et l'écran
+/// de scan étant verrouillé en portrait, toute carte debout y apparaît couchée.
+/// Les confondre a coûté cher : le flux ne détectait **rien** sur les quatre
+/// jeux qui n'impriment aucune carte en travers — Magic, Yu-Gi-Oh, Pokémon,
+/// One Piece —, et fonctionnait par accident sur les quatre autres, dont un
+/// cadre couché ouvrait la porte. Mesuré sur l'appareil : 978 images d'une
+/// carte immobile et nette, zéro détection.
+///
+/// **Le drapeau ne se déduit pas de l'image.** Une image plus large que haute
+/// ne dit pas que le capteur a tourné ; c'est la source qui le sait, et elle
+/// seule le déclare. Le mode photo reçoit une image déjà redressée et laisse
+/// donc [sideways] à faux — sans quoi il perdrait le garde-fou ci-dessus sans
+/// rien gagner.
+bool _hasCardAspect(double aspect, String game, {bool sideways = false}) {
   final debout = cardAspectFor(game);
   if ((aspect - debout).abs() <= aspectTolerance) return true;
-  final couche = CardFrame.values.any((f) => f.game == game && f.landscape);
+  final couche =
+      sideways || CardFrame.values.any((f) => f.game == game && f.landscape);
   return couche && (aspect - 1 / debout).abs() <= aspectTolerance;
 }
 
