@@ -55,10 +55,16 @@ class ScannedCard {
 
 /// Combien de cartes par ligne.
 ///
-/// Trois, comme le classeur : c'est la densité à laquelle une carte reste
-/// reconnaissable sur un téléphone, mesurée là-bas et sans raison de différer
-/// ici — les deux montrent le même carton dans la même case debout.
-const int scanGridColumns = 3;
+/// **Quatre, et non trois comme le classeur.** La densité du classeur a été
+/// réglée pour une page entière ; ici les cartes vivent dans le tiers bas de
+/// l'écran, sous un viseur qui prend le reste. À trois par ligne, une case
+/// mesure plus haut que la bande qui l'accueille : on ne verrait aucune carte
+/// en entier, ce qui est précisément la promesse de ce rendu. À quatre, une
+/// rangée complète y tient.
+///
+/// La contrainte vient donc de la hauteur disponible, pas de la lisibilité —
+/// et si le partage de l'écran change, ce nombre se remesure avec lui.
+const int scanGridColumns = 4;
 
 /// Ce que vaut une case, hauteur sur largeur.
 ///

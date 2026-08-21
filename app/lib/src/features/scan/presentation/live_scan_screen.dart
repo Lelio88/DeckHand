@@ -339,13 +339,17 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
           if (_status != null)
             Expanded(child: Center(child: _Note(_status!)))
           else if (controller != null)
-            // **L'aperçu prend la moitié, et non 220 pixels.** Une hauteur fixe
-            // donnait un quart de l'écran sur ce téléphone — trop peu pour
-            // viser, jugé sur l'appareil. Une part de l'espace disponible tient
-            // la promesse quelle que soit la dalle, là où un nombre de pixels
-            // vaut pour un seul modèle. L'autre moitié revient aux cartes, qui
-            // défilent.
+            // **Le viseur prend les deux tiers, et non 220 pixels.** Une
+            // hauteur fixe donnait un quart de l'écran sur ce téléphone, la
+            // moitié restait juste — jugé sur l'appareil, deux fois. Une part
+            // de l'espace disponible tient la promesse quelle que soit la
+            // dalle, là où un nombre de pixels ne vaut que pour un modèle.
+            //
+            // Le tiers restant suffit aux cartes parce qu'elles y tiennent en
+            // entier : c'est ce qui a fixé leur densité, quatre par ligne et
+            // non trois. Voir [scanGridColumns].
             Expanded(
+              flex: 2,
               child: SizedBox(
                 width: double.infinity,
                 // **L'aperçu est clippé, et il ne l'était pas.** Mis à l'échelle

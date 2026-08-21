@@ -119,6 +119,19 @@ class CardTracker {
       // bougé ; remettre le compteur à zéro obligerait à tenir la carte
       // parfaitement immobile.
       _absence++;
+      // **Mais une absence qui dure éteint ce qu'on regarde.** [watching] dit
+      // ce que le flux montre *en ce moment* ; le laisser sur son dernier
+      // identifiant faisait afficher « Carte reconnue… » en vert pendant que le
+      // relevé, dans le même écran, annonçait « sans carte 91 % » — deux
+      // affirmations contraires au même instant, et un panier vide.
+      //
+      // Le seuil est [gapFrames], celui qui sert déjà à décider qu'une carte a
+      // été retirée : en deçà c'est un flou, au-delà c'est une absence. La
+      // série repart alors de zéro, ce qui est le sens même de ce seuil.
+      if (_absence >= gapFrames) {
+        _watching = null;
+        _streak = 0;
+      }
       return null;
     }
 

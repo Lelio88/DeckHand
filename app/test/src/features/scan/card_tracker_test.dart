@@ -127,6 +127,53 @@ void main() {
       expect(tracker.streak, 1);
     });
 
+    test('un flou passager n\'éteint pas ce qu\'on regarde', () {
+      // À trente images par seconde, une image muette est un reflet ou une mise
+      // au point qui hésite. Éteindre l'annonce à chaque fois la ferait
+      // clignoter sans que la carte ait bougé.
+      final tracker = CardTracker(minFrames: 3, gapFrames: 4);
+
+      tracker.observe('a');
+      tracker.observe(null);
+
+      expect(tracker.watching, 'a');
+    });
+
+    test('une carte retirée cesse d\'être annoncée', () {
+      // **Le défaut vu sur l'appareil.** `watching` gardait son identifiant
+      // pour toujours : l'écran affichait « Carte reconnue… » en vert pendant
+      // que le relevé, deux centimètres plus haut, disait « sans carte 91 % ».
+      // Les deux se contredisaient au même instant, et le panier restait vide.
+      //
+      // Le seuil est celui qui sert déjà à décider qu'une carte a été retirée :
+      // au-delà, ce n'est plus un flou, c'est une absence.
+      final tracker = CardTracker(minFrames: 3, gapFrames: 4);
+
+      tracker.observe('a');
+      for (var i = 0; i < 4; i++) {
+        tracker.observe(null);
+      }
+
+      expect(tracker.watching, isNull);
+      expect(tracker.streak, 0);
+    });
+
+    test('la carte qui revient après une absence repart à zéro', () {
+      // Conséquence de la règle ci-dessus, et elle est voulue : après quatre
+      // images sans rien, la série précédente ne veut plus rien dire.
+      final tracker = CardTracker(minFrames: 3, gapFrames: 4);
+
+      tracker.observe('a');
+      tracker.observe('a');
+      for (var i = 0; i < 4; i++) {
+        tracker.observe(null);
+      }
+      tracker.observe('a');
+
+      expect(tracker.watching, 'a');
+      expect(tracker.streak, 1);
+    });
+
     test('le suivi se remet à zéro', () {
       // Entre deux boosters, l'état ne doit pas survivre : la première carte du
       // second lot compterait sinon comme la suite du premier.
