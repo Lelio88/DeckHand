@@ -177,7 +177,9 @@ void main() {
 
       for (final luma in [
         ...List.filled(12, plane(shade: 0)),
-        ...List.filled(8, plane()),
+        // Un vrai retrait : le temps de retirer une carte et d'en poser une
+        // autre. Un blanc plus court est un clignotement, pas un geste.
+        ...List.filled(defaultGapFrames, plane()),
         ...List.filled(12, plane(shade: 0)),
       ]) {
         final seen = feed(scanner, luma);
@@ -217,11 +219,16 @@ void main() {
     test('est vu par le suivi temporel', () {
       // Le blanc entre deux cartes est ce qui autorise la suivante à être
       // retenue : le cacher au suivi ferait passer deux exemplaires pour un.
+      //
+      // **Le blanc dure un vrai retrait**, et non huit images. À trente images
+      // par seconde, huit font un quart de seconde : ce n'est pas une main qui
+      // change de carte, c'est la reconnaissance qui cligne — et la compter
+      // pour un retrait faisait naître des exemplaires qui n'existaient pas.
       final scanner = LiveScanner(index: indexOf({'alpha': 0}));
       for (var i = 0; i < 12; i++) {
         feed(scanner, plane(shade: 0));
       }
-      for (var i = 0; i < 8; i++) {
+      for (var i = 0; i < defaultGapFrames; i++) {
         feed(scanner, plane());
       }
       final retour = [

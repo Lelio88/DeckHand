@@ -17,12 +17,21 @@
 /// la raison d'être de sa séparation d'avec l'écran, qui n'est lui pas
 /// testable, `availableCameras()` n'ayant pas de réponse hors d'un téléphone.
 ///
+/// **Les gestes sont ceux du reste de l'application.** L'appui long agrandit la
+/// carte — c'est ce que fait une case de classeur, une ligne du sélecteur
+/// d'édition, et un utilisateur l'essaie ici par réflexe. Il y supprimait,
+/// c'est-à-dire le contraire de ce que le geste promet ailleurs.
+///
+/// Écarter une carte se fait donc par un appui simple, qui la grise sans la
+/// retirer : réversible, visible, et suffisant — une carte décochée n'entre pas
+/// en collection, ce qui était tout l'objet du retrait.
+///
 /// Exemple canonique :
 /// ```dart
 /// ScanBasketGrid(
 ///   cards: [ScannedCard(oracleId: '…', label: 'Pym Technologies', imageUrl: url)],
 ///   onToggle: (id) => setState(() => basket.line(id).keep = !…),
-///   onRemove: (id) => setState(() => basket.remove(id)),
+///   onEnlarge: (id) => showCardImage(context, imageUrl: …, title: …),
 /// )
 /// ```
 library;
@@ -76,13 +85,17 @@ class ScanBasketGrid extends StatelessWidget {
     super.key,
     required this.cards,
     required this.onToggle,
-    required this.onRemove,
+    required this.onEnlarge,
     this.enabled = true,
   });
 
   final List<ScannedCard> cards;
   final void Function(String oracleId) onToggle;
-  final void Function(String oracleId) onRemove;
+
+  /// Ce que fait l'appui long. **Confié à l'appelant**, comme le reste : ce
+  /// composant n'ouvre pas de dialogue et ne connaît pas le réseau, ce qui est
+  /// la raison pour laquelle il se teste sans appareil.
+  final void Function(String oracleId) onEnlarge;
 
   /// Faux pendant l'enregistrement : on ne modifie pas une liste en cours
   /// d'écriture.
@@ -102,7 +115,7 @@ class ScanBasketGrid extends StatelessWidget {
       itemBuilder: (context, i) => _ScannedTile(
         card: cards[i],
         onToggle: enabled ? () => onToggle(cards[i].oracleId) : null,
-        onRemove: enabled ? () => onRemove(cards[i].oracleId) : null,
+        onEnlarge: () => onEnlarge(cards[i].oracleId),
       ),
     );
   }
@@ -112,12 +125,12 @@ class _ScannedTile extends StatelessWidget {
   const _ScannedTile({
     required this.card,
     required this.onToggle,
-    required this.onRemove,
+    required this.onEnlarge,
   });
 
   final ScannedCard card;
   final VoidCallback? onToggle;
-  final VoidCallback? onRemove;
+  final VoidCallback onEnlarge;
 
   @override
   Widget build(BuildContext context) {
@@ -130,11 +143,11 @@ class _ScannedTile extends StatelessWidget {
       label: card.label,
       selected: card.keep,
       child: GestureDetector(
-        // **L'appui bascule, l'appui long retire.** Décocher est réversible et
-        // se voit — la carte grise reste là, on peut revenir dessus. Retirer
-        // ne l'est pas : c'est le geste rare, il demande un geste long.
+        // **L'appui écarte, l'appui long agrandit** — le second est la
+        // convention de toute l'application, et l'enfreindre ici faisait
+        // supprimer une carte à qui voulait seulement la regarder.
         onTap: onToggle,
-        onLongPress: onRemove,
+        onLongPress: onEnlarge,
         // Sans cela, les espaces entre l'image et le nom ne repondent pas.
         behavior: HitTestBehavior.opaque,
         child: Column(

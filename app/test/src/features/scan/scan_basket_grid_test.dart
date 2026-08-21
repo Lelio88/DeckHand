@@ -28,7 +28,7 @@ Future<void> pump(
   WidgetTester tester, {
   List<ScannedCard> cards = _cards,
   void Function(String)? onToggle,
-  void Function(String)? onRemove,
+  void Function(String)? onEnlarge,
   bool enabled = true,
 }) => tester.pumpWidget(
   MaterialApp(
@@ -37,7 +37,7 @@ Future<void> pump(
         cards: cards,
         enabled: enabled,
         onToggle: onToggle ?? (_) {},
-        onRemove: onRemove ?? (_) {},
+        onEnlarge: onEnlarge ?? (_) {},
       ),
     ),
   ),
@@ -90,33 +90,29 @@ void main() {
     expect(bascules, ['a']);
   });
 
-  testWidgets('l\'appui long retire, et lui seul', (tester) async {
-    // Décocher est réversible, retirer ne l'est pas : les deux gestes ne
-    // doivent pas se confondre sous le doigt.
-    final retires = <String>[];
+  testWidgets('l\'appui long agrandit, il ne supprime pas', (tester) async {
+    // **Le geste doit dire ici ce qu'il dit partout ailleurs.** Une case de
+    // classeur et une ligne du sélecteur d'édition agrandissent sur appui
+    // long ; ici il supprimait, et qui voulait seulement regarder une carte la
+    // perdait.
     final bascules = <String>[];
-    await pump(tester, onToggle: bascules.add, onRemove: retires.add);
+    final agrandies = <String>[];
+    await pump(tester, onToggle: bascules.add, onEnlarge: agrandies.add);
 
     await tester.longPress(find.text('Pym Technologies'));
     await tester.pump();
 
-    expect(retires, ['a']);
-    expect(bascules, isEmpty);
+    expect(agrandies, ['a']);
+    expect(bascules, isEmpty, reason: 'un appui long n\'écarte pas la carte');
   });
 
   testWidgets('pendant l\'enregistrement, plus rien ne bouge', (tester) async {
     // On ne modifie pas une liste en cours d'écriture : la moitié des cartes
     // seraient déjà parties en collection.
     final touches = <String>[];
-    await pump(
-      tester,
-      enabled: false,
-      onToggle: touches.add,
-      onRemove: touches.add,
-    );
+    await pump(tester, enabled: false, onToggle: touches.add);
 
     await tester.tap(find.text('Pym Technologies'));
-    await tester.longPress(find.text('Pym Technologies'));
     await tester.pump();
 
     expect(touches, isEmpty);

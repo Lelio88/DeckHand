@@ -28,20 +28,22 @@
 /// carte posée, échangée sur place, montrée brièvement, retirée). Onze passages
 /// réels, douze réglages balayés :
 ///
-/// | | `gap` 2 | `gap` 4 | `gap` 8 |
-/// |---|---|---|---|
-/// | `min` 2 | 11/11 | 11/11 | 10/11 |
-/// | `min` 3 | **11/11** | **11/11** | 10/11 |
-/// | `min` 5 | 7/11 | 7/11 | 7/11 |
-/// | `min` 8 | 7/11 | 7/11 | 7/11 |
+/// | | `gap` 4 | `gap` 8 | `gap` 15 | `gap` 30 | `gap` 45 |
+/// |---|---|---|---|---|---|
+/// | `min` 2 | 17/17 | 16/17 | 16/17 | 16/17 | 16/17 |
+/// | `min` 3 | **17/17** | 16/17 | 16/17 | **16/17** | 16/17 |
+/// | `min` 5 | 11/17 | 11/17 | 6/17 | 6/17 | 6/17 |
+/// | `min` 8 | 11/17 | 11/17 | 6/17 | 6/17 | 6/17 |
 ///
-/// **Aucune carte inventée, dans aucun réglage.** C'est le résultat qui compte :
-/// l'erreur chère — le même exemplaire compté deux fois — ne s'est produite
-/// nulle part, et le réglage n'arbitre donc qu'entre du calcul et des cartes
-/// manquées.
+/// **Aucune carte inventée, dans aucun réglage.** Et c'est précisément la
+/// limite de ce banc : ses images sont composées, la reconnaissance n'y
+/// clignote jamais, si bien qu'il ne peut pas produire l'erreur chère. Une
+/// passe réelle l'a produite au premier essai — deux exemplaires pour une carte
+/// présentée une fois, neuf sur une autre.
 ///
-/// Un `min` de 5 manque les quatre passages brefs ; un `gap` de 8 dépasse la
-/// durée d'un retrait et refuse une carte qui revient. D'où **3 et 4**.
+/// Un `min` de 5 manque les passages brefs. Le `gap` vient donc du terrain et
+/// non d'ici, le banc ne servant qu'à chiffrer ce que l'allongement coûte.
+/// D'où **3 et 30**.
 ///
 /// **Ce que la mesure ne peut pas dire.** Le rôle de [minFrames] est de rejeter
 /// une reconnaissance *accidentelle*, et des images composées n'en produisent
@@ -70,12 +72,35 @@ const int defaultMinFrames = 3;
 
 /// Images sans la carte avant d'accepter qu'elle revienne.
 ///
-/// **Mesuré à 4**, et confirmé dans le bon sens : aucune carte n'a été inventée
-/// à ce réglage ni à aucun autre. C'est pourtant le nombre qui décide si deux
-/// exemplaires identiques comptent pour deux, et son erreur chère est de
-/// sous-estimer. Au-dessus, il dépasse la durée d'un retrait et refuse une carte
-/// qui revient : à 8 images, un passage sur onze est perdu.
-const int defaultGapFrames = 4;
+/// **Le terrain a corrigé le banc, de 4 à 30.** À 4 images — treize centièmes
+/// de seconde —, une passe réelle a compté **deux exemplaires** de chacune des
+/// deux cartes présentées une fois, et jusqu'à **neuf** sur une autre. La
+/// reconnaissance clignote : elle décroche quelques images sur un reflet ou une
+/// mise au point, raccroche, et chaque raccrochage passait pour une carte
+/// nouvellement posée.
+///
+/// Le banc ne pouvait pas le voir — ses images sont composées, sans flou de
+/// bougé ni protège-carte. Il dit en revanche ce que l'allongement coûte, et
+/// c'est peu (17 passages, `min` 3) :
+///
+/// | `gap` | trouvées | manquées | **inventées** |
+/// |---|---|---|---|
+/// | 4 | 17 | 0 | 0 |
+/// | 8 | 16 | 1 | 0 |
+/// | 15 | 16 | 1 | 0 |
+/// | **30** | **16** | **1** | **0** |
+/// | 45 | 16 | 1 | 0 |
+///
+/// Le prix est **une passe manquée sur dix-sept**, entièrement payé dès 8 : le
+/// plateau qui suit dit que la séquence ne contient qu'un seul retrait assez
+/// bref pour en souffrir. Aller à 45 ne coûterait rien de plus au banc, mais 30
+/// est une seconde pleine — la durée qu'il faut vraiment pour retirer une carte
+/// et en poser une identique, et une durée qui se raconte.
+///
+/// L'asymétrie tranche le reste : un exemplaire inventé fausse la collection et
+/// toutes les suggestions de decks qui en découlent, quand un doublon manqué se
+/// rattrape en repassant la carte.
+const int defaultGapFrames = 30;
 
 /// Suit ce que le flux montre, et n'annonce une carte qu'une fois.
 ///

@@ -425,7 +425,7 @@ void _reportTemporalThresholds(List<Frame> sequence, ArtHashIndex index) {
   );
 
   for (final minFrames in const [2, 3, 5, 8]) {
-    for (final gapFrames in const [2, 4, 8]) {
+    for (final gapFrames in const [4, 8, 15, 30, 45]) {
       final scanner = LiveScanner(
         index: index,
         uprightTurns: benchUprightTurns,

@@ -36,6 +36,7 @@ import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../printings/data/printing_repository.dart';
 import '../../printings/domain/scryfall_image.dart';
+import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/art_index_repository.dart';
 import '../domain/live_scanner.dart';
@@ -414,7 +415,13 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
                     cards: _scannedCards(),
                     enabled: !_saving,
                     onToggle: _toggleKeep,
-                    onRemove: (id) => setState(() => _basket.remove(id)),
+                    // L'appui long agrandit, comme partout ailleurs.
+                    onEnlarge: (id) => showCardImage(
+                      context,
+                      imageUrl: _sole[id]?.printing.artCropUrl ??
+                          _known[id]?.artUrl,
+                      title: _known[id]?.matchedName ?? 'Carte reconnue',
+                    ),
                   ),
           ),
         ],
