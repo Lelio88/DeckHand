@@ -1,0 +1,5 @@
+Le scan au fil de la caméra reconnaît de nouveau les cartes. Il ne voyait rien sur Magic, Yu-Gi-Oh, Pokémon et One Piece : l'appareil livre son image couchée, et une carte posée droite y était refusée.
+
+Les cartes reconnues s'affichent en entier sous le viseur. Passez le booster, puis faites défiler : un appui écarte une carte, un appui long la retire.
+
+Le relevé n'est plus en travers de l'image. Il apparaît en haut, seulement quand quelque chose bloque.
