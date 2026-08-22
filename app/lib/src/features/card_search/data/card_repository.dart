@@ -18,6 +18,19 @@ import '../../../config/selected_game.dart';
 
 import '../domain/card_hit.dart';
 
+/// Noms envoyés par appel à `search_cards_bulk`.
+///
+/// **Cinquante, parce que huit secondes.** C'est le `statement_timeout` du
+/// rôle `authenticated`, et la fonction met 5,66 s pour cent cinquante noms
+/// sur une base chaude — davantage à froid, où un seul nom a déjà coûté
+/// 5,4 s. À cinquante, un appel revient sous la seconde et demie, ce qui
+/// laisse la marge que le lot entier n'avait pas.
+///
+/// Mesuré par `api/app/measure` sous le rôle réel : la connexion
+/// d'ingestion est propriétaire et ne porte pas ce délai, elle aurait donc
+/// montré une fonction parfaitement saine.
+const int _bulkBatch = 50;
+
 class CardRepository {
   const CardRepository(this._client);
 
@@ -82,8 +95,7 @@ class CardRepository {
         .toList(growable: false);
   }
 
-  /// Meilleure correspondance pour chacun des noms donnés, en **un seul**
-  /// aller-retour.
+  /// Meilleure correspondance pour chacun des noms donnés, par lots.
   ///
   /// **Pourquoi cette méthode existe plutôt qu'une boucle sur [search].** Le
   /// scan d'étalement cherchait un nom par appel. Mesuré sur une photo de
@@ -113,17 +125,36 @@ class CardRepository {
         .toList(growable: false);
     if (wanted.isEmpty) return const {};
 
-    final rows = await _client
-        .rpc<List<dynamic>>(
-          'search_cards_bulk',
-          params: {'p_names': wanted, 'p_game': game.id},
-        )
-        .timedOut();
-
-    return {
-      for (final row in rows.cast<Map<String, dynamic>>())
-        row['query'] as String: CardHit.fromJson(row),
-    };
+    // **Un seul appel dépassait le délai que Postgres accorde.** Le rôle
+    // `authenticated` porte un `statement_timeout` de 8 secondes, et la
+    // fonction coûte, mesuré sous ce rôle : 1,4 s pour 68 noms, 4,2 s pour 100,
+    // **5,66 s pour les 150** que l'étalement peut envoyer au maximum. À froid,
+    // un seul nom a mis 5,4 s. La marge était donc nulle, et une photo bien
+    // fournie en texte rendait « canceling statement due to statement timeout »
+    // — soit, à l'écran, un étalement qui échoue sans qu'on sache pourquoi.
+    //
+    // Le découpage ne coûte rien : le temps ne croît pas linéairement avec le
+    // nombre de noms, si bien que trois lots de cinquante reviennent moins cher
+    // que les cent cinquante d'un coup. Les lots partent l'un après l'autre —
+    // les paralléliser rendrait à Postgres, en même temps, le travail qu'on
+    // vient précisément de lui étaler.
+    final results = <String, CardHit>{};
+    for (var start = 0; start < wanted.length; start += _bulkBatch) {
+      final end = (start + _bulkBatch).clamp(0, wanted.length);
+      final rows = await _client
+          .rpc<List<dynamic>>(
+            'search_cards_bulk',
+            params: {
+              'p_names': wanted.sublist(start, end),
+              'p_game': game.id,
+            },
+          )
+          .timedOut();
+      for (final row in rows.cast<Map<String, dynamic>>()) {
+        results[row['query'] as String] = CardHit.fromJson(row);
+      }
+    }
+    return results;
   }
 }
 
