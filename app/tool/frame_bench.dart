@@ -54,6 +54,7 @@ void main() {
     for (var i = 0; i < _indexSize; i++)
       (
         oracleId: 'card-$i',
+        printId: 'card-$i',
         hash: ArtHash(
           Uint8List.fromList([for (var b = 0; b < hashBytes; b++) random.nextInt(256)]),
         ),

@@ -27,7 +27,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 ArtHashIndex indexOf(List<String> ids) => ArtHashIndex.fromEntries([
   for (final id in ids)
-    (oracleId: id, hash: ArtHash.fromHex('0000000000000000')),
+    (oracleId: id, printId: id, hash: ArtHash.fromHex('0000000000000000')),
 ]);
 
 /// Dépôt d'index qui n'appelle aucun réseau.

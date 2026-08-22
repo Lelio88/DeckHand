@@ -158,7 +158,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       final accepted = seen.accepted;
       if (accepted != null) {
         _basket.add(accepted);
-        unawaited(_resolve(accepted));
+        unawaited(_resolve(accepted, seen.acceptedPrint));
         diagnose('live_accepted', {
           'oracle_id': accepted,
           'distance': seen.distance,
@@ -202,12 +202,16 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   /// la carte ne porte déjà, et demander le geste reviendrait à faire ouvrir
   /// une liste d'un seul élément quinze fois par booster. Garde-fou §IV.8
   /// intact — c'est l'édition qui se déduit, jamais la carte.
-  Future<void> _resolve(String oracleId) async {
+  Future<void> _resolve(String oracleId, [String? printId]) async {
     if (_known.containsKey(oracleId)) return;
     try {
-      final hits = await ref.read(cardRepositoryProvider).byOracleIds([
-        oracleId,
-      ]);
+      // **L'impression reconnue, et non n'importe laquelle.** Une carte Magic
+      // sur quatre porte plusieurs illustrations ; sans ce second argument, le
+      // catalogue rend celle de la plus ancienne impression anglaise et la
+      // vignette montre une autre version que celle qu'on tient.
+      final hits = await ref
+          .read(cardRepositoryProvider)
+          .byOracleIds([oracleId], prints: printId == null ? const [] : [printId]);
       if (!mounted || hits.isEmpty) return;
       setState(() => _known[oracleId] = hits.first);
 

@@ -208,9 +208,7 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
     // toutes les entrées quoi qu'il arrive, et c'est ce parcours qu'on mesure.
     _index = ArtHashIndex.fromEntries([
       for (var i = 0; i < widget.indexSize; i++)
-        (
-          oracleId: 'card-$i',
-          hash: ArtHash.fromHex(
+        (oracleId: 'card-$i', printId: 'card-$i', hash: ArtHash.fromHex(
             (i * 2654435761 % 0xFFFFFFFF).toRadixString(16).padLeft(16, '0'),
           ),
         ),

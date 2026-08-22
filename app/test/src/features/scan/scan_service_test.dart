@@ -75,7 +75,7 @@ Uint8List photoOf(img.Image card, {double widthFactor = 1.6}) {
 ArtHashIndex indexOf(Map<String, img.Image> cards, CardFrame frame) =>
     ArtHashIndex.fromEntries([
       for (final e in cards.entries)
-        (oracleId: e.key, hash: computeArtHash(cropArt(e.value, frame))),
+        (oracleId: e.key, printId: e.key, hash: computeArtHash(cropArt(e.value, frame))),
     ]);
 
 void main() {
@@ -92,6 +92,33 @@ void main() {
     expect(outcome.oracleIds.first, 'cible');
     expect(outcome.isConfident, isTrue);
     expect(outcome.frame, CardFrame.modern);
+  });
+
+  test("l'impression reconnue voyage jusqu'au catalogue", () async {
+    // **Sans ce test, la correction pouvait être sans effet.** L'index sait
+    // désormais de quelle impression vient chaque empreinte, mais si cette
+    // information n'est pas transmise au catalogue, l'écran continue d'afficher
+    // l'illustration de la plus ancienne impression anglaise — et rien ne le
+    // signale, puisque la carte, elle, est la bonne.
+    //
+    // C'est ce qui a été vu sur l'appareil : une carte scannée en version
+    // Marvel s'affichait avec l'illustration d'origine. Une carte Magic sur
+    // quatre porte plusieurs illustrations.
+    final card = fakeCard(CardFrame.modern, seed: 7);
+    final catalogue = FakeCardRepository();
+    final service = ScanService(
+      indexOf({'cible': card}, CardFrame.modern),
+      FakeCardTextReader(),
+      catalogue,
+    );
+
+    await service.recognisePhoto(photoOf(card));
+
+    expect(
+      catalogue.lastPrints,
+      ['cible'],
+      reason: "l'impression reconnue doit accompagner la carte demandée",
+    );
   });
 
   test('une carte au cadre ancien est reconnue aussi', () async {

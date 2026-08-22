@@ -76,6 +76,7 @@ class LiveObservation {
     this.watching,
     this.streak = 0,
     this.accepted,
+    this.acceptedPrint,
     this.detected = false,
     this.located = false,
     this.distance,
@@ -113,6 +114,15 @@ class LiveObservation {
   /// [CardTracker], et c'est ce qui autorise l'écran à l'ajouter au panier sans
   /// dédoublonner lui-même.
   final String? accepted;
+
+  /// L'**impression** dont l'illustration a fait accepter [accepted].
+  ///
+  /// Sert à montrer la bonne vignette : une carte Magic sur quatre porte
+  /// plusieurs illustrations, et l'écran affichait celle de la plus ancienne
+  /// impression anglaise — vu sur l'appareil, une carte scannée en version
+  /// Marvel s'affichait avec l'illustration d'origine, ce qui rend la
+  /// confirmation du §IV.8 impossible à donner en conscience.
+  final String? acceptedPrint;
 
   /// La détection de bords a tourné sur cette image. Pour le diagnostic : c'est
   /// la fraction de ces images qui décide du coût réel du flux.
@@ -272,10 +282,14 @@ class LiveScanner {
     final accepted = _cards.observe(id);
 
     final best = result.best;
+    // L'impression n'a de sens que si une carte vient d'être retenue : entre
+    // deux, `best` désigne un candidat qui n'a rien gagné.
+    final acceptedPrint = accepted == null ? null : best?.printId;
     return LiveObservation(
       watching: _cards.watching,
       streak: _cards.streak,
       accepted: accepted,
+      acceptedPrint: acceptedPrint,
       detected: detected,
       located: true,
       distance: best?.distance,

@@ -100,12 +100,13 @@ ArtHash hashOfPlane(int shade) {
 /// seule entrée rendrait toute reconnaissance « sûre » par absence de rival, ce
 /// qui ne ressemble pas à l'index réel.
 ArtHashIndex indexOf(Map<String, int> cards) {
-  final entries = <({String oracleId, ArtHash hash})>[
+  final entries = <IndexEntry>[
     for (final e in cards.entries)
-      (oracleId: e.key, hash: hashOfPlane(e.value)),
+      (oracleId: e.key, printId: e.key, hash: hashOfPlane(e.value)),
     for (var i = 0; i < 200; i++)
       (
         oracleId: 'bourrage-$i',
+        printId: 'bourrage-$i',
         hash: ArtHash(
           Uint8List.fromList([
             for (var b = 0; b < hashBytes; b++) (i * 37 + b * 11) % 256,
@@ -375,10 +376,11 @@ void main() {
     }
 
     ArtHashIndex indexAvec(ArtHash hash) => ArtHashIndex.fromEntries([
-      (oracleId: 'alpha', hash: hash),
+      (oracleId: 'alpha', printId: 'alpha', hash: hash),
       for (var i = 0; i < 200; i++)
         (
           oracleId: 'bourrage-$i',
+          printId: 'bourrage-$i',
           hash: ArtHash(
             Uint8List.fromList([
               for (var b = 0; b < hashBytes; b++) (i * 37 + b * 11) % 256,

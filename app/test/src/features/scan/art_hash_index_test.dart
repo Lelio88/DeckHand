@@ -16,10 +16,10 @@ import 'package:flutter_test/flutter_test.dart';
 ArtHash h(String hex) => ArtHash.fromHex(hex);
 
 ArtHashIndex buildIndex() => ArtHashIndex.fromEntries([
-  (oracleId: 'bolt', hash: h('0000000000000000')),
-  (oracleId: 'ring', hash: h('FFFFFFFFFFFFFFFF')),
-  (oracleId: 'island', hash: h('AAAAAAAAAAAAAAAA')),
-  (oracleId: 'forest', hash: h('0F0F0F0F0F0F0F0F')),
+  (oracleId: 'bolt', printId: 'bolt', hash: h('0000000000000000')),
+  (oracleId: 'ring', printId: 'ring', hash: h('FFFFFFFFFFFFFFFF')),
+  (oracleId: 'island', printId: 'island', hash: h('AAAAAAAAAAAAAAAA')),
+  (oracleId: 'forest', printId: 'forest', hash: h('0F0F0F0F0F0F0F0F')),
 ]);
 
 void main() {
@@ -78,8 +78,8 @@ void main() {
       () {
         // « bolt » et son quasi-jumeau : le second est à 1 bit du premier.
         final index = ArtHashIndex.fromEntries([
-          (oracleId: 'bolt', hash: h('0000000000000000')),
-          (oracleId: 'sosie', hash: h('0000000000000001')),
+          (oracleId: 'bolt', printId: 'bolt', hash: h('0000000000000000')),
+          (oracleId: 'sosie', printId: 'sosie', hash: h('0000000000000001')),
         ]);
         final result = index.search(h('0000000000000000'));
         expect(result.best?.oracleId, 'bolt');
@@ -93,7 +93,7 @@ void main() {
 
     test('un candidat unique proche est fiable, faute de concurrent', () {
       final index = ArtHashIndex.fromEntries([
-        (oracleId: 'bolt', hash: h('0000000000000000')),
+        (oracleId: 'bolt', printId: 'bolt', hash: h('0000000000000000')),
       ]);
       expect(index.search(h('0000000000000001')).isConfident, isTrue);
     });

@@ -53,7 +53,10 @@ class _FakeCatalogue implements CardRepository {
       .toList(growable: false);
 
   @override
-  Future<List<CardHit>> byOracleIds(List<String> oracleIds) async => cards;
+  Future<List<CardHit>> byOracleIds(
+    List<String> oracleIds, {
+    List<String> prints = const [],
+  }) async => cards;
 
   /// Panne a simuler, pour verifier que l'ecran la montre au lieu de rendre
   /// une liste vide indiscernable d'un etalement illisible.

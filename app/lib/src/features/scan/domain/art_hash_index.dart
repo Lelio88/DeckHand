@@ -32,7 +32,7 @@ const int maxTrustedDistance = 12;
 const int minConfidenceMargin = 4;
 
 /// Une carte candidate et sa distance à l'empreinte recherchée.
-typedef HashMatch = ({String oracleId, int distance});
+typedef HashMatch = ({String oracleId, String printId, int distance});
 
 /// Résultat d'une recherche.
 class HashSearchResult {
@@ -61,10 +61,24 @@ class HashSearchResult {
 }
 
 /// Une entrée de l'index.
-typedef IndexEntry = ({String oracleId, ArtHash hash});
+///
+/// **Deux identités, pas une.** `oracleId` désigne la carte ; `printId` désigne
+/// l'**impression** dont l'illustration a produit cette empreinte. Une carte
+/// Magic sur quatre en porte plusieurs (7 853 sur 32 808), si bien que rendre la
+/// seule carte laissait l'écran afficher une autre version que celle scannée —
+/// et la confirmation exigée au §IV.8 devient impossible à donner en conscience
+/// quand la vignette montre autre chose que ce qu'on tient.
+typedef IndexEntry = ({String oracleId, String printId, ArtHash hash});
+
+/// Marque de format du cache local.
+///
+/// Change dès que la disposition des octets change. Sans elle, un cache écrit
+/// par une version antérieure serait relu de travers — et un index mal relu ne
+/// plante pas, il reconnaît mal.
+const int _formatMark = 0x44484132; // « DHA2 »
 
 class ArtHashIndex {
-  ArtHashIndex._(this._hashes, this._oracleIds);
+  ArtHashIndex._(this._hashes, this._oracleIds, this._printIds);
 
   /// Empreintes concaténées, [hashBytes] octets par carte. Un tableau contigu
   /// plutôt qu'une liste d'objets : moins d'allocations, et un parcours qui
@@ -72,11 +86,15 @@ class ArtHashIndex {
   final Uint8List _hashes;
   final List<String> _oracleIds;
 
+  /// L'impression dont vient chaque empreinte, parallèle à [_oracleIds].
+  final List<String> _printIds;
+
   int get length => _oracleIds.length;
 
   factory ArtHashIndex.fromEntries(List<IndexEntry> entries) {
     final hashes = Uint8List(entries.length * hashBytes);
     final ids = <String>[];
+    final prints = <String>[];
     for (var i = 0; i < entries.length; i++) {
       hashes.setRange(
         i * hashBytes,
@@ -84,8 +102,9 @@ class ArtHashIndex {
         entries[i].hash.bytes,
       );
       ids.add(entries[i].oracleId);
+      prints.add(entries[i].printId);
     }
-    return ArtHashIndex._(hashes, ids);
+    return ArtHashIndex._(hashes, ids, prints);
   }
 
   /// Cherche les cartes dont l'empreinte est la plus proche de [query].
@@ -142,42 +161,74 @@ class ArtHashIndex {
 
     return HashSearchResult([
       for (var i = 0; i < kept; i++)
-        (oracleId: _oracleIds[bestIndex[i]], distance: bestDistance[i]),
+        (
+          oracleId: _oracleIds[bestIndex[i]],
+          printId: _printIds[bestIndex[i]],
+          distance: bestDistance[i],
+        ),
     ]);
   }
 
   /// Sérialise l'index pour le conserver localement.
   ///
-  /// Format : `[nombre d'entrées : uint32]` puis, par entrée,
-  /// `[empreinte : 8 octets][longueur de l'identifiant : uint8][identifiant UTF-8]`.
-  /// La longueur est portée par chaque entrée plutôt que fixée, pour ne pas
-  /// dépendre du format des identifiants.
+  /// Format : `[marque : uint32][nombre d'entrées : uint32]` puis, par entrée,
+  /// `[empreinte : 8 octets]` suivi de deux identifiants, chacun
+  /// `[longueur : uint8][UTF-8]` — la carte, puis l'impression.
+  ///
+  /// **La marque existe pour rejeter un cache d'une version antérieure.** Le
+  /// format n'en portait pas : ajouter un champ aurait fait relire les anciens
+  /// caches de travers, sans rien pour le signaler. Un index mal relu ne plante
+  /// pas, il reconnaît mal — c'est le pire des deux.
   Uint8List toBytes() {
     final builder = BytesBuilder();
-    final count = ByteData(4)..setUint32(0, length, Endian.little);
-    builder.add(count.buffer.asUint8List());
+    final header = ByteData(8)
+      ..setUint32(0, _formatMark, Endian.little)
+      ..setUint32(4, length, Endian.little);
+    builder.add(header.buffer.asUint8List());
 
-    for (var i = 0; i < length; i++) {
-      builder.add(_hashes.sublist(i * hashBytes, (i + 1) * hashBytes));
-      final id = utf8.encode(_oracleIds[i]);
+    void ecrire(String valeur) {
+      final id = utf8.encode(valeur);
       if (id.length > 255) {
-        throw ArgumentError('identifiant trop long : ${_oracleIds[i]}');
+        throw ArgumentError('identifiant trop long : $valeur');
       }
       builder.addByte(id.length);
       builder.add(id);
+    }
+
+    for (var i = 0; i < length; i++) {
+      builder.add(_hashes.sublist(i * hashBytes, (i + 1) * hashBytes));
+      ecrire(_oracleIds[i]);
+      ecrire(_printIds[i]);
     }
     return builder.toBytes();
   }
 
   factory ArtHashIndex.fromBytes(Uint8List bytes) {
-    if (bytes.length < 4) {
+    if (bytes.length < 8) {
       throw ArgumentError('index tronqué : ${bytes.length} octets');
     }
     final view = ByteData.sublistView(bytes);
-    final count = view.getUint32(0, Endian.little);
+    if (view.getUint32(0, Endian.little) != _formatMark) {
+      throw ArgumentError('index d\'un autre format : à retélécharger');
+    }
+    final count = view.getUint32(4, Endian.little);
+
+    var offset = 8;
+    String lire(int i) {
+      if (offset + 1 > bytes.length) {
+        throw ArgumentError('identifiant tronqué à l\'entrée $i');
+      }
+      final len = bytes[offset];
+      offset += 1;
+      if (offset + len > bytes.length) {
+        throw ArgumentError('identifiant tronqué à l\'entrée $i');
+      }
+      final valeur = utf8.decode(bytes.sublist(offset, offset + len));
+      offset += len;
+      return valeur;
+    }
 
     final entries = <IndexEntry>[];
-    var offset = 4;
     for (var i = 0; i < count; i++) {
       if (offset + hashBytes + 1 > bytes.length) {
         throw ArgumentError('index tronqué à l\'entrée $i');
@@ -186,14 +237,9 @@ class ArtHashIndex {
         Uint8List.fromList(bytes.sublist(offset, offset + hashBytes)),
       );
       offset += hashBytes;
-      final idLength = bytes[offset];
-      offset += 1;
-      if (offset + idLength > bytes.length) {
-        throw ArgumentError('identifiant tronqué à l\'entrée $i');
-      }
-      final id = utf8.decode(bytes.sublist(offset, offset + idLength));
-      offset += idLength;
-      entries.add((oracleId: id, hash: hash));
+      final oracleId = lire(i);
+      final printId = lire(i);
+      entries.add((oracleId: oracleId, printId: printId, hash: hash));
     }
     return ArtHashIndex.fromEntries(entries);
   }

@@ -159,6 +159,29 @@ la chaîne par clarté. Le service essaie les deux et retient le plus grand
 quadrilatère : sur une photo réelle c'est celui des droites, sur une carte si
 proche qu'elle déborde du cadre c'est celui de la clarté.
 
+### L'illustration reconnue, et non une autre version de la carte
+
+L'empreinte est calculée sur une **illustration** ; l'index ne remontait que la
+**carte**. Le catalogue choisissait alors l'illustration de la plus ancienne
+impression anglaise — et **23,9 % des cartes Magic en ont plusieurs** (7 853 sur
+32 808). Vu à l'appareil au premier essai : une carte scannée en version Marvel
+s'affichait avec l'illustration d'origine.
+
+Ce que cela coûte n'est pas cosmétique. Le §IV.8 exige une confirmation avant
+toute écriture en collection ; devant une vignette qui montre autre chose que ce
+qu'on tient, cette confirmation ne peut plus être donnée en conscience.
+
+L'information existait déjà — `art_hashes` porte le `scryfall_id`, l'impression
+précise. Elle traverse désormais toute la chaîne : `art_hash_page` la sert,
+`IndexEntry` et `HashMatch` la portent, `ScanOutcome.printIds` la propage, et
+`cards_by_oracle_ids(p_ids, p_prints)` rend l'illustration de l'impression
+désignée — avec repli sur le choix d'origine quand aucune n'est reconnue, ce qui
+est le bon comportement pour un deck ou un classeur.
+
+Le cache local de l'index porte une **marque de format** (`DHA2`). Sans elle, un
+cache écrit par une version antérieure serait relu de travers : un index mal relu
+ne plante pas, il reconnaît mal — le pire des deux.
+
 ### Le flux caméra cherche aussi par les droites
 
 Mesuré **sur l'appareil**, une carte posée devant l'objectif, 70 images :

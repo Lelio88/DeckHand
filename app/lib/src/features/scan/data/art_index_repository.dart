@@ -89,6 +89,10 @@ class ArtIndexRepository {
       for (final row in rows.cast<Map<String, dynamic>>()) {
         entries.add((
           oracleId: row['oracle_id'] as String,
+          // L'impression, et non seulement la carte : une carte Magic sur
+          // quatre porte plusieurs illustrations, et c'est celle qui a été
+          // reconnue qu'il faut montrer avant que l'utilisateur confirme.
+          printId: row['print_id'] as String,
           hash: ArtHash.fromHex(row['hash_hex'] as String),
         ));
       }

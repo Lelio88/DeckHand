@@ -85,7 +85,7 @@ void main() {
       final card = fakeCard(CardFrame.modern);
       final reference = computeArtHash(cropArt(card, CardFrame.modern));
       final index = ArtHashIndex.fromEntries([
-        (oracleId: 'cible', hash: reference),
+        (oracleId: 'cible', printId: 'cible', hash: reference),
       ]);
 
       final outcome = index.searchAny(artHashCandidates(card));
@@ -215,6 +215,7 @@ void main() {
       final index = ArtHashIndex.fromEntries([
         (
           oracleId: 'champ-de-bataille',
+          printId: 'champ-de-bataille',
           hash: computeArtHash(cropArt(wide, CardFrame.riftboundWide)),
         ),
       ]);

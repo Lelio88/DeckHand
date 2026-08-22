@@ -16,9 +16,9 @@ import 'package:deckhand/src/features/scan/domain/art_hash_index.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 ArtHashIndex sampleIndex() => ArtHashIndex.fromEntries([
-  (oracleId: 'bolt', hash: ArtHash.fromHex('0000000000000000')),
-  (oracleId: 'ring', hash: ArtHash.fromHex('FFFFFFFFFFFFFFFF')),
-  (oracleId: 'island', hash: ArtHash.fromHex('AAAAAAAAAAAAAAAA')),
+  (oracleId: 'bolt', printId: 'bolt', hash: ArtHash.fromHex('0000000000000000')),
+  (oracleId: 'ring', printId: 'ring', hash: ArtHash.fromHex('FFFFFFFFFFFFFFFF')),
+  (oracleId: 'island', printId: 'island', hash: ArtHash.fromHex('AAAAAAAAAAAAAAAA')),
 ]);
 
 void main() {

@@ -491,12 +491,17 @@ ArtHashIndex _buildIndex(List<Map<String, dynamic>> entries) {
   // donc sous-estimées **en valeur absolue** ; leur comparaison d'une stratégie
   // à l'autre, elle, reste juste, et c'est ce que ce banc départage.
   final random = math.Random(20260813);
-  final pairs = <({String oracleId, ArtHash hash})>[
+  final pairs = <IndexEntry>[
     for (final e in entries)
-      (oracleId: e['id'] as String, hash: ArtHash.fromHex(e['hash'] as String)),
+      (
+        oracleId: e['id'] as String,
+        printId: e['id'] as String,
+        hash: ArtHash.fromHex(e['hash'] as String),
+      ),
     for (var i = 0; i < 31600; i++)
       (
         oracleId: 'bourrage-$i',
+        printId: 'bourrage-$i',
         hash: ArtHash(
           Uint8List.fromList([
             for (var b = 0; b < hashBytes; b++) random.nextInt(256),

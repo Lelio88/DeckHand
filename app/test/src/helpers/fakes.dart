@@ -155,8 +155,19 @@ class FakeCardRepository implements CardRepository {
     return query.trim().isEmpty ? const [] : results;
   }
 
+  /// **L'impression demandée est retenue, pas ignorée.** Un faux qui avale ce
+  /// paramètre ne verrait jamais l'oubli de le transmettre, alors que c'est
+  /// précisément ce qui faisait afficher une autre version de la carte.
+  List<String> lastPrints = const [];
+
   @override
-  Future<List<CardHit>> byOracleIds(List<String> oracleIds) async => results;
+  Future<List<CardHit>> byOracleIds(
+    List<String> oracleIds, {
+    List<String> prints = const [],
+  }) async {
+    lastPrints = prints;
+    return results;
+  }
 
   /// Noms cherchés lors du dernier appel groupé.
   List<String>? lastBulkQuery;

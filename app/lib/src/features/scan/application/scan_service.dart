@@ -60,6 +60,7 @@ class ScanOutcome {
   const ScanOutcome({
     required this.oracleIds,
     required this.isConfident,
+    this.printIds = const [],
     this.method = ScanMethod.art,
     this.readName,
     this.readLines = const [],
@@ -70,6 +71,19 @@ class ScanOutcome {
 
   /// Cartes proposées, la plus probable en tête.
   final List<String> oracleIds;
+
+  /// L'**impression** dont l'illustration a été reconnue, parallèle à
+  /// [oracleIds]. Vide quand la reconnaissance n'est pas passée par
+  /// l'illustration — la lecture d'un nom ne désigne aucune version.
+  ///
+  /// **Sans elle, l'écran montre une autre version de la même carte.** Une
+  /// carte Magic sur quatre porte plusieurs illustrations (7 853 sur 32 808),
+  /// et le catalogue rendait celle de la plus ancienne impression anglaise :
+  /// vu sur l'appareil au premier essai, une « Levée de bouclier » scannée en
+  /// version Marvel s'affichait avec l'illustration d'origine. La confirmation
+  /// exigée au §IV.8 devient alors impossible à donner en conscience — on
+  /// demande à l'utilisateur de valider ce qu'il ne voit pas.
+  final List<String> printIds;
 
   /// Vrai si un candidat se détache assez pour être proposé sans réserve.
   /// Faux n'empêche pas d'afficher les candidats — cela change le ton : on
@@ -115,6 +129,7 @@ class ScanOutcome {
   /// pas distinguer ce cas d'une photo illisible.
   ScanOutcome named(String name) => ScanOutcome(
     oracleIds: oracleIds,
+    printIds: printIds,
     isConfident: isConfident,
     method: method,
     readName: name,
@@ -127,6 +142,7 @@ class ScanOutcome {
   /// Le même résultat, sachant que le catalogue est resté injoignable.
   ScanOutcome unreachable() => ScanOutcome(
     oracleIds: oracleIds,
+    printIds: printIds,
     isConfident: isConfident,
     method: method,
     readName: readName,
@@ -139,6 +155,7 @@ class ScanOutcome {
   /// Le même résultat, augmenté du texte lu sur la photo.
   ScanOutcome withLines(List<ReadLine> lines) => ScanOutcome(
     oracleIds: oracleIds,
+    printIds: printIds,
     isConfident: isConfident,
     method: method,
     readName: readName,
@@ -402,7 +419,7 @@ class ScanService {
     // entre les deux modes là où on vient de l'effacer.
     final List<CardHit> details;
     try {
-      details = await _cards.byOracleIds(byArt.oracleIds);
+      details = await _cards.byOracleIds(byArt.oracleIds, prints: byArt.printIds);
     } catch (error) {
       diagnose('photo_details_failed', {'error': '$error'});
       return PhotoOutcome(
@@ -755,6 +772,9 @@ class ScanService {
     return ScanOutcome(
       oracleIds: outcome.result.candidates
           .map((c) => c.oracleId)
+          .toList(growable: false),
+      printIds: outcome.result.candidates
+          .map((c) => c.printId)
           .toList(growable: false),
       isConfident: outcome.result.isConfident,
       frame: outcome.source?.frame,

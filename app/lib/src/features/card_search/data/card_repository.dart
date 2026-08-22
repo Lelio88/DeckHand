@@ -40,11 +40,28 @@ class CardRepository {
   ///
   /// Utilisé après une reconnaissance : celle-ci rend des identifiants classés
   /// par pertinence, et cet ordre doit survivre à la récupération des détails.
-  Future<List<CardHit>> byOracleIds(List<String> oracleIds) async {
+  /// [prints] désigne, position par position, l'**impression** reconnue : son
+  /// illustration est alors celle rendue.
+  ///
+  /// **Sans quoi l'écran montre une autre version de la même carte.** Le
+  /// catalogue choisissait la plus ancienne impression anglaise, et une carte
+  /// Magic sur quatre porte plusieurs illustrations. Vide, le paramètre laisse
+  /// ce choix d'origine — c'est le bon comportement pour un deck ou un
+  /// classeur, où aucune illustration n'a été reconnue.
+  Future<List<CardHit>> byOracleIds(
+    List<String> oracleIds, {
+    List<String> prints = const [],
+  }) async {
     if (oracleIds.isEmpty) return const [];
 
     final rows = await _client
-        .rpc<List<dynamic>>('cards_by_oracle_ids', params: {'p_ids': oracleIds})
+        .rpc<List<dynamic>>(
+          'cards_by_oracle_ids',
+          params: {
+            'p_ids': oracleIds,
+            if (prints.length == oracleIds.length) 'p_prints': prints,
+          },
+        )
         .timedOut();
 
     return rows
