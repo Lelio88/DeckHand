@@ -82,15 +82,37 @@ void main() {
     expect(quad.bottomRight.x, greaterThan(quad.bottomLeft.x));
   });
 
+  test('un décor rayé ne fait pas une carte', () {
+    // **Le cas mesuré sur photos réelles** : sur douze photos de décor sans
+    // aucune carte, cinq en produisaient une, dont trois sur du parquet. Les
+    // lames sont des droites parallèles franches, et quatre d'entre elles se
+    // croisent en un rectangle plausible.
+    //
+    // Ce test a d'abord été écrit puis retiré, faute de critère pour le tenir :
+    // un plan de travail rayé dessine réellement des rectangles. Ce qui le rend
+    // tenable, c'est de regarder la **matière** de part et d'autre du bord —
+    // sur un parquet, c'est le même bois des deux côtés.
+    final fond = img.Image(width: 340, height: 460);
+    img.fill(fond, color: img.ColorRgb8(120, 95, 70));
+    for (var y = 40; y < 460; y += 70) {
+      img.fillRect(
+        fond,
+        x1: 0,
+        y1: y,
+        x2: 339,
+        y2: y + 3,
+        color: img.ColorRgb8(60, 45, 30),
+      );
+    }
+
+    expect(findCardByEdges(fond), isNull);
+  });
+
   test('une texture sans carte ne rend rien', () {
     // **Le cas qui compte le plus** : ne jamais rendre une carte là où il n'y
     // en a pas. Un tapis, un drap, un parquet — des gradients partout, aucune
     // structure rectangulaire.
     //
-    // Le décor *rayé* n'est volontairement pas testé ici : des lignes régulières
-    // sur toute la largeur forment de vrais rectangles avec les bords du cadre,
-    // et un plan de travail en dessine réellement. C'est le banc sur photos
-    // réelles qui juge ce cas-là — seize fonds, aucune carte inventée.
     final fond = img.Image(width: 340, height: 460);
     var graine = 7;
     for (var y = 0; y < 460; y++) {

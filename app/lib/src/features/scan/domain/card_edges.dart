@@ -306,6 +306,23 @@ class EdgeLine {
 /// voisins, soit moins que le bruit d'un capteur.
 const double _gradientPlancher = 12.0;
 
+/// Part minimale de chaque bord où la matière doit changer.
+///
+/// **Volontairement bas.** Il ne s'agit pas d'exiger un contraste franc — une
+/// carte photographiée dans l'ombre en manque —, mais d'écarter le cas où il
+/// n'y en a **aucun** : le même parquet des deux côtés du prétendu bord.
+///
+/// Mesuré sur douze photos de décor sans carte et trente-neuf cartes seules :
+/// à 0,30 les quadrilatères inventés sur du sol ou un plan de travail
+/// disparaissent **sans coûter une seule carte** ; au-delà de 0,45 les cartes
+/// commencent à tomber sans qu'un faux de plus ne s'en aille.
+///
+/// Ces deux-là sont une boîte de boosters et une serviette imprimée : de vrais
+/// objets rectangulaires posés, que ce critère valide à juste titre. Les écarter
+/// demanderait de regarder ce qu'il y a *dedans* — c'est le travail de
+/// l'empreinte, en aval, qui ne leur trouvera aucune correspondance.
+const double _ruptureMinimale = 0.30;
+
 /// Part minimale de l'image exigée d'un quadrilatère au quatrième côté déduit.
 const double _aireMinDeduite = 0.30;
 
@@ -326,6 +343,85 @@ const int _voteDeduit = -1;
 /// seize s'inventent une carte, à 0,92 une carte réellement tenue à la main se
 /// voit détourer par la moitié. 0,90 tient les deux.
 const double _supportSansCouple = 0.90;
+
+/// De part et d'autre de ce segment, est-ce la même matière ?
+///
+/// **Le critère qui distingue une carte d'une lame de parquet.** Le support dit
+/// qu'un bord passe là ; il ne dit pas que ce bord sépare deux choses. Or une
+/// veine de bois, une rainure de plan de travail, une jointure de lame sont des
+/// droites franches et parallèles — mesuré sur douze photos de décor sans
+/// aucune carte, cinq s'en fabriquaient une, dont trois sur du sol.
+///
+/// Une carte, elle, est un **objet posé** : sur toute la longueur de son bord,
+/// ce qu'il y a dedans diffère de ce qu'il y a dehors, et **toujours dans le
+/// même sens** — une bordure sombre reste plus sombre que la table sur les
+/// quatre côtés. Une veine de bois change de sens d'un bout à l'autre.
+///
+/// Rend la part des échantillons dont l'écart va dans le sens majoritaire et
+/// dépasse le bruit.
+double _rupture(
+  ({double x, double y}) a,
+  ({double x, double y}) b,
+  ({double x, double y}) centre,
+  img.Image im,
+) {
+  final longueur = math.sqrt(
+    (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y),
+  );
+  if (longueur < 8) return 0;
+
+  // La normale, orientée vers l'intérieur du quadrilatère.
+  var nx = -(b.y - a.y) / longueur, ny = (b.x - a.x) / longueur;
+  final mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  if ((centre.x - mx) * nx + (centre.y - my) * ny < 0) {
+    nx = -nx;
+    ny = -ny;
+  }
+
+  double? lire(double x, double y) {
+    // Hors du cadre, on ne sait pas : ramener le pixel du bord donnerait un
+    // écart nul, c'est-à-dire un verdict « même matière » tiré de rien.
+    final xi = x.round(), yi = y.round();
+    if (xi < 0 || yi < 0 || xi >= im.width || yi >= im.height) return null;
+    final p = im.getPixel(xi, yi);
+    return (p.r.toDouble() + p.g.toDouble() + p.b.toDouble()) / 3;
+  }
+
+  const recul = 5.0;
+  final pas = math.max(12, (longueur / 3).round());
+  final ecarts = <double>[];
+  for (var i = 0; i <= pas; i++) {
+    final t = _marge + (i / pas) * (1 - 2 * _marge);
+    final x = a.x + (b.x - a.x) * t;
+    final y = a.y + (b.y - a.y) * t;
+    final dedans = lire(x + nx * recul, y + ny * recul);
+    final dehors = lire(x - nx * recul, y - ny * recul);
+    if (dedans == null || dehors == null) continue;
+    ecarts.add(dedans - dehors);
+  }
+
+  // **Ne pas pouvoir juger n'est pas juger contre.** Un côté porté par le bord
+  // de l'image — carte cadrée dans le guide de visée — n'a pas de dehors à
+  // regarder. Trois tests l'ont montré avant l'appareil.
+  if (ecarts.isEmpty) return 1;
+
+  var positifs = 0;
+  for (final e in ecarts) {
+    if (e > 0) positifs++;
+  }
+  final sens = positifs * 2 >= ecarts.length ? 1 : -1;
+  var daccord = 0;
+  for (final e in ecarts) {
+    if (e * sens > _ecartMinimal) daccord++;
+  }
+  return daccord / ecarts.length;
+}
+
+/// Écart de luminance en deçà duquel deux voisins sont la même matière.
+///
+/// Sur l'échelle 0-255 : le bruit d'un capteur et les nuances d'une même lame de
+/// parquet restent en dessous.
+const double _ecartMinimal = 10.0;
 
 /// Range quatre coins dans l'ordre où l'on lit une carte.
 ///
@@ -448,7 +544,11 @@ const double _marge = 0.06;
 /// **zéro carte inventée** sur des fonds sans carte, contre deux. Coût : 65 ms
 /// par photo sur poste fixe, contre 12 ms — sans importance pour une photo,
 /// rédhibitoire pour le flux caméra, qui garde donc l'autre chemin.
-CardQuad? findCardByEdges(img.Image photo, {String game = 'magic'}) {
+CardQuad? findCardByEdges(
+  img.Image photo, {
+  String game = 'magic',
+  double ruptureMin = _ruptureMinimale,
+}) {
   if (photo.width < 32 || photo.height < 32) return null;
 
   final scale = photo.width > analysisWidth ? photo.width / analysisWidth : 1.0;
@@ -467,7 +567,9 @@ CardQuad? findCardByEdges(img.Image photo, {String game = 'magic'}) {
     champ.width,
     champ.height,
     game,
+    image: small,
     minSupport: defaultMinSupport,
+    ruptureMin: ruptureMin,
   );
   return quad?.scaled(scale);
 }
@@ -483,9 +585,11 @@ CardQuad? bestQuad(
   int width,
   int height,
   String game, {
+  img.Image? image,
   double aspectTol = 0.12,
   double minArea = 0.12,
   double minSupport = 0.85,
+  double ruptureMin = _ruptureMinimale,
   double supportPartiel = _supportSansCouple,
 }) {
   if (lines.length < 4) return null;
@@ -611,7 +715,12 @@ CardQuad? bestQuad(
             if (p.y < minY) minY = p.y;
             if (p.y > maxY) maxY = p.y;
           }
-          if (aire / (width * height) > 0.93) continue;
+          // **Presque tout le cadre n'est pas une carte non plus.** Un parquet
+          // photographié de près rendait un quadrilatère couvrant 92 % de
+          // l'image : appuyé sur les bords du cadre, il échappe au contrôle de
+          // matière, qui n'a pas de dehors à regarder. Une carte occupant
+          // plus de 88 % du cadre n'y montre de toute façon plus ses bords.
+          if (aire / (width * height) > 0.88) continue;
           if (maxX - minX >= width - 2 && maxY - minY >= height - 2) continue;
 
           // **Les quatre côtés doivent être réellement bordés.** C'est ici
@@ -670,6 +779,21 @@ CardQuad? bestQuad(
           // inventées sur seize fonds : un quadrilatère déduit passe le contrôle
           // de rapport **par construction**, puisqu'on le bâtit à la bonne
           // proportion, et le support restait alors le seul garde-fou.
+          // **La matière doit changer aux quatre bords.** Sans ce contrôle,
+          // cinq photos de décor sur douze s'inventaient une carte — trois sur
+          // du parquet, dont les lames sont des droites parallèles franches.
+          if (image != null) {
+            final cx = coins.map((p) => p.x).reduce((x, y) => x + y) / 4;
+            final cy = coins.map((p) => p.y).reduce((x, y) => x + y) / 4;
+            final centre = (x: cx, y: cy);
+            var pire = 1.0;
+            for (var n = 0; n < 4; n++) {
+              final r = _rupture(coins[n], coins[(n + 1) % 4], centre, image);
+              if (r < pire) pire = r;
+            }
+            if (pire < ruptureMin) continue;
+          }
+
           final seuil = cadres > 0 || deduite ? supportPartiel : minSupport;
           final nets = [for (final v in vus) v.net]..sort();
           var sup = nets.isEmpty ? 1.0 : nets.first;

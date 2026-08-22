@@ -136,6 +136,8 @@ observé :
 | Le **quatrième côté se déduit** des trois autres | Une carte tenue à la main a un doigt sur un bord : le pouce masquait le bord haut, la détection se rabattait sur le pavé de texte et l'empreinte était calculée dessus. Le rapport d'une carte étant connu, trois côtés suffisent à placer le quatrième |
 | Les **bords du cadre** comptent comme droites, par paire opposée seulement | Une carte cadrée dans le guide de visée déborde de l'image : ses bords haut et bas ne sont nulle part, et la détection la rognait de 11 % — un découpage d'apparence parfaite mais décalé. Les admettre isolément faisait en revanche passer **treize fonds sur seize** |
 
+| La **matière doit changer** aux quatre bords | Douze photos de décor sans aucune carte en produisaient **cinq**, dont trois sur du parquet : les lames sont des droites parallèles franches. Une carte est un objet *posé* — ce qu'il y a dedans diffère de ce qu'il y a dehors, et toujours dans le même sens ; une veine de bois change de sens d'un bout à l'autre |
+
 Une déduction est plus fragile qu'une observation, et deux garde-fous l'encadrent :
 elle n'est accordée qu'à une carte occupant **au moins 30 %** de l'image — les
 fonds qui s'inventaient une carte tenaient dans 17 à 19 %, une carte réellement
@@ -145,8 +147,13 @@ sur seize redevenaient des cartes : un quadrilatère déduit passe le contrôle 
 rapport **par construction**, puisqu'on le bâtit à la bonne proportion, et le
 support reste alors le seul juge.
 
-**Résultat mesuré** : 16 cartes trouvées sur 16 contre 4, et **zéro carte
-inventée** sur seize fonds contre 2. Coût : **61 ms** par photo contre 14 —
+**Résultat mesuré**, sur le banc de photos réelles (`.deckhand-bench`, voir son
+README) : **38 cartes trouvées sur 39** contre 4 pour la chaîne par clarté, et
+**2 fausses sur 12 photos de décor** contre 5 sans le contrôle de matière. Les
+deux qui restent sont une boîte de boosters et une serviette imprimée : de vrais
+objets rectangulaires posés, que ce contrôle valide à juste titre. Les écarter
+demanderait de regarder ce qu'il y a *dedans* — c'est le travail de l'empreinte,
+en aval, qui ne leur trouvera aucune correspondance. Coût : **61 ms** par photo contre 14 —
 sans importance pour une photo, rédhibitoire pour le flux caméra, qui garde donc
 la chaîne par clarté. Le service essaie les deux et retient le plus grand
 quadrilatère : sur une photo réelle c'est celui des droites, sur une carte si

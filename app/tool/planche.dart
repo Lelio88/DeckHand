@@ -14,7 +14,7 @@ void main(List<String> args) {
   final sortie = args[1];
   final parPlanche = args.length > 2 ? int.parse(args[2]) : 6;
   final fichiers =
-      dir.listSync().whereType<File>().where((f) => f.path.endsWith('.jpg')).toList()
+      dir.listSync().whereType<File>().where((f) => f.path.endsWith('.jpg') || f.path.endsWith('.png')).toList()
         ..sort((a, b) => a.path.compareTo(b.path));
 
   const cell = 460;
@@ -41,7 +41,7 @@ void main(List<String> args) {
       img.compositeImage(planche, vignette, dstX: x, dstY: y);
       img.drawString(
         planche,
-        lot[i].uri.pathSegments.last.replaceAll('IMG_20260822_', '').replaceAll('.jpg', ''),
+        lot[i].uri.pathSegments.last.replaceAll('IMG_20260822_', '').replaceAll('.jpg', '').replaceAll('.png', ''),
         font: img.arial24,
         x: x + 4,
         y: y - marge + 2,

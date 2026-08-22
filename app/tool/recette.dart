@@ -54,6 +54,11 @@ const String bancParDefaut = '../../.deckhand-bench/photos';
 /// les cadres intérieurs 15 à 25 %.
 const double aireSuspecte = 0.30;
 
+/// Seuil de rupture de matière, balayable depuis la ligne de commande.
+/// Doit suivre `_ruptureMinimale` de la production, sans quoi le banc mesure
+/// un autre réglage que celui qui tourne.
+double gRupture = 0.30;
+
 double _part(CardQuad q, int w, int h) {
   double d(({double x, double y}) a, ({double x, double y}) b) =>
       math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
@@ -86,9 +91,12 @@ void _dessine(img.Image photo, CardQuad? quad, String vers) {
   File(vers).writeAsBytesSync(img.encodePng(vue));
 }
 
+bool gDetails = false;
+
 ({int photos, int trouvees, int suspectes, double mediane}) _passe(
   Directory dir,
   String? dump,
+  String nom,
 ) {
   final fichiers =
       dir
@@ -107,13 +115,22 @@ void _dessine(img.Image photo, CardQuad? quad, String vers) {
     // La chaîne exacte de la production : les droites, puis la clarté, et le
     // plus grand des deux l'emporte.
     final trouves = [
-      findCardByEdges(photo),
+      findCardByEdges(photo, ruptureMin: gRupture),
       findCard(photo),
     ].whereType<CardQuad>().toList();
     final quad = trouves.isEmpty
         ? null
         : trouves.reduce((a, b) => a.area >= b.area ? a : b);
 
+    if (gDetails) {
+      // On ne liste que ce qui cloche : les cartes manquees d'un cote, les
+      // cartes inventees de l'autre. Le reste n'apprend rien.
+      final rate = nom == 'sans-carte' ? quad != null : quad == null;
+      if (rate) {
+        print('      ${nom == 'sans-carte' ? 'INVENTEE' : 'manquee '} '
+            '${f.uri.pathSegments.last}');
+      }
+    }
     if (quad != null) {
       trouvees++;
       final part = _part(quad, photo.width, photo.height);
@@ -138,6 +155,9 @@ void _dessine(img.Image photo, CardQuad? quad, String vers) {
 }
 
 void main(List<String> args) {
+  final iR = args.indexOf('--rupture');
+  if (iR >= 0) gRupture = double.parse(args[iR + 1]);
+  gDetails = args.contains('--details');
   final iDump = args.indexOf('--dump');
   final dump = iDump >= 0 && iDump + 1 < args.length ? args[iDump + 1] : null;
   if (dump != null) Directory(dump).createSync(recursive: true);
@@ -161,7 +181,7 @@ void main(List<String> args) {
       sousDump = '$dump/$nom';
       Directory(sousDump).createSync(recursive: true);
     }
-    final r = _passe(sous, sousDump);
+    final r = _passe(sous, sousDump, nom);
     if (r.photos == 0) {
       print('  ${nom.padRight(14)} — vide');
       continue;
