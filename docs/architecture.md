@@ -101,6 +101,54 @@ prototypées et mesurées sans qu'aucune n'atteigne un rappel exploitable ; le
 détail et les impasses sont consignés dans
 [`spread-detection.md`](./spread-detection.md), pour éviter de refaire ce chemin.
 
+### Trouver la carte : par ses droites, non par sa clarté
+
+La détection historique retient, dans l'image réduite, ce qui est **plus sombre
+que son voisinage**. C'est un pari sur le décor : une carte foncée sur une table
+claire. Mesuré sur seize photos réelles — parquet, tapis, drap, clavier, sous
+lampe et à la fenêtre —, ce pari tient **4 fois sur 16**, dont trois quadrilatères
+de rapport douteux. Aucun réglage ne fabrique un contraste absent.
+
+**Un piège dormait sous ce chiffre.** Quand la détection échoue, elle retient
+tout le cadre — et une photo de téléphone est en 3:4, soit un rapport de
+**0,753** contre **0,716** pour une carte : 0,037 d'écart pour une tolérance de
+0,30. Toute détection ratée était donc annoncée comme une carte. Mesuré sur des
+coins d'image sans aucune carte : **quinze faux sur seize**. C'est l'explication
+des cartes inventées observées sur l'appareil.
+
+Ce qu'une carte a toujours, en revanche, ce sont **quatre bords rectilignes** —
+propriété indépendante du sens du contraste comme de la couleur du fond.
+`card_edges.dart` les cherche par une transformée de Hough **orientée** : en
+chaque pixel, la direction du gradient donne la normale au bord, on ne vote donc
+que pour cet angle-là au lieu des cent quatre-vingts possibles. Le calcul y gagne
+deux ordres de grandeur, et l'accumulateur y gagne en netteté — une texture de
+parquet vote dans toutes les directions et s'étale, un bord franc culmine.
+
+Cinq décisions viennent chacune d'une mesure, et quatre d'entre elles d'un échec
+observé :
+
+| Décision | Ce qui l'a imposée |
+|---|---|
+| Gradient sur les **trois canaux**, pas sur le gris | Une carte à bordure noire sur parquet brun n'a presque aucun contraste de luminance : le contour disparaissait et le **bloc de texte** était détouré à sa place, vérifié à l'œil sur deux photos |
+| Droites **réparties par famille d'angle** | Les lignes d'un bloc de texte sont toutes horizontales et toutes franches : elles occupaient dix-huit places sur vingt, et le bord droit de la carte n'était jamais candidat |
+| **Support** de chaque côté ≥ 0,78 | Quarante pixels alignés au fond d'une image font naître une droite ; quatre de ces droites se croisent en un quadrilatère plausible. Sans ce critère, huit fonds sur seize devenaient des cartes |
+| **Le plus grand gagne** | Les cadres intérieurs d'une carte ont des bords plus francs que son contour ; un score fondé sur la netteté détourait le pavé « Éphémère » et non la carte |
+| Les **bords du cadre** comptent comme droites, par paire opposée seulement | Une carte cadrée dans le guide de visée déborde de l'image : ses bords haut et bas ne sont nulle part, et la détection la rognait de 11 % — un découpage d'apparence parfaite mais décalé. Les admettre isolément faisait en revanche passer **treize fonds sur seize** |
+
+**Résultat mesuré** : 15 cartes trouvées sur 16 contre 4, et **zéro carte
+inventée** sur seize fonds contre 2. Coût : **61 ms** par photo contre 14 —
+sans importance pour une photo, rédhibitoire pour le flux caméra, qui garde donc
+la chaîne par clarté. Le service essaie les deux et retient le plus grand
+quadrilatère : sur une photo réelle c'est celui des droites, sur une carte si
+proche qu'elle déborde du cadre c'est celui de la clarté.
+
+**Une impasse mesurée, à ne pas refaire.** Bâtir un *masque* à partir du gradient
+— seuil, dilatation pour refermer le contour, remplissage — donne **0/16** :
+dilater soude la carte au décor et la forme retenue devient l'image entière.
+Remplir une forme ne dit rien de sa rectitude ; c'est l'assemblage de droites qui
+porte l'information, pas la tache. Le banc `tool/edge_bench.dart` conserve cette
+mesure.
+
 ### Où se trouve l'illustration — mesuré, pas estimé
 
 La zone d'illustration a été localisée en cherchant, dans le rendu complet de la

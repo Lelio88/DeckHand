@@ -37,6 +37,7 @@ import '../domain/art_box.dart';
 import '../domain/art_hash.dart';
 import '../domain/art_hash_index.dart';
 import '../domain/card_bounds.dart';
+import '../domain/card_edges.dart';
 import '../domain/card_framing.dart';
 import '../domain/card_name_text.dart';
 import '../domain/card_segmentation.dart';
@@ -717,7 +718,31 @@ class ScanService {
     // voyait appliquer le bon gabarit d'illustration. Sans conséquence tant que
     // les deux jeux couverts partagent le même carton ; muet et faux dès qu'un
     // jeu imprime autrement, puisque l'empreinte reste plausible.
-    final quad = findCard(decoded, game: game.id);
+    //
+    // **Les droites d'abord, la clarté ensuite.** La détection par seuillage
+    // suppose une carte plus sombre que sa table : mesurée sur seize photos
+    // réelles, elle en trouve quatre — dont trois de rapport douteux — et en
+    // invente deux sur des fonds sans carte. La détection par droites, elle,
+    // n'exploite que ce qu'une carte a toujours : quatre bords rectilignes.
+    // Sur les mêmes seize photos, quinze trouvées et **aucune inventée**.
+    // Elle coûte 65 ms au lieu de 12 : sans conséquence pour une photo, d'où
+    // ce branchement-ci et non celui du flux caméra.
+    //
+    // **Le plus grand des deux l'emporte.** Les deux chaînes peuvent désigner
+    // deux rectangles plausibles — l'une le contour, l'autre un cadre
+    // intérieur — et un cadre intérieur est toujours contenu dans ce qu'il
+    // borde. La règle est la même que celle qui départage les candidats à
+    // l'intérieur de chaque chaîne, et elle vaut dans les deux sens : sur une
+    // photo réelle c'est la détection par droites qui gagne, sur une carte
+    // photographiée si près qu'elle déborde du cadre c'est celle par clarté,
+    // la première n'ayant alors aucun bord à voir.
+    final trouves = [
+      findCardByEdges(decoded, game: game.id),
+      findCard(decoded, game: game.id),
+    ].whereType<CardQuad>().toList();
+    final quad = trouves.isEmpty
+        ? null
+        : trouves.reduce((a, b) => a.area >= b.area ? a : b);
     final candidates = quad == null
         ? artHashCandidates(
             cropToCardFrame(decoded, game: game.id),

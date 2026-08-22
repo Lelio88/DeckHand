@@ -217,6 +217,21 @@ class CardQuad {
     return height == 0 ? 0 : ((top + bottom) / 2) / height;
   }
 
+  /// Surface du quadrilatère, en pixels.
+  ///
+  /// **Sert à départager deux détections.** Les cadres intérieurs d'une carte —
+  /// celui de l'illustration, celui du bloc de texte — ont des bords plus francs
+  /// que son contour sur une table claire, et deux chaînes de détection peuvent
+  /// donc désigner deux rectangles également plausibles. Le plus grand est le
+  /// bon : un cadre intérieur est par construction contenu dans ce qu'il borde.
+  double get area {
+    final top = _distance(topLeft, topRight);
+    final bottom = _distance(bottomLeft, bottomRight);
+    final left = _distance(topLeft, bottomLeft);
+    final right = _distance(topRight, bottomRight);
+    return ((top + bottom) / 2) * ((left + right) / 2);
+  }
+
   static double _distance(Point a, Point b) {
     final dx = a.x - b.x;
     final dy = a.y - b.y;
