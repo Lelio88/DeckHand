@@ -142,6 +142,17 @@ la chaîne par clarté. Le service essaie les deux et retient le plus grand
 quadrilatère : sur une photo réelle c'est celui des droites, sur une carte si
 proche qu'elle déborde du cadre c'est celui de la clarté.
 
+**Ce que le flux caméra n'aura pas gratuitement.** Le mode vidéo ne reçoit pas
+une image couleur mais un plan de luminance, et le matérialiser en RGB coûte
+**10,4 ms** sur l'appareil — avant même que la détection commence. Or c'est le
+gradient sur les trois canaux qui fait la qualité : rejouée sur les mêmes seize
+photos converties en niveaux de gris, la chaîne trouve toujours quinze
+quadrilatères et n'en invente aucun, mais **l'aire médiane tombe de 40 % à
+26 %** — c'est-à-dire qu'elle retombe souvent sur un cadre intérieur au lieu du
+contour. Le nombre de détections ne dit donc rien à lui seul ; c'est l'aire qui
+révèle ce qui a été détouré. À rejouer avant de brancher quoi que ce soit sur le
+flux (`tool/hough_bench.dart --luma`).
+
 **Une impasse mesurée, à ne pas refaire.** Bâtir un *masque* à partir du gradient
 — seuil, dilatation pour refermer le contour, remplissage — donne **0/16** :
 dilater soude la carte au décor et la forme retenue devient l'image entière.

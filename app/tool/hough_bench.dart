@@ -34,6 +34,26 @@ double _part(CardQuad q, int w, int h) {
   return d(q.topLeft, q.topRight) * d(q.topRight, q.bottomRight) / (w * h);
 }
 
+/// La même photo, vue comme le flux caméra la verrait.
+///
+/// **Pourquoi cette variante existe.** Le mode vidéo ne reçoit pas une image
+/// couleur mais un plan de luminance ; le matérialiser en RGB coûte 10,4 ms sur
+/// l'appareil, mesuré, avant même que la détection commence. Or c'est le
+/// gradient sur les trois canaux qui a débloqué la détection sur fond sombre :
+/// il faut donc savoir ce que la chaîne vaut sans lui, avant de promettre au
+/// flux le gain mesuré sur la photo.
+img.Image _enLuminance(img.Image photo) {
+  final gris = photo.clone();
+  for (var y = 0; y < gris.height; y++) {
+    for (var x = 0; x < gris.width; x++) {
+      final p = gris.getPixel(x, y);
+      final l = (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round().clamp(0, 255);
+      gris.setPixelRgb(x, y, l, l, l);
+    }
+  }
+  return gris;
+}
+
 img.Image _reduite(img.Image photo) => img.copyResize(
   photo,
   width: analysisWidth,
@@ -193,6 +213,8 @@ void main(List<String> args) {
         height: (photo.height * 0.33).round(),
       );
     }
+
+    if (args.contains('--luma')) photo = _enLuminance(photo);
 
     final parClarte = findCard(photo, game: 'magic');
     final parLignes = _parHough(photo, 'magic');
