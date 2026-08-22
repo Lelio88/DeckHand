@@ -119,6 +119,34 @@ void main() {
     );
   });
 
+  test('un doigt sur un bord ne fait pas perdre la carte', () {
+    // **Le cas du terrain** : la carte est tenue à la main, le pouce masque le
+    // nom *et* le bord haut. Sans quatrième côté, la détection se rabattait sur
+    // le pavé de texte — seul rectangle complet restant — et l'empreinte était
+    // calculée dessus. Le rapport d'une carte étant connu, trois côtés suffisent
+    // à placer le quatrième.
+    final photo = surFond(carte(220, 307), 300, 400);
+    // Le doigt : une tache claire qui recouvre le bord haut et mord sur le côté.
+    img.fillRect(
+      photo,
+      x1: 30,
+      y1: 0,
+      x2: 150,
+      y2: 60,
+      color: img.ColorRgb8(235, 200, 185),
+    );
+
+    final quad = findCardByEdges(photo);
+
+    expect(quad, isNotNull);
+    expect(quad!.aspect, closeTo(0.716, 0.06));
+    expect(
+      quad.area,
+      greaterThan(220 * 307 * 0.80),
+      reason: 'la carte entière, pas la moitié restée visible',
+    );
+  });
+
   test('une carte qui déborde du cadre est détourée jusqu’aux bords', () {
     // Le cas du guide de visée : la carte remplit la hauteur, ses bords haut et
     // bas sont hors champ. On ne peut pas exiger de voir ce qui n'est pas là.

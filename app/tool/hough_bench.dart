@@ -64,6 +64,9 @@ int gMaxLines = 24;
 double gMinSupport = 0.85;
 double gMinArea = 0.06;
 double gTol = 0.12;
+/// Doit suivre `_supportSansCouple` de la production, sans quoi le banc
+/// mesure un autre réglage que celui qui tourne.
+double gSc = 0.90;
 
 CardQuad? _parHough(img.Image photo, String game) =>
     _parHoughReduite(_reduite(photo), game);
@@ -79,6 +82,7 @@ CardQuad? _parHoughReduite(img.Image small, String game) {
     minSupport: gMinSupport,
     minArea: gMinArea,
     aspectTol: gTol,
+    supportPartiel: gSc,
   );
 }
 
@@ -177,6 +181,8 @@ void main(List<String> args) {
   if (iA >= 0) gMinArea = double.parse(args[iA + 1]);
   final iT = args.indexOf('--tol');
   if (iT >= 0) gTol = double.parse(args[iT + 1]);
+  final iSc = args.indexOf('--sc');
+  if (iSc >= 0) gSc = double.parse(args[iSc + 1]);
   final dir = Directory(args.first);
   final fichiers =
       dir

@@ -306,8 +306,26 @@ class EdgeLine {
 /// voisins, soit moins que le bruit d'un capteur.
 const double _gradientPlancher = 12.0;
 
-/// Support exigé des côtés vus quand l'autre couple sort du cadre.
-const double _supportSansCouple = 0.92;
+/// Part minimale de l'image exigée d'un quadrilatère au quatrième côté déduit.
+const double _aireMinDeduite = 0.30;
+
+/// Marque une droite déduite plutôt que vue.
+///
+/// Négatif pour ne jamais être confondu avec un vrai décompte de votes, ni avec
+/// les zéro d'une droite de cadre.
+const int _voteDeduit = -1;
+
+/// Support exigé des côtés vus quand un côté manque à l'appel.
+///
+/// Vaut dans deux régimes : un couple sorti du cadre (guide de visée) ou un
+/// quatrième côté déduit (doigt sur un bord). Dans les deux cas il reste moins
+/// de bords pour affirmer qu'il y a une carte, d'où une exigence plus haute que
+/// le régime ordinaire.
+///
+/// **Le balayage montre un point d'équilibre étroit** : à 0,86 quatre fonds sur
+/// seize s'inventent une carte, à 0,92 une carte réellement tenue à la main se
+/// voit détourer par la moitié. 0,90 tient les deux.
+const double _supportSansCouple = 0.90;
 
 /// Range quatre coins dans l'ordre où l'on lit une carte.
 ///
@@ -359,7 +377,7 @@ bool _estBordDuCadre(EdgeLine l, int w, int h) =>
 /// Part du segment ignorée à chaque extrémité, pour les coins arrondis.
 const double _marge = 0.06;
 
-double _support(
+({double net, double troue}) _support(
   ({double x, double y}) a,
   ({double x, double y}) b,
   Uint8List edges,
@@ -370,7 +388,7 @@ double _support(
     (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y),
   );
   final pas = math.max(16, longueur.round());
-  var vus = 0, testes = 0;
+  var vus = 0, testes = 0, lacune = 0, pireLacune = 0;
   for (var i = 0; i <= pas; i++) {
     // **Sans les extrémités.** Une carte a les coins arrondis : le segment
     // droit y passe dans le vide sur quelques pixels, et un contour parfait
@@ -396,9 +414,28 @@ double _support(
         }
       }
     }
-    if (trouve) vus++;
+    if (trouve) {
+      vus++;
+      lacune = 0;
+    } else {
+      lacune++;
+      if (lacune > pireLacune) pireLacune = lacune;
+    }
   }
-  return testes == 0 ? 0 : vus / testes;
+  if (testes == 0) return (net: 0, troue: 0);
+
+  // **Deux lectures du même côté.** `net` est la part réellement bordée ; `troue`
+  // est ce qu'elle vaudrait si l'on comblait la plus longue interruption.
+  //
+  // C'est ce qui distingue un doigt d'un hasard : une main masque une portion
+  // **contiguë** du bord — mesuré, un pouce couvre près d'un tiers du côté
+  // gauche —, tandis qu'un alignement fortuit du décor est troué partout. Le
+  // premier retrouve un support parfait dès qu'on lui pardonne une lacune, le
+  // second reste bas.
+  return (
+    net: vus / testes,
+    troue: math.min(1.0, (vus + pireLacune) / testes),
+  );
 }
 
 /// Les coins de la carte, cherchés par ses quatre droites.
@@ -449,6 +486,7 @@ CardQuad? bestQuad(
   double aspectTol = 0.12,
   double minArea = 0.12,
   double minSupport = 0.85,
+  double supportPartiel = _supportSansCouple,
 }) {
   if (lines.length < 4) return null;
 
@@ -472,10 +510,35 @@ CardQuad? bestQuad(
 
       for (var k = 0; k < lines.length; k++) {
         if (k == i || k == j) continue;
-        for (var l = k + 1; l < lines.length; l++) {
-          if (l == i || l == j) continue;
-          if (ecart(lines[k].theta, lines[l].theta) > 0.20) continue;
-          if ((lines[k].rho - lines[l].rho).abs() < 20) continue;
+
+        // **Le quatrième côté peut se déduire des trois autres.** Une carte
+        // tenue à la main a un doigt sur un bord : mesuré sur une photo réelle,
+        // le bord haut disparaissait sous le pouce et la détection se rabattait
+        // sur le pavé de texte, seul rectangle complet restant — d'où une
+        // empreinte calculée sur « Éphémère ».
+        //
+        // Or le rapport d'une carte est connu. Deux côtés opposés vus donnent
+        // une dimension ; le rapport donne l'autre ; le troisième côté dit d'où
+        // partir. Le quatrième n'a plus qu'une place possible, de chaque côté.
+        // On ne lui demande évidemment aucun support — il n'est pas visible —,
+        // et c'est pourquoi les trois autres doivent être francs.
+        final ecartement = (lines[i].rho - lines[j].rho).abs();
+        final deduites = <EdgeLine>[
+          for (final aspect in [debout, couche])
+            for (final signe in [1, -1])
+              EdgeLine(
+                lines[k].theta,
+                lines[k].rho + signe * ecartement / aspect,
+                _voteDeduit,
+              ),
+        ];
+
+        final candidates = [...lines, ...deduites];
+        for (var l = 0; l < candidates.length; l++) {
+          final deduite = l >= lines.length;
+          if (!deduite && (l <= k || l == i || l == j)) continue;
+          if (ecart(lines[k].theta, candidates[l].theta) > 0.20) continue;
+          if ((lines[k].rho - candidates[l].rho).abs() < 20) continue;
 
           // Les deux paires doivent être presque perpendiculaires.
           final entre = ecart(lines[i].theta, lines[k].theta);
@@ -483,8 +546,8 @@ CardQuad? bestQuad(
 
           final a = lines[i].meet(lines[k]);
           final b = lines[j].meet(lines[k]);
-          final c = lines[j].meet(lines[l]);
-          final d = lines[i].meet(lines[l]);
+          final c = lines[j].meet(candidates[l]);
+          final d = lines[i].meet(candidates[l]);
           if (a == null || b == null || c == null || d == null) continue;
 
           final coins = [a, b, c, d];
@@ -516,7 +579,19 @@ CardQuad? bestQuad(
           if (cote1 < 12 || cote2 < 12) continue;
 
           final aire = cote1 * cote2;
-          if (aire / (width * height) < minArea) continue;
+
+          // **Une déduction ne s'accorde qu'à une grande carte.** Le quatrième
+          // côté n'est pas vu : il reste trois bords pour affirmer qu'il y a une
+          // carte là, et le contrôle de rapport ne filtre plus rien puisqu'on
+          // bâtit le quadrilatère à la bonne proportion. Mesuré, les fonds qui
+          // s'inventaient ainsi une carte tenaient dans 17 à 19 % de l'image,
+          // quand une carte réellement tenue à la main en occupe 54 à 64 % — le
+          // seuil est le milieu de ce fossé, pas un chiffre choisi.
+          //
+          // C'est cohérent avec l'usage : on déduit un bord parce qu'un doigt le
+          // masque, donc parce que la carte est présentée de près.
+          final part = aire / (width * height);
+          if (part < (deduite ? _aireMinDeduite : minArea)) continue;
 
           // **Jamais le cadre entier, ni même deux bords opposés.** C'est par
           // là que les faux positifs sont entrés : une détection ratée retient
@@ -548,7 +623,12 @@ CardQuad? bestQuad(
           final bordI = _estBordDuCadre(lines[i], width, height);
           final bordJ = _estBordDuCadre(lines[j], width, height);
           final bordK = _estBordDuCadre(lines[k], width, height);
-          final bordL = _estBordDuCadre(lines[l], width, height);
+          final bordL = _estBordDuCadre(candidates[l], width, height);
+
+          // Un côté déduit ne se cumule pas avec un côté hors cadre : il ne
+          // resterait que deux bords réellement vus pour affirmer qu'il y a une
+          // carte, ce qui est le régime où les fonds se mettent à en produire.
+          if (deduite && (bordI || bordJ || bordK)) continue;
 
           // **Par paire opposée, ou pas du tout.** Exempter n'importe quel côté
           // porté par le cadre laissait bâtir un quadrilatère sur deux bords
@@ -563,27 +643,41 @@ CardQuad? bestQuad(
           if (cadres > 0 && !(paireIJ ^ paireKL)) continue;
           if (cadres > 2) continue;
 
-          var sup = 1.0;
+          final vus = <({double net, double troue})>[];
           void juger(
             bool exempt,
             ({double x, double y}) p,
             ({double x, double y}) q,
           ) {
             if (exempt) return;
-            final s = _support(p, q, edges, width, height);
-            if (s < sup) sup = s;
+            vus.add(_support(p, q, edges, width, height));
           }
 
           // Chaque côté est porté par deux droites ; il est vu dès que l'une
           // des deux est un vrai bord.
           juger(bordK, a, b);
           juger(bordJ, b, c);
-          juger(bordL, c, d);
+          juger(bordL || deduite, c, d);
           juger(bordI, d, a);
 
           // Quand un couple manque, l'autre doit être franc : on n'a plus que
           // deux bords pour affirmer qu'il y a une carte là.
-          if (sup < (cadres > 0 ? _supportSansCouple : minSupport)) continue;
+          // **Une main masque un bord, pas trois.** Quand le quatrième côté est
+          // déduit, on pardonne son interruption à **un seul** des côtés vus —
+          // celui que tient le doigt ; les autres doivent être francs.
+          //
+          // Sans cette restriction, la déduction faisait revenir quatre cartes
+          // inventées sur seize fonds : un quadrilatère déduit passe le contrôle
+          // de rapport **par construction**, puisqu'on le bâtit à la bonne
+          // proportion, et le support restait alors le seul garde-fou.
+          final seuil = cadres > 0 || deduite ? supportPartiel : minSupport;
+          final nets = [for (final v in vus) v.net]..sort();
+          var sup = nets.isEmpty ? 1.0 : nets.first;
+          if (deduite && nets.length > 1) {
+            final pardonne = vus.reduce((a, b) => a.net <= b.net ? a : b);
+            sup = math.min(pardonne.troue, nets[1]);
+          }
+          if (sup < seuil) continue;
 
           final aspect = cote1 / cote2;
           final ecartD = (aspect - debout).abs();

@@ -133,9 +133,19 @@ observé :
 | Droites **réparties par famille d'angle** | Les lignes d'un bloc de texte sont toutes horizontales et toutes franches : elles occupaient dix-huit places sur vingt, et le bord droit de la carte n'était jamais candidat |
 | **Support** de chaque côté ≥ 0,78 | Quarante pixels alignés au fond d'une image font naître une droite ; quatre de ces droites se croisent en un quadrilatère plausible. Sans ce critère, huit fonds sur seize devenaient des cartes |
 | **Le plus grand gagne** | Les cadres intérieurs d'une carte ont des bords plus francs que son contour ; un score fondé sur la netteté détourait le pavé « Éphémère » et non la carte |
+| Le **quatrième côté se déduit** des trois autres | Une carte tenue à la main a un doigt sur un bord : le pouce masquait le bord haut, la détection se rabattait sur le pavé de texte et l'empreinte était calculée dessus. Le rapport d'une carte étant connu, trois côtés suffisent à placer le quatrième |
 | Les **bords du cadre** comptent comme droites, par paire opposée seulement | Une carte cadrée dans le guide de visée déborde de l'image : ses bords haut et bas ne sont nulle part, et la détection la rognait de 11 % — un découpage d'apparence parfaite mais décalé. Les admettre isolément faisait en revanche passer **treize fonds sur seize** |
 
-**Résultat mesuré** : 15 cartes trouvées sur 16 contre 4, et **zéro carte
+Une déduction est plus fragile qu'une observation, et deux garde-fous l'encadrent :
+elle n'est accordée qu'à une carte occupant **au moins 30 %** de l'image — les
+fonds qui s'inventaient une carte tenaient dans 17 à 19 %, une carte réellement
+tenue à la main en occupe 54 à 64 % —, et **un seul** des trois côtés vus peut
+être interrompu, celui que tient le doigt. Sans cette seconde règle, quatre fonds
+sur seize redevenaient des cartes : un quadrilatère déduit passe le contrôle de
+rapport **par construction**, puisqu'on le bâtit à la bonne proportion, et le
+support reste alors le seul juge.
+
+**Résultat mesuré** : 16 cartes trouvées sur 16 contre 4, et **zéro carte
 inventée** sur seize fonds contre 2. Coût : **61 ms** par photo contre 14 —
 sans importance pour une photo, rédhibitoire pour le flux caméra, qui garde donc
 la chaîne par clarté. Le service essaie les deux et retient le plus grand
