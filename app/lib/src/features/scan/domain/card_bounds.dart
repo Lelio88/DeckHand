@@ -66,6 +66,36 @@ const int analysisWidth = 400;
 /// trouvé est une tache sur la table, pas une carte.
 const double minCardArea = 0.10;
 
+/// Part de sa boîte englobante qu'une forme doit remplir pour être une carte.
+///
+/// **Ce que ce seuil attrape, et que rien d'autre ne voyait.** Le contrôle
+/// d'aspect juge la *forme* de la boîte, jamais son contenu : un amas dispersé
+/// — un clavier, un parquet, une main et un carton fondus en une composante —
+/// dont la boîte a par hasard les proportions d'une carte passe sans obstacle.
+/// C'est le mode de défaillance le plus coûteux du module, puisqu'il ne rend
+/// pas « rien trouvé » mais une empreinte prélevée à côté, donc une carte
+/// annoncée à tort.
+///
+/// **Mesuré** (`tool/fill_bench.dart`), sur trois populations :
+///
+/// | Population | Remplissage |
+/// |---|---|
+/// | cartes détectées, huit régimes du banc de cadrage | 75,8 % à 100 % |
+/// | photo réelle réussie | 95,1 % |
+/// | formes déjà rejetées par l'aspect | 54,9 % à 65,4 % |
+/// | **carte photographiée sur un clavier** | **26,0 %** |
+///
+/// **Le seuil est un arbitrage avec l'inclinaison**, et c'est ce qui le borne :
+/// la boîte englobante d'un rectangle penché grandit vite, si bien que le
+/// remplissage tombe à 75,4 % à 9°, 69,9 % à 12° et 65,4 % à 15°. Le fixer à
+/// 0,65 revient donc à refuser une carte posée de plus d'une quinzaine de
+/// degrés de travers — ce qu'un cadrage même négligent ne dépasse pas, le pire
+/// régime du banc s'arrêtant à 9°.
+///
+/// Plus haut, on perdrait des cartes légitimement posées de biais ; plus bas,
+/// on laisserait revenir l'amas à 26 %.
+const double minShapeFill = 0.65;
+
 /// Écart toléré au rapport d'une carte. Large à dessein : une carte vue de
 /// biais s'écarte de ses proportions nominales, et rejeter trop strictement
 /// reviendrait à ne détecter que les photos déjà parfaites.
@@ -270,10 +300,28 @@ CardQuad? _findIn(img.Image small, double scale, String game, bool sideways) {
   if (shape == null) return null;
 
   var area = 0;
-  for (final on in shape) {
-    if (on != 0) area++;
+  var minX = small.width, maxX = -1, minY = small.height, maxY = -1;
+  for (var i = 0; i < shape.length; i++) {
+    if (shape[i] == 0) continue;
+    area++;
+    final x = i % small.width;
+    final y = i ~/ small.width;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
   }
   if (area < minCardArea * small.width * small.height) return null;
+
+  // **Une carte est un rectangle plein.** Le contrôle d'aspect ne regarde que
+  // la forme de la boîte englobante, jamais ce qu'il y a dedans : un amas
+  // dispersé dont la boîte a par hasard les proportions d'une carte le
+  // franchit sans peine. Mesuré sur une photo réelle — une carte posée sur un
+  // clavier —, la détection a retenu une forme allant d'un coin à l'autre de
+  // l'image, de rapport 0,674 contre 0,716 attendu, et l'empreinte a été
+  // prélevée sur du clavier.
+  final box = (maxX - minX + 1) * (maxY - minY + 1);
+  if (box <= 0 || area / box < minShapeFill) return null;
 
   final quad = _cornersOf(shape, small.width, small.height);
   if (quad == null) return null;

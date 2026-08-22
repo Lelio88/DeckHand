@@ -447,6 +447,45 @@ void main() {
     });
   });
 
+  group('une carte est un rectangle plein', () {
+    /// Un amas dispersé dont la boîte englobante a, par hasard, les
+    /// proportions d'une carte : deux barres éloignées, comme un clavier et un
+    /// carton fondus en une composante.
+    img.Image amas() {
+      final photo = img.Image(width: 300, height: 400);
+      img.fill(photo, color: img.ColorRgb8(170, 152, 126));
+      // Deux bandes sombres aux extrémités : la boîte englobante couvre tout,
+      // la forme n'en remplit qu'un quart.
+      for (var y = 40; y < 90; y++) {
+        for (var x = 40; x < 260; x++) {
+          photo.setPixelRgb(x, y, 18, 16, 20);
+        }
+      }
+      for (var y = 320; y < 370; y++) {
+        for (var x = 40; x < 260; x++) {
+          photo.setPixelRgb(x, y, 18, 16, 20);
+        }
+      }
+      return photo;
+    }
+
+    test('un amas dont la boîte a la bonne forme est refusé', () {
+      // **Le défaut vu sur une photo réelle.** Une carte posée sur un clavier :
+      // la détection a retenu une forme allant d'un coin à l'autre de l'image,
+      // de rapport 0,674 contre 0,716 attendu — assez proche pour franchir le
+      // contrôle d'aspect —, et l'empreinte a été prélevée sur du clavier. Trois
+      // cartes ont été proposées, aucune n'était la bonne.
+      //
+      // Le remplissage de la boîte englobante les sépare sans ambiguïté : 26 %
+      // pour cet amas, 95 % pour la carte qui était pourtant sur la photo.
+      expect(findCard(amas()), isNull);
+    });
+
+    test('une carte pleine passe, elle remplit sa boîte', () {
+      expect(findCard(_photo()), isNotNull);
+    });
+  });
+
   group('les cartes posées en travers', () {
     // Mesuré sur le catalogue Riftbound : une carte couchée fait 1039 × 744,
     // soit le rapport inverse d'une carte debout. Ce n'est pas un autre format,
