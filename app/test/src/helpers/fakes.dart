@@ -108,9 +108,15 @@ class FakeCardTextReader implements CardTextReader {
   @override
   ({double width, double height})? lastImageSize;
 
+  /// Lectures effectuées. Une seconde passe d'OCR coûte des centaines de
+  /// millisecondes : c'est le genre de dépense qu'un test doit pouvoir
+  /// affirmer, et non supposer.
+  int reads = 0;
+
   @override
   Future<List<ReadLine>> readLines(String path) async {
     lastPath = path;
+    reads++;
     return lines;
   }
 

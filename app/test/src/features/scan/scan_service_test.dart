@@ -665,6 +665,112 @@ void main() {
 
     expect(outcome.readName, 'Archer du Val gelé');
   });
+
+  group('un seul flux photo', () {
+    test(
+      "des noms lus donnent les cartes, sans toucher à l'illustration",
+      () async {
+        // Le cas nominal : c'est le comportement de l'étalement, et il doit
+        // rester exactement le même — une carte seule n'est qu'un étalement d'une.
+        final cards = FakeCardRepository()
+          ..results = [_spreadHit('bolt', 'Lightning Bolt')];
+        final service = ScanService(
+          ArtHashIndex.fromEntries([]),
+          FakeCardTextReader()
+            ..lines = [const ReadLine('Lightning Bolt', 0.10, 0.03)],
+          cards,
+        );
+
+        final outcome = await service.recognisePhoto(
+          photoOf(fakeCard(CardFrame.modern, seed: 40)),
+          photoPath: 'photo.jpg',
+        );
+
+        expect(outcome.cards.map((c) => c.card.oracleId), ['bolt']);
+        expect(outcome.fromArtwork, isFalse);
+      },
+    );
+
+    test("sans aucun nom retrouvé, l'illustration prend le relais", () async {
+      // **La raison d'être de la fusion.** Une carte dont le nom ne se lit
+      // pas — reflet, carton abîmé, texte masqué — était reconnue seule et
+      // ignorée en étalement. Le même carton, deux résultats.
+      final card = fakeCard(CardFrame.modern, seed: 41);
+      final service = ScanService(
+        indexOf({'cible': card}, CardFrame.modern),
+        FakeCardTextReader(),
+        FakeCardRepository()..results = [_spreadHit('cible', 'Cible')],
+      );
+
+      final outcome = await service.recognisePhoto(photoOf(card));
+
+      expect(outcome.cards.single.card.oracleId, 'cible');
+      expect(outcome.fromArtwork, isTrue);
+    });
+
+    test("le recours ne relit pas un texte qui n'a rien donné", () async {
+      // Une seconde passe d'OCR coûterait des centaines de millisecondes pour
+      // relire ce qui vient de ne rien rendre. Le recours est l'illustration
+      // *seule*.
+      final card = fakeCard(CardFrame.modern, seed: 42);
+      final reader = FakeCardTextReader();
+      final service = ScanService(
+        indexOf({'cible': card}, CardFrame.modern),
+        reader,
+        FakeCardRepository(),
+      );
+
+      await service.recognisePhoto(photoOf(card), photoPath: 'photo.jpg');
+
+      expect(reader.reads, 1, reason: 'une seule lecture, pas deux');
+    });
+
+    test(
+      "un nom lu mais introuvable laisse sa chance à l'illustration",
+      () async {
+        // Les deux échecs ne se ressemblent pas : ici l'appareil a lu quelque
+        // chose, mais le catalogue n'en veut pas. L'illustration peut encore
+        // trancher, et le texte mérite une seconde lecture —
+        // `cardNameCandidates` ne cible pas les mêmes lignes que
+        // `spreadNameCandidates`.
+        final card = fakeCard(CardFrame.modern, seed: 43);
+        final reader = FakeCardTextReader()
+          ..lines = [const ReadLine('Nom Illisible Xyz', 0.10, 0.03)];
+        final service = ScanService(
+          indexOf({'cible': card}, CardFrame.modern),
+          reader,
+          FakeCardRepository()..results = [_spreadHit('cible', 'Cible')],
+        );
+
+        final outcome = await service.recognisePhoto(
+          photoOf(card),
+          photoPath: 'photo.jpg',
+        );
+
+        expect(outcome.cards.single.card.oracleId, 'cible');
+        expect(outcome.fromArtwork, isTrue);
+        expect(reader.reads, 2, reason: 'le nom unique se cherche autrement');
+      },
+    );
+
+    test('une reconnaissance incertaine propose sans affirmer', () async {
+      // « Affirmer à tort coûte plus cher que suggérer » : l'écran présentera
+      // ces candidats sans les cocher.
+      final inconnue = fakeCard(CardFrame.modern, seed: 77);
+      final service = ScanService(
+        indexOf({
+          'autre': fakeCard(CardFrame.modern, seed: 44),
+        }, CardFrame.modern),
+        FakeCardTextReader(),
+        FakeCardRepository()..results = [_spreadHit('autre', 'Autre')],
+      );
+
+      final outcome = await service.recognisePhoto(photoOf(inconnue));
+
+      expect(outcome.fromArtwork, isTrue);
+      expect(outcome.isConfident, isFalse);
+    });
+  });
 }
 
 CardHit _hit(String oracleId) => CardHit(

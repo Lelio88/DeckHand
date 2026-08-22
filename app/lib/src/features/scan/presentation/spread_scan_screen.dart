@@ -28,10 +28,12 @@ import '../data/photo_source.dart';
 
 /// Une carte repérée sur la photo, telle que l'utilisateur peut l'amender.
 class _Spotted {
-  _Spotted(SpreadFind find) : card = find.card, quantity = find.copies;
+  _Spotted(SpreadFind find, {this.keep = true})
+    : card = find.card,
+      quantity = find.copies;
 
   final CardHit card;
-  bool keep = true;
+  bool keep;
 
   /// Quantité proposée, pré-remplie par le nombre d'exemplaires vus sur la
   /// photo. Reste modifiable : la reconnaissance propose, l'utilisateur décide.
@@ -78,6 +80,12 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
   /// cartes. Le geste utile est alors de vérifier le jeu saisi, pas la photo.
   bool _readButUnmatched = false;
 
+  /// Ces cartes viennent du recours par illustration, pas d'un nom lu.
+  bool _fromArtwork = false;
+
+  /// Le recours a hesite : il propose, il n'affirme pas.
+  bool _uncertain = false;
+
   /// L'enregistrement a échoué, alors que la liste, elle, est intacte.
   ///
   /// **Deux pannes, deux champs.** Elles partageaient `_error`, si bien qu'une
@@ -111,17 +119,28 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       }
 
       final service = await ref.read(scanServiceProvider.future);
-      final found = await service.recogniseSpread(
-        photo.path,
-        photoBytes: photo.bytes,
+      final found = await service.recognisePhoto(
+        photo.bytes,
+        photoPath: photo.path,
       );
 
       if (!mounted) return;
       setState(() {
         _spotted
           ..clear()
-          ..addAll(found.cards.map(_Spotted.new));
+          ..addAll(
+            found.cards.map(
+              // **Une carte suggérée arrive décochée.** Quand le recours par
+              // illustration hésite, il propose plusieurs candidats dont un
+              // seul est le bon : les cocher d'office ferait entrer les autres
+              // en collection au premier « Ajouter ». « Affirmer à tort coûte
+              // plus cher que suggérer » (§IV.8).
+              (find) => _Spotted(find, keep: found.isConfident),
+            ),
+          );
         _readButUnmatched = found.readButUnmatched;
+        _fromArtwork = found.fromArtwork;
+        _uncertain = found.fromArtwork && !found.isConfident;
         _scanned = true;
       });
       await _fillSoleEditions();
@@ -236,7 +255,7 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         .fold<int>(0, (sum, s) => sum + s.quantity);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Plusieurs cartes')),
+      appBar: AppBar(title: const Text('Photographier des cartes')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -274,8 +293,8 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       return const _Note(
         icon: Icons.grid_view,
         text:
-            'Étalez vos cartes en laissant un jour entre elles — '
-            'un demi-centimètre suffit —, puis photographiez l\'ensemble.',
+            'Photographiez une carte, ou étalez-en plusieurs en laissant un '
+            'jour entre elles — un demi-centimètre suffit.',
       );
     }
     if (_spotted.isEmpty) {
@@ -302,12 +321,34 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-      itemCount: _spotted.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) =>
-          _SpottedTile(item: _spotted[index], onChanged: () => setState(() {})),
+    return Column(
+      children: [
+        // **Dire d'où vient la carte.** Un nom lu et une illustration
+        // rapprochée n'ont pas la même assise : le premier se vérifie d'un
+        // coup d'œil sur le carton, le second repose sur une ressemblance.
+        // L'utilisateur juge mieux quand il sait laquelle des deux voies a
+        // parlé.
+        if (_fromArtwork)
+          _Note(
+            icon: _uncertain ? Icons.help_outline : Icons.image_search,
+            text: _uncertain
+                ? 'Aucun nom n\'a pu être lu. Voici les cartes dont '
+                      'l\'illustration ressemble le plus — cochez la vôtre.'
+                : 'Aucun nom n\'a pu être lu : cette carte a été reconnue à '
+                      'son illustration.',
+          ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+            itemCount: _spotted.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) => _SpottedTile(
+              item: _spotted[index],
+              onChanged: () => setState(() {}),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

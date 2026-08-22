@@ -34,7 +34,6 @@ import '../features/collection/presentation/collection_screen.dart';
 import '../features/collection/presentation/history_sheet.dart';
 import '../features/decks/presentation/deck_suggestions_screen.dart';
 import '../features/scan/presentation/live_scan_screen.dart';
-import '../features/scan/presentation/scan_screen.dart';
 import '../features/scan/presentation/spread_scan_screen.dart';
 import '../features/voice/presentation/voice_input_screen.dart';
 
@@ -149,15 +148,18 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-/// Les quatre façons d'ajouter des cartes autrement qu'au clavier.
+/// Les trois façons d'ajouter des cartes autrement qu'au clavier.
 ///
 /// **Elles occupaient la ligne du champ de recherche**, qu'elles rétrécissaient
 /// d'un tiers. En haut, elles deviennent ce qu'elles sont : les entrées de
 /// l'onglet, à côté de la saisie au clavier qui reste dessous.
 ///
-/// L'ordre va du geste le plus large au plus fin — une photo d'étalement pour
-/// vider une boîte, la dictée pour saisir en vrac, la caméra au fil de l'eau
-/// pour dépouiller un booster, la photo d'une carte pour lever un doute.
+/// L'ordre va du geste le plus large au plus fin — une photo pour vider une
+/// boîte comme pour saisir une carte, la dictée pour saisir en vrac, la caméra
+/// au fil de l'eau pour dépouiller un booster.
+///
+/// **Elles étaient quatre** : deux boutons photo, dont l'étiquette annonçait un
+/// nombre de cartes là où la vraie différence était ailleurs (#31).
 class _CaptureButtons extends StatelessWidget {
   const _CaptureButtons();
 
@@ -176,8 +178,13 @@ class _CaptureButtons extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // **Un seul bouton photo** (#31). Il y en avait deux, « une carte » et
+        // « plusieurs cartes », et l'étiquette mentait sur le vrai critère :
+        // seul le premier savait retomber sur l'illustration quand le nom ne se
+        // lit pas. Le même carton donnait donc deux résultats selon le bouton
+        // choisi, sans que rien ne l'explique.
         IconButton.filledTonal(
-          tooltip: 'Photographier plusieurs cartes',
+          tooltip: 'Photographier une carte ou plusieurs',
           icon: const Icon(Icons.photo_camera_outlined),
           onPressed: () => _open(context, const SpreadScanScreen()),
         ),
@@ -196,15 +203,6 @@ class _CaptureButtons extends StatelessWidget {
           tooltip: 'Scanner au fil de la caméra',
           icon: const Icon(Icons.center_focus_strong_outlined),
           onPressed: () => _open(context, const LiveScanScreen()),
-        ),
-        const SizedBox(width: 6),
-        // La photo unique reste, et elle a son emploi : elle ne demande pas de
-        // tenir un appareil au-dessus d'un tapis, et lit le nom par l'OCR là où
-        // le flux ne connaît que l'illustration.
-        IconButton.filledTonal(
-          tooltip: 'Photographier une carte',
-          icon: const Icon(Icons.crop_free),
-          onPressed: () => _open(context, const ScanScreen()),
         ),
       ],
     );

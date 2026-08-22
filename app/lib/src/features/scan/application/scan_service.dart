@@ -180,6 +180,57 @@ class SpreadOutcome {
   bool get readButUnmatched => cards.isEmpty && namesRead > 0;
 }
 
+/// Ce qu'une photo a donné, qu'elle porte une carte ou vingt (#31).
+///
+/// **Un seul type pour les deux voies**, parce que l'écran n'a plus qu'une
+/// liste à remplir. Ce qui change entre elles n'est pas la forme du résultat
+/// mais la confiance qu'on lui accorde, et [fromArtwork] la porte.
+class PhotoOutcome {
+  const PhotoOutcome(
+    this.cards, {
+    this.namesRead = 0,
+    this.fromArtwork = false,
+    this.isConfident = true,
+    this.method,
+    this.error,
+    this.catalogueUnreachable = false,
+  });
+
+  /// Cartes proposées, dans l'ordre de lecture pour un étalement, par
+  /// pertinence décroissante pour un recours à l'illustration.
+  final List<SpreadFind> cards;
+
+  /// Noms candidats confrontés au catalogue lors de la lecture en lot.
+  ///
+  /// Zéro désigne un échec de lecture, un nombre non nul accompagné d'une liste
+  /// vide un échec de correspondance : se rapprocher dans le premier cas,
+  /// changer de jeu dans le second.
+  final int namesRead;
+
+  /// Vrai quand ces cartes viennent du **recours**, la lecture en lot n'ayant
+  /// rien rendu.
+  ///
+  /// L'écran doit le dire : une carte retrouvée par son illustration n'a pas la
+  /// même assise qu'un nom lu, et l'utilisateur juge mieux s'il le sait.
+  final bool fromArtwork;
+
+  /// Faux quand aucun candidat ne se détache. « Affirmer à tort coûte plus cher
+  /// que suggérer » : l'écran propose alors sans cocher.
+  final bool isConfident;
+
+  /// Par quelle voie le recours a conclu, quand il y en a eu un.
+  final ScanMethod? method;
+
+  final String? error;
+  final bool catalogueUnreachable;
+
+  /// Des noms ont été lus, sans qu'aucun ne rencontre le catalogue.
+  ///
+  /// Se distingue d'une lecture qui n'a rien rendu : le geste n'est pas le
+  /// même. Se rapprocher dans un cas, changer de jeu dans l'autre.
+  bool get readButUnmatched => cards.isEmpty && namesRead > 0;
+}
+
 /// Une carte repérée sur un étalement, et en combien d'exemplaires.
 ///
 /// **Les exemplaires ne pouvaient pas être comptés jusqu'ici**, et c'était la
@@ -289,6 +340,86 @@ class ScanService {
       readName: names.first,
       readLines: lines,
       frame: art.frame,
+    );
+  }
+
+  /// Une photo, qu'elle porte une carte ou vingt (#31).
+  ///
+  /// **Deux modes photo n'en font plus qu'un.** L'application en proposait
+  /// deux, « une carte » et « plusieurs cartes », et l'étiquette mentait sur le
+  /// vrai critère : le premier savait retomber sur l'illustration quand le nom
+  /// ne se lit pas, le second jamais. Le même carton donnait donc deux
+  /// résultats selon le bouton choisi, sans que rien ne l'explique.
+  ///
+  /// L'enchaînement tient en une règle : **lire les noms, et n'appeler
+  /// l'illustration que si aucune carte n'en sort**. La détection de bords ne
+  /// sait isoler qu'un seul carton dans un cadre ; ce recours n'a donc de sens
+  /// que là où il n'y a rien trouvé, ce qui tombe bien puisque c'est le seul
+  /// cas où il peut aider.
+  ///
+  /// **La seconde lecture du texte n'a lieu que si la première a lu quelque
+  /// chose.** Un OCR coûte des centaines de millisecondes : le relancer sur une
+  /// photo qui vient de ne rien rendre serait le payer pour rien. En revanche,
+  /// quand des noms ont été lus sans rencontrer le catalogue, la relecture vaut
+  /// la peine — `cardNameCandidates` ne cible pas les mêmes lignes que
+  /// `spreadNameCandidates`, et le nom d'une carte seule s'y trouve parfois
+  /// quand celui d'un étalement échoue.
+  Future<PhotoOutcome> recognisePhoto(
+    Uint8List photoBytes, {
+    String? photoPath,
+    int limit = 3,
+  }) async {
+    final spread = photoPath == null
+        ? const SpreadOutcome([])
+        : await recogniseSpread(photoPath, photoBytes: photoBytes);
+    if (spread.cards.isNotEmpty) {
+      return PhotoOutcome(spread.cards, namesRead: spread.namesRead);
+    }
+
+    final byArt = await recognise(
+      photoBytes,
+      // Rien de lu la première fois : inutile de relire.
+      photoPath: spread.namesRead == 0 ? null : photoPath,
+      limit: limit,
+    );
+
+    if (byArt.oracleIds.isEmpty) {
+      return PhotoOutcome(
+        const [],
+        namesRead: spread.namesRead,
+        fromArtwork: true,
+        isConfident: false,
+        method: byArt.method,
+        error: byArt.error,
+        catalogueUnreachable: byArt.catalogueUnreachable,
+      );
+    }
+
+    // **Le service rend des cartes, jamais des identifiants.** L'écran a une
+    // liste à peupler, et lui faire résoudre les identifiants d'un côté quand
+    // l'autre voie lui sert des cartes toutes faites remettrait la différence
+    // entre les deux modes là où on vient de l'effacer.
+    final List<CardHit> details;
+    try {
+      details = await _cards.byOracleIds(byArt.oracleIds);
+    } catch (error) {
+      diagnose('photo_details_failed', {'error': '$error'});
+      return PhotoOutcome(
+        const [],
+        namesRead: spread.namesRead,
+        fromArtwork: true,
+        isConfident: false,
+        method: byArt.method,
+        catalogueUnreachable: true,
+      );
+    }
+
+    return PhotoOutcome(
+      [for (final hit in details) SpreadFind(hit)],
+      namesRead: spread.namesRead,
+      fromArtwork: true,
+      isConfident: byArt.isConfident,
+      method: byArt.method,
     );
   }
 
