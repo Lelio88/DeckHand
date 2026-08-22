@@ -16,7 +16,6 @@ import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
 import 'package:deckhand/src/features/scan/domain/card_edges.dart';
 import 'package:image/image.dart' as img;
 
-import 'package:deckhand/src/features/scan/domain/card_edges.dart';
 
 void main(List<String> args) {
   final dir = Directory(args.first);

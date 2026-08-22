@@ -40,6 +40,7 @@ import 'art_box.dart';
 import 'art_hash.dart';
 import 'art_hash_index.dart';
 import 'card_bounds.dart';
+import 'card_edges.dart';
 import 'card_tracker.dart';
 import 'camera_frame.dart';
 import 'quad_tracker.dart';
@@ -292,24 +293,57 @@ class LiveScanner {
     );
   }
 
+  /// Où est la carte dans cette image.
+  ///
+  /// **Par ses droites, et non par sa clarté.** Le seuillage suppose une carte
+  /// plus sombre que sa table : mesuré sur l'appareil, il n'a rien trouvé sur
+  /// **70 images sur 70** d'une carte posée devant l'objectif, quand la
+  /// détection par droites en a trouvé 30. Le même écart se retrouve sur le
+  /// banc de photos réelles — 4 cartes sur 39 contre 37.
+  ///
+  /// **Et elle tient dans le budget** : 24 ms par image sur l'appareil contre
+  /// 16 pour une chaîne qui ne trouve rien, pour 33 ms disponibles à 30 images
+  /// par seconde. Le doute portait sur ce chiffre-là ; il venait d'une mesure
+  /// de poste, où la chaîne travaillait en 400 px sur trois canaux. Le flux la
+  /// joue en 240 px sur le seul plan de luminance.
+  ///
+  /// La chaîne par clarté reste en second : elle sait encore travailler là où
+  /// l'autre renonce — une carte si proche qu'elle déborde du cadre n'a plus
+  /// de bords à montrer. Comme au mode photo, **le plus grand des deux gagne**,
+  /// un cadre intérieur étant contenu dans ce qu'il borde.
   CardQuad? _detect(
     Uint8List luma,
     int width,
     int height,
     int rowStride,
     int pixelStride,
-  ) => findCardInLuma(
-    luma,
-    width: width,
-    height: height,
-    rowStride: rowStride,
-    pixelStride: pixelStride,
-    game: game,
-    // Un quart de tour impair présente une carte debout couchée : sans cela,
-    // le contrôle d'aspect la rejette, et les jeux qui n'impriment aucune
-    // carte en travers ne détectent jamais rien.
-    sideways: uprightTurns.isOdd,
-  );
+  ) {
+    // **L'orientation du capteur est connue, on ne la redemande pas.** Un quart
+    // de tour impair présente une carte debout couchée dans le buffer ; le dire
+    // vaut mieux que d'accepter les deux, ce qui avait fait naître une carte
+    // sur un parquet dont les lames ont le format d'une carte couchée.
+    final byEdges = findCardByEdgesInLuma(
+      luma,
+      width: width,
+      height: height,
+      rowStride: rowStride,
+      pixelStride: pixelStride,
+      game: game,
+      upright: !uprightTurns.isOdd,
+    );
+    final byLight = findCardInLuma(
+      luma,
+      width: width,
+      height: height,
+      rowStride: rowStride,
+      pixelStride: pixelStride,
+      game: game,
+      sideways: uprightTurns.isOdd,
+    );
+    if (byEdges == null) return byLight;
+    if (byLight == null) return byEdges;
+    return byEdges.area >= byLight.area ? byEdges : byLight;
+  }
 
   /// Les empreintes candidates, une par cadre du jeu et par orientation
   /// plausible — les mêmes hypothèses que le mode photo, lues sans construire

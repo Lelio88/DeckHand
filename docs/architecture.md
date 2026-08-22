@@ -159,6 +159,41 @@ la chaîne par clarté. Le service essaie les deux et retient le plus grand
 quadrilatère : sur une photo réelle c'est celui des droites, sur une carte si
 proche qu'elle déborde du cadre c'est celui de la clarté.
 
+### Le flux caméra cherche aussi par les droites
+
+Mesuré **sur l'appareil**, une carte posée devant l'objectif, 70 images :
+
+| Chaîne | Coût par image | Images où elle trouve |
+|---|---|---|
+| clarté (`findCardInLuma`) | 16 ms | **0 / 70** |
+| droites (`findCardByEdgesInLuma`) | **24 ms** | **30 / 70** |
+
+Le budget est de 33 ms à 30 images par seconde : la chaîne par droites y tient.
+Le doute portait sur ce chiffre — une mesure de poste annonçait 61 ms — mais
+elle y travaillait en 400 px sur trois canaux. Le flux la joue en **240 px sur
+le seul plan de luminance**, et le gradient n'y parcourt qu'un canal.
+
+Trois choses la rendent tenable, et aucune n'est un compromis sur la qualité :
+
+- **240 px plutôt que 400.** Mesuré sur le banc de photos réelles, la qualité y
+  est *meilleure* (38 cartes sur 39 contre 37, aire médiane 54 % contre 48 %) :
+  la détection cherche des bords longs, que réduire n'efface pas, et la
+  réduction lisse les textures fines qui fabriquent de fausses droites.
+- **Un seul canal.** Trois gradients identiques coûtaient trois fois le prix.
+- **Aucune image intermédiaire.** Matérialiser l'image en RGB coûte 10,4 ms sur
+  l'appareil pour un plan qui porte déjà le seul canal utile.
+
+Ce que la couleur apporte encore, et que le flux n'a pas : 38 cartes sur 39 au
+lieu de 37, à aire médiane égale. L'écart est faible parce que le contrôle de
+matière compare des luminances, pas des couleurs.
+
+**L'orientation n'y est pas une inconnue.** Le mode photo accepte les deux, ne
+sachant pas comment le téléphone était tenu ; le flux connaît l'orientation de
+son capteur et n'accepte que celle-là — sauf pour un jeu qui imprime réellement
+en travers. Accepter les deux double la surface d'acceptation, et c'est par là
+qu'une carte s'était inventée sur un parquet, dont les lames ont le format d'une
+carte couchée.
+
 **Ce que le flux caméra n'aura pas gratuitement.** Le mode vidéo ne reçoit pas
 une image couleur mais un plan de luminance, et le matérialiser en RGB coûte
 **10,4 ms** sur l'appareil — avant même que la détection commence. Or c'est le

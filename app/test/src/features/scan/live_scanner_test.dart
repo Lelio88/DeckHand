@@ -13,6 +13,7 @@
 /// carton relève du banc, pas d'un test unitaire.
 library;
 
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:deckhand/src/features/scan/domain/art_box.dart';
@@ -39,12 +40,30 @@ Uint8List plane({int? shade, int left = 400, int top = 100}) {
   const w = 322, h = 450;
   for (var y = top; y < top + h; y++) {
     for (var x = left; x < left + w; x++) {
-      // Un damier dont le pas dépend de la teinte : l'empreinte compare des
-      // voisins, un aplat uniforme ne lui donnerait rien à comparer.
-      final step = 6 + shade;
-      luma[y * rowStride + x] = ((x ~/ step + y ~/ step) % 2 == 0)
-          ? 18 + shade
-          : 60 + shade;
+      // **Un motif à basse fréquence, et non un damier fin.** L'empreinte
+      // compare des voisins : un aplat uniforme ne lui donnerait rien. Mais un
+      // damier au pas de quelques dizaines de pixels est l'exact contraire
+      // d'une illustration — dix pixels de décalage y renversent le motif,
+      // quand une vraie illustration tolère jusqu'à trente degrés
+      // d'inclinaison, mesuré.
+      //
+      // Cette différence n'est pas théorique : deux détections qui s'accordent
+      // à 3 % près sur la position de la carte produisaient, sur le damier, des
+      // empreintes étrangères l'une à l'autre. La figure jugeait alors le
+      // cadrage au pixel, pas la reconnaissance.
+      final dx = (x - left) / w;
+      final dy = (y - top) / h;
+      // **C'est la fréquence qui distingue les deux cartes, pas la teinte.**
+      // `dhash` compare chaque pixel à son voisin : une constante ajoutée à
+      // toute l'illustration ne change pas un seul bit de l'empreinte. Le
+      // damier d'origine variait son pas, ce qui revenait au même — d'où cette
+      // onde, dont le nombre de périodes dépend de la teinte.
+      final onde =
+          math.sin(dx * math.pi * (2 + shade / 20)) *
+          math.cos(dy * math.pi * (3 + shade / 15));
+      // Franchement plus sombre que le fond : la carte doit rester trouvable
+      // par la chaîne par clarté, dont l'empreinte de référence dépend.
+      luma[y * rowStride + x] = (40 + onde * 25).round().clamp(0, 255);
     }
   }
   return luma;

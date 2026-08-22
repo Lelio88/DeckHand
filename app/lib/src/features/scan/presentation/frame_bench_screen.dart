@@ -549,8 +549,7 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
         '($_trackedDetections détections / $_trackedFrames images)\n'
         'DROITES : ${_median(_edges) ~/ 1000} ms '
         '— $_edgesFound/${_edges.length} trouvées '
-        '(clarté $_lumaFound)
-'
+        '(clarté $_lumaFound)\n'
         'budget 33 ms à 30 img/s',
       );
       diagnose('bench_result', {
@@ -619,23 +618,45 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // **Voir ce qu'on mesure.** Une première version n'affichait que des
+    // chiffres : impossible de savoir si la carte était cadrée, donc impossible
+    // de croire la mesure — une détection qui échoue tout de suite est très
+    // rapide, et le banc l'aurait annoncée comme une bonne nouvelle.
+    final camera = _controller;
+    final vivante = camera != null && camera.value.isInitialized && !_done;
     return Scaffold(
       appBar: AppBar(title: const Text('Banc — flux caméra')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(_status, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              Text(
-                '${_luma.length} / $benchFrames images',
-                style: Theme.of(context).textTheme.bodySmall,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (vivante) CameraPreview(camera),
+          Align(
+            alignment: vivante ? Alignment.bottomCenter : Alignment.center,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: vivante ? 0.6 : 0),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_status, textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      Text(
+                        '${_luma.length} / $benchFrames images',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
