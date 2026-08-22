@@ -293,7 +293,7 @@ CardQuad? findCardInLuma(
   final targetHeight = scale > 1
       ? (height / scale).round().clamp(1, height)
       : height;
-  final small = _boxReduceLuma(
+  final small = boxReduceLuma(
     luma,
     width: width,
     height: height,
@@ -387,7 +387,7 @@ CardQuad? _findIn(img.Image small, double scale, String game, bool sideways) {
   final scale = photo.width > analysisWidth ? photo.width / analysisWidth : 1.0;
   if (scale <= 1) return (small: photo, scale: 1.0);
   final height = (photo.height / scale).round().clamp(1, photo.height);
-  return (small: _boxReduce(photo, analysisWidth, height), scale: scale);
+  return (small: boxReduce(photo, analysisWidth, height), scale: scale);
 }
 
 /// Moyenne de bloc, à bornes et divisions entières.
@@ -427,7 +427,13 @@ CardQuad? _findIn(img.Image small, double scale, String game, bool sideways) {
 ///
 /// Les trois canaux reçoivent la même valeur, comme le fait `lumaImage` : c'est
 /// ce qui rend `_cardMask` indifférent au chemin emprunté.
-img.Image _boxReduceLuma(
+/// Réduit un plan de luminance à la taille d'analyse, sans jamais bâtir
+/// l'image entière.
+///
+/// Public parce que la détection par droites emprunte le même trajet : matérialiser
+/// l'image en RGB avant de la réduire coûte 10,4 ms sur l'appareil, mesuré, pour
+/// un plan qui porte déjà le seul canal utile.
+img.Image boxReduceLuma(
   Uint8List luma, {
   required int width,
   required int height,
@@ -463,7 +469,13 @@ img.Image _boxReduceLuma(
   return out;
 }
 
-img.Image _boxReduce(img.Image photo, int width, int height) {
+/// Réduit une image en moyennant chaque bloc.
+///
+/// Public parce que la détection par droites doit emprunter **exactement** la
+/// même réduction que le chemin luminance : `copyResize` en donne une autre, et
+/// les deux chaînes détouraient alors des quadrilatères distants de douze
+/// pixels — un test de parité l'a montré avant l'appareil.
+img.Image boxReduce(img.Image photo, int width, int height) {
   final data = photo.data;
   if (data is! img.ImageDataUint8 || photo.hasPalette || data.numChannels < 3) {
     return img.copyResize(

@@ -7,6 +7,8 @@
 /// quadrilatère juste mais parcouru à l'envers, ce qui découpe en miroir.
 library;
 
+import 'dart:typed_data';
+
 import 'package:deckhand/src/features/scan/domain/card_edges.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -167,6 +169,82 @@ void main() {
       greaterThan(220 * 307 * 0.80),
       reason: 'la carte entière, pas la moitié restée visible',
     );
+  });
+
+  test('le chemin luminance trouve la même carte que le chemin image', () {
+    // **Deux chemins, un seul résultat attendu.** Le flux caméra ne peut pas se
+    // payer une image RGB — 10,4 ms mesurés sur l'appareil — et lit donc le plan
+    // de luminance directement. Un raccourci plus rapide qui détourerait
+    // ailleurs serait pire qu'inutile : il ferait diverger la photo et la vidéo
+    // sans que rien ne le signale.
+    //
+    // La comparaison n'a de sens qu'à conditions égales : même largeur
+    // d'analyse, et une image déjà grise, sinon c'est la couleur qu'on mesure.
+    final photo = surFond(carte(200, 279), 340, 460);
+    for (var y = 0; y < photo.height; y++) {
+      for (var x = 0; x < photo.width; x++) {
+        final p = photo.getPixel(x, y);
+        final l = (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round();
+        photo.setPixelRgb(x, y, l, l, l);
+      }
+    }
+    final luma = Uint8List(photo.width * photo.height);
+    for (var y = 0; y < photo.height; y++) {
+      for (var x = 0; x < photo.width; x++) {
+        luma[y * photo.width + x] = photo.getPixel(x, y).r.toInt();
+      }
+    }
+
+    final parImage = findCardByEdges(photo, width: 240);
+    final parLuma = findCardByEdgesInLuma(
+      luma,
+      width: photo.width,
+      height: photo.height,
+      rowStride: photo.width,
+      analysisWidth: 240,
+    );
+
+    expect(parLuma, isNotNull);
+    expect(parImage, isNotNull);
+    expect(parLuma!.topLeft.x, closeTo(parImage!.topLeft.x, 2));
+    expect(parLuma.topLeft.y, closeTo(parImage.topLeft.y, 2));
+    expect(parLuma.bottomRight.x, closeTo(parImage.bottomRight.x, 2));
+    expect(parLuma.bottomRight.y, closeTo(parImage.bottomRight.y, 2));
+  });
+
+  test('le flux n’accepte pas une carte couchée quand elle serait debout', () {
+    // **La régression du matin, fixée par un test.** Accepter les deux
+    // orientations double la surface d'acceptation : une carte s'était inventée
+    // sur un parquet, dont les lames ont le format d'une carte couchée. Le mode
+    // photo doit les accepter — il ignore comment le téléphone était tenu — mais
+    // le flux connaît l'orientation de son capteur.
+    final couchee = carte(279, 200);
+    final photo = surFond(couchee, 460, 340);
+    final luma = Uint8List(photo.width * photo.height);
+    for (var y = 0; y < photo.height; y++) {
+      for (var x = 0; x < photo.width; x++) {
+        final p = photo.getPixel(x, y);
+        luma[y * photo.width + x] =
+            (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round();
+      }
+    }
+
+    final quad = findCardByEdgesInLuma(
+      luma,
+      width: photo.width,
+      height: photo.height,
+      rowStride: photo.width,
+    );
+
+    expect(
+      quad,
+      isNull,
+      reason: 'Magic n’imprime pas en travers : une forme couchée n’est pas '
+          'une carte quand on sait comment le capteur est tenu',
+    );
+    // La même image, vue par le mode photo, est acceptée : là, l'orientation
+    // est une inconnue et non une erreur.
+    expect(findCardByEdges(photo), isNotNull);
   });
 
   test('une carte qui déborde du cadre est détourée jusqu’aux bords', () {

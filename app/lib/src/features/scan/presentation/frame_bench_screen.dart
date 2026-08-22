@@ -57,6 +57,7 @@ import '../domain/art_hash.dart';
 import '../domain/art_hash_index.dart';
 import '../domain/camera_frame.dart';
 import '../domain/card_bounds.dart';
+import '../domain/card_edges.dart';
 import '../domain/quad_tracker.dart';
 
 /// Images mesurées avant de rendre le bilan. Assez pour que les percentiles
@@ -169,6 +170,22 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
 
   /// Écart entre l'empreinte lue sur la luminance et celle du chemin RGB.
   final _drift = <int>[];
+
+  /// Durées de la détection **par droites**, sur le plan de luminance.
+  ///
+  /// **Le chiffre qui décide du branchement.** Cette chaîne trouve la carte sur
+  /// 38 photos réelles sur 39 quand celle par clarté en trouve 4 ; mais elle
+  /// coûte, sur poste, quatre fois plus. Un poste n'est pas un téléphone, et
+  /// c'est ici que se mesure ce qu'elle vaut vraiment.
+  final _edges = <int>[];
+
+  /// Combien d'images rendent un quadrilatère, par chacune des deux chaînes.
+  ///
+  /// **Sans ce couple, la durée ne veut rien dire** : une chaîne qui ne trouve
+  /// jamais rien est instantanée. C'est la leçon du compteur d'écran, qui a
+  /// affiché 3 % de détections quand le poste tournait sur 86 % des images.
+  int _edgesFound = 0;
+  int _lumaFound = 0;
   var _frames = 0;
   var _sameHash = 0;
   var _busy = false;
@@ -426,6 +443,21 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
       pixelStride: planes[0].bytesPerPixel ?? 1,
     );
     final tFindDirect = watch.elapsedMicroseconds;
+    if (direct != null) _lumaFound++;
+
+    // **La détection par droites, sur le même plan et sans image
+    // intermédiaire.** 240 px et non 400 : mesuré sur le banc de photos
+    // réelles, la qualité y est meilleure et le calcul deux fois moindre.
+    watch.reset();
+    final byEdges = findCardByEdgesInLuma(
+      planes[0].bytes,
+      width: width,
+      height: height,
+      rowStride: planes[0].bytesPerRow,
+      pixelStride: planes[0].bytesPerPixel ?? 1,
+    );
+    _edges.add(watch.elapsedMicroseconds);
+    if (byEdges != null) _edgesFound++;
 
     // La chaîne entière, chronométrée d'un bloc. Quand la détection renonce, il
     // n'y a rien à hacher : ces images-là ne sont pas comptées, sans quoi la
@@ -515,6 +547,10 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
         'sur ${_chain.length} images\n'
         'suivi : ${_median(_tracked) ~/ 1000} ms '
         '($_trackedDetections détections / $_trackedFrames images)\n'
+        'DROITES : ${_median(_edges) ~/ 1000} ms '
+        '— $_edgesFound/${_edges.length} trouvées '
+        '(clarté $_lumaFound)
+'
         'budget 33 ms à 30 img/s',
       );
       diagnose('bench_result', {
@@ -522,6 +558,9 @@ class _FrameBenchScreenState extends State<FrameBenchScreen> {
         'frame_us': _stats(_frame),
         'find_us': _stats(_find),
         'find_direct_us': _stats(_findDirect),
+        'droites_us': _stats(_edges),
+        'droites_trouvees': _edgesFound,
+        'clarte_trouvees': _lumaFound,
         'found': _found,
         'same_quad': _sameQuad,
         'total_libre_us':

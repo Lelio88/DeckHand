@@ -93,6 +93,30 @@ void _dessine(img.Image photo, CardQuad? quad, String vers) {
 
 bool gDetails = false;
 
+/// Voir les photos comme le flux caméra les voit.
+///
+/// **La question qui décide du branchement.** Le mode vidéo ne reçoit pas une
+/// image couleur mais un plan de luminance ; la matérialiser en RGB coûte
+/// 10,4 ms sur l'appareil, mesuré, avant même que la détection commence. Or le
+/// gradient sur les trois canaux est ce qui a débloqué la détection sur fond
+/// sombre. Il faut donc savoir ce que la chaîne vaut sans lui.
+bool gLuma = false;
+
+/// Largeur d'analyse, pour mesurer ce que coûte la résolution.
+int gLargeur = 400;
+
+img.Image _enLuminance(img.Image photo) {
+  final gris = photo.clone();
+  for (var y = 0; y < gris.height; y++) {
+    for (var x = 0; x < gris.width; x++) {
+      final p = gris.getPixel(x, y);
+      final l = (0.299 * p.r + 0.587 * p.g + 0.114 * p.b).round().clamp(0, 255);
+      gris.setPixelRgb(x, y, l, l, l);
+    }
+  }
+  return gris;
+}
+
 ({int photos, int trouvees, int suspectes, double mediane}) _passe(
   Directory dir,
   String? dump,
@@ -109,13 +133,14 @@ bool gDetails = false;
   var trouvees = 0, suspectes = 0;
   final aires = <double>[];
   for (final f in fichiers) {
-    final photo = img.decodeImage(f.readAsBytesSync());
+    var photo = img.decodeImage(f.readAsBytesSync());
     if (photo == null) continue;
+    if (gLuma) photo = _enLuminance(photo);
 
     // La chaîne exacte de la production : les droites, puis la clarté, et le
     // plus grand des deux l'emporte.
     final trouves = [
-      findCardByEdges(photo, ruptureMin: gRupture),
+      findCardByEdges(photo, ruptureMin: gRupture, width: gLargeur),
       findCard(photo),
     ].whereType<CardQuad>().toList();
     final quad = trouves.isEmpty
@@ -158,6 +183,9 @@ void main(List<String> args) {
   final iR = args.indexOf('--rupture');
   if (iR >= 0) gRupture = double.parse(args[iR + 1]);
   gDetails = args.contains('--details');
+  gLuma = args.contains('--luma');
+  final iL = args.indexOf('--largeur');
+  if (iL >= 0) gLargeur = int.parse(args[iL + 1]);
   final iDump = args.indexOf('--dump');
   final dump = iDump >= 0 && iDump + 1 < args.length ? args[iDump + 1] : null;
   if (dump != null) Directory(dump).createSync(recursive: true);

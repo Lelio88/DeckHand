@@ -38,6 +38,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
+import 'package:deckhand/src/features/scan/domain/art_box.dart';
 import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
 import 'package:image/image.dart' as img;
 
@@ -54,6 +55,15 @@ const double edgeQuantile = 0.90;
 /// bloc de texte — toutes horizontales et toutes franches — occupaient dix-huit
 /// places sur vingt, et le bord droit de la carte n'était jamais candidat.
 const int defaultMaxLines = 32;
+
+/// Largeur d'analyse du flux caméra.
+///
+/// **Plus basse que celle de la photo, et sans perte mesurée.** Sur le banc de
+/// photos réelles, en luminance : 38 cartes trouvées sur 39 à 240 px contre 37
+/// à 400, pour une aire médiane meilleure (54 % contre 48 %). La détection par
+/// droites cherche des bords longs, que réduire n'efface pas — au contraire, la
+/// réduction lisse les textures fines qui fabriquent de fausses droites.
+const int liveAnalysisWidth = 240;
 
 /// Part minimale de chaque côté qui doit être réellement bordée.
 ///
@@ -101,8 +111,9 @@ class EdgeLine {
 
 /// Le gradient de l'image réduite : force et direction en chaque pixel.
 ({Float32List magnitude, Float32List angle, int width, int height}) gradientOf(
-  img.Image small,
-) {
+  img.Image small, {
+  bool monochrome = false,
+}) {
   final w = small.width, h = small.height;
 
   // **Trois canaux, pas un gris.** Une carte à bordure noire posée sur un
@@ -111,18 +122,23 @@ class EdgeLine {
   // les bords sont francs — vérifié à l'œil sur deux photos. Les deux surfaces
   // diffèrent pourtant nettement en couleur. On garde donc, en chaque pixel, la
   // plus forte des trois réponses.
+  // **Un seul canal quand il n'y en a qu'un.** Le flux caméra livre un plan de
+  // luminance : y chercher trois gradients identiques coûterait trois fois le
+  // prix pour le même résultat.
   final canaux = <Float32List>[
     Float32List(w * h),
-    Float32List(w * h),
-    Float32List(w * h),
+    if (!monochrome) Float32List(w * h),
+    if (!monochrome) Float32List(w * h),
   ];
   for (var y = 0; y < h; y++) {
     for (var x = 0; x < w; x++) {
       final p = small.getPixel(x, y);
       final i = y * w + x;
       canaux[0][i] = p.r.toDouble();
-      canaux[1][i] = p.g.toDouble();
-      canaux[2][i] = p.b.toDouble();
+      if (!monochrome) {
+        canaux[1][i] = p.g.toDouble();
+        canaux[2][i] = p.b.toDouble();
+      }
     }
   }
 
@@ -164,8 +180,9 @@ class EdgeLine {
 ({List<EdgeLine> lines, Uint8List edges, int width, int height}) dominantLines(
   img.Image small, {
   int maxLines = 24,
+  bool monochrome = false,
 }) {
-  final g = gradientOf(small);
+  final g = gradientOf(small, monochrome: monochrome);
   final w = g.width, h = g.height;
 
   // **Le quantile par histogramme, pas par tri.** Trier cent trente mille
@@ -548,15 +565,16 @@ CardQuad? findCardByEdges(
   img.Image photo, {
   String game = 'magic',
   double ruptureMin = _ruptureMinimale,
+  int width = analysisWidth,
 }) {
   if (photo.width < 32 || photo.height < 32) return null;
 
-  final scale = photo.width > analysisWidth ? photo.width / analysisWidth : 1.0;
+  final scale = photo.width > width ? photo.width / width : 1.0;
   final small = scale > 1
-      ? img.copyResize(
+      ? boxReduce(
           photo,
-          width: analysisWidth,
-          interpolation: img.Interpolation.average,
+          width,
+          (photo.height / scale).round().clamp(1, photo.height),
         )
       : photo;
 
@@ -570,6 +588,64 @@ CardQuad? findCardByEdges(
     image: small,
     minSupport: defaultMinSupport,
     ruptureMin: ruptureMin,
+  );
+  return quad?.scaled(scale);
+}
+
+/// Les coins de la carte, cherchés dans le **plan de luminance** d'une image de
+/// caméra.
+///
+/// **Ce que cela évite.** [findCardByEdges] réclame un `img.Image` ; une image de
+/// caméra n'en est pas un, et la construire coûte 10,4 ms sur l'appareil —
+/// mesuré — avant même que la détection commence, pour un plan qui porte déjà le
+/// seul canal utile.
+///
+/// **Ce que l'on perd sans la couleur.** Le gradient sur trois canaux est ce qui
+/// permet de voir une bordure noire sur un parquet brun. Mesuré sur le banc de
+/// photos réelles : 37 cartes trouvées sur 39 au lieu de 38, à aire médiane
+/// égale. Le contrôle de matière, lui, garde tout son sens — il compare des
+/// luminances, pas des couleurs.
+CardQuad? findCardByEdgesInLuma(
+  Uint8List luma, {
+  required int width,
+  required int height,
+  required int rowStride,
+  int pixelStride = 1,
+  String game = 'magic',
+  int analysisWidth = liveAnalysisWidth,
+  bool upright = true,
+}) {
+  if (width < 32 || height < 32) return null;
+
+  final scale = width > analysisWidth ? width / analysisWidth : 1.0;
+  final target = scale > 1 ? analysisWidth : width;
+  final targetHeight = scale > 1
+      ? (height / scale).round().clamp(1, height)
+      : height;
+  final small = boxReduceLuma(
+    luma,
+    width: width,
+    height: height,
+    rowStride: rowStride,
+    pixelStride: pixelStride,
+    outWidth: target,
+    outHeight: targetHeight,
+  );
+
+  final champ = dominantLines(
+    small,
+    maxLines: defaultMaxLines,
+    monochrome: true,
+  );
+  final quad = bestQuad(
+    champ.lines,
+    champ.edges,
+    champ.width,
+    champ.height,
+    game,
+    image: small,
+    minSupport: defaultMinSupport,
+    upright: upright,
   );
   return quad?.scaled(scale);
 }
@@ -590,12 +666,29 @@ CardQuad? bestQuad(
   double minArea = 0.12,
   double minSupport = 0.85,
   double ruptureMin = _ruptureMinimale,
+  bool? upright,
   double supportPartiel = _supportSansCouple,
 }) {
   if (lines.length < 4) return null;
 
+  // **Une seule orientation quand elle est connue.** Accepter les deux double la
+  // surface d'acceptation, et c'est par là qu'une carte s'est inventée sur un
+  // parquet : les lames y ont le format d'une carte couchée. Le mode photo ne
+  // sait pas comment le téléphone était tenu et doit donc accepter les deux ;
+  // le flux, lui, connaît l'orientation de son capteur et n'a aucune raison de
+  // l'oublier.
+  //
+  // Un jeu qui imprime réellement en travers — les Terrains Wankul, les champs
+  // de bataille Riftbound — garde les deux quoi qu'il arrive : là, l'orientation
+  // n'est pas une inconnue mais une propriété de la carte.
   final debout = cardAspectFor(game);
   final couche = 1 / debout;
+  final jeuCouche = CardFrame.values.any((f) => f.game == game && f.landscape);
+  final accepte = <double>[
+    if (upright == null || upright) debout,
+    if (upright == null || !upright || jeuCouche) couche,
+    if (upright != null && upright && jeuCouche) couche,
+  ];
 
   CardQuad? best;
   var bestScore = -1.0;
@@ -628,7 +721,7 @@ CardQuad? bestQuad(
         // et c'est pourquoi les trois autres doivent être francs.
         final ecartement = (lines[i].rho - lines[j].rho).abs();
         final deduites = <EdgeLine>[
-          for (final aspect in [debout, couche])
+          for (final aspect in accepte)
             for (final signe in [1, -1])
               EdgeLine(
                 lines[k].theta,
@@ -803,10 +896,19 @@ CardQuad? bestQuad(
           }
           if (sup < seuil) continue;
 
-          final aspect = cote1 / cote2;
-          final ecartD = (aspect - debout).abs();
-          final ecartC = (aspect - couche).abs();
-          final proche = math.min(ecartD, ecartC);
+          // **L'orientation se lit sur le quadrilatère rangé, pas sur l'ordre
+          // des droites.** `cote1 / cote2` désigne le rapport entre la première
+          // paire essayée et la seconde : il vaut 0,716 ou 1,397 selon l'ordre
+          // de la boucle, pour la même carte. Un contrôle d'orientation fondé
+          // là-dessus acceptait donc les deux quoi qu'on lui demande — un test
+          // l'a pris avant l'appareil. `CardQuad.aspect` mesure, lui, la largeur
+          // sur la hauteur **dans l'image**.
+          final oriente = quad.aspect;
+          var proche = double.infinity;
+          for (final a in accepte) {
+            final e = (oriente - a).abs();
+            if (e < proche) proche = e;
+          }
           if (proche > aspectTol) continue;
 
           // **Le plus grand gagne.** Une carte contient ses propres cadres —
