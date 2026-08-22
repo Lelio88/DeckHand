@@ -35,22 +35,49 @@ import 'package:image/image.dart' as img;
 
 import 'synthetic_photo.dart';
 
-({double fill, double aspect, bool accepted})? _mesure(File f, String game) {
+({double fill, double aspect, bool accepted, String cause})? _mesure(File f, String game) {
   final image = img.decodeImage(f.readAsBytesSync());
   if (image == null) return null;
   return _mesureImage(image, game);
 }
 
-({double fill, double aspect, bool accepted}) _mesureImage(
+({double fill, double aspect, bool accepted, String cause}) _mesureImage(
   img.Image image,
   String game,
 ) {
   final vu = debugDetection(image);
   final quad = findCard(image, game: game);
+
+  // **Dire où ça casse, pas seulement que ça casse.** Un refus peut venir de
+  // trois endroits — la forme est trop petite, trop dispersée, ou de mauvaise
+  // proportion — et ils n'appellent pas le même travail.
+  var cause = quad != null ? '' : 'aire';
+  final shape = vu.shape;
+  if (quad == null && shape != null) {
+    var aire = 0;
+    var minX = vu.width, maxX = -1, minY = vu.height, maxY = -1;
+    for (var i = 0; i < shape.length; i++) {
+      if (shape[i] == 0) continue;
+      aire++;
+      final x = i % vu.width, y = i ~/ vu.width;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    final w = maxX - minX + 1, h = maxY - minY + 1;
+    final part = aire / (vu.width * vu.height);
+    cause = part < minCardArea
+        ? 'aire ${(part * 100).toStringAsFixed(0)} %'
+        : (vu.fill < minShapeFill
+              ? 'remplissage'
+              : 'rapport ${(w / h).toStringAsFixed(3)}');
+  }
   return (
     fill: vu.fill,
     aspect: quad?.aspect ?? double.nan,
     accepted: quad != null,
+    cause: cause,
   );
 }
 
@@ -116,7 +143,7 @@ void main(List<String> args) {
 
   print('${fichiers.length} images');
   print('');
-  print('  remplissage  rapport  retenue  fichier');
+  print('  remplissage  rapport  retenue  refus           fichier');
 
   final remplissages = <double>[];
   for (final f in fichiers..sort((a, b) => a.path.compareTo(b.path))) {
@@ -128,6 +155,7 @@ void main(List<String> args) {
       '  ${(m.fill * 100).toStringAsFixed(1).padLeft(10)} %'
       '  ${m.aspect.isNaN ? '    —' : m.aspect.toStringAsFixed(3).padLeft(7)}'
       '  ${(m.accepted ? 'oui' : 'non').padLeft(7)}'
+      '  ${m.cause.padRight(15)}'
       '  $nom',
     );
   }
