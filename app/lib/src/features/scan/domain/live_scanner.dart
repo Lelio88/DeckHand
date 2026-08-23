@@ -294,6 +294,33 @@ class LiveScanner {
     return _judge(hypotheses, detected: detected);
   }
 
+  /// Ce que la lecture du nom a identifié, et depuis combien d'images.
+  ///
+  /// **Le nom et l'illustration doivent partager un seul décompte.** Chacun de
+  /// son côté, la lecture de nom ajoutait une carte au panier à chaque fois
+  /// qu'elle aboutissait — dix-neuf exemplaires pour une seule carte présentée.
+  /// Ce n'est pas un défaut de la lecture : c'est qu'il y avait deux autorités
+  /// sur la question « est-ce une nouvelle carte ? », et cette question n'en
+  /// souffre qu'une.
+  String? _nameId;
+  int _nameAge = 0;
+
+  /// Déclare la carte que la lecture du nom vient d'identifier.
+  ///
+  /// Elle ne devient pas une carte retenue pour autant : elle entre dans le même
+  /// suivi temporel que l'illustration, avec la même exigence de série et le
+  /// même besoin d'un blanc avant qu'un second exemplaire compte.
+  void noteName(String oracleId) {
+    _nameId = oracleId;
+    _nameAge = 0;
+  }
+
+  /// Au-delà, le nom lu ne vaut plus : la carte a eu le temps de changer.
+  ///
+  /// Compté en images plutôt qu'en secondes parce que c'est la cadence du flux
+  /// qui décide de ce qu'« il y a un instant » veut dire.
+  static const int nameLifetime = 90;
+
   LiveObservation _judge(
     Map<ArtHypothesis, ArtHash> hypotheses, {
     required bool detected,
@@ -318,7 +345,17 @@ class LiveScanner {
     // le voir comme une image muette — sans quoi une carte à moitié reconnue
     // accumulerait une série qu'elle n'a pas gagnée.
     final confident = result.isConfident;
-    final id = confident ? result.best?.oracleId : null;
+
+    // **Le nom prime sur l'illustration quand il est frais.** Il se lit malgré
+    // les reflets et ne dépend d'aucune édition, là où l'empreinte plafonne :
+    // mesuré, une carte tenue à la main reste à 14 ou 19 bits de sa propre
+    // référence quand le seuil est à 12. Laisser l'illustration imposer sa
+    // réponse sous un nom lu, c'est préférer la source la moins sûre.
+    _nameAge++;
+    final nomFrais = _nameAge <= nameLifetime ? _nameId : null;
+    if (nomFrais == null) _nameId = null;
+
+    final id = nomFrais ?? (confident ? result.best?.oracleId : null);
     final accepted = _cards.observe(id);
 
     final best = result.best;

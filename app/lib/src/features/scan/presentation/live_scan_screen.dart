@@ -70,6 +70,13 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   /// choisir l'édition une fois le nom lu. L'interroger par le provider
   /// obligerait à traiter un état de chargement qui, à ce stade, est passé.
   ArtHashIndex? _index;
+
+  /// L'impression que la lecture du nom a retenue pour chaque carte.
+  ///
+  /// Elle est choisie au moment de la lecture, mais la carte n'entre au panier
+  /// qu'une fois sa série faite : sans cette mémoire, l'édition serait perdue
+  /// entre les deux.
+  final Map<String, String> _editions = {};
   CameraController? _controller;
   LiveScanner? _scanner;
   final _basket = ScanBasket();
@@ -205,7 +212,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       final accepted = seen.accepted;
       if (accepted != null) {
         _basket.add(accepted);
-        unawaited(_resolve(accepted, seen.acceptedPrint));
+        unawaited(_resolve(accepted, seen.acceptedPrint ?? _editions[accepted]));
         diagnose('live_accepted', {
           'oracle_id': accepted,
           'print_id': seen.acceptedPrint,
@@ -301,16 +308,30 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
         rotationDegrees: scanner.uprightTurns * 90,
         bytesPerRow: bytesPerRow,
       );
-      if (lignes.isEmpty || !mounted) return;
-
-      final noms = cardNameCandidates(lignes);
-      if (noms.isEmpty) return;
+      // **Journaliser avant de renoncer.** Une première version sortait
+      // silencieusement quand rien n'était lu : à l'écran, ni succès ni échec,
+      // et rien pour distinguer « la lecture n'a pas été lancée » de « elle n'a
+      // rien trouvé ». C'est le genre de silence qui coûte un aller-retour avec
+      // l'appareil.
+      final noms = lignes.isEmpty
+          ? const <String>[]
+          : cardNameCandidates(lignes);
+      diagnose('live_ocr', {
+        'lignes': lignes.length,
+        'noms': noms.take(2).toList(),
+        'texte': lignes.take(2).map((l) => l.text).toList(),
+      });
+      if (lignes.isEmpty || noms.isEmpty || !mounted) return;
 
       final game = ref.read(selectedGameProvider);
       final trouvees = await ref
           .read(cardRepositoryProvider)
           .searchMany(noms, game: game);
-      if (!mounted || trouvees.isEmpty) return;
+      if (!mounted) return;
+      if (trouvees.isEmpty) {
+        diagnose('live_ocr_sans_carte', {'noms': noms.take(2).toList()});
+        return;
+      }
 
       // Le premier candidat lu qui existe au catalogue : `cardNameCandidates`
       // les rend déjà par ordre de plausibilité.
@@ -333,9 +354,14 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       });
 
       if (!mounted) return;
+      // **Le nom entre dans le même décompte que l'illustration.** L'ajouter
+      // directement au panier faisait dix-neuf exemplaires pour une carte : la
+      // lecture aboutit toutes les neuf dixièmes de seconde, et rien ne disait
+      // qu'il s'agissait de la même. Le suivi temporel, lui, sait déjà qu'une
+      // carte reste devant l'objectif.
       setState(() => _known[hit.oracleId] = hit);
-      _basket.add(hit.oracleId);
-      unawaited(_resolve(hit.oracleId, edition?.printId));
+      scanner.noteName(hit.oracleId);
+      if (edition != null) _editions[hit.oracleId] = edition.printId;
     } on Object catch (erreur) {
       // Une lecture qui échoue laisse l'illustration continuer son travail :
       // c'est un renfort, jamais un passage obligé.
