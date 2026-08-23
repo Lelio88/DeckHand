@@ -308,6 +308,18 @@ class EdgeLine {
   // On ne leur demande évidemment pas de support : on ne voit pas un bord qui
   // est hors champ. C'est l'interdiction du plein cadre qui reste le garde-fou —
   // les quatre à la fois désignent l'image, pas une carte.
+  // **Impasse mesurée : ne pas recaler les droites sur leurs pixels.** Le vote
+  // étale chaque contribution sur deux pas d'angle, et deux degrés déplacent
+  // l'extrémité d'un côté de 240 pixels de huit pixels — 3 %, soit le point où
+  // l'empreinte décroche. Ajuster ensuite chaque droite au sens des moindres
+  // carrés sur les pixels de bord qu'elle longe **améliore bien le rapport**
+  // (0,734 → 0,720 sur une photo réelle, l'attendu étant 0,716) et **dégrade la
+  // reconnaissance** : la distance à la bonne carte passe de 14 à 23 bits.
+  //
+  // La raison tient au voisinage : les pixels retenus ne sont pas seulement
+  // ceux du bord de la carte, mais aussi ceux des cadres qui le longent — le
+  // liseré, le cadre de l'illustration —, et ils tirent la droite ailleurs. Un
+  // rapport plus juste sur un cadre déplacé ne vaut rien.
   pics
     ..add(EdgeLine(0, 0, 0))
     ..add(EdgeLine(0, (w - 1).toDouble(), 0))
