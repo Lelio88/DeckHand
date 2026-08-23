@@ -217,6 +217,18 @@ class CardQuad {
     return height == 0 ? 0 : ((top + bottom) / 2) / height;
   }
 
+  /// Le même quadrilatère, décalé de [dx], [dy].
+  ///
+  /// Sert à ramener des coins trouvés dans une zone recadrée vers le repère de
+  /// l'image entière — l'appelant d'une détection n'a pas à savoir qu'on a
+  /// restreint le champ pour la mener.
+  CardQuad translated(double dx, double dy) => CardQuad(
+    topLeft: (x: topLeft.x + dx, y: topLeft.y + dy),
+    topRight: (x: topRight.x + dx, y: topRight.y + dy),
+    bottomRight: (x: bottomRight.x + dx, y: bottomRight.y + dy),
+    bottomLeft: (x: bottomLeft.x + dx, y: bottomLeft.y + dy),
+  );
+
   /// Surface du quadrilatère, en pixels.
   ///
   /// **Sert à départager deux détections.** Les cadres intérieurs d'une carte —
@@ -441,18 +453,29 @@ img.Image boxReduceLuma(
   required int pixelStride,
   required int outWidth,
   required int outHeight,
+  int srcX = 0,
+  int srcY = 0,
+  int? srcWidth,
+  int? srcHeight,
 }) {
-  final dx = width / outWidth;
-  final dy = height / outHeight;
+  // **Ne lire que la zone demandée.** L'utilisateur peut désigner l'endroit
+  // où il pose ses cartes ; hors de là, ni le décor ni une boîte posée à côté
+  // n'ont à être regardés. Limiter la lecture plutôt que filtrer après coup
+  // fait gagner deux fois : le calcul suit l'aire lue, et ce qui n'est pas lu
+  // ne peut rien inventer.
+  final zoneW = srcWidth ?? width;
+  final zoneH = srcHeight ?? height;
+  final dx = zoneW / outWidth;
+  final dy = zoneH / outHeight;
   final out = img.Image(width: outWidth, height: outHeight);
 
   for (var y = 0; y < outHeight; y++) {
-    final sy0 = (y * dy).toInt();
-    final sy1 = y + 1 < outHeight ? ((y + 1) * dy).toInt() : height;
+    final sy0 = srcY + (y * dy).toInt();
+    final sy1 = srcY + (y + 1 < outHeight ? ((y + 1) * dy).toInt() : zoneH);
 
     for (var x = 0; x < outWidth; x++) {
-      final sx0 = (x * dx).toInt();
-      final sx1 = x + 1 < outWidth ? ((x + 1) * dx).toInt() : width;
+      final sx0 = srcX + (x * dx).toInt();
+      final sx1 = srcX + (x + 1 < outWidth ? ((x + 1) * dx).toInt() : zoneW);
 
       var total = 0;
       for (var sy = sy0; sy < sy1; sy++) {

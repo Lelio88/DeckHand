@@ -41,6 +41,7 @@ import 'art_hash.dart';
 import 'art_hash_index.dart';
 import 'card_bounds.dart';
 import 'card_edges.dart';
+import 'card_geometry.dart';
 import 'card_tracker.dart';
 import 'camera_frame.dart';
 import 'quad_tracker.dart';
@@ -185,6 +186,7 @@ class LiveScanner {
     required ArtHashIndex index,
     this.game = 'magic',
     this.uprightTurns = 0,
+    this.region = ScanRegion.whole,
     QuadTracker? quads,
     CardTracker? cards,
   }) : _index = index,
@@ -193,6 +195,14 @@ class LiveScanner {
 
   final ArtHashIndex _index;
   final String game;
+
+  /// Où l'on accepte de chercher une carte, en fractions du champ.
+  ///
+  /// **Ce que l'utilisateur sait et que la machine ignore** : il pose ses cartes
+  /// toujours au même endroit. Le déclarer écarte d'un coup ce qu'aucun critère
+  /// géométrique ne savait écarter — une boîte de boosters, un tapis imprimé,
+  /// de vrais rectangles posés à côté.
+  final ScanRegion region;
 
   /// Quarts de tour **horaires** à appliquer aux images pour les redresser.
   ///
@@ -471,6 +481,7 @@ class LiveScanner {
       game: game,
       upright: !uprightTurns.isOdd,
       anchor: _quads.quad,
+      region: region,
     );
     final byLight = findCardInLuma(
       luma,

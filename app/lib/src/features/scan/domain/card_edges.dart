@@ -682,14 +682,22 @@ CardQuad? findCardByEdgesInLuma(
   int analysisWidth = liveAnalysisWidth,
   bool upright = true,
   CardQuad? anchor,
+  ScanRegion region = ScanRegion.whole,
 }) {
   if (width < 32 || height < 32) return null;
 
-  final scale = width > analysisWidth ? width / analysisWidth : 1.0;
-  final target = scale > 1 ? analysisWidth : width;
-  final targetHeight = scale > 1
-      ? (height / scale).round().clamp(1, height)
-      : height;
+  // **La zone limite ce qu'on lit, pas ce qu'on rend.** Les coins sortent
+  // toujours dans le repère de l'image entière : l'appelant ne sait pas qu'une
+  // zone a été demandée, et n'a pas à le savoir.
+  final zone = region.sane;
+  final zx = (zone.left * width).round();
+  final zy = (zone.top * height).round();
+  final zw = (zone.width * width).round().clamp(32, width - zx);
+  final zh = (zone.height * height).round().clamp(32, height - zy);
+
+  final scale = zw > analysisWidth ? zw / analysisWidth : 1.0;
+  final target = scale > 1 ? analysisWidth : zw;
+  final targetHeight = scale > 1 ? (zh / scale).round().clamp(1, zh) : zh;
   final small = boxReduceLuma(
     luma,
     width: width,
@@ -698,6 +706,10 @@ CardQuad? findCardByEdgesInLuma(
     pixelStride: pixelStride,
     outWidth: target,
     outHeight: targetHeight,
+    srcX: zx,
+    srcY: zy,
+    srcWidth: zw,
+    srcHeight: zh,
   );
 
   final champ = dominantLines(
@@ -714,9 +726,11 @@ CardQuad? findCardByEdgesInLuma(
     image: small,
     minSupport: defaultMinSupport,
     upright: upright,
-    anchor: anchor?.scaled(1 / scale),
+    anchor: anchor
+        ?.translated(-zx.toDouble(), -zy.toDouble())
+        .scaled(1 / scale),
   );
-  return quad?.scaled(scale);
+  return quad?.scaled(scale).translated(zx.toDouble(), zy.toDouble());
 }
 
 /// Le meilleur quadrilatère formé par quatre des droites données.

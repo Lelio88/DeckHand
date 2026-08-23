@@ -110,3 +110,76 @@ const double defaultCardAspect = 63 / 88;
 
 /// Proportions d'une carte de [game].
 double cardAspectFor(String game) => cardAspects[game] ?? defaultCardAspect;
+
+
+/// La zone du champ où l'on accepte de chercher une carte.
+///
+/// **Déclarer où l'on pose ses cartes vaut mieux que distinguer une carte d'une
+/// boîte.** Deux photos de décor sur douze produisaient encore un quadrilatère
+/// — une boîte de boosters, une serviette imprimée : de vrais rectangles posés,
+/// que rien de géométrique ne sépare d'une carte. Les écarter en regardant leur
+/// contenu serait un chantier ; les mettre hors du champ regardé n'en est pas
+/// un, et c'est ce que l'utilisateur sait de toute façon — il pose ses cartes
+/// au même endroit.
+///
+/// En fractions de l'image du **capteur**, comme les coins que la détection
+/// rend : c'est l'écran qui sait de combien il tourne son aperçu.
+class ScanRegion {
+  const ScanRegion({
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
+
+  /// Tout le champ — ce que voit une caméra à qui l'on n'a rien demandé.
+  static const ScanRegion whole = ScanRegion(
+    left: 0,
+    top: 0,
+    right: 1,
+    bottom: 1,
+  );
+
+  final double left;
+  final double top;
+  final double right;
+  final double bottom;
+
+  double get width => right - left;
+  double get height => bottom - top;
+
+  /// Vrai lorsque la zone couvre tout : il n'y a alors rien à restreindre, et
+  /// le chemin ordinaire évite un recadrage qui ne retirerait rien.
+  bool get isWhole => left <= 0 && top <= 0 && right >= 1 && bottom >= 1;
+
+  /// La même zone, ramenée dans des bornes utilisables.
+  ///
+  /// **Une zone dégénérée ne doit pas atteindre la détection.** Un rectangle
+  /// glissé jusqu'à devenir un trait rendrait une image d'un pixel de large, où
+  /// tout est un bord et rien n'est une carte.
+  ScanRegion get sane {
+    final l = left.clamp(0.0, 1.0);
+    final t = top.clamp(0.0, 1.0);
+    final r = right.clamp(0.0, 1.0);
+    final b = bottom.clamp(0.0, 1.0);
+    if (r - l < minRegionSide || b - t < minRegionSide) return whole;
+    return ScanRegion(left: l, top: t, right: r, bottom: b);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is ScanRegion &&
+      other.left == left &&
+      other.top == top &&
+      other.right == right &&
+      other.bottom == bottom;
+
+  @override
+  int get hashCode => Object.hash(left, top, right, bottom);
+}
+
+/// Côté minimal d'une zone, en fractions.
+///
+/// En deçà, une carte n'y tiendrait de toute façon pas : elle occupe au moins
+/// un dixième du champ pour que son illustration porte du détail.
+const double minRegionSide = 0.15;

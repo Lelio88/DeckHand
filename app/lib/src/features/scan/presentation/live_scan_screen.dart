@@ -43,6 +43,7 @@ import 'dart:typed_data';
 import '../data/card_text_reader.dart';
 import '../domain/art_hash.dart';
 import '../domain/art_hash_index.dart';
+import '../domain/card_geometry.dart';
 import '../domain/card_name_text.dart';
 import '../data/art_index_repository.dart';
 import '../domain/live_scanner.dart';
@@ -50,6 +51,7 @@ import '../domain/scan_basket.dart';
 import '../domain/scan_tally.dart';
 import 'scan_basket_grid.dart';
 import 'quad_overlay.dart';
+import 'scan_region_editor.dart';
 import 'scan_trouble_bar.dart';
 
 class LiveScanScreen extends ConsumerStatefulWidget {
@@ -70,6 +72,10 @@ const Duration _delaiEntreLectures = Duration(milliseconds: 900);
 /// l'autre.
 const String _clefApercuCadre = 'scan_apercu_cadre';
 
+/// Où se retient la zone regardée. Par appareil, comme le cadrage lui-même :
+/// elle décrit une potence ou un coin de table, pas un utilisateur.
+const String _clefZone = 'scan_zone';
+
 class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   final _reader = CardTextReader();
 
@@ -86,6 +92,10 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   /// pourquoi une carte n'est pas reconnue ; l'afficher toujours ajouterait du
   /// mouvement à un écran dont l'objet est la carte, pas la mécanique.
   bool _showQuad = false;
+
+  /// Où l'on accepte de chercher une carte, et si l'on est en train de le régler.
+  ScanRegion _region = ScanRegion.whole;
+  bool _reglageZone = false;
   List<({double x, double y})>? _corners;
 
   /// L'impression que la lecture du nom a retenue pour chaque carte.
@@ -145,6 +155,18 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       _showQuad = prefs.getBool(_clefApercuCadre) ?? false;
+      final zone = prefs.getStringList(_clefZone);
+      if (zone != null && zone.length == 4) {
+        final v = zone.map(double.tryParse).whereType<double>().toList();
+        if (v.length == 4) {
+          _region = ScanRegion(
+            left: v[0],
+            top: v[1],
+            right: v[2],
+            bottom: v[3],
+          ).sane;
+        }
+      }
 
       final index = await ref.read(artHashIndexProvider.future);
       _index = index;
@@ -183,6 +205,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
         _scanner = LiveScanner(
           index: index,
           game: game.id,
+          region: _region,
           // **Le capteur ne livre pas ce que l'écran montre.** Son buffer
           // arrive en paysage, et l'écran de scan est verrouillé en portrait
           // (`AndroidManifest.xml`) : une carte posée droite y est couchée.
@@ -388,6 +411,45 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       // c'est un renfort, jamais un passage obligé.
       diagnose('live_nom_echec', {'erreur': '$erreur'});
     }
+  }
+
+  /// Entre ou sort du réglage de la zone.
+  ///
+  /// **En sortir enregistre.** Un réglage qu'il faudrait valider ailleurs se
+  /// perdrait au premier retour en arrière, et l'utilisateur recommencerait.
+  Future<void> _basculerReglage() async {
+    final voulu = !_reglageZone;
+    setState(() => _reglageZone = voulu);
+    if (voulu) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_clefZone, [
+      '${_region.left}',
+      '${_region.top}',
+      '${_region.right}',
+      '${_region.bottom}',
+    ]);
+  }
+
+  /// Prend en compte la zone que le doigt vient de dessiner.
+  ///
+  /// **Le scanner est refait, pas modifié.** Sa zone est fixée à la
+  /// construction : elle décide de ce que la détection lit, et la changer en
+  /// cours de route laisserait un suivi de quadrilatère qui décrit un champ
+  /// qui n'existe plus.
+  void _zoneChangee(ScanRegion zone) {
+    final index = _index;
+    final scanner = _scanner;
+    if (index == null || scanner == null) return;
+    setState(() {
+      _region = zone;
+      _corners = null;
+      _scanner = LiveScanner(
+        index: index,
+        game: scanner.game,
+        uprightTurns: scanner.uprightTurns,
+        region: zone.sane,
+      );
+    });
   }
 
   /// Montre ou masque le cadre, et retient le choix.
@@ -598,6 +660,17 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
                           child: CameraPreview(controller),
                         ),
                       ),
+                      // **Régler la zone se fait sur l'aperçu, pas ailleurs.**
+                      // On désigne un endroit du champ ; le faire dans un écran
+                      // séparé obligerait à se souvenir de ce qu'on vise.
+                      if (_reglageZone)
+                        Positioned.fill(
+                          child: ScanRegionEditor(
+                            region: _region,
+                            quarterTurns: _scanner?.uprightTurns ?? 0,
+                            onChanged: _zoneChangee,
+                          ),
+                        ),
                       // Le cadre retenu, quand l'utilisateur le demande : il
                       // rend visible ce que l'application regarde, et c'est ce
                       // qui explique une carte non reconnue.
@@ -643,7 +716,27 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
                         alignment: Alignment.topRight,
                         child: Padding(
                           padding: const EdgeInsets.all(4),
-                          child: IconButton(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                iconSize: 20,
+                                tooltip: _reglageZone
+                                    ? 'Terminer le réglage de la zone'
+                                    : 'Choisir où sont posées les cartes',
+                                icon: Icon(
+                                  _reglageZone
+                                      ? Icons.check_circle_outline
+                                      : Icons.filter_center_focus,
+                                  color: _reglageZone
+                                      ? Colors.greenAccent
+                                      : (_region.isWhole
+                                            ? Colors.white54
+                                            : Colors.white),
+                                ),
+                                onPressed: _basculerReglage,
+                              ),
+                              IconButton(
                             iconSize: 20,
                             tooltip: _showQuad
                                 ? 'Masquer le cadre détecté'
@@ -657,6 +750,8 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
                                   : Colors.white54,
                             ),
                             onPressed: _basculerCadre,
+                              ),
+                            ],
                           ),
                         ),
                       ),
