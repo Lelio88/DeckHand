@@ -77,6 +77,9 @@ class LiveObservation {
     this.streak = 0,
     this.accepted,
     this.acceptedPrint,
+    this.probe,
+    this.hypothesis,
+    this.window,
     this.detected = false,
     this.located = false,
     this.distance,
@@ -123,6 +126,30 @@ class LiveObservation {
   /// Marvel s'affichait avec l'illustration d'origine, ce qui rend la
   /// confirmation du §IV.8 impossible à donner en conscience.
   final String? acceptedPrint;
+
+  /// L'empreinte réellement relevée sur cette image, en hexadécimal.
+  ///
+  /// **Le seul moyen de rejouer une erreur du terrain.** « Deux cartes fausses »
+  /// ne se diagnostique pas depuis un nom : il faut savoir où l'empreinte est
+  /// tombée dans l'index réel, ce que `app.measure.art_probe` sait dire — mais
+  /// seulement si le journal l'a consignée. Sans elle, on ne peut que deviner
+  /// entre un quadrilatère faux et un seuil trop permissif.
+  final String? probe;
+
+  /// Le gabarit et la rotation qui ont produit [probe].
+  ///
+  /// **Sans lui, une empreinte fausse n'a pas d'explication.** La chaîne essaie
+  /// plusieurs cadres et, pour les jeux qui impriment en travers, plusieurs
+  /// quarts de tour ; retenir le mauvais prélève l'illustration ailleurs et
+  /// rend une empreinte plausible mais étrangère. C'est l'une des deux causes
+  /// possibles d'une carte annoncée à tort, et rien ne les distinguait.
+  final String? hypothesis;
+
+  /// Où le quadrilatère retenu tombe dans l'image, en fractions.
+  ///
+  /// L'autre cause : un quadrilatère juste de forme mais mal placé. Un relevé
+  /// qui ne le dit pas oblige à deviner entre les deux.
+  final String? window;
 
   /// La détection de bords a tourné sur cette image. Pour le diagnostic : c'est
   /// la fraction de ces images qui décide du coût réel du flux.
@@ -273,6 +300,19 @@ class LiveScanner {
   }) {
     final outcome = _index.searchAny(hypotheses);
     final result = outcome.result;
+    final probe = outcome.source == null
+        ? null
+        : hypotheses[outcome.source]?.toHex();
+    final source = outcome.source;
+    final hypothesis = source == null
+        ? null
+        : '${source.frame.name}/${source.quarterTurns}';
+    final coins = _quads.quad;
+    final window = coins == null
+        ? null
+        : '${coins.topLeft.x.round()},${coins.topLeft.y.round()}'
+              ' ${coins.bottomRight.x.round()},${coins.bottomRight.y.round()}'
+              ' r${coins.aspect.toStringAsFixed(2)}';
     // **Le silence de l'index est une réponse, pas un échec.** Une empreinte
     // trop éloignée ou trop ambiguë ne désigne rien, et le suivi temporel doit
     // le voir comme une image muette — sans quoi une carte à moitié reconnue
@@ -290,6 +330,9 @@ class LiveScanner {
       streak: _cards.streak,
       accepted: accepted,
       acceptedPrint: acceptedPrint,
+      probe: probe,
+      hypothesis: hypothesis,
+      window: window,
       detected: detected,
       located: true,
       distance: best?.distance,

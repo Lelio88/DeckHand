@@ -161,6 +161,13 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
         unawaited(_resolve(accepted, seen.acceptedPrint));
         diagnose('live_accepted', {
           'oracle_id': accepted,
+          'print_id': seen.acceptedPrint,
+          // L'empreinte relevée permet de rejouer la recherche au poste, contre
+          // l'index complet : c'est elle qui sépare un quadrilatère faux d'un
+          // seuil trop permissif.
+          'art_hash': seen.probe,
+          'gabarit': seen.hypothesis,
+          'cadre': seen.window,
           'distance': seen.distance,
           'marge': seen.margin,
           'images': _tally.frames,
@@ -175,6 +182,9 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
         diagnose('live_frame', {
           'issue': seen.outcome.name,
           'candidat': seen.best,
+          'art_hash': seen.probe,
+          'gabarit': seen.hypothesis,
+          'cadre': seen.window,
           'distance': seen.distance,
           'marge': seen.margin,
         });
@@ -198,6 +208,27 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
 
   /// Va chercher le nom, et l'édition quand il n'y en a qu'une.
   ///
+  /// Ce que le relevé montre à l'écran, sur un build de mesure.
+  ///
+  /// **Les acceptations d'abord, et séparément.** Elles sont rares — quelques-
+  /// unes par passe — et noyées dans les dizaines de lignes émises par image ;
+  /// or ce sont elles qui portent la carte retenue et la distance qui l'a fait
+  /// retenir. Les laisser dans l'ordre chronologique revenait à ne jamais les
+  /// voir : la première capture d'écran n'en contenait aucune.
+  String _releve() {
+    String court(String ligne) =>
+        ligne.replaceAll('DHDIAG ', '').replaceAll('"event":', '');
+    final retenues = recentDiagnostics
+        .where((l) => l.contains('live_accepted'))
+        .take(4)
+        .map(court);
+    final images = recentDiagnostics
+        .where((l) => !l.contains('live_accepted'))
+        .take(5)
+        .map(court);
+    return ['RETENUES :', ...retenues, 'IMAGES :', ...images].join('\n');
+  }
+
   /// **Une seule édition se remplit d'office** : la désigner n'apporte rien que
   /// la carte ne porte déjà, et demander le geste reviendrait à faire ouvrir
   /// une liste d'un seul élément quinze fois par booster. Garde-fou §IV.8
@@ -373,6 +404,31 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
                           child: CameraPreview(controller),
                         ),
                       ),
+                      // **Le journal, à même l'écran, sur un build de mesure.**
+                      // C'est le seul chemin qui ramène un relevé d'un appareil :
+                      // `logcat` ne reçoit rien hors du mode debug, et depuis
+                      // Android 10 un fichier ne peut plus être écrit là où
+                      // `adb` sait le lire. Une capture d'écran, elle, marche
+                      // toujours. Absent d'un build ordinaire, où
+                      // `diagnosticsEnabled` est une constante fausse.
+                      if (diagnosticsEnabled)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: ColoredBox(
+                            color: Colors.black.withValues(alpha: 0.72),
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Text(
+                                _releve(),
+                                style: const TextStyle(
+                                  color: Colors.greenAccent,
+                                  fontSize: 7,
+                                  height: 1.25,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       // Le relevé en haut, et seulement quand la passe bloque :
                       // il masquait la carte qu'on filmait pour dire des chiffres
                       // dont on n'a besoin que lorsque rien ne marche.

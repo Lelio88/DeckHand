@@ -13,15 +13,28 @@
 /// fausse, et le compilateur élimine purement et simplement les appels : un
 /// build ordinaire n'en porte aucune trace, ni en poids ni en temps.
 ///
-/// **Passe par la sortie standard, pas par un fichier.** Un fichier obligerait
-/// à une permission de stockage et à une dépendance de plus, pour une donnée
-/// qu'on relit une fois. `adb logcat` la reçoit en direct, y compris sur un
-/// build de production non déboguable.
+/// **Passe par l'écran, et non par la sortie standard ni par un fichier.** Une version
+/// antérieure affirmait qu'`adb logcat` recevait ces lignes « y compris sur un
+/// build de production non déboguable ». **C'est faux, et cela a coûté deux
+/// allers-retours avec l'appareil** : ni en `release` ni en `profile` la sortie
+/// Dart n'atteint le journal système sur cet appareil — l'application tourne,
+/// son ramasse-miettes s'y voit, et pas une ligne du journal.
+///
+/// **Le fichier a été essayé, et il échoue aussi.** Depuis Android 10, une
+/// application ne peut plus atteindre son propre dossier sous `Android/data`
+/// par un chemin en dur — il faut passer par l'API système, donc par une
+/// dépendance que ce projet n'a pas. Le dossier n'est jamais créé, et l'échec
+/// est muet puisque c'est précisément le journal qui aurait dû le dire.
+///
+/// Reste l'écran, qui ne dépend ni du mode de compilation ni des règles de
+/// stockage : [recentDiagnostics] garde les dernières lignes, et un écran de
+/// mesure les affiche. Une capture d'écran suffit alors à les rapporter au
+/// poste de travail.
 ///
 /// Usage depuis le poste de travail :
 /// ```
-/// adb -s <addr> logcat -c                       # vider le tampon
-/// adb -s <addr> logcat | grep DHDIAG > mesure.log
+/// # … faire la manipulation à mesurer sur l'appareil …
+/// adb exec-out screencap -p > mesure.png    # le relevé est à l'écran
 /// ```
 library;
 
@@ -52,5 +65,27 @@ void diagnose(String event, [Map<String, Object?> fields = const {}]) {
     'event': event,
     ...fields,
   };
-  debugPrint('$diagnosticsTag ${jsonEncode(payload)}');
+  final ligne = '$diagnosticsTag ${jsonEncode(payload)}';
+  debugPrint(ligne);
+  _ecrire(ligne);
 }
+
+/// Les dernières lignes émises, les plus récentes en tête.
+///
+/// **Lisibles depuis l'application, faute de mieux.** Ni `logcat` ni un fichier
+/// ne ramènent le journal d'un appareil : le premier ne reçoit rien hors du
+/// mode debug, le second ne peut plus être écrit là où `adb` sait le lire. Un
+/// écran, lui, se photographie.
+List<String> get recentDiagnostics => List.unmodifiable(_recents);
+
+final List<String> _recents = <String>[];
+
+/// Au-delà, les lignes les plus anciennes tombent. Assez pour une passe de
+/// scan, assez peu pour tenir sur un écran de téléphone.
+const int _maxRecents = 40;
+
+void _ecrire(String ligne) {
+  _recents.insert(0, ligne);
+  if (_recents.length > _maxRecents) _recents.removeLast();
+}
+
