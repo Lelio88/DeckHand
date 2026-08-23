@@ -989,7 +989,24 @@ CardQuad? bestQuad(
           // photo, le rectangle rouge encadrait « Éphémère » et non la carte.
           // L'aire tranche sans ambiguïté, puisqu'un cadre intérieur est par
           // construction plus petit que ce qui le contient.
-          var score = aire * sup * (1 - proche / aspectTol);
+          // **L'aire départage les formes, les votes départagent les bords.**
+          // L'aire seule choisit, entre deux quadrilatères presque identiques,
+          // celui qui déborde : mesuré sur une photo réelle, le bord gauche
+          // retenu portait 114 votes quand le vrai en portait 192, et il
+          // l'emportait parce qu'il était trois pour cent plus à gauche. Trois
+          // pour cent est précisément ce que l'empreinte ne pardonne pas.
+          //
+          // Les votes reviennent donc dans le score, sous une racine : assez
+          // pour trancher entre deux bords voisins, pas assez pour rendre au
+          // pavé de texte — dont les bords sont très francs — la victoire que
+          // l'aire lui avait justement retirée.
+          final votes =
+              lines[i].votes.abs() +
+              lines[j].votes.abs() +
+              lines[k].votes.abs() +
+              candidates[l].votes.abs();
+          var score =
+              aire * sup * (1 - proche / aspectTol) * math.sqrt(votes + 1);
 
           // **À score comparable, on garde ce qu'on regardait déjà.** Mesuré sur
           // photos réelles bruitées : la plupart des images rendent un cadre

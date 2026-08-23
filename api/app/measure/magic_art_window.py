@@ -38,6 +38,8 @@ import httpx
 import numpy as np
 from PIL import Image
 
+from app.vision.dhash import dhash, hamming_distance
+
 USER_AGENT = "DeckHand/1.0 (banc de mesure ; contact heianenterpriseyt@gmail.com)"
 
 #: Scryfall demande au plus dix requêtes par seconde ; on reste très en deçà,
@@ -234,8 +236,27 @@ def sur_photo(chemin: str, carte: str) -> None:
             fenetre, score = situer(photo, art)
             marque = entree.get("set", "?")
             numero = entree.get("collector_number", "?")
+
+            # **Le plancher que la détection ne peut pas franchir.** Découper la
+            # photo à la fenêtre *réelle* — celle que la corrélation vient de
+            # situer — donne l'empreinte la meilleure qu'un cadrage parfait
+            # produirait. Si elle reste au-delà du seuil de confiance, aucune
+            # amélioration de la détection n'y changera rien : ce sont les
+            # reflets, la perspective et l'éclairage qui décident.
+            w, h = photo.size
+            coupe = photo.crop(
+                (
+                    int(fenetre.left * w),
+                    int(fenetre.top * h),
+                    int(fenetre.right * w),
+                    int(fenetre.bottom * h),
+                )
+            )
+            reference = dhash(art)
+            plancher = hamming_distance(dhash(coupe), reference)
             print(
                 f"  {marque:5s} {numero:>5s}  {fenetre}  accord {score:.3f}"
+                f"  plancher {plancher:2d} bits"
             )
 
 
