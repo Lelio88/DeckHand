@@ -38,6 +38,11 @@ import '../../printings/data/printing_repository.dart';
 import '../../printings/domain/scryfall_image.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
+import 'dart:typed_data';
+import '../data/card_text_reader.dart';
+import '../domain/art_hash.dart';
+import '../domain/art_hash_index.dart';
+import '../domain/card_name_text.dart';
 import '../data/art_index_repository.dart';
 import '../domain/live_scanner.dart';
 import '../domain/scan_basket.dart';
@@ -52,7 +57,19 @@ class LiveScanScreen extends ConsumerStatefulWidget {
   ConsumerState<LiveScanScreen> createState() => _LiveScanScreenState();
 }
 
+/// Entre deux lectures de texte. Une carte ne change pas de nom en un clin
+/// d'œil, et la reconnaissance de texte coûte bien plus qu'une image de flux.
+const Duration _delaiEntreLectures = Duration(milliseconds: 900);
+
 class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
+  final _reader = CardTextReader();
+
+  /// L'index d'empreintes, gardé sous la main.
+  ///
+  /// Il sert deux fois : au scanner, qui identifie la carte, et ici, pour
+  /// choisir l'édition une fois le nom lu. L'interroger par le provider
+  /// obligerait à traiter un état de chargement qui, à ce stade, est passé.
+  ArtHashIndex? _index;
   CameraController? _controller;
   LiveScanner? _scanner;
   final _basket = ScanBasket();
@@ -70,6 +87,15 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   DateTime _lastTallyPaint = DateTime.fromMillisecondsSinceEpoch(0);
   FrameOutcome? _lastOutcome;
 
+  /// Lecture de texte en cours, et date de la dernière.
+  ///
+  /// **Une à la fois, et pas trop souvent.** La reconnaissance de texte coûte
+  /// bien plus qu'une image de flux ; en lancer une par image saturerait le fil
+  /// sans rien lire de plus, la carte ne changeant pas de nom en trente
+  /// millisecondes.
+  bool _reading = false;
+  DateTime _lastRead = DateTime.fromMillisecondsSinceEpoch(0);
+
   String? _status = 'ouverture de la caméra…';
   String? _watching;
   bool _busy = false;
@@ -85,12 +111,16 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   @override
   void dispose() {
     unawaited(_controller?.dispose());
+    // Le lecteur de texte tient une ressource native : la laisser derrière soi
+    // fuit à chaque ouverture de l'écran.
+    unawaited(_reader.dispose());
     super.dispose();
   }
 
   Future<void> _start() async {
     try {
       final index = await ref.read(artHashIndexProvider.future);
+      _index = index;
       final game = ref.read(selectedGameProvider);
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -109,7 +139,12 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
         // soit la résolution, son travail étant payé à la taille d'analyse.
         ResolutionPreset.high,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.yuv420,
+        // **NV21 plutôt que YUV420, pour que le texte soit lisible.** ML Kit
+        // n'accepte un tampon brut que dans un format qu'il connaît, et c'est
+        // celui-là sur Android. Le reste du pipeline n'y perd rien : le premier
+        // plan reste la luminance, seule consommée par la détection et par
+        // l'empreinte.
+        imageFormatGroup: ImageFormatGroup.nv21,
       );
       await controller.initialize();
       if (!mounted) {
@@ -154,6 +189,18 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       );
 
       _tally.record(seen);
+
+      // **Le nom prend le relais quand l'illustration renonce.** Mesuré, une
+      // carte tenue à la main avec des reflets reste à 14 ou 19 bits de sa
+      // propre référence — au-delà du seuil de confiance — même avec un cadrage
+      // parfait : l'empreinte seule ne la retrouvera jamais. Le nom, lui, se lit
+      // malgré les reflets. On ne le demande que lorsqu'une carte est là et que
+      // l'index ne conclut pas, ce qui évite de payer une lecture pour rien.
+      if (seen.accepted == null &&
+          seen.located &&
+          seen.outcome != FrameOutcome.confident) {
+        _peutEtreLire(image, seen);
+      }
 
       final accepted = seen.accepted;
       if (accepted != null) {
@@ -208,6 +255,94 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
 
   /// Va chercher le nom, et l'édition quand il n'y en a qu'une.
   ///
+  /// Lance une lecture de texte si le moment s'y prête.
+  ///
+  /// **Les octets sont copiés.** Le tampon d'une image de flux est réutilisé dès
+  /// que la fonction rend la main ; le lire plus tard reviendrait à lire une
+  /// autre image, ou une image à moitié réécrite.
+  void _peutEtreLire(CameraImage image, LiveObservation seen) {
+    if (_reading) return;
+    final maintenant = DateTime.now();
+    if (maintenant.difference(_lastRead) < _delaiEntreLectures) return;
+    _reading = true;
+    _lastRead = maintenant;
+    final plan = image.planes.first;
+    unawaited(
+      _lireLeNom(
+        Uint8List.fromList(plan.bytes),
+        width: image.width,
+        height: image.height,
+        bytesPerRow: plan.bytesPerRow,
+        probe: seen.probe,
+      ).whenComplete(() => _reading = false),
+    );
+  }
+
+  /// Lit le nom sur l'image, retrouve la carte, choisit son édition.
+  ///
+  /// **L'empreinte ne sert plus à identifier la carte mais à choisir entre ses
+  /// éditions** — et c'est là qu'elle est bonne. Une empreinte trop abîmée pour
+  /// être reconnue parmi 32 808 illustrations départage sans peine les deux ou
+  /// trois d'une carte connue : les rivales y sont à trente bits.
+  Future<void> _lireLeNom(
+    Uint8List octets, {
+    required int width,
+    required int height,
+    required int bytesPerRow,
+    String? probe,
+  }) async {
+    final scanner = _scanner;
+    if (scanner == null) return;
+    try {
+      final lignes = await _reader.readFrame(
+        octets,
+        width: width,
+        height: height,
+        rotationDegrees: scanner.uprightTurns * 90,
+        bytesPerRow: bytesPerRow,
+      );
+      if (lignes.isEmpty || !mounted) return;
+
+      final noms = cardNameCandidates(lignes);
+      if (noms.isEmpty) return;
+
+      final game = ref.read(selectedGameProvider);
+      final trouvees = await ref
+          .read(cardRepositoryProvider)
+          .searchMany(noms, game: game);
+      if (!mounted || trouvees.isEmpty) return;
+
+      // Le premier candidat lu qui existe au catalogue : `cardNameCandidates`
+      // les rend déjà par ordre de plausibilité.
+      final hit = noms
+          .map((n) => trouvees[n])
+          .whereType<CardHit>()
+          .firstOrNull;
+      if (hit == null) return;
+
+      final index = _index;
+      final edition = (probe == null || index == null)
+          ? null
+          : index.searchWithin({hit.oracleId}, ArtHash.fromHex(probe));
+
+      diagnose('live_nom', {
+        'lu': noms.first,
+        'oracle_id': hit.oracleId,
+        'print_id': edition?.printId,
+        'distance': edition?.distance,
+      });
+
+      if (!mounted) return;
+      setState(() => _known[hit.oracleId] = hit);
+      _basket.add(hit.oracleId);
+      unawaited(_resolve(hit.oracleId, edition?.printId));
+    } on Object catch (erreur) {
+      // Une lecture qui échoue laisse l'illustration continuer son travail :
+      // c'est un renfort, jamais un passage obligé.
+      diagnose('live_nom_echec', {'erreur': '$erreur'});
+    }
+  }
+
   /// Ce que le relevé montre à l'écran, sur un build de mesure.
   ///
   /// **Les acceptations d'abord, et séparément.** Elles sont rares — quelques-

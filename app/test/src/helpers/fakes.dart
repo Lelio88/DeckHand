@@ -6,6 +6,8 @@
 /// au moindre remaniement.
 library;
 
+import 'dart:typed_data';
+
 import 'dart:async';
 
 import 'package:deckhand/src/features/auth/data/auth_repository.dart';
@@ -112,6 +114,25 @@ class FakeCardTextReader implements CardTextReader {
   /// millisecondes : c'est le genre de dépense qu'un test doit pouvoir
   /// affirmer, et non supposer.
   int reads = 0;
+
+  /// Lectures faites depuis une image de flux, comptées à part.
+  ///
+  /// **Le flux et la photo n'ont pas le même coût ni le même moment.** Les
+  /// confondre dans un seul compteur empêcherait d'affirmer qu'une passe vidéo
+  /// ne lit pas le texte à chaque image.
+  int frameReads = 0;
+
+  @override
+  Future<List<ReadLine>> readFrame(
+    Uint8List bytes, {
+    required int width,
+    required int height,
+    required int rotationDegrees,
+    required int bytesPerRow,
+  }) async {
+    frameReads++;
+    return lines;
+  }
 
   @override
   Future<List<ReadLine>> readLines(String path) async {
