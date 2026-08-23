@@ -80,6 +80,7 @@ class LiveObservation {
     this.probe,
     this.hypothesis,
     this.window,
+    this.corners,
     this.detected = false,
     this.located = false,
     this.distance,
@@ -150,6 +151,18 @@ class LiveObservation {
   /// L'autre cause : un quadrilatère juste de forme mais mal placé. Un relevé
   /// qui ne le dit pas oblige à deviner entre les deux.
   final String? window;
+
+  /// Les quatre coins retenus, **en fractions de l'image du capteur**.
+  ///
+  /// **Pour montrer à l'utilisateur ce que l'application regarde.** Un cadre
+  /// faux ne se voit pas dans un compteur : il faut le dessiner. Cinq des six
+  /// captures de diagnostic d'une journée de mise au point auraient été
+  /// inutiles si ce tracé avait existé.
+  ///
+  /// En fractions parce que l'écran ne connaît pas la taille du capteur, et
+  /// dans le repère du **capteur** — non redressé : c'est l'écran qui sait de
+  /// combien il tourne son aperçu.
+  final List<({double x, double y})>? corners;
 
   /// La détection de bords a tourné sur cette image. Pour le diagnostic : c'est
   /// la fraction de ces images qui décide du coût réel du flux.
@@ -228,6 +241,12 @@ class LiveScanner {
     required int rowStride,
     int pixelStride = 1,
   }) {
+    // Les dimensions du capteur, retenues pour rapporter les coins en fractions :
+    // l'écran ne les connaît pas, et un tracé en pixels de capteur n'aurait
+    // aucun sens sur un aperçu redimensionné.
+    _lastWidth = width;
+    _lastHeight = height;
+
     var detected = false;
     if (_quads.needsDetection) {
       _quads.adopt(_detect(luma, width, height, rowStride, pixelStride));
@@ -305,6 +324,10 @@ class LiveScanner {
   String? _nameId;
   int _nameAge = 0;
 
+  /// Dimensions de la dernière image reçue, pour situer les coins.
+  int _lastWidth = 1;
+  int _lastHeight = 1;
+
   /// Déclare la carte que la lecture du nom vient d'identifier.
   ///
   /// Elle ne devient pas une carte retenue pour autant : elle entre dans le même
@@ -370,6 +393,23 @@ class LiveScanner {
       probe: probe,
       hypothesis: hypothesis,
       window: window,
+      corners: coins == null
+          ? null
+          : [
+              (x: coins.topLeft.x / _lastWidth, y: coins.topLeft.y / _lastHeight),
+              (
+                x: coins.topRight.x / _lastWidth,
+                y: coins.topRight.y / _lastHeight,
+              ),
+              (
+                x: coins.bottomRight.x / _lastWidth,
+                y: coins.bottomRight.y / _lastHeight,
+              ),
+              (
+                x: coins.bottomLeft.x / _lastWidth,
+                y: coins.bottomLeft.y / _lastHeight,
+              ),
+            ],
       detected: detected,
       located: true,
       distance: best?.distance,

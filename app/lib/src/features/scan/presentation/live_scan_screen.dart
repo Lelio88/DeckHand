@@ -28,6 +28,7 @@ import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../config/selected_game.dart';
 import '../../../diagnostics/diagnostics.dart';
@@ -48,6 +49,7 @@ import '../domain/live_scanner.dart';
 import '../domain/scan_basket.dart';
 import '../domain/scan_tally.dart';
 import 'scan_basket_grid.dart';
+import 'quad_overlay.dart';
 import 'scan_trouble_bar.dart';
 
 class LiveScanScreen extends ConsumerStatefulWidget {
@@ -61,6 +63,13 @@ class LiveScanScreen extends ConsumerStatefulWidget {
 /// d'œil, et la reconnaissance de texte coûte bien plus qu'une image de flux.
 const Duration _delaiEntreLectures = Duration(milliseconds: 900);
 
+/// Où se retient le choix d'afficher le cadre.
+///
+/// Par appareil et non par compte : c'est un réglage d'affichage, comme le jeu
+/// courant, et il n'a aucune raison de suivre l'utilisateur d'un téléphone à
+/// l'autre.
+const String _clefApercuCadre = 'scan_apercu_cadre';
+
 class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   final _reader = CardTextReader();
 
@@ -70,6 +79,14 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   /// choisir l'édition une fois le nom lu. L'interroger par le provider
   /// obligerait à traiter un état de chargement qui, à ce stade, est passé.
   ArtHashIndex? _index;
+
+  /// Montrer ou non le cadre que la détection retient.
+  ///
+  /// **Éteint par défaut, et c'est délibéré.** Le tracé sert à comprendre
+  /// pourquoi une carte n'est pas reconnue ; l'afficher toujours ajouterait du
+  /// mouvement à un écran dont l'objet est la carte, pas la mécanique.
+  bool _showQuad = false;
+  List<({double x, double y})>? _corners;
 
   /// L'impression que la lecture du nom a retenue pour chaque carte.
   ///
@@ -126,6 +143,9 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
 
   Future<void> _start() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      _showQuad = prefs.getBool(_clefApercuCadre) ?? false;
+
       final index = await ref.read(artHashIndexProvider.future);
       _index = index;
       final game = ref.read(selectedGameProvider);
@@ -196,6 +216,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       );
 
       _tally.record(seen);
+      if (_showQuad) _corners = seen.corners;
 
       // **Le nom prend le relais quand l'illustration renonce.** Mesuré, une
       // carte tenue à la main avec des reflets reste à 14 ou 19 bits de sa
@@ -367,6 +388,18 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       // c'est un renfort, jamais un passage obligé.
       diagnose('live_nom_echec', {'erreur': '$erreur'});
     }
+  }
+
+  /// Montre ou masque le cadre, et retient le choix.
+  Future<void> _basculerCadre() async {
+    final voulu = !_showQuad;
+    setState(() {
+      _showQuad = voulu;
+      // Sans cela, le dernier cadre resterait figé à l'écran après extinction.
+      if (!voulu) _corners = null;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_clefApercuCadre, voulu);
   }
 
   /// Ce que le relevé montre à l'écran, sur un build de mesure.
@@ -565,6 +598,18 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
                           child: CameraPreview(controller),
                         ),
                       ),
+                      // Le cadre retenu, quand l'utilisateur le demande : il
+                      // rend visible ce que l'application regarde, et c'est ce
+                      // qui explique une carte non reconnue.
+                      if (_showQuad)
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: QuadOverlay(
+                              corners: _corners,
+                              quarterTurns: _scanner?.uprightTurns ?? 0,
+                            ),
+                          ),
+                        ),
                       // **Le journal, à même l'écran, sur un build de mesure.**
                       // C'est le seul chemin qui ramène un relevé d'un appareil :
                       // `logcat` ne reçoit rien hors du mode debug, et depuis
@@ -590,6 +635,31 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
                             ),
                           ),
                         ),
+                      // **Un bouton discret plutôt qu'un réglage enfoui.** Le
+                      // tracé sert quand quelque chose cloche ; il faut pouvoir
+                      // l'allumer là où l'on regarde, sans quitter l'écran ni
+                      // reprendre la passe.
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: IconButton(
+                            iconSize: 20,
+                            tooltip: _showQuad
+                                ? 'Masquer le cadre détecté'
+                                : 'Montrer le cadre détecté',
+                            icon: Icon(
+                              _showQuad
+                                  ? Icons.crop_free
+                                  : Icons.crop_free_outlined,
+                              color: _showQuad
+                                  ? Colors.greenAccent
+                                  : Colors.white54,
+                            ),
+                            onPressed: _basculerCadre,
+                          ),
+                        ),
+                      ),
                       // Le relevé en haut, et seulement quand la passe bloque :
                       // il masquait la carte qu'on filmait pour dire des chiffres
                       // dont on n'a besoin que lorsque rien ne marche.
