@@ -169,6 +169,47 @@ class ArtHashIndex {
     ]);
   }
 
+  /// La meilleure impression **parmi celles de cartes déjà identifiées**.
+  ///
+  /// **L'empreinte cesse d'identifier la carte pour ne plus faire que choisir
+  /// l'édition** — et c'est là qu'elle est bonne. Chercher dans les 32 808
+  /// illustrations du catalogue exige un cadrage juste à 3 % près et une photo
+  /// sans reflet : mesuré, une carte tenue à la main plafonne à 14 ou 19 bits de
+  /// sa propre référence, quand le seuil de confiance est à 12. La même
+  /// empreinte, comparée aux deux ou trois illustrations d'**une** carte, les
+  /// départage sans peine — les rivales y sont à trente bits, pas à douze.
+  ///
+  /// Le nom, lui, se lit malgré les reflets et ne dépend d'aucune édition :
+  /// c'est l'ordre que le mode photo suit déjà, et que celui-ci rend praticable
+  /// jusqu'au choix de l'impression.
+  ///
+  /// Rend `null` si aucune entrée ne porte l'une des cartes demandées — un
+  /// catalogue peut connaître une carte sans posséder d'empreinte pour elle.
+  HashMatch? searchWithin(Set<String> oracleIds, ArtHash query) {
+    if (oracleIds.isEmpty) return null;
+    final q = query.bytes;
+    var meilleur = 1 << 30;
+    var rang = -1;
+    for (var i = 0; i < _oracleIds.length; i++) {
+      if (!oracleIds.contains(_oracleIds[i])) continue;
+      final base = i * hashBytes;
+      var distance = 0;
+      for (var b = 0; b < hashBytes; b++) {
+        distance += _popcount[_hashes[base + b] ^ q[b]];
+      }
+      if (distance < meilleur) {
+        meilleur = distance;
+        rang = i;
+      }
+    }
+    if (rang < 0) return null;
+    return (
+      oracleId: _oracleIds[rang],
+      printId: _printIds[rang],
+      distance: meilleur,
+    );
+  }
+
   /// Sérialise l'index pour le conserver localement.
   ///
   /// Format : `[marque : uint32][nombre d'entrées : uint32]` puis, par entrée,
