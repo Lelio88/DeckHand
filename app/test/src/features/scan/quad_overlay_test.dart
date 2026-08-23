@@ -10,7 +10,6 @@ library;
 import 'dart:ui';
 
 import 'package:deckhand/src/features/scan/presentation/quad_overlay.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 ({double x, double y}) _redresse(int turns) => QuadOverlay(
