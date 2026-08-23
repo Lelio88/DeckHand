@@ -379,6 +379,12 @@ class LiveScanner {
     // de tour impair présente une carte debout couchée dans le buffer ; le dire
     // vaut mieux que d'accepter les deux, ce qui avait fait naître une carte
     // sur un parquet dont les lames ont le format d'une carte couchée.
+    // **L'ancre stabilise sans figer.** Mesuré sur photos réelles bruitées :
+    // la plupart des images rendent un cadre parfaitement stable, mais
+    // certaines hésitent entre deux formes distinctes — une largeur allant de
+    // 1807 à 3292 pixels sur la même photo. Une seule bascule suffit à prélever
+    // l'illustration de travers, l'empreinte décrochant au-delà de 3 % d'écart
+    // de cadrage, et à annoncer une carte que personne n'a montrée.
     final byEdges = findCardByEdgesInLuma(
       luma,
       width: width,
@@ -387,6 +393,7 @@ class LiveScanner {
       pixelStride: pixelStride,
       game: game,
       upright: !uprightTurns.isOdd,
+      anchor: _quads.quad,
     );
     final byLight = findCardInLuma(
       luma,
@@ -397,9 +404,11 @@ class LiveScanner {
       game: game,
       sideways: uprightTurns.isOdd,
     );
-    if (byEdges == null) return byLight;
-    if (byLight == null) return byEdges;
-    return byEdges.area >= byLight.area ? byEdges : byLight;
+    return largestPlausible(
+      [byEdges, byLight],
+      width: width,
+      height: height,
+    );
   }
 
   /// Les empreintes candidates, une par cadre du jeu et par orientation

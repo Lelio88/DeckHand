@@ -9,6 +9,7 @@ library;
 
 import 'dart:typed_data';
 
+import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
 import 'package:deckhand/src/features/scan/domain/card_edges.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -108,6 +109,35 @@ void main() {
     }
 
     expect(findCardByEdges(fond), isNull);
+  });
+
+  test('un cadre qui couvre presque toute l’image n’est pas une carte', () {
+    // **Le piège de « le plus grand gagne ».** Deux chaînes proposent un cadre
+    // et l'on retient le plus vaste, parce qu'un cadre intérieur est contenu
+    // dans ce qu'il borde. Mais une détection qui échoue retient tout le cadre
+    // de la photo, et se trouve alors la plus vaste : mesuré sur une photo
+    // réelle, le quadrilatère retenu couvrait 94 % de l'image, et l'empreinte
+    // se prélevait sur la photo entière.
+    final image = surFond(carte(200, 279), 340, 460);
+    final presqueTout = CardQuad(
+      topLeft: (x: 2.0, y: 2.0),
+      topRight: (x: 338.0, y: 2.0),
+      bottomRight: (x: 338.0, y: 458.0),
+      bottomLeft: (x: 2.0, y: 458.0),
+    );
+    final laCarte = findCardByEdges(image)!;
+
+    final retenu = largestPlausible(
+      [presqueTout, laCarte],
+      width: image.width,
+      height: image.height,
+    );
+
+    expect(
+      retenu,
+      same(laCarte),
+      reason: 'le plus vaste ne gagne que s’il reste une carte',
+    );
   });
 
   test('une texture sans carte ne rend rien', () {

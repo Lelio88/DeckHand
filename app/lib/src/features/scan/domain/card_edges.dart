@@ -323,6 +323,16 @@ class EdgeLine {
 /// voisins, soit moins que le bruit d'un capteur.
 const double _gradientPlancher = 12.0;
 
+/// Règle la force de la continuité, pour les bancs. Ne pas toucher ailleurs.
+set continuityBonus(double v) => _bonusContinuite = v;
+
+/// Ce que vaut, dans le choix, un cadre compatible avec le précédent.
+///
+/// **Assez pour départager deux formes plausibles, pas pour en imposer une
+/// mauvaise.** Un quadrilatère franchement meilleur l'emporte toujours ; c'est
+/// seulement quand deux candidats se valent que la continuité tranche.
+double _bonusContinuite = 1.35;
+
 /// Part minimale de chaque bord où la matière doit changer.
 ///
 /// **Volontairement bas.** Il ne s'agit pas d'exiger un contraste franc — une
@@ -342,6 +352,27 @@ const double _ruptureMinimale = 0.30;
 
 /// Part minimale de l'image exigée d'un quadrilatère au quatrième côté déduit.
 const double _aireMinDeduite = 0.30;
+
+/// Règle le plafond de couverture, pour les bancs. Ne pas toucher ailleurs.
+set cardCoverageCeiling(double v) => maxCardCoverage = v;
+
+/// Part de l'image au-delà de laquelle un quadrilatère n'est plus une carte.
+///
+/// **Le garde-fou que « le plus grand gagne » rendait indispensable.** Deux
+/// chaînes proposent un cadre et l'on retient le plus vaste, parce qu'un cadre
+/// intérieur est contenu dans ce qu'il borde. Mais une détection qui **échoue**
+/// retient tout le cadre, et se trouve alors être la plus vaste de toutes :
+/// mesuré sur une photo réelle, le quadrilatère retenu couvrait **94 %** de
+/// l'image, l'empreinte était prélevée sur la photo entière, et la carte
+/// annoncée n'avait aucun rapport avec celle qu'on tenait.
+///
+/// Une carte photographiée de près peut remplir 80 % du cadre ; au-delà, elle
+/// n'y montre plus ses bords et il n'y a rien à détourer.
+///
+/// **0,84 plutôt que 0,88, et le banc le dit** : à 0,88 un parquet couvrant
+/// 92 % de l'image passait encore pour une carte ; à 0,84 il tombe, sans qu'une
+/// seule carte réelle soit perdue au passage.
+double maxCardCoverage = 0.84;
 
 /// Marque une droite déduite plutôt que vue.
 ///
@@ -551,6 +582,28 @@ const double _marge = 0.06;
   );
 }
 
+/// Le plus grand des cadres proposés, à condition qu'il reste une carte.
+///
+/// **Deux chaînes valent mieux qu'une, mais pas à n'importe quel prix.** On
+/// retient le plus vaste parce qu'un cadre intérieur — celui de l'illustration,
+/// celui du bloc de texte — est contenu dans ce qu'il borde. Une détection qui
+/// échoue retient pourtant tout le cadre de la photo, et gagnerait à ce jeu :
+/// mesuré, un quadrilatère couvrant 94 % de l'image l'emportait, et l'empreinte
+/// se prélevait sur la photo entière.
+CardQuad? largestPlausible(
+  Iterable<CardQuad?> candidates, {
+  required int width,
+  required int height,
+}) {
+  final aire = width * height;
+  final retenus = candidates
+      .whereType<CardQuad>()
+      .where((q) => q.area / aire <= maxCardCoverage)
+      .toList();
+  if (retenus.isEmpty) return null;
+  return retenus.reduce((a, b) => a.area >= b.area ? a : b);
+}
+
 /// Les coins de la carte, cherchés par ses quatre droites.
 ///
 /// Rend `null` plutôt qu'un quadrilatère douteux — l'appelant retombe alors sur
@@ -566,6 +619,7 @@ CardQuad? findCardByEdges(
   String game = 'magic',
   double ruptureMin = _ruptureMinimale,
   int width = analysisWidth,
+  CardQuad? anchor,
 }) {
   if (photo.width < 32 || photo.height < 32) return null;
 
@@ -588,6 +642,7 @@ CardQuad? findCardByEdges(
     image: small,
     minSupport: defaultMinSupport,
     ruptureMin: ruptureMin,
+    anchor: anchor?.scaled(1 / scale),
   );
   return quad?.scaled(scale);
 }
@@ -614,6 +669,7 @@ CardQuad? findCardByEdgesInLuma(
   String game = 'magic',
   int analysisWidth = liveAnalysisWidth,
   bool upright = true,
+  CardQuad? anchor,
 }) {
   if (width < 32 || height < 32) return null;
 
@@ -646,6 +702,7 @@ CardQuad? findCardByEdgesInLuma(
     image: small,
     minSupport: defaultMinSupport,
     upright: upright,
+    anchor: anchor?.scaled(1 / scale),
   );
   return quad?.scaled(scale);
 }
@@ -668,6 +725,7 @@ CardQuad? bestQuad(
   double ruptureMin = _ruptureMinimale,
   bool? upright,
   double supportPartiel = _supportSansCouple,
+  CardQuad? anchor,
 }) {
   if (lines.length < 4) return null;
 
@@ -813,7 +871,7 @@ CardQuad? bestQuad(
           // l'image : appuyé sur les bords du cadre, il échappe au contrôle de
           // matière, qui n'a pas de dehors à regarder. Une carte occupant
           // plus de 88 % du cadre n'y montre de toute façon plus ses bords.
-          if (aire / (width * height) > 0.88) continue;
+          if (aire / (width * height) > maxCardCoverage) continue;
           if (maxX - minX >= width - 2 && maxY - minY >= height - 2) continue;
 
           // **Les quatre côtés doivent être réellement bordés.** C'est ici
@@ -919,7 +977,37 @@ CardQuad? bestQuad(
           // photo, le rectangle rouge encadrait « Éphémère » et non la carte.
           // L'aire tranche sans ambiguïté, puisqu'un cadre intérieur est par
           // construction plus petit que ce qui le contient.
-          final score = aire * sup * (1 - proche / aspectTol);
+          var score = aire * sup * (1 - proche / aspectTol);
+
+          // **À score comparable, on garde ce qu'on regardait déjà.** Mesuré sur
+          // photos réelles bruitées : la plupart des images rendent un cadre
+          // parfaitement stable (±0,2 %), mais certaines hésitent entre deux
+          // formes distinctes — une largeur allant de 1807 à 3292 pixels sur la
+          // même photo. Ce n'est pas du bruit, c'est un choix qui bascule ; et
+          // comme l'empreinte décroche au-delà de 3 % d'écart de cadrage, une
+          // seule bascule suffit à prélever l'illustration de travers et à
+          // annoncer une carte que personne n'a montrée.
+          //
+          // Moyenner serait faux, précisément parce que ce sont des sauts : la
+          // moyenne de deux formes distinctes n'est aucune des deux. On préfère
+          // donc la continuité, sans la figer — l'ancre bonifie, elle n'impose
+          // pas, et une carte qu'on retire du champ finit par perdre.
+          if (anchor != null) {
+            final ax = (anchor.topLeft.x + anchor.bottomRight.x) / 2;
+            final ay = (anchor.topLeft.y + anchor.bottomRight.y) / 2;
+            final cxq = coins.map((p) => p.x).reduce((x, y) => x + y) / 4;
+            final cyq = coins.map((p) => p.y).reduce((x, y) => x + y) / 4;
+            final ecartCentre = math.sqrt(
+              (ax - cxq) * (ax - cxq) + (ay - cyq) * (ay - cyq),
+            );
+            final ecartAire = (aire - anchor.area).abs() / anchor.area;
+            final diagonale = math.sqrt(
+              width * width + height * height,
+            );
+            if (ecartCentre < diagonale * 0.08 && ecartAire < 0.20) {
+              score *= _bonusContinuite;
+            }
+          }
           if (score > bestScore) {
             bestScore = score;
             best = quad;

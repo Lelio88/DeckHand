@@ -753,13 +753,10 @@ class ScanService {
     // photo réelle c'est la détection par droites qui gagne, sur une carte
     // photographiée si près qu'elle déborde du cadre c'est celle par clarté,
     // la première n'ayant alors aucun bord à voir.
-    final trouves = [
+    final quad = largestPlausible([
       findCardByEdges(decoded, game: game.id),
       findCard(decoded, game: game.id),
-    ].whereType<CardQuad>().toList();
-    final quad = trouves.isEmpty
-        ? null
-        : trouves.reduce((a, b) => a.area >= b.area ? a : b);
+    ], width: decoded.width, height: decoded.height);
     final candidates = quad == null
         ? artHashCandidates(
             cropToCardFrame(decoded, game: game.id),

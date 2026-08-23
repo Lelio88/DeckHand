@@ -26,6 +26,7 @@ import 'dart:io';
 
 import 'package:deckhand/src/features/scan/domain/art_box.dart';
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
+import 'package:deckhand/src/features/scan/domain/card_edges.dart';
 import 'package:deckhand/src/features/scan/domain/card_framing.dart';
 import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
 import 'package:image/image.dart' as img;
@@ -84,7 +85,15 @@ void main(List<String> args) {
 
   // Exactement ce que fait `ScanService._byArt` : les coins d'abord, le cadre
   // centré à défaut.
-  final quad = findCard(photo, game: game);
+  // **La chaîne de production, les deux détections comprises.** Cet outil
+  // annonçait « coins non détectés » là où le service, lui, trouvait la carte :
+  // il ne connaissait que le masque par clarté et ignorait la détection par
+  // droites, arrivée depuis. Une sonde qui ne suit pas la production ne sonde
+  // rien.
+  final quad = largestPlausible([
+    findCardByEdges(photo, game: game),
+    findCard(photo, game: game),
+  ], width: photo.width, height: photo.height);
   if (quad == null) {
     stdout.writeln('coins   non détectés — repli sur le cadrage centré');
   } else {

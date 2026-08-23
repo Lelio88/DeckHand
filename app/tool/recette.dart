@@ -137,15 +137,14 @@ img.Image _enLuminance(img.Image photo) {
     if (photo == null) continue;
     if (gLuma) photo = _enLuminance(photo);
 
-    // La chaîne exacte de la production : les droites, puis la clarté, et le
-    // plus grand des deux l'emporte.
-    final trouves = [
+    // **La chaîne de production, par la fonction de production.** Ce banc en
+    // avait une copie ; quand le service a cessé de retenir un cadre couvrant
+    // presque toute l'image, la copie a continué de le faire — et le banc
+    // mesurait alors un code que personne n'exécute.
+    final quad = largestPlausible([
       findCardByEdges(photo, ruptureMin: gRupture, width: gLargeur),
       findCard(photo),
-    ].whereType<CardQuad>().toList();
-    final quad = trouves.isEmpty
-        ? null
-        : trouves.reduce((a, b) => a.area >= b.area ? a : b);
+    ], width: photo.width, height: photo.height);
 
     if (gDetails) {
       // On ne liste que ce qui cloche : les cartes manquees d'un cote, les
@@ -184,6 +183,8 @@ void main(List<String> args) {
   if (iR >= 0) gRupture = double.parse(args[iR + 1]);
   gDetails = args.contains('--details');
   gLuma = args.contains('--luma');
+  final iC = args.indexOf('--plafond');
+  if (iC >= 0) cardCoverageCeiling = double.parse(args[iC + 1]);
   final iL = args.indexOf('--largeur');
   if (iL >= 0) gLargeur = int.parse(args[iL + 1]);
   final iDump = args.indexOf('--dump');
