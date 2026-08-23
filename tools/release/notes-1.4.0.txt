@@ -1,0 +1,10 @@
+Le scan vidéo reconnaît enfin les cartes sur un fond ordinaire.
+
+La caméra cherchait une carte plus sombre que la table : sur un parquet ou un
+tapis, elle ne trouvait rien. Elle la cherche désormais à ses quatre bords.
+
+Et quand l'illustration ne suffit pas — une carte tenue à la main renvoie des
+reflets —, le nom imprimé prend le relais.
+
+Aussi : la vignette montre l'illustration scannée, et une carte ne compte plus
+qu'une fois.
