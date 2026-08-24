@@ -784,6 +784,11 @@ class Ligne:
     d_vrai: int | None
     accord: float
     angle: float
+    #: Les quatre coins de la carte, en pixels de la photo, tels que la
+    #: corrélation les implique. **C'est la vérité que les bancs Dart n'ont
+    #: pas** : eux exécutent la production, Python situe la carte. La publier
+    #: ici évite qu'un banc Dart se donne sa propre référence.
+    carte_vraie: list[list[float]] | None
     #: Comment le contour détecté diffère du vrai — voir `diagnostiquer_contour`.
     taille_l: float | None
     taille_h: float | None
@@ -863,6 +868,7 @@ def mesurer(
                     d_vrai=d_vrai,
                     accord=trouve.accord,
                     angle=trouve.angle,
+                    carte_vraie=[[p[0], p[1]] for p in carte_vraie],
                     taille_l=contour.get("taille_l"),
                     taille_h=contour.get("taille_h"),
                     decalage=contour.get("decalage"),

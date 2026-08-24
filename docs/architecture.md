@@ -981,8 +981,43 @@ son balayage d'origine jugeait « une carte est-elle détourée », jamais « es
 identifiée ». **Les deux métriques ne se substituent pas**, et c'est toute la
 leçon de ce chantier.
 
-Ce qui reste tient donc au **choix des droites et à leur assemblage**, pas à un
-seuil ; c'est un chantier, pas un réglage.
+Ce qui reste ne tient donc pas à un seuil.
+
+#### Et ce n'est pas l'assemblage non plus — c'est la droite qui manque
+
+`tool/assemblage.dart` reproduit les conditions d'appariement de `bestQuad` —
+parallélisme, écart de rho, perpendicularité — sur les droites que
+`dominantLines` rend réellement, en partant du contour vrai. Trois causes
+étaient possibles ; la mesure en élimine une et en désigne une autre :
+
+| | photos |
+|---|---|
+| appariement refusé | **0** |
+| au moins une droite du contour **absente** des dominantes | 14 |
+| droites présentes et appariées — un garde-fou aval décide | 18 (dont 11 où la production réussit déjà) |
+
+**L'appariement n'est jamais le coupable.** Et les absences sont fortement
+asymétriques : `bas` 11 fois, `haut` 7, `gauche` 1, `droit` **0**. Ce sont les
+bords **horizontaux** de la carte qui manquent — les côtés courts, et ceux que
+concurrencent les nombreuses horizontales internes d'une carte Magic (bandeau de
+titre, cadre d'illustration, ligne de type, bloc de texte).
+
+**Ce n'est pas un problème de budget.** Quadrupler `maxLines` ne ramène que la
+moitié des bords manquants, et le nombre de droites rendues bouge à peine (25 →
+32) : `dominantLines` n'est pas limitée par son quota mais par son seuil de vote.
+Le bord bas d'une carte ne produit souvent **aucune droite**.
+
+Le travail est donc dans l'extraction des bords horizontaux — en amont de
+l'assemblage, qu'on peut cesser de soupçonner.
+
+**La limite de cette sonde, à connaître avant de la croire.** Le contour vrai est
+reconstruit depuis la fenêtre d'illustration ; calibré sur un témoin — les onze
+photos où la production a manifestement trouvé la carte, donc où ses quatre
+droites existent forcément — il exige **20 pixels** de tolérance à la résolution
+d'analyse. Or le bord de la carte et sa bordure ornée n'y sont distants que de
+huit. Le verdict « absente » est solide ; le verdict « appariée » ne prouve pas
+que c'était le bord **extérieur**. Aller plus loin sur ces 18 photos demanderait
+une vérité annotée à la main.
 
 #### Ce qui reste après le cadrage : un plancher de reflet, sur une carte
 
