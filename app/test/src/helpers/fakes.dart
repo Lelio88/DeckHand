@@ -15,6 +15,7 @@ import 'package:deckhand/src/features/card_search/data/card_repository.dart';
 import 'package:deckhand/src/features/scan/data/card_text_reader.dart';
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
+import 'package:deckhand/src/features/binders/domain/binder.dart';
 import 'package:deckhand/src/features/binders/domain/recent_addition.dart';
 import 'package:deckhand/src/features/binders/domain/spotlight_card.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
@@ -405,6 +406,18 @@ class FakeCollectionRepository implements CollectionRepository {
     String handle, {
     int limit = 1,
   }) async => additions.take(limit).toList(growable: false);
+
+  /// Les cases que rendra la page publique. Vides par défaut : le calque doit
+  /// savoir dessiner une grille dont il ne connaît pas encore les voisines.
+  List<BinderCell> publicCells = const [];
+
+  @override
+  Future<List<BinderCell>> publicBinderPage(
+    String handle, {
+    required String setCode,
+    required int page,
+    Game game = Game.magic,
+  }) async => publicCells;
 
   /// La carte désignée, ou `null` quand personne n'a rien demandé.
   SpotlightCard? designated;

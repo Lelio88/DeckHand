@@ -11,6 +11,13 @@
 /// toujours devant une désignation, qui n'est qu'une curiosité. L'inverse
 /// serait un calque qui cache ce qu'on est en train de filmer.
 ///
+/// **Deux sources, deux traitements — et c'est la fréquence qui le décide.**
+/// Une désignation ouvre un classeur qui feuillette jusqu'à la page de la
+/// carte ([BinderReveal]) ; un scan garde la bannière sobre. Pendant un
+/// booster les cartes s'enchaînent toutes les dix secondes : la même
+/// animation quinze fois d'affilée épuiserait, et le calque ne se tairait
+/// jamais. Une désignation est rare et délibérée — elle mérite le geste.
+///
 /// **Une désignation évincée n'est pas perdue.** Elle n'est marquée vue qu'au
 /// moment où elle s'affiche : recouverte par un scan, elle remonte au tour
 /// suivant, une fois le scan effacé. La laisser tomber ferait disparaître sans
@@ -44,8 +51,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../collection/data/collection_repository.dart';
+import '../domain/binder.dart';
 import '../domain/recent_addition.dart';
 import '../domain/spotlight_card.dart';
+import 'binder_reveal.dart';
 
 /// Adresse de partage lue dans l'URL pour le mode overlay, ou `null`.
 ///
@@ -88,20 +97,18 @@ const Duration overlayPollInterval = Duration(milliseconds: 1500);
 /// faudrait revoir.
 const Duration overlayLinger = Duration(seconds: 12);
 
-/// Ce que le calque affiche, quelle qu'en soit la source.
+/// La bannière du scan — ce qui vient d'entrer au classeur.
 ///
-/// **Une seule bannière pour deux origines.** Un scan et une désignation
-/// n'apportent pas la même information — l'un dit « nouvelle ou doublon »,
-/// l'autre « demandée par untel » — mais ils occupent la même place et se lisent
-/// pareil. Les fondre ici évite deux widgets qui divergeraient au premier
-/// changement de style.
+/// **Elle ne sert plus qu'aux cartes scannées.** Une désignation ouvre le
+/// classeur ([BinderReveal]) ; un scan garde cette forme sobre, parce qu'il se
+/// répète toutes les dix secondes pendant un booster et que le calque doit
+/// pouvoir se taire entre deux.
 @immutable
 class OverlayCard {
   const OverlayCard({
     required this.name,
     required this.badge,
     required this.badgeColor,
-    required this.fromScan,
     this.setCode,
     this.collectorNumber,
     this.artCropUrl,
@@ -112,10 +119,6 @@ class OverlayCard {
   final String name;
   final String badge;
   final Color badgeColor;
-
-  /// Vrai quand la carte vient du journal, c'est-à-dire d'un carton réellement
-  /// passé devant l'objectif. C'est ce qui lui donne la priorité.
-  final bool fromScan;
 
   final String? setCode;
   final String? collectorNumber;
@@ -131,29 +134,11 @@ class OverlayCard {
     badgeColor: card.fillsEmptySlot
         ? const Color(0xFF1F6F43)
         : const Color(0xFF4A3B12),
-    fromScan: true,
     setCode: card.setCode,
     collectorNumber: card.collectorNumber,
     artCropUrl: card.artCropUrl,
     priceEur: card.priceEur,
     isFoil: card.isFoil,
-  );
-
-  factory OverlayCard.designated(SpotlightCard card) => OverlayCard(
-    name: card.displayName,
-    // **Le demandeur est l'information.** Sans son nom, une désignation se
-    // confondrait avec un scan et perdrait ce qui en fait une interaction.
-    badge: card.requestedBy == null
-        ? 'demandée dans le chat'
-        : 'demandée par ${card.requestedBy}',
-    // Une couleur à part : le spectateur doit distinguer d'un coup d'œil ce que
-    // le diffuseur vient d'ouvrir de ce que le chat a réclamé.
-    badgeColor: const Color(0xFF2F3E7A),
-    fromScan: false,
-    setCode: card.setCode,
-    collectorNumber: card.collectorNumber,
-    artCropUrl: card.artCropUrl,
-    priceEur: card.priceEur,
   );
 }
 
@@ -167,7 +152,11 @@ class OverlayScreen extends ConsumerStatefulWidget {
   ConsumerState<OverlayScreen> createState() => _OverlayScreenState();
 }
 
-class _OverlayScreenState extends ConsumerState<OverlayScreen> {
+class _OverlayScreenState extends ConsumerState<OverlayScreen>
+    // **Pluriel, et pas SingleTicker.** Chaque designation ouvre sa propre
+    // horloge ; le mixin a ticker unique refuse la seconde, meme apres avoir
+    // dispose la premiere. Un test l a montre avant l antenne.
+    with TickerProviderStateMixin {
   Timer? _timer;
 
   /// **L'effacement a besoin de son propre réveil.** Une première version
@@ -177,7 +166,20 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen> {
   /// s'arrête. Le test l'a montré avant l'antenne.
   Timer? _hide;
 
+  /// La carte scannée à l'écran, ou `null`. Les deux affichages s'excluent :
+  /// au plus un des deux champs est renseigné.
   OverlayCard? _card;
+
+  /// La carte désignée à l'écran, ou `null`.
+  SpotlightCard? _designated;
+
+  /// Les neuf cases de sa page. Vides tant que la lecture n'est pas revenue —
+  /// et **elle peut ne jamais revenir** sans que la carte cesse de sortir.
+  List<BinderCell> _cells = const [];
+
+  /// L'horloge de l'apparition. Le classeur est un widget pur : c'est ce
+  /// contrôleur qui lui donne le temps qui passe.
+  AnimationController? _reveal;
 
   /// Le dernier mouvement déjà vu. **Comparer les identifiants et non les
   /// noms** : deux exemplaires successifs de la même carte sont deux
@@ -203,6 +205,7 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen> {
   void dispose() {
     _timer?.cancel();
     _hide?.cancel();
+    _reveal?.dispose();
     super.dispose();
   }
 
@@ -247,7 +250,12 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen> {
     if (latest.movementId == _lastSeen) return false;
 
     _lastSeen = latest.movementId;
-    _show(OverlayCard.scanned(latest));
+    setState(() {
+      _card = OverlayCard.scanned(latest);
+      _designated = null;
+      _cells = const [];
+    });
+    _relaunchHide();
     return true;
   }
 
@@ -267,36 +275,101 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen> {
 
     // Le scan à l'écran garde la main. La demande n'est pas marquée vue : elle
     // remontera au tour suivant, une fois la carte scannée effacée.
-    if (_card?.fromScan ?? false) return;
+    if (_card != null) return;
 
     _lastShownRequest = card.requestId;
-    _show(OverlayCard.designated(card));
+    setState(() {
+      _designated = card;
+      _card = null;
+      _cells = const [];
+    });
+    _startReveal(card);
+    unawaited(_loadCells(card));
+    _relaunchHide();
   }
 
-  void _show(OverlayCard card) {
-    setState(() => _card = card);
+  void _startReveal(SpotlightCard card) {
+    _reveal?.dispose();
+    _reveal = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: RevealTiming(card.page).total.round()),
+    )..forward();
+  }
+
+  /// Va chercher les voisines de la case.
+  ///
+  /// **Un second appel, et seulement à l'arrivée d'une demande** — pas à chaque
+  /// interrogation. Il court pendant le feuilletage, qui dure jusqu'à une
+  /// seconde et deux dixièmes : les cases sont là avant que la page ne se pose.
+  /// Si elles ne le sont pas, la grille se dessine sans elles et la carte sort
+  /// quand même.
+  Future<void> _loadCells(SpotlightCard card) async {
+    final setCode = card.setCode;
+    if (setCode == null || setCode.isEmpty) return;
+    final cells = await _quiet(
+      () => ref
+          .read(collectionRepositoryProvider)
+          .publicBinderPage(widget.handle, setCode: setCode, page: card.page),
+    );
+    if (!mounted || cells == null) return;
+    // La demande a pu être remplacée pendant l'appel : ces cases ne seraient
+    // alors plus celles de la carte affichée.
+    if (_designated?.requestId != card.requestId) return;
+    setState(() => _cells = cells);
+  }
+
+  void _relaunchHide() {
     _hide?.cancel();
     _hide = Timer(overlayLinger, () {
-      if (mounted) setState(() => _card = null);
+      if (!mounted) return;
+      setState(() {
+        _card = null;
+        _designated = null;
+        _cells = const [];
+      });
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final card = _card;
     return Scaffold(
       // Le calque est transparent : c'est OBS qui fournit le fond, et une
       // couleur ici s'imprimerait sur la vidéo.
       backgroundColor: Colors.transparent,
-      body: card == null
-          ? const SizedBox.shrink()
-          : Align(
-              alignment: Alignment.bottomLeft,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: _CardBanner(card: card),
-              ),
+      body: _body(),
+    );
+  }
+
+  Widget _body() {
+    final designated = _designated;
+    if (designated != null) {
+      final clock = _reveal;
+      if (clock == null) return const SizedBox.shrink();
+      // Centrée en bas : la planche est large, et un coin la ferait déborder.
+      return Align(
+        alignment: Alignment.bottomCenter,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 40),
+          child: AnimatedBuilder(
+            animation: clock,
+            builder: (_, _) => BinderReveal(
+              card: designated,
+              cells: _cells,
+              elapsed: clock.value * RevealTiming(designated.page).total,
             ),
+          ),
+        ),
+      );
+    }
+
+    final card = _card;
+    if (card == null) return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.bottomLeft,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: _CardBanner(card: card),
+      ),
     );
   }
 }

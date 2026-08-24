@@ -15,7 +15,17 @@
 /// **`requestId` dit qu'une demande est neuve**, exactement comme `movementId`
 /// côté journal : deux spectateurs qui désignent la même carte sont deux
 /// événements, et le calque doit rejouer pour le second.
+///
+/// **`page`, `slot` et `pages` viennent de la base, pas d'un calcul local.**
+/// Le calque ouvre le classeur à la bonne page et fait sortir la carte de la
+/// bonne case ; refaire ce classement en Dart y porterait l'ordre des numéros,
+/// le repli quand le numéro n'est pas un nombre et le choix de l'impression
+/// représentative — un jumeau de plus sur exactement le genre de règle qui
+/// dérive en silence. Vérifié : sur 25 cartes, `public_spotlight` et
+/// `binder_locate` nomment la même case, zéro désaccord.
 library;
+
+import '../../printings/domain/scryfall_image.dart';
 
 class SpotlightCard {
   const SpotlightCard({
@@ -24,10 +34,14 @@ class SpotlightCard {
     this.printedName,
     this.requestedBy,
     this.setCode,
+    this.setName,
     this.collectorNumber,
     this.artCropUrl,
     this.priceEur,
     this.copies = 0,
+    this.page = 1,
+    this.slot = 1,
+    this.pages = 1,
   });
 
   /// Identifiant de la demande. Neuf à chaque désignation acceptée, y compris
@@ -42,6 +56,7 @@ class SpotlightCard {
   final String? requestedBy;
 
   final String? setCode;
+  final String? setName;
   final String? collectorNumber;
   final String? artCropUrl;
   final double? priceEur;
@@ -50,7 +65,21 @@ class SpotlightCard {
   /// une carte possédée — la base le vérifie — donc ce nombre est au moins un.
   final int copies;
 
+  /// Page du classeur, à partir de 1 — la même que celle que `!card` annonce.
+  final int page;
+
+  /// Case dans la page, de 1 à 9, en lecture occidentale.
+  final int slot;
+
+  /// Nombre total de pages de l'extension. **Le défilé en a besoin** : sans lui
+  /// on ne saurait pas si la page 46 est au milieu du classeur ou à sa fin.
+  final int pages;
+
   String get displayName => printedName ?? name;
+
+  /// La carte entière — cadre, nom et texte compris —, déduite de l'URL de son
+  /// illustration. C'est ce qui sort d'un classeur : une carte, pas un détail.
+  String? get imageUrl => fullCardImage(artCropUrl);
 
   factory SpotlightCard.fromJson(Map<String, dynamic> json) => SpotlightCard(
     requestId: (json['request_id'] as num).toInt(),
@@ -58,9 +87,13 @@ class SpotlightCard {
     printedName: json['printed_name'] as String?,
     requestedBy: json['requested_by'] as String?,
     setCode: json['set_code'] as String?,
+    setName: json['set_name'] as String?,
     collectorNumber: json['collector_number'] as String?,
     artCropUrl: json['art_crop_url'] as String?,
     priceEur: (json['price_eur'] as num?)?.toDouble(),
     copies: (json['copies'] as num?)?.toInt() ?? 0,
+    page: (json['page'] as num?)?.toInt() ?? 1,
+    slot: (json['slot'] as num?)?.toInt() ?? 1,
+    pages: (json['pages'] as num?)?.toInt() ?? 1,
   );
 }

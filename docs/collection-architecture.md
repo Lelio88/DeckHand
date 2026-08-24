@@ -560,6 +560,77 @@ déjà pris — réessaie dans un instant » : la commande a été acceptée et 
 recherche a eu lieu, se taire laisserait croire à une panne. Le silence reste la
 règle quand c'est le débit qui refuse, avant tout travail.
 
+### Le classeur qui s'ouvre — ce que voit le spectateur
+
+Une désignation n'affiche pas une bannière : elle **ouvre un classeur**, le
+feuillette jusqu'à la page de la carte, et la fait sortir de sa case
+(`binder_reveal.dart`). Le classeur est la métaphore centrale du produit — une
+bannière montre *une carte*, une page de classeur montre **où elle vit**. `!card`
+répond déjà « page 3 case 4 » ; le calque le montre au lieu de l'écrire.
+
+**Le défilé part de la page 1, et ce n'est pas un mensonge.** Quand on va
+chercher une carte dans un classeur, on l'ouvre au début et on feuillette :
+partir de la première page est le geste exact. Le numéro défile avec les pages et
+s'arrête sur le bon, si bien que le feuilletage **dit** la distance parcourue au
+lieu de seulement l'illustrer.
+
+**Ce qui le rend bon marché** : les pages qui défilent sont **génériques**. À
+vingt-quatre millisecondes la page, personne ne lit rien, et charger quarante-
+cinq vraies pages coûterait quarante-cinq appels réseau pour du flou. Seule la
+page qui se pose est réelle — un unique appel à `public_binder_page`, lancé à
+l'arrivée de la demande et non à chaque interrogation.
+
+**Les huit voisines sont des aplats, pas des images.** Neuf illustrations à la
+taille d'un calque font neuf bouillies qui se disputent le regard. Une case vide
+porte en revanche **son numéro** : « il te manque le #424 » se lit d'un coup
+d'œil, là où un carré sombre ne dit rien. C'est ce qui rend les voisines utiles
+plutôt que décoratives.
+
+**Le tempo est borné par `overlayLinger`.** Douze secondes d'affichage : une
+intro de plus de deux secondes et demie mangerait le temps qu'on a pour
+*regarder* la carte. D'où 300 ms d'ouverture, un feuilletage plafonné à 1,2 s
+quel que soit le nombre de pages, 250 ms pour que la case s'allume, 550 ms de
+sortie — 2,3 s au pire, près de dix secondes de carte stable.
+
+**La page et la case viennent de la base.** `public_spotlight` les calcule avec
+l'arithmétique de `binder_locate`, copiée à l'identique. Les recalculer en Dart y
+porterait l'ordre des numéros, le repli quand le numéro n'est pas un nombre et le
+choix de l'impression représentative — un jumeau de plus sur exactement le genre
+de règle qui dérive en silence, et **un calque qui ouvre la page 46 quand le
+classeur en montre 45 n'affiche aucune erreur : il montre une page fausse**.
+Vérifié sur 25 cartes de la collection réelle, pages 1 à 36 : zéro désaccord.
+
+**Un scan garde la bannière, et c'est la fréquence qui le décide.** Pendant un
+booster les cartes s'enchaînent toutes les dix secondes ; la même animation
+quinze fois d'affilée épuiserait, et le calque ne se tairait jamais. Une
+désignation est rare — trente secondes de délai de garde au minimum — et
+délibérée : elle mérite le geste.
+
+### Trois défauts que seule l'image rendue a montrés
+
+Aucun test ne mesure « est-ce que ça a l'air d'un classeur ». Il a fallu rendre
+la planche et la regarder.
+
+- **Ça ne ressemblait pas à un classeur** — un panneau sombre avec une grille. Le
+  dos, ses trois anneaux et une page d'une autre matière que la couverture
+  suffisent à le faire lire.
+- **Cases pleines et vides étaient indiscernables**, dessinées dans deux gris
+  voisins. Sur la capture, une case possédée juste à côté de la carte demandée
+  passait pour un trou — c'est-à-dire que les voisines ne servaient à rien.
+- **Le halo remplissait la case au lieu de la creuser.** Une `BoxShadow` peint un
+  rectangle plein *derrière* la boîte : sans couleur de fond explicite, le halo
+  traversait le vide et l'on lisait « carte présente » là où l'on voulait montrer
+  le trou qu'elle laisse.
+
+Un quatrième, celui-là pris par un test : le repli de l'illustration affichait le
+nom de la carte, que la légende porte déjà — **deux « Ka-Zar » à l'écran**. Il
+affiche désormais le numéro de case.
+
+Pour regarder à nouveau : un test jetable qui rend `BinderReveal` à des `elapsed`
+choisis, joué avec `--update-goldens`, donne les images du feuilletage ; le rendu
+réel — vraies polices, vraie illustration — demande `flutter build web` puis un
+navigateur sur `?o=<adresse>`, la collection publiée le temps de la capture.
+
 ### Ce qui a de la valeur pour un spectateur
 
 La carte comble-t-elle une case vide, ou est-ce un doublon ? `copies_before` est

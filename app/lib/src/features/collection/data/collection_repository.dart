@@ -20,6 +20,7 @@ import '../../../config/selected_game.dart';
 
 import '../../auth/data/auth_repository.dart';
 import '../../binders/domain/recent_addition.dart';
+import '../../binders/domain/binder.dart';
 import '../../binders/domain/spotlight_card.dart';
 import '../domain/collection_entry.dart';
 import '../domain/collection_movement.dart';
@@ -238,6 +239,36 @@ class CollectionRepository {
         .timedOut();
     if (rows.isEmpty) return null;
     return SpotlightCard.fromJson(rows.first as Map<String, dynamic>);
+  }
+
+  /// Les cases d'une page d'un classeur partagé, vides comprises.
+  ///
+  /// **Appelée seulement quand une désignation arrive**, pas à chaque
+  /// interrogation : le calque n'a besoin de la grille qu'au moment de la
+  /// dessiner, et neuf cases toutes les secondes et demie seraient neuf cases
+  /// de trop.
+  Future<List<BinderCell>> publicBinderPage(
+    String handle, {
+    required String setCode,
+    required int page,
+    Game game = Game.magic,
+  }) async {
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'public_binder_page',
+          params: {
+            'p_handle': handle,
+            'p_set_code': setCode,
+            'p_page': page,
+            'p_per_page': 9,
+            'p_game': game.id,
+          },
+        )
+        .timedOut();
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(BinderCell.fromJson)
+        .toList(growable: false);
   }
 
   /// Le journal des mouvements, du plus récent au plus ancien.
