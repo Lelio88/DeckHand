@@ -98,6 +98,15 @@ Future<void> main(List<String> args) async {
 
   final game = _option(args, '--game') ?? 'magic';
   final sortie = _option(args, '--out') ?? 'tool/.cache/plafond.json';
+  // Le seuil qui départage le bord extérieur de la carte et son cadre
+  // ornemental intérieur. Réglable ici pour être balayé, jamais dans l'app.
+  final support = double.parse(
+    _option(args, '--support') ?? '$defaultMinSupport',
+  );
+  // Part minimale de chaque bord où la matière doit changer. C'est le seuil qui
+  // décide si le bord extérieur de la carte — souvent peu contrasté contre un
+  // fond sombre — est retenu, ou si l'on retombe sur le cadre ornemental.
+  final rupture = double.parse(_option(args, '--rupture') ?? '0.30');
 
   final index = await chargerIndex(game, forcer: args.contains('--forcer'));
 
@@ -129,7 +138,12 @@ Future<void> main(List<String> args) async {
     }
 
     final quad = largestPlausible([
-      findCardByEdges(scene, game: game),
+      findCardByEdges(
+        scene,
+        game: game,
+        minSupport: support,
+        ruptureMin: rupture,
+      ),
       findCard(scene, game: game),
     ], width: scene.width, height: scene.height);
 

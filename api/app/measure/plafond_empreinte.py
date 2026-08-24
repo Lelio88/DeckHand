@@ -516,6 +516,91 @@ def _ecart(prod: list[list[float]], vrai: list[tuple[float, float]]) -> float:
     ) / largeur
 
 
+#: Les gabarits Magic de `art_box.dart`, en fractions de la carte.
+#:
+#: **Cités, pas redéfinis.** Ils servent uniquement à remonter de la fenêtre
+#: d'illustration au contour de la carte ; s'ils dérivaient de leur jumeau Dart,
+#: le contour reconstruit serait faux sans que rien ne le dise — et un test lit
+#: le Dart pour l'interdire.
+MODERN = (0.080, 0.120, 0.920, 0.550)
+LEGACY = (0.114, 0.100, 0.890, 0.538)
+BOITES = {"modern": MODERN, "legacy": LEGACY}
+
+
+def carte_depuis_fenetre(
+    coins: list[tuple[float, float]], box: tuple[float, float, float, float]
+) -> list[tuple[float, float]]:
+    """Le contour de la carte, déduit de sa fenêtre d'illustration.
+
+    **Pourquoi remonter jusqu'au contour.** L'écart de fenêtre dit *combien* le
+    cadrage se trompe, jamais *comment* : une fenêtre décalée de 10 % peut venir
+    d'un contour translaté, d'un contour trop grand, ou d'un contour qui a suivi
+    autre chose que la carte. Ces trois défauts se corrigent différemment. Le
+    contour, lui, se compare taille à taille et centre à centre.
+
+    La fenêtre est l'image affine du rectangle `box` dans le repère de la carte ;
+    l'inverser rend les quatre coins. C'est exact tant que la fenêtre vient d'un
+    rectangle tourné — ce que la corrélation produit par construction.
+    """
+    gauche, haut, droite, bas = box
+    hg, hd, _, bg = coins
+    # Vecteurs de la carte, par unité de u et de v.
+    eu = ((hd[0] - hg[0]) / (droite - gauche), (hd[1] - hg[1]) / (droite - gauche))
+    ev = ((bg[0] - hg[0]) / (bas - haut), (bg[1] - hg[1]) / (bas - haut))
+
+    def au(u: float, v: float) -> tuple[float, float]:
+        return (
+            hg[0] + (u - gauche) * eu[0] + (v - haut) * ev[0],
+            hg[1] + (u - gauche) * eu[1] + (v - haut) * ev[1],
+        )
+
+    return [au(0, 0), au(1, 0), au(1, 1), au(0, 1)]
+
+
+def _cote(coins: list[tuple[float, float]] | list[list[float]]) -> tuple[float, float]:
+    """Largeur et hauteur moyennes d'un quadrilatère."""
+    p = [(c[0], c[1]) for c in coins]
+    largeur = (math.dist(p[0], p[1]) + math.dist(p[3], p[2])) / 2
+    hauteur = (math.dist(p[0], p[3]) + math.dist(p[1], p[2])) / 2
+    return largeur, hauteur
+
+
+def _centre(coins: list[tuple[float, float]] | list[list[float]]) -> tuple[float, float]:
+    return (
+        sum(c[0] for c in coins) / 4,
+        sum(c[1] for c in coins) / 4,
+    )
+
+
+def diagnostiquer_contour(
+    quad: list[list[float]], carte_vraie: list[tuple[float, float]]
+) -> dict[str, float]:
+    """Comment le contour détecté diffère du vrai — trois défauts, trois remèdes.
+
+    - `taille_l` / `taille_h` : rapport des côtés. > 1 le contour déborde,
+      < 1 il rogne. Un contour qui a suivi le décor donne un chiffre aberrant.
+    - `decalage` : distance des centres, en part de la largeur vraie. Un contour
+      de la bonne taille mais décalé signale un bord manqué d'un seul côté.
+    - `coins` : le pire coin, en part de la largeur vraie — la mesure d'ensemble.
+    """
+    lp, hp = _cote(quad)
+    lv, hv = _cote(carte_vraie)
+    if lv < 1e-6 or hv < 1e-6:
+        return {"taille_l": float("nan"), "taille_h": float("nan"),
+                "decalage": float("nan"), "coins": float("nan")}
+    cp, cv = _centre(quad), _centre(carte_vraie)
+    return {
+        "taille_l": lp / lv,
+        "taille_h": hp / hv,
+        "decalage": math.dist(cp, cv) / lv,
+        "coins": max(
+            math.dist((p[0], p[1]), v)
+            for p, v in zip(quad, carte_vraie, strict=True)
+        )
+        / lv,
+    }
+
+
 def pose_de(note: str) -> str:
     """Comment la carte est posée, lu dans la note du fichier de vérité.
 
@@ -699,6 +784,11 @@ class Ligne:
     d_vrai: int | None
     accord: float
     angle: float
+    #: Comment le contour détecté diffère du vrai — voir `diagnostiquer_contour`.
+    taille_l: float | None
+    taille_h: float | None
+    decalage: float | None
+    coins: float | None
     verdict_distance: int | None
     verdict_sur: bool
     verdict_juste: bool | None
@@ -726,6 +816,10 @@ def mesurer(
             d_prod: int | None = None
             ecart: float | None = None
             fenetre_prod: list[list[float]] | None = None
+            contour: dict[str, float] = {}
+            # Le contour que la corrélation implique — la carte, pas sa fenêtre.
+            carte_vraie = carte_depuis_fenetre(trouve.coins, MODERN)
+            carte_prod: list[tuple[float, float]] | None = None
             if entree.get("located"):
                 meilleure = min(
                     entree["hypotheses"],
@@ -734,14 +828,26 @@ def mesurer(
                 d_prod = _distance_hex(meilleure["hash"], ref.empreinte)
                 fenetre_prod = meilleure["window"]
                 ecart = _ecart(fenetre_prod, trouve.coins)
+                # **Le contour tel que l'hypothèse gagnante l'a lu**, et non le
+                # quadrilatère brut : c'est l'orientation retenue qui décide
+                # quel coin est le haut-gauche, et comparer deux contours lus
+                # dans des sens différents ne mesurerait rien.
+                carte_prod = carte_depuis_fenetre(
+                    [(p[0], p[1]) for p in fenetre_prod],
+                    BOITES.get(meilleure["frame"], MODERN),
+                )
+                contour = diagnostiquer_contour(
+                    [[p[0], p[1]] for p in carte_prod], carte_vraie
+                )
 
             if dump is not None:
                 tracer(
                     photo,
-                    entree.get("quad"),
+                    [[p[0], p[1]] for p in carte_prod] if carte_prod else None,
                     fenetre_prod,
                     trouve.coins,
                     dump / nom,
+                    carte_vraie=carte_vraie,
                 )
 
             verdict = entree.get("verdict") or {}
@@ -757,6 +863,10 @@ def mesurer(
                     d_vrai=d_vrai,
                     accord=trouve.accord,
                     angle=trouve.angle,
+                    taille_l=contour.get("taille_l"),
+                    taille_h=contour.get("taille_h"),
+                    decalage=contour.get("decalage"),
+                    coins=contour.get("coins"),
                     verdict_distance=verdict.get("distance"),
                     verdict_sur=bool(verdict.get("confident")),
                     verdict_juste=(
@@ -786,6 +896,7 @@ def tracer(
     fenetre_prod: list[list[float]] | None,
     fenetre_vraie: list[tuple[float, float]],
     vers: Path,
+    carte_vraie: list[tuple[float, float]] | None = None,
 ) -> None:
     """Dessine les trois cadres sur la photo, et l'écrit.
 
@@ -794,9 +905,13 @@ def tracer(
     succès alors que la forme retenue était l'image entière, puis le bloc de
     texte. Un écart de 148 % ne dit pas *où* la fenêtre est partie.
 
-    Rouge : le quadrilatère de la carte, tel que la production le voit.
-    Orange : la fenêtre d'illustration qu'elle y lit.
+    Rouge : le contour de la carte, tel que la production le lit.
+    Orange : la fenêtre d'illustration qu'elle y prélève.
+    Vert clair : le contour que la corrélation implique — la vraie carte.
     Vert : la fenêtre que la corrélation situe — la vérité de ce banc.
+
+    **Les deux contours se superposent, et c'est ce qu'on regarde** : le rouge
+    déborde-t-il, rogne-t-il, ou a-t-il suivi autre chose ?
     """
     from PIL import ImageDraw
 
@@ -811,11 +926,13 @@ def tracer(
         points = [(x / facteur, y / facteur) for x, y in coins]
         dessin.line(points + [points[0]], fill=couleur, width=epaisseur)
 
+    if carte_vraie:
+        polygone(carte_vraie, (150, 255, 150), 6)
     if quad:
-        polygone(quad, (255, 60, 60), 5)
+        polygone(quad, (255, 60, 60), 4)
     if fenetre_prod:
-        polygone(fenetre_prod, (255, 165, 0), 4)
-    polygone(fenetre_vraie, (60, 230, 60), 4)
+        polygone(fenetre_prod, (255, 165, 0), 3)
+    polygone(fenetre_vraie, (60, 230, 60), 3)
 
     vers.parent.mkdir(parents=True, exist_ok=True)
     vue.save(vers, quality=88)
@@ -896,6 +1013,38 @@ def resumer(lignes: list[Ligne]) -> None:
         f"{sum(1 for l in tas_faux if (l.ecart or 0) > 0.5)} au-dela de 50 %. "
         "La grandeur n'est pas continue : inutile d'en tirer une pente."
     )
+
+    # **De quoi l'erreur de cadre est faite.** Trois défauts se corrigent
+    # differemment : un contour trop grand, un contour decale, un contour parti
+    # ailleurs. Les confondre sous « ecart » ferait chercher au mauvais endroit.
+    avec = [l for l in bonnes if l.taille_l is not None]
+    if avec:
+        print(f"\n{'=' * 84}\nDE QUOI L'ERREUR DE CADRE EST FAITE\n{'=' * 84}")
+        print(
+            "\n  Contour detecte contre contour vrai, en part de la largeur de "
+            "la carte.\n"
+            "  taille > 1 : deborde   taille < 1 : rogne   "
+            "decalage : centres    coins : le pire\n"
+        )
+        print(
+            f"  {'photo':>10s} {'carte':24s} {'taille l':>9s} {'taille h':>9s} "
+            f"{'decalage':>9s} {'coins':>7s}  {'d_prod':>7s}  {'d_vraie':>8s}"
+        )
+        for l in sorted(avec, key=lambda x: x.coins or 0):
+            print(
+                f"  {l.fichier[-13:-4]:>10s} {l.carte[:24]:24s} "
+                f"{l.taille_l:9.2f} {l.taille_h:9.2f} "
+                f"{100 * (l.decalage or 0):8.1f}% {100 * (l.coins or 0):6.1f}%"
+                f"  {l.d_prod:7d}  {l.d_vrai:8d}"
+            )
+        deborde = [l for l in avec if (l.taille_l or 0) > 1.10 or (l.taille_h or 0) > 1.10]
+        rogne = [l for l in avec if (l.taille_l or 9) < 0.90 or (l.taille_h or 9) < 0.90]
+        juste = [l for l in avec if l not in deborde and l not in rogne]
+        print(
+            f"\n  {len(deborde)} contour(s) qui debordent de plus de 10 %, "
+            f"{len(rogne)} qui rognent de plus de 10 %, "
+            f"{len(juste)} a la bonne taille."
+        )
 
 
 def main() -> None:

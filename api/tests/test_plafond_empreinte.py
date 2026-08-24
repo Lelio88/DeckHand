@@ -17,12 +17,16 @@ from PIL import Image
 
 from app.measure.magic_art_window import gradient
 from app.measure.plafond_empreinte import (
+    LEGACY,
+    MODERN,
     Rotation,
     Scene,
     _carte_ncc,
     _distance_hex,
     _ecart,
     _score_direct,
+    carte_depuis_fenetre,
+    diagnostiquer_contour,
     lire_identites,
     pose_de,
     situer_fft,
@@ -266,6 +270,95 @@ def test_lire_identites_distingue_absence_de_carte_et_verite_perdue(tmp_path) ->
     assert identites["carte.jpg"] == ("msh", "348", "Levée de bouclier — debout", False)
     assert identites["dure.jpg"][:2] == ("msh", "125")
     assert identites["dure.jpg"][3] is True
+
+
+# --------------------------------------------------------------------------
+# Remonter de la fenêtre au contour de la carte
+# --------------------------------------------------------------------------
+
+
+def test_le_contour_se_deduit_de_la_fenetre_sans_perte() -> None:
+    """Aller-retour exact : carte → fenêtre → carte.
+
+    C'est ce qui autorise à comparer deux **contours** plutôt que deux fenêtres.
+    Si la reconstruction dérivait, le banc imputerait à la détection une erreur
+    qu'il aurait lui-même introduite.
+    """
+    carte = [(100.0, 200.0), (500.0, 200.0), (500.0, 760.0), (100.0, 760.0)]
+    gauche, haut, droite, bas = MODERN
+    largeur, hauteur = 400.0, 560.0
+    fenetre = [
+        (100 + gauche * largeur, 200 + haut * hauteur),
+        (100 + droite * largeur, 200 + haut * hauteur),
+        (100 + droite * largeur, 200 + bas * hauteur),
+        (100 + gauche * largeur, 200 + bas * hauteur),
+    ]
+
+    refaite = carte_depuis_fenetre(fenetre, MODERN)
+    for attendu, obtenu in zip(carte, refaite, strict=True):
+        assert abs(attendu[0] - obtenu[0]) < 1e-6
+        assert abs(attendu[1] - obtenu[1]) < 1e-6
+
+
+def test_le_contour_se_deduit_aussi_d_une_carte_tournee() -> None:
+    """La carte du banc est rarement d'aplomb ; la reconstruction est affine."""
+    import math
+
+    angle = math.radians(23)
+    c, s = math.cos(angle), math.sin(angle)
+
+    def tourne(p: tuple[float, float]) -> tuple[float, float]:
+        return (c * p[0] - s * p[1], s * p[0] + c * p[1])
+
+    carte = [tourne(p) for p in
+             [(0.0, 0.0), (400.0, 0.0), (400.0, 560.0), (0.0, 560.0)]]
+    gauche, haut, droite, bas = MODERN
+    fenetre = [
+        tourne((gauche * 400, haut * 560)),
+        tourne((droite * 400, haut * 560)),
+        tourne((droite * 400, bas * 560)),
+        tourne((gauche * 400, bas * 560)),
+    ]
+
+    refaite = carte_depuis_fenetre(fenetre, MODERN)
+    for attendu, obtenu in zip(carte, refaite, strict=True):
+        assert abs(attendu[0] - obtenu[0]) < 1e-6
+        assert abs(attendu[1] - obtenu[1]) < 1e-6
+
+
+def test_le_diagnostic_nomme_les_trois_defauts() -> None:
+    """Déborder, rogner, être décalé : trois défauts, trois remèdes."""
+    vraie = [(0.0, 0.0), (100.0, 0.0), (100.0, 140.0), (0.0, 140.0)]
+
+    parfait = diagnostiquer_contour([[0, 0], [100, 0], [100, 140], [0, 140]], vraie)
+    assert abs(parfait["taille_l"] - 1.0) < 1e-9
+    assert abs(parfait["decalage"]) < 1e-9
+    assert abs(parfait["coins"]) < 1e-9
+
+    # Vingt pour cent trop large, centré : la taille le dit, le décalage non.
+    large = diagnostiquer_contour(
+        [[-10, 0], [110, 0], [110, 140], [-10, 140]], vraie
+    )
+    assert abs(large["taille_l"] - 1.2) < 1e-9
+    assert abs(large["taille_h"] - 1.0) < 1e-9
+    assert abs(large["decalage"]) < 1e-9
+
+    # Bonne taille, décalé de dix pour cent : l'inverse.
+    decale = diagnostiquer_contour(
+        [[10, 0], [110, 0], [110, 140], [10, 140]], vraie
+    )
+    assert abs(decale["taille_l"] - 1.0) < 1e-9
+    assert abs(decale["decalage"] - 0.10) < 1e-9
+
+
+def test_les_gabarits_magic_sont_ceux_du_dart() -> None:
+    """**Jumeaux.** Le contour se déduit du gabarit ; s'il dérivait du Dart, le
+    banc imputerait à la détection une erreur venue de sa propre table."""
+    from tests.test_art_box import cadres_dart
+
+    dart = cadres_dart().get("magic")
+    assert dart is not None, "aucun cadre magic lu dans art_box.dart"
+    assert {MODERN, LEGACY} == {tuple(b) for b in dart}
 
 
 def test_pose_lue_dans_la_note() -> None:

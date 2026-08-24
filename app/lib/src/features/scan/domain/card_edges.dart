@@ -626,10 +626,14 @@ CardQuad? largestPlausible(
 /// **zéro carte inventée** sur des fonds sans carte, contre deux. Coût : 65 ms
 /// par photo sur poste fixe, contre 12 ms — sans importance pour une photo,
 /// rédhibitoire pour le flux caméra, qui garde donc l'autre chemin.
+/// [minSupport] est réglable **pour les bancs seulement** : c'est le seuil dont
+/// dépend le choix entre le bord extérieur de la carte et son cadre ornemental
+/// intérieur, et il ne se règle pas à l'œil. Voir `defaultMinSupport`.
 CardQuad? findCardByEdges(
   img.Image photo, {
   String game = 'magic',
   double ruptureMin = _ruptureMinimale,
+  double minSupport = defaultMinSupport,
   int width = analysisWidth,
   CardQuad? anchor,
 }) {
@@ -652,7 +656,7 @@ CardQuad? findCardByEdges(
     champ.height,
     game,
     image: small,
-    minSupport: defaultMinSupport,
+    minSupport: minSupport,
     ruptureMin: ruptureMin,
     anchor: anchor?.scaled(1 / scale),
   );

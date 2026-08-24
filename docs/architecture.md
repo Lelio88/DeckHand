@@ -932,6 +932,50 @@ rejetant en amont, et un tirage de plus n'y pèse pas le même poids à trente
 images par seconde. Le cas de la carte tenue à l'envers y mériterait la même
 ouverture ; il attend une mesure **sur l'appareil**.
 
+#### Ce qui reste du cadrage : le contour suit la bordure ornée
+
+Une fois l'orientation réglée, l'erreur de cadre restante a une signature nette.
+Le banc reconstruit le **contour de la carte** — pas seulement sa fenêtre — en
+inversant le gabarit, et compare taille à taille :
+
+| photos | taille du contour (largeur × hauteur) | décalage des centres |
+|---|---|---|
+| 12 photos : contour juste | 0,98 – 1,01 | 0,2 – 4 % |
+| **6 photos : contour rétréci** | **0,86 – 0,90 × 0,85 – 0,89** | 2 – 9 % |
+| 13 photos : contour aberrant | 0,52 – 1,58 | 2 – 42 % |
+
+Le groupe du milieu n'est pas du bruit : il rétrécit **du même facteur dans les
+deux dimensions**, centré. Mesuré sur les rendus officiels de Scryfall, la
+bordure ornée d'une carte Magic moderne occupe **0,918 × 0,899** de la carte —
+et c'est elle que la détection retient. Les tracés le confirment à l'œil : le
+contour rouge suit la ligne colorée du cadre, pas le bord noir extérieur.
+
+Ce défaut apparaît sur les cartes photographiées contre un fond sombre ou
+chargé, où le bord noir contraste mal ; sur bois clair, le même algorithme
+trouve le bord extérieur au pour-cent près.
+
+**Le bord extérieur n'est pas absent : il est dominé.** `tool/hough_probe.dart`
+le montre — sur la photo fautive, les droites du bord extérieur pèsent 98 et 50
+votes, celles de la bordure ornée 155 et 170.
+
+**Deux seuils exposés, deux impasses mesurées.** Les deux réglages qui semblaient
+gouverner ce choix ne le gouvernent pas, jugés sur l'identification et non sur le
+détourage :
+
+| réglage | balayage | effet |
+|---|---|---|
+| `minSupport` | 0,68 → 0,84 | **aucun** : le quadrilatère est identique au bit près sur les photos concernées |
+| `ruptureMin` | 0,10 → 0,30 | la valeur en place (0,30) est l'optimum : plus bas détoure une carte de plus, en identifie autant, et en invente davantage |
+
+La documentation de `minSupport` annonce pourtant « à 0,86 la détection retombe
+sur les cadres intérieurs » — cette phrase décrit un autre cas que celui-ci, et
+son balayage d'origine jugeait « une carte est-elle détourée », jamais « est-elle
+identifiée ». **Les deux métriques ne se substituent pas**, et c'est toute la
+leçon de ce chantier.
+
+Ce qui reste tient donc au **choix des droites et à leur assemblage**, pas à un
+seuil ; c'est un chantier, pas un réglage.
+
 #### Ce qui reste après le cadrage : un plancher de reflet, sur une carte
 
 Six photos gardent une distance supérieure à douze bits **même avec la vraie
