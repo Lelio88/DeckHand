@@ -858,6 +858,14 @@ et la vraie carte, la distance d'empreinte obtenue avec ce cadre, et celle
 obtenue avec la **vraie fenêtre**. La vérité vient de la corrélation entre
 l'illustration publiée par Scryfall et la photo — jamais de la chaîne mesurée.
 
+**Ce que ces chiffres décrivent, et ce qu'ils ne décrivent pas.** Tous les taux
+de cette section portent sur la **voie de l'empreinte seule**. Le mode photo réel
+lit d'abord les **noms** (`recogniseSpread`) et ne tombe sur l'illustration que
+si rien n'a été lu — or ML Kit est un greffon natif, qu'un banc `dart run`
+n'exécute pas. « 8 cartes justes sur 36 » mesure donc le **recours**, pas
+l'application. Ce que la voie du nom rend sur ces mêmes photos n'est pas mesuré :
+il y faut l'appareil.
+
 #### Résultat — 32 photos où la vérité est établie
 
 | Groupe | n | écart médian | distance production | distance vraie fenêtre | sous 12 bits (prod / vraie) |
