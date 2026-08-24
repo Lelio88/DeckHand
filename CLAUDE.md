@@ -157,6 +157,9 @@ cd api && .venv/Scripts/python -m app.measure.pokemon_taxonomy       # familles 
 cd api && .venv/Scripts/python -m app.measure.pokemon_art_window     # --group / --merge / --dump
 cd api && .venv/Scripts/python -m app.measure.pokemon_energy_collisions
 
+# Le trait d'union coûte-t-il des recherches ? — exposition, puis pertes réelles
+cd api && .venv/Scripts/python -m app.measure.nom_trait_union --game yugioh
+
 # Politique RLS d'une table, éprouvée sous le rôle qui la subit (les deux sens)
 cd api && .venv/Scripts/python -m app.measure.profiles_rls
 
