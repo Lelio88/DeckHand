@@ -842,6 +842,126 @@ pas encore de chemin caméra en flux hors de ce banc.
 réglage existe et qu'elle est large, pas où se place l'optimum d'un vrai
 capteur. Le booster réel que l'issue #8 réclame reste le seul juge.
 
+### Le plafond d'identification : c'est le cadre, pas l'empreinte
+
+Passée sur les photos réelles du banc, la chaîne détourait une carte presque à
+chaque fois et n'en identifiait presque aucune. Deux explications se
+disputaient le terrain, toutes deux mesurées ailleurs et **contradictoires** :
+le cadre est faux (l'empreinte décroche dès que le cadrage glisse), ou la carte
+elle-même ne rend plus son empreinte (reflets, angle, plancher mesuré à 14 bits
+sur une carte tenue à la main). « Détourée » ne tranche pas : cela dit qu'un
+quadrilatère a été trouvé, **pas qu'il était juste**.
+
+**La mesure qui les départage** (`api/app/measure/plafond_empreinte.py`) produit
+trois nombres par photo et les croise : l'écart entre le cadre de la production
+et la vraie carte, la distance d'empreinte obtenue avec ce cadre, et celle
+obtenue avec la **vraie fenêtre**. La vérité vient de la corrélation entre
+l'illustration publiée par Scryfall et la photo — jamais de la chaîne mesurée.
+
+#### Résultat — 32 photos où la vérité est établie
+
+| Groupe | n | écart médian | distance production | distance vraie fenêtre | sous 12 bits (prod / vraie) |
+|---|---|---|---|---|---|
+| carte droite | 19 | 11,1 % | 18,5 bits | **7 bits** | 3 / 14 |
+| carte couchée | 12 | 128,3 % | 30 bits | 9 bits | 0 / 11 |
+| carte à l'envers | 1 | 161,1 % | 29 bits | 9 bits | 0 / 1 |
+| **toutes** | **32** | 50,0 % | 28 bits | **8,5 bits** | **3 / 26** |
+
+**C'est la géométrie.** Avec la fenêtre juste, 26 photos sur 32 tombent sous le
+seuil de confiance ; avec celle que la production calcule, 3. L'empreinte n'est
+pas le facteur limitant — elle est prête à reconnaître une carte que le cadrage
+lui montre correctement.
+
+#### La tolérance au cadrage vaut 7 à 9 %, non 3 %
+
+Triées par écart, les cartes droites disent où le cadrage cesse de suffire :
+
+| écart | 2,6 % | 5,6 % | 7,4 % | 9,5 % | 11,0 % | 18,4 % | 27,0 % | 83,3 % |
+|---|---|---|---|---|---|---|---|---|
+| distance | **3** | **5** | **7** | 19 | 18 | 13 | 29 | 31 |
+
+Toutes les cartes identifiées ont un écart **inférieur ou égal à 7,4 %** ; aucune
+au-delà de 9,5 % ne l'est. L'écart se compte ici en part de la largeur de la
+**fenêtre d'illustration**, coin à coin — comparer les boîtes englobantes
+effacerait l'inclinaison, qui est une part de l'erreur.
+
+Le chiffre de 3 % qui circulait était donc pessimiste : il venait d'un cadrage
+translaté artificiellement, pas d'un quadrilatère réel dont l'erreur se répartit
+sur quatre coins.
+
+#### Un défaut domine tous les autres : l'orientation
+
+Treize photos sur trente-deux montrent un carton **couché ou à l'envers**. Pour
+elles, la production échoue par construction : `artHashCandidatesInQuad` n'essaie
+qu'un seul sens quand le gabarit est droit — Magic n'en a pas d'autre — si bien
+que le gabarit portrait est appliqué en travers d'un quadrilatère paysage. La
+fenêtre lue est alors une bande de texte, à plus de 100 % de la vraie.
+
+Le commentaire qui entoure ce choix l'explique : « une carte debout ne se
+présente pas couchée », et chaque hypothèse de plus est un tirage de plus dans
+l'index, avec environ une chance sur cent de passer les deux garde-fous sur du
+bruit. **Le banc réel contredit la prémisse sans annuler le coût**, et les deux
+faces ont été mesurées en publiant à part les quatre quarts de tour :
+
+| | cartes justes (36 photos) | inventées sur carte réelle | inventées sur décor (12 photos) |
+|---|---|---|---|
+| production telle qu'elle tourne | 3 | 2 | **0** |
+| avec les quatre quarts de tour | **8** | 2 | 1 |
+
+Le gain est net et le coût est réel : exactement ce que le commentaire annonçait.
+La décision d'ouvrir ou non ces hypothèses reste à prendre — elle ne se prend pas
+sans regarder aussi la colonne de droite.
+
+#### Ce qui reste après le cadrage : un plancher de reflet, sur une carte
+
+Six photos gardent une distance supérieure à douze bits **même avec la vraie
+fenêtre** : 13, 13, 15, 16 et 19 bits. Toutes portent la même carte — *Levée de
+bouclier* (MSH 348), une borderless à l'illustration sombre et peu contrastée —
+sous un reflet spéculaire ou un doigt posé sur l'illustration. La même carte
+descend à 5 bits sur d'autres photos : ce n'est donc pas la carte qui est
+irrécupérable, c'est la prise de vue.
+
+Les reflets **existent** comme plancher, mais ils expliquent 6 photos sur 32, pas
+le plafond général. C'est la nuance que la mesure apporte aux deux hypothèses de
+départ : les deux étaient vraies, l'une pèse cinq fois l'autre.
+
+#### Deux cartes annoncées « sans réserve » qui n'étaient pas là
+
+Le résultat que ce pipeline protège avant tout — ne jamais annoncer avec
+assurance une carte absente — **est en défaut** : sur 36 photos à carte unique,
+la production annonce 3 cartes justes et **2 cartes inventées**, toutes deux à
+11 bits avec une marge de 4, c'est-à-dire exactement sur le fil des deux
+garde-fous. L'une vient d'un quadrilatère qui a suivi le losange d'un tapis
+plutôt que la carte posée dessus.
+
+Le dossier `sans-carte/` (douze photos de décor), lui, tient : **zéro carte
+annoncée**. Le défaut n'est donc pas « la chaîne invente sur n'importe quoi »,
+mais « un cadrage faux pris sur une vraie carte tombe parfois à portée d'une
+autre entrée de l'index ».
+
+#### Ce que le banc a appris sur lui-même
+
+- **Le dossier `carte-seule/` ne contient pas 39 cartes seules** : une photo de
+  galerie marchande et deux étalements s'y trouvent. Tout taux calculé sur 39
+  était faux, y compris ceux publiés jusqu'ici.
+- **Un tracé a corrigé la vérité écrite à la main** : deux photos avaient été
+  interverties dans `attendu.csv`, et seul le dessin des cadres l'a montré.
+- **La corrélation échoue sur 4 photos des 36** — doigt sur l'illustration,
+  carte minuscule dans le champ, carte inclinée. Elles sont marquées `perdue`
+  dans le fichier de vérité, **à l'œil sur les tracés** : les exclure sur un
+  seuil de distance ferait dire au banc ce qu'il est censé mesurer.
+- **Le pic de corrélation ne fait qu'un pixel de large** (0,906 au sommet, 0,588
+  un pixel plus bas). Le balayage de `magic_art_window` avance de deux en deux :
+  il situe la fenêtre juste, mais **sous-estime systématiquement son accord**.
+  Les accords cités ici sont plus élevés que les 0,525 d'autrefois pour cette
+  seule raison.
+- **Une empreinte se compare non signée.** `dhash` rend un entier non signé ;
+  la replier en `bigint` avant de compter les bits différents donne un XOR
+  négatif, dont `int.bit_count()` compte les bits de la valeur absolue **sans
+  rien signaler**. Le banc annonçait 51 bits là où la production en trouvait 3,
+  une ligne sur deux. Ce n'est pas la mesure qui l'a révélé, c'est une
+  contradiction avec le relevé Dart.
+
 ### Pourquoi hacher l'illustration et non la carte entière
 
 L'illustration est **identique en français et en anglais** ; seul le cadre de texte change. En hachant l'art, le mélange linguistique de la collection devient un non-sujet. Hacher la carte entière produirait deux empreintes distinctes pour la même carte.
@@ -855,6 +975,7 @@ L'illustration est **identique en français et en anglais** ; seul le cadre de t
 | Cartes empilées | Optique, non algorithmique | Seule la carte du dessus est visible. D'où les deux modes retenus : étalement et feuilletage. |
 | Catalogue Riftbound anglais seulement | Contractuelle, non algorithmique | Une carte française n'est pas retrouvable par son nom, quel que soit le soin de la lecture. L'empreinte est la voie principale de ce jeu, et le mode étalement — qui ne lit que les noms — ne peut pas le servir. |
 | Carte absente de l'index interrogé | Structurelle : tout point a un plus proche voisin | Environ **1 %** des cartes étrangères passent les deux garde-fous et sont annoncées avec assurance (mesuré, `art_collisions.py`). Le cloisonnement par jeu écarte le mélange des catalogues, pas le choix du mauvais jeu par l'utilisateur. |
+| Carte photographiée couchée ou à l'envers | Structurelle : un gabarit droit n'est essayé que dans un sens | Le gabarit portrait s'applique en travers du quadrilatère, et la fenêtre lue est une bande de texte. **Treize photos sur trente-deux du banc réel sont dans ce cas**, et aucune n'est reconnue ; les quatre quarts de tour en récupéreraient cinq, au prix d'une carte inventée sur douze photos de décor. Voir « Le plafond d'identification ». |
 | Masque de seuillage faux (fond clair, tissu) | Le quadrilatère englobe le décor | La tolérance d'aspect ne le rattrape pas, et c'est assumé — `aspectTolerance` est large pour encaisser la perspective. Mesuré sur carton : la carte reste introuvable, mais **aucune fausse carte n'est annoncée**, le meilleur candidat restant au-delà du seuil. |
 | Un catalogue qui enregistre une carte deux fois | Catalogue, non algorithmique | Aucune empreinte ne peut départager ce qu'une source a dédoublé, et la collection compterait la carte deux fois. Rencontré sur Riftbound et **corrigé dans l'identité dérivée** par `riftcodex_ingest` — jamais dans la reconnaissance. La leçon vaut pour la prochaine source : une identité ne se dérive pas d'un champ d'affichage. |
 
