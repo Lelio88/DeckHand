@@ -175,12 +175,18 @@ class TestBot:
     def test_le_bot_lit_par_la_porte_publique(self) -> None:
         # La clé de service ferait de ce chemin un contournement de la portée
         # choisie dans l'écran de partage.
+        #
+        # **Le premier appel, pas le dernier.** Depuis le repli sur le trait
+        # d'union (#21), une recherche infructueuse en déclenche un second avec
+        # une saisie déformée ; ne garder que le dernier ferait lire ici
+        # « Ka Zar » et croire à une saisie altérée par le bot.
         seen: dict[str, object] = {}
 
         def capture(request: httpx.Request) -> httpx.Response:
-            seen["url"] = str(request.url)
-            seen["apikey"] = request.headers.get("apikey")
-            seen["body"] = json.loads(request.content)
+            if not seen:
+                seen["url"] = str(request.url)
+                seen["apikey"] = request.headers.get("apikey")
+                seen["body"] = json.loads(request.content)
             return httpx.Response(200, json=[])
 
         locator = Locator(supabase_url="https://x", anon_key="anon-key", handle="lelio")

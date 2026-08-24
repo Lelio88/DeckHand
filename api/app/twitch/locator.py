@@ -29,6 +29,45 @@ logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT_SECONDS = 6.0
 
 
+def variante_trait_union(query: str) -> str | None:
+    """La même saisie, traits d'union et espaces échangés — ou `None`.
+
+    **Pourquoi ce repli existe, et pourquoi ici seulement.** `!card ka zar` ne
+    trouve rien quand la carte s'appelle *Ka-Zar*. La cause n'est pas la
+    normalisation : mesuré (`app.measure.nom_trait_union`), un **nom complet**
+    mal saisi est retrouvé dans **100 %** des cas — 2 111 noms Magic éprouvés,
+    zéro perdu, et autant dans l'autre sens. Le défaut ne vit que sur un
+    **fragment** : pour une saisie courte la similarité trigramme s'effondre
+    — « ka-zar » contre « ka-zar of the savage land » vaut 0,27 quand le seuil
+    est à 0,30 — et il ne reste que la branche préfixe, un `LIKE` littéral où le
+    trait d'union compte.
+
+    Coût mesuré du défaut : **21 cartes en Magic** (1,0 % des noms à trait
+    d'union), 32 en Yu-Gi-Oh, **zéro** en Lorcana et Riftbound. C'est rare, et
+    on le corrige quand même : aujourd'hui le bot répond « pas dans le
+    classeur » alors que **la carte y est**. Ce n'est pas une absence de
+    réponse, c'est une réponse fausse.
+
+    **Le repli est côté bot, et nulle part ailleurs.** `normalize_card_name` est
+    partagée avec toute l'application et son jumeau Dart ; la tordre pour un cas
+    de chat serait disproportionné, et la faire diverger casserait la
+    reconnaissance embarquée.
+
+    Rend `None` quand il n'y a rien à échanger — un seul mot sans trait d'union
+    — pour ne pas payer un appel qui poserait la même question.
+    """
+    if "-" in query:
+        variante = query.replace("-", " ")
+    elif " " in query.strip():
+        # **Le sens qui compte vraiment.** L'utilisateur tape deux mots là où le
+        # nom n'en fait qu'un : « ka zar » pour « Ka-Zar ». L'autre sens ne
+        # coûte rien à essayer, mais la mesure ne lui impute aucune perte.
+        variante = query.replace(" ", "-")
+    else:
+        return None
+    return variante if variante != query else None
+
+
 @dataclass(frozen=True)
 class Locator:
     """Où se rangent les cartes de la collection partagée sous cette adresse."""
@@ -39,6 +78,23 @@ class Locator:
     game: str = "magic"
 
     def locate(self, client: httpx.Client, query: str) -> list[Location]:
+        """Les cases où la carte se range, avec un second essai s'il le faut.
+
+        **Le repli ne coûte qu'un échec.** Il ne part que lorsque la première
+        recherche n'a rien rendu — c'est-à-dire quand le spectateur allait
+        recevoir « pas dans le classeur ». Et le débit est vérifié **avant**
+        cet appel, dans `Bot.answer` : une commande qui n'a pas mérité de
+        réponse n'atteint jamais le réseau, repli compris.
+        """
+        trouvees = self._interroger(client, query)
+        if trouvees:
+            return trouvees
+        variante = variante_trait_union(query)
+        if variante is None:
+            return []
+        return self._interroger(client, variante)
+
+    def _interroger(self, client: httpx.Client, query: str) -> list[Location]:
         try:
             response = client.post(
                 f"{self.supabase_url.rstrip('/')}/rest/v1/rpc/binder_locate",
