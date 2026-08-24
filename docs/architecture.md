@@ -863,8 +863,8 @@ de cette section portent sur la **voie de l'empreinte seule**. Le mode photo ré
 lit d'abord les **noms** (`recogniseSpread`) et ne tombe sur l'illustration que
 si rien n'a été lu — or ML Kit est un greffon natif, qu'un banc `dart run`
 n'exécute pas. « 8 cartes justes sur 36 » mesure donc le **recours**, pas
-l'application. Ce que la voie du nom rend sur ces mêmes photos n'est pas mesuré :
-il y faut l'appareil.
+l'application. Ce que l'application rend vraiment est mesuré à part, sur
+l'appareil : voir « Ce que l'application reconnaît vraiment » plus bas.
 
 #### Résultat — 32 photos où la vérité est établie
 
@@ -1068,6 +1068,42 @@ autre entrée de l'index ».
   rien signaler**. Le banc annonçait 51 bits là où la production en trouvait 3,
   une ligne sur deux. Ce n'est pas la mesure qui l'a révélé, c'est une
   contradiction avec le relevé Dart.
+
+### Ce que l'application reconnaît vraiment — mesuré sur l'appareil
+
+`app/integration_test/plafond_reel_test.dart` appelle le vrai `recognisePhoto`
+sur l'appareil, avec le vrai OCR, le vrai index et le vrai catalogue, sur les
+photos du banc réel réduites comme `image_picker` les réduit (1600 px, qualité
+92). C'est la seule mesure de la chaîne **entière** ; toutes les autres portent
+sur le recours.
+
+| | photos | justes |
+|---|---|---|
+| conclu par le **nom** | 31 | **31** |
+| conclu par l'**illustration** (recours) | 5 | 1 |
+| **total** | **36** | **32** |
+
+**La lecture du nom porte la reconnaissance**, et elle ne se trompe jamais sur ce
+banc : trente-et-une photos sur trente-six concluent par elle, toutes justes, en
+une seconde environ. Le recours par l'illustration n'intervient que cinq fois et
+n'aboutit qu'une, pour deux à trois secondes.
+
+**Les cinq photos qui tombent au recours ont toutes la même cause** — le nom est
+illisible : un doigt le masque (trois fois), ou la carte est trop petite dans le
+champ (une fois) ; la cinquième est une carte couchée dont l'OCR n'a lu que deux
+lignes. Le partage des rôles fonctionne donc exactement comme prévu, et la valeur
+d'un chantier sur l'empreinte se chiffre : **au plus quatre photos sur
+trente-six**.
+
+**Ce que cela relativise.** Les taux de la voie de l'empreinte — « 3 justes »,
+puis « 8 » après l'ouverture des orientations — décrivent un chemin que
+l'application emprunte une fois sur sept. Le gain réel de ce correctif pour le
+mode photo est donc bien plus petit que son gain sur le recours.
+
+**Ce que cela ne relativise pas.** L'empreinte reste la voie **principale** là où
+le nom ne peut rien : Riftbound, dont le catalogue n'existe qu'en anglais, et les
+modes vidéo et VOD, où il n'y a pas de recours du tout. Un chantier sur
+l'empreinte se justifie par ceux-là, pas par le scan photo d'une carte Magic.
 
 ### Pourquoi hacher l'illustration et non la carte entière
 

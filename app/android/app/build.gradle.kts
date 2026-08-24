@@ -83,6 +83,20 @@ android {
                 "proguard-rules.pro",
             )
         }
+        debug {
+            // **Le build de mesure cohabite avec celui de Play.** Les deux sont
+            // signés différemment, et Android refuse d'en installer un par-dessus
+            // l'autre (INSTALL_FAILED_UPDATE_INCOMPATIBLE). Sans ce suffixe, faire
+            // tourner un banc sur l'appareil exigeait de désinstaller
+            // l'application réelle du propriétaire — puis de la réinstaller depuis
+            // Play. Le suffixe ne touche que le type `debug` : l'AAB publié garde
+            // `app.deckhand`.
+            //
+            // Conséquence à connaître : le build de debug lit son propre dossier
+            // externe, `/sdcard/Android/data/app.deckhand.debug/files/`. C'est là
+            // qu'un banc doit pousser ses photos.
+            applicationIdSuffix = ".debug"
+        }
     }
 }
 

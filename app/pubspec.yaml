@@ -58,6 +58,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  # Bancs qui s'exécutent **sur l'appareil**, seul endroit où ML Kit existe :
+  # sans eux on ne mesure que la voie de l'empreinte, jamais la lecture du nom
+  # dont le mode photo dépend d'abord. `path_provider` sert à trouver le dossier
+  # externe de l'application — un chemin écrit en dur y échoue en silence depuis
+  # Android 10. Dépendances de test : absentes des builds de production.
+  integration_test:
+    sdk: flutter
+  path_provider: ^2.1.5
+
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
