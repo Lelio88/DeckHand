@@ -14,6 +14,7 @@
 /// animation parfaitement fluide et parfaitement fausse.
 library;
 
+import 'package:deckhand/src/common/card_image.dart';
 import 'package:deckhand/src/features/binders/domain/binder.dart';
 import 'package:deckhand/src/features/binders/domain/spotlight_card.dart';
 import 'package:deckhand/src/features/binders/presentation/binder_reveal.dart';
@@ -37,9 +38,16 @@ SpotlightCard carte({int page = 3, int slot = 5, String? by = 'alice'}) =>
       pages: 51,
     );
 
+/// Neuf cases, celles qu'on désigne étant possédées. Les illustrations sont
+/// des URL de forme réaliste : `CardImage` les compose, aucun octet ne part
+/// dans un test.
 List<BinderCell> pageDe(List<int> possedees) => [
   for (var i = 1; i <= 9; i++)
-    BinderCell(collectorNumber: '$i', owned: possedees.contains(i) ? 1 : 0),
+    BinderCell(
+      collectorNumber: '$i',
+      owned: possedees.contains(i) ? 1 : 0,
+      artCropUrl: 'https://cards.scryfall.io/art_crop/front/a/b/carte-$i.jpg',
+    ),
 ];
 
 void main() {
@@ -209,6 +217,116 @@ void main() {
     testWidgets("l_attribution est visible, garde-fou §IV.2", (tester) async {
       await poser(tester, elapsed: RevealTiming(3).total);
       expect(find.textContaining('Scryfall'), findsOneWidget);
+    });
+  });
+
+  group('le vocabulaire de la page', () {
+    Future<void> poser(
+      WidgetTester tester, {
+      required double elapsed,
+      SpotlightCard? card,
+      List<BinderCell> cells = const [],
+    }) => tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFB8860B),
+            brightness: Brightness.dark,
+          ),
+        ),
+        home: Scaffold(
+          body: Center(
+            child: BinderReveal(
+              card: card ?? carte(),
+              cells: cells,
+              elapsed: elapsed,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('une case vide porte son numéro, une case pleine non', (
+      tester,
+    ) async {
+      // **Le vocabulaire de l_écran de collection**, repris tel quel : le
+      // numéro nomme un manque. Sur une case possédée il ne dirait rien que la
+      // carte ne dise déjà.
+      await poser(
+        tester,
+        elapsed: RevealTiming(3).total,
+        cells: pageDe([1, 5]),
+      );
+      expect(find.text('#2'), findsOneWidget);
+      expect(find.text('#1'), findsNothing);
+    });
+
+    testWidgets('la case visée ne se vide qu_au départ de la carte', (
+      tester,
+    ) async {
+      // **Sinon la carte sort d_une case déjà vide.** Le trou doit apparaître
+      // avec le mouvement, pas avant.
+      const t = RevealTiming(3);
+      final avant = RevealTiming.open + t.riffle + RevealTiming.settle * 0.5;
+      await poser(tester, elapsed: avant, cells: pageDe([5]));
+      expect(t.ejectAt(avant), 0);
+      expect(find.text('#5'), findsNothing);
+
+      await poser(tester, elapsed: t.total, cells: pageDe([5]));
+      expect(find.text('#5'), findsOneWidget);
+    });
+
+    testWidgets('le dos des cartes ne se voit que pendant le feuilletage', (
+      tester,
+    ) async {
+      final carteLoin = carte(page: 30);
+      const t = RevealTiming(30);
+
+      await poser(
+        tester,
+        elapsed: RevealTiming.open + t.riffle * 0.4,
+        card: carteLoin,
+        cells: pageDe([5]),
+      );
+      expect(find.byKey(const ValueKey('dos-0')), findsWidgets);
+
+      await poser(tester, elapsed: t.total, card: carteLoin, cells: pageDe([5]));
+      expect(find.byKey(const ValueKey('dos-0')), findsNothing);
+    });
+
+    testWidgets('la page de destination est dessous dès le feuilletage', (
+      tester,
+    ) async {
+      // Ne la peupler qu_à la fin faisait apparaître ses neuf cartes d_un coup.
+      final carteLoin = carte(page: 30);
+      const t = RevealTiming(30);
+      await poser(
+        tester,
+        elapsed: RevealTiming.open + t.riffle * 0.4,
+        card: carteLoin,
+        cells: pageDe([5]),
+      );
+      expect(find.text('#2'), findsOneWidget);
+    });
+
+    testWidgets('les illustrations passent par CardImage', (tester) async {
+      // **Jamais `Image.network`.** `CardImage` est le point de passage unique
+      // où l_URL est composée ; le contourner a déjà coûté 20 964 cartes
+      // Pokémon dont aucune ne s_affichait.
+      await poser(
+        tester,
+        elapsed: RevealTiming(3).total,
+        cells: pageDe([1, 5]),
+      );
+      expect(find.byType(CardImage), findsWidgets);
+      // `CardImage` rend lui-même des `Image` : ce qui compte est leur
+      // **fournisseur**. Un `Image.network` y poserait un `NetworkImage`, et
+      // l'URL ne passerait plus par le point de composition unique.
+      final images = tester.widgetList<Image>(find.byType(Image));
+      expect(images, isNotEmpty);
+      for (final image in images) {
+        expect(image.image, isA<CardImageProvider>());
+      }
     });
   });
 }

@@ -574,17 +574,38 @@ partir de la première page est le geste exact. Le numéro défile avec les page
 s'arrête sur le bon, si bien que le feuilletage **dit** la distance parcourue au
 lieu de seulement l'illustrer.
 
-**Ce qui le rend bon marché** : les pages qui défilent sont **génériques**. À
-vingt-quatre millisecondes la page, personne ne lit rien, et charger quarante-
-cinq vraies pages coûterait quarante-cinq appels réseau pour du flou. Seule la
-page qui se pose est réelle — un unique appel à `public_binder_page`, lancé à
-l'arrivée de la demande et non à chaque interrogation.
+**Ce qui le rend bon marché** : les pages qui défilent sont **génériques**, et
+montrent le **dos des cartes**. À vingt-quatre millisecondes la page personne ne
+lit rien, et charger quarante-cinq vraies pages coûterait quarante-cinq appels
+réseau pour du flou. Le dos est **dessiné**, non chargé : la face cachée d'une
+carte Magic est une œuvre de l'éditeur, et le projet ne réhéberge rien (§IV.3).
+Seule la page qui se pose est réelle — un unique appel à `public_binder_page`,
+lancé à l'arrivée de la demande et non à chaque interrogation.
 
-**Les huit voisines sont des aplats, pas des images.** Neuf illustrations à la
-taille d'un calque font neuf bouillies qui se disputent le regard. Une case vide
-porte en revanche **son numéro** : « il te manque le #424 » se lit d'un coup
-d'œil, là où un carré sombre ne dit rien. C'est ce qui rend les voisines utiles
-plutôt que décoratives.
+**C'est la page du classeur, et elle doit s'y ressembler.** Une première version
+dessinait les neuf cases en aplats gris, au motif qu'à cette taille neuf
+illustrations se disputeraient le regard. L'argument tombe devant l'écran de
+collection, qui en affiche neuf depuis toujours et reste lisible : **c'est la
+même page**, montrée ailleurs. Les cases portent donc les mêmes cartes, avec le
+même vocabulaire — case pleine à l'illustration et son reflet de brillante, case
+vide en **fantôme à un quart d'opacité** avec son numéro par-dessus, « un manque
+qu'on montre, pas une carte ». Cela a demandé deux colonnes de plus à
+`public_binder_page` : `art_crop_url` et `has_foil`.
+
+**Les couleurs viennent du thème, pas du calque.** `Theme.of(context)` rend le
+nuancier de l'application — sombre, doré. Recopier des valeurs hexadécimales
+aurait fait diverger le calque de l'écran qu'il représente au premier changement
+de thème ; c'est exactement ce qui lui donnait un air de panneau bleu-violet
+étranger au produit. Et les illustrations passent par `CardImage`, **jamais** par
+`Image.network` : c'est le point de passage unique où l'URL est composée, et le
+contourner a déjà coûté 20 964 cartes Pokémon dont aucune ne s'affichait. Un test
+vérifie que toute `Image` de la planche porte un `CardImageProvider`.
+
+**La page de destination est dessous dès le premier tour.** Ne la peupler qu'à la
+fin faisait apparaître ses neuf cartes d'un coup ; les feuilles qui passent la
+découvrent par morceaux, comme un vrai feuilletage. Et **la case visée ne se vide
+qu'au départ de la carte** — le trou doit apparaître avec le mouvement, sinon la
+carte semble sortir d'une case déjà vide.
 
 **Le tempo est borné par `overlayLinger`.** Douze secondes d'affichage : une
 intro de plus de deux secondes et demie mangerait le temps qu'on a pour
@@ -621,15 +642,32 @@ la planche et la regarder.
   rectangle plein *derrière* la boîte : sans couleur de fond explicite, le halo
   traversait le vide et l'on lisait « carte présente » là où l'on voulait montrer
   le trou qu'elle laisse.
+- **Les feuilles qui tournent débordaient du classeur.** Passé le quart de tour,
+  une page est de l'autre côté du dos ; sans rognage à la couverture elle
+  flottait sur la vidéo. Elle s'efface désormais en franchissant le dos, ce qui
+  est aussi plus juste que la traîner jusqu'au demi-tour.
 
 Un quatrième, celui-là pris par un test : le repli de l'illustration affichait le
 nom de la carte, que la légende porte déjà — **deux « Ka-Zar » à l'écran**. Il
 affiche désormais le numéro de case.
 
-Pour regarder à nouveau : un test jetable qui rend `BinderReveal` à des `elapsed`
-choisis, joué avec `--update-goldens`, donne les images du feuilletage ; le rendu
-réel — vraies polices, vraie illustration — demande `flutter build web` puis un
-navigateur sur `?o=<adresse>`, la collection publiée le temps de la capture.
+**Pour regarder l'animation**, sans base ni compte :
+
+```bash
+cd app && flutter run -d chrome -t tool/apercu_montre.dart
+```
+
+L'aperçu importe `BinderReveal` **tel quel** — géométrie, tempo et couleurs sont
+ceux du direct. Un aperçu qui recopierait le dessin ne mesurerait que lui-même,
+faute déjà payée sur `probe_photo` et `recette.dart`. Il propose les trois
+distances qui comptent — page 1 sans feuilletage, page 12 court, page 48 presque
+au plafond (1 128 ms sur 1 200) — parce que c'est la seule façon de juger si le
+plafond tombe au bon endroit. Le bandeau affiche les deux durées.
+
+Le rendu **en conditions réelles** — la vraie collection, le vrai chat — demande
+`flutter build web` puis un navigateur sur `?o=<adresse>`, la collection publiée
+le temps de la capture. C'est ce chemin-là qui a montré les trois défauts
+ci-dessus ; l'aperçu sert aux suivants.
 
 ### Ce qui a de la valeur pour un spectateur
 

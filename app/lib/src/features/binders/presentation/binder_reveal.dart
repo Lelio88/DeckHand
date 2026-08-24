@@ -18,15 +18,31 @@
 /// charger quarante-cinq vraies pages coûterait quarante-cinq appels réseau pour
 /// du flou. Seule la page qui se pose est réelle.
 ///
-/// **Les huit voisines sont des aplats, pas des images.** À la taille d'un
-/// calque, neuf illustrations font neuf bouillies qui se disputent le regard —
-/// et neuf téléchargements par désignation. Une seule vraie image : celle qui
-/// sort.
+/// **C'est la page du classeur, et elle doit s'y ressembler.** Une première
+/// version dessinait les neuf cases en aplats gris, au motif qu'à cette taille
+/// neuf illustrations se disputeraient le regard. L'argument tombe devant
+/// l'écran de collection, qui en affiche neuf depuis toujours et reste lisible :
+/// **c'est la même page**, montrée ailleurs. Les cases portent donc les mêmes
+/// cartes, avec le même vocabulaire — case pleine à l'illustration, case vide en
+/// **fantôme à un quart d'opacité** avec son numéro par-dessus, « un manque
+/// qu'on montre, pas une carte ».
 ///
-/// **Une case vide porte son numéro, une case pleine non.** C'est ce qui rend
-/// les voisines utiles plutôt que décoratives : « il te manque le #424 » se lit
-/// d'un coup d'œil, alors qu'un carré sombre ne dit rien. Le numéro d'une case
-/// pleine, lui, n'apprendrait rien — la carte est là.
+/// **Les couleurs viennent du thème, pas d'ici.** `Theme.of(context)` rend le
+/// nuancier de l'application — sombre, doré. Recopier des valeurs
+/// hexadécimales aurait fait diverger le calque de l'écran qu'il représente au
+/// premier changement de thème ; c'est exactement ce qui lui donnait un air de
+/// panneau bleu-violet étranger au produit.
+///
+/// **Les illustrations passent par [CardImage], jamais par `Image.network`.**
+/// C'est le point de passage unique où l'URL est composée : le contourner a déjà
+/// coûté 20 964 cartes Pokémon dont aucune ne s'affichait, faute d'un suffixe
+/// que la source exige.
+///
+/// **Les pages qui défilent montrent le dos des cartes.** C'est ce qu'on voit
+/// d'une feuille qu'on tourne, et cela évite la question du contenu : neuf dos
+/// génériques ne prétendent être aucune page en particulier. Le dos est
+/// **dessiné**, non chargé : la face cachée d'une carte Magic est une œuvre de
+/// l'éditeur, et le projet ne réhéberge rien (§IV.3).
 ///
 /// **La reliure est ce qui fait lire « classeur ».** Une première version n'avait
 /// qu'un panneau sombre et une grille : regardée à l'écran, elle ne ressemblait
@@ -44,6 +60,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../common/card_image.dart';
+import '../../printings/presentation/foil_decoration.dart';
 import '../domain/binder.dart';
 import '../domain/spotlight_card.dart';
 
@@ -202,6 +220,7 @@ class BinderReveal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = timing;
+    final couleurs = Theme.of(context).colorScheme;
     final ouverture = Curves.easeOutCubic.transform(t.openAt(elapsed));
     final eject = t.ejectAt(elapsed);
     final avance = t.riffleAt(elapsed);
@@ -221,14 +240,12 @@ class BinderReveal extends StatelessWidget {
           height: RevealMetrics.height,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              // La couverture : sombre, mate, un peu plus chaude que le noir.
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xF21A1720), Color(0xF20E0D13)],
-              ),
+              // La couverture, prise au nuancier de l'application : c'est la
+              // teinte des fonds de l'écran de collection, assombrie de ce
+              // qu'il faut pour rester lisible par-dessus une vidéo.
+              color: couleurs.surfaceContainerLowest.withValues(alpha: 0.95),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0x2EFFFFFF)),
+              border: Border.all(color: couleurs.outlineVariant),
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x88000000),
@@ -237,17 +254,26 @@ class BinderReveal extends StatelessWidget {
                 ),
               ],
             ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                _spine(),
-                _page(),
-                ..._slots(posee),
-                if (t.riffle > 0 && avance < 1) ..._sheets(avance),
-                if (posee) _highlight(),
-                if (posee) _card(eject),
-                _footer(t.pageAt(elapsed)),
-              ],
+            // **La pile est rognée à la couverture.** Une feuille qui a
+            // dépassé le quart de tour part de l'autre côté du dos : sans
+            // rognage elle flottait hors du classeur, sur la vidéo.
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Stack(
+                children: [
+                  _spine(couleurs),
+                  _page(couleurs),
+                  // **La page de destination est dessous depuis le début.** Ne
+                  // la peupler qu'à la fin faisait apparaître ses neuf cartes
+                  // d'un coup ; les feuilles qui passent la découvrent par
+                  // morceaux, comme un vrai feuilletage.
+                  ..._slots(couleurs, eject),
+                  if (t.riffle > 0 && avance < 1) ..._sheets(couleurs, avance),
+                  if (posee) _highlight(couleurs),
+                  if (posee) _card(couleurs, eject),
+                  _footer(couleurs, t.pageAt(elapsed)),
+                ],
+              ),
             ),
           ),
         ),
@@ -256,13 +282,11 @@ class BinderReveal extends StatelessWidget {
   }
 
   /// Le dos et ses anneaux — le signal « classeur ».
-  Widget _spine() => Positioned.fromRect(
+  Widget _spine(ColorScheme couleurs) => Positioned.fromRect(
     rect: RevealMetrics.spineRect,
     child: DecoratedBox(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF241F2C), Color(0xFF151220)],
-        ),
+        color: couleurs.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -274,8 +298,8 @@ class BinderReveal extends StatelessWidget {
               height: 13,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF0A0910),
-                border: Border.all(color: const Color(0x66C9CCE0), width: 1.4),
+                color: couleurs.surfaceContainerLowest,
+                border: Border.all(color: couleurs.outline, width: 1.4),
               ),
             ),
         ],
@@ -283,35 +307,42 @@ class BinderReveal extends StatelessWidget {
     ),
   );
 
-  /// La page, d'une autre matière que la couverture.
-  Widget _page() => Positioned.fromRect(
+  /// La feuille, opaque comme celle de l'écran de collection : sans fond plein,
+  /// on verrait par transparence la page du dessous pendant le retournement.
+  Widget _page(ColorScheme couleurs) => Positioned.fromRect(
     rect: RevealMetrics.pageRect,
     child: DecoratedBox(
       decoration: BoxDecoration(
-        // Plus claire que la couverture : sans cet écart, la planche entière se
-        // lisait comme un seul panneau sombre.
-        color: const Color(0xFF37313F),
+        color: couleurs.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0x33FFFFFF)),
+        border: Border.all(color: couleurs.outlineVariant),
         boxShadow: const [
-          BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(2, 3)),
+          BoxShadow(
+            color: Color(0x66000000),
+            blurRadius: 12,
+            offset: Offset(2, 3),
+          ),
         ],
       ),
     ),
   );
 
-  List<Widget> _slots(bool posee) => [
+  /// Les neuf cases de la page de destination.
+  ///
+  /// Dessinées **dès le départ**, sous les feuilles qui défilent : c'est ce que
+  /// l'on entrevoit en feuilletant, et cela évite que la page se remplisse d'un
+  /// coup quand la dernière feuille se pose.
+  List<Widget> _slots(ColorScheme couleurs, double eject) => [
     for (var slot = 1; slot <= 9; slot++)
       Positioned.fromRect(
         rect: RevealMetrics.slotRect(slot),
         child: _Slot(
-          // Rien n'est rempli tant que la page n'est pas posée : le contenu
-          // d'une page qui défile n'existe pas.
-          cell: posee ? _cellFor(slot) : null,
-          owned: posee && _owned(slot),
-          // La case visée reste creuse une fois la carte sortie : c'est le
-          // trou qu'elle laisse, et il rend la trajectoire lisible.
-          target: slot == card.slot,
+          cell: _cellFor(slot),
+          couleurs: couleurs,
+          // La case visée se vide **au moment où la carte en sort**, pas
+          // avant : le trou doit apparaître avec le mouvement, sinon la carte
+          // semble sortir d'une case déjà vide.
+          sortie: slot == card.slot && eject > 0,
         ),
       ),
   ];
@@ -322,20 +353,16 @@ class BinderReveal extends StatelessWidget {
     return cells[index];
   }
 
-  bool _owned(int slot) {
-    // La carte demandée est possédée par construction : la base refuse de
-    // désigner une case vide.
-    if (slot == card.slot) return true;
-    return (_cellFor(slot)?.owned ?? 0) > 0;
-  }
-
-  /// Les pages qui défilent — trois feuilles en vol, déphasées.
-  List<Widget> _sheets(double avance) {
+  /// Les pages qui défilent — trois feuilles en vol, déphasées, montrant le dos
+  /// des cartes.
+  List<Widget> _sheets(ColorScheme couleurs, double avance) {
     final tours = avance * math.max(0, card.page - 1);
-    return [for (var k = 0; k < 3; k++) _sheet((tours + k * 0.34) % 1.0)];
+    return [
+      for (var k = 0; k < 3; k++) _sheet(couleurs, (tours + k * 0.34) % 1.0),
+    ];
   }
 
-  Widget _sheet(double local) => Positioned.fromRect(
+  Widget _sheet(ColorScheme couleurs, double local) => Positioned.fromRect(
     rect: RevealMetrics.pageRect,
     child: Transform(
       // Autour du dos : c'est là que les pages d'un classeur sont reliées.
@@ -344,17 +371,18 @@ class BinderReveal extends StatelessWidget {
         ..setEntry(3, 2, 0.0016)
         ..rotateY(-local * math.pi),
       child: Opacity(
-        // **Opaque presque jusqu'au bout.** Une feuille de papier ne laisse pas
-        // voir la page d'en dessous ; la première version, dégressive dès le
-        // départ, donnait un voile translucide plutôt qu'une page qui tourne.
-        // Elle ne s'efface qu'en fin de course, pour ne pas disparaître d'un
-        // coup et faire clignoter le défilé.
-        opacity: local < 0.78 ? 1 : (1 - local) / 0.22,
+        // **Opaque jusqu'au quart de tour, puis effacée.** Une feuille de papier
+        // ne laisse pas voir la page d'en dessous — dégressive dès le départ,
+        // elle donnait un voile translucide plutôt qu'une page qui tourne. Et
+        // passé le quart de tour elle est de l'autre côté du dos, donc hors de
+        // vue : la faire disparaître là est plus juste que la traîner jusqu'au
+        // demi-tour.
+        opacity: local < 0.42 ? 1 : math.max(0, (0.58 - local) / 0.16),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: const Color(0xFF3E3747),
+            color: couleurs.surface,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0x33FFFFFF)),
+            border: Border.all(color: couleurs.outlineVariant),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x66000000),
@@ -362,6 +390,21 @@ class BinderReveal extends StatelessWidget {
                 offset: Offset(6, 0),
               ),
             ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(RevealMetrics.pagePad),
+            child: GridView.count(
+              crossAxisCount: 3,
+              childAspectRatio:
+                  RevealMetrics.cellWidth / RevealMetrics.cellHeight,
+              mainAxisSpacing: RevealMetrics.gap,
+              crossAxisSpacing: RevealMetrics.gap,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                for (var i = 0; i < 9; i++)
+                  _CardBack(key: ValueKey('dos-$i'), couleurs: couleurs),
+              ],
+            ),
           ),
         ),
       ),
@@ -375,31 +418,33 @@ class BinderReveal extends StatelessWidget {
   /// *derrière* la boîte, si bien que le halo traversait le vide et remplissait
   /// la case — on lisait « carte présente » là où l'on voulait montrer le trou
   /// qu'elle laisse. Vu sur l'image rendue, pas dans le code.
-  Widget _highlight() => Positioned.fromRect(
+  Widget _highlight(ColorScheme couleurs) => Positioned.fromRect(
     rect: RevealMetrics.slotRect(card.slot),
     child: IgnorePointer(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: const Color(0xFF15111E),
-          borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: const Color(0xFF8FA0FF), width: 2),
-          boxShadow: const [
-            BoxShadow(color: Color(0x558FA0FF), blurRadius: 22, spreadRadius: 1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: couleurs.primary, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: couleurs.primary.withValues(alpha: 0.35),
+              blurRadius: 22,
+              spreadRadius: 1,
+            ),
           ],
         ),
       ),
     ),
   );
 
-  Widget _card(double eject) {
+  Widget _card(ColorScheme couleurs, double eject) {
     final rect = RevealMetrics.cardRect(card.slot, eject);
-    final image = card.imageUrl;
     return Positioned.fromRect(
       rect: rect,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          color: const Color(0xFF15151C),
+          color: couleurs.surfaceContainerHigh,
           boxShadow: [
             BoxShadow(
               color: Color.fromRGBO(0, 0, 0, 0.6 * eject),
@@ -410,15 +455,12 @@ class BinderReveal extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: image == null
-              ? _fallback()
-              : Image.network(
-                  image,
-                  fit: BoxFit.cover,
-                  // Une illustration qui ne charge pas ne doit pas trouer le
-                  // calque : le numéro tient la place.
-                  errorBuilder: (_, _, _) => _fallback(),
-                ),
+          child: CardImage(
+            url: card.imageUrl,
+            uprightInCell: true,
+            placeholder: _fallback(couleurs),
+            errorBuilder: (_) => _fallback(couleurs),
+          ),
         ),
       ),
     );
@@ -428,20 +470,19 @@ class BinderReveal extends StatelessWidget {
   ///
   /// **Pas le nom de la carte** : la légende le porte déjà, et un test l'a
   /// montré en trouvant deux fois « Ka-Zar » à l'écran. Le numéro de case suffit
-  /// à dire de quoi il s'agit sans se répéter — et il désigne précisément la
-  /// case d'où la carte vient de sortir.
-  Widget _fallback() => Center(
+  /// à dire de quoi il s'agit sans se répéter.
+  Widget _fallback(ColorScheme couleurs) => Center(
     child: Padding(
       padding: const EdgeInsets.all(8),
       child: Text(
         card.collectorNumber == null ? '—' : '#${card.collectorNumber}',
         textAlign: TextAlign.center,
-        style: const TextStyle(color: Color(0x99FFFFFF), fontSize: 15),
+        style: TextStyle(color: couleurs.onSurfaceVariant, fontSize: 15),
       ),
     ),
   );
 
-  Widget _footer(int pageAffichee) {
+  Widget _footer(ColorScheme couleurs, int pageAffichee) {
     final ou = [
       if (card.setName != null && card.setName!.isNotEmpty)
         card.setName!
@@ -469,8 +510,8 @@ class BinderReveal extends StatelessWidget {
             card.displayName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: couleurs.onSurface,
               fontSize: 19,
               fontWeight: FontWeight.w600,
             ),
@@ -478,7 +519,7 @@ class BinderReveal extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             marques.isEmpty ? ou : '$ou  ·  $marques',
-            style: const TextStyle(color: Color(0xFFB9BCC6), fontSize: 12),
+            style: TextStyle(color: couleurs.onSurfaceVariant, fontSize: 12),
           ),
           const SizedBox(height: 6),
           Row(
@@ -489,23 +530,29 @@ class BinderReveal extends StatelessWidget {
                   vertical: 3,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2F3E7A),
+                  color: couleurs.primaryContainer,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   card.requestedBy == null
                       ? 'demandée dans le chat'
                       : 'demandée par ${card.requestedBy}',
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                  style: TextStyle(
+                    color: couleurs.onPrimaryContainer,
+                    fontSize: 11,
+                  ),
                 ),
               ),
               const Spacer(),
               // Garde-fou §IV.2 : le crédit est visible de qui regarde, même
               // ici. Un calque est vu par plus d'inconnus qu'un écran « à
               // propos ».
-              const Text(
+              Text(
                 'Données : Scryfall',
-                style: TextStyle(color: Color(0x99FFFFFF), fontSize: 10),
+                style: TextStyle(
+                  color: couleurs.onSurfaceVariant.withValues(alpha: 0.7),
+                  fontSize: 10,
+                ),
               ),
             ],
           ),
@@ -515,49 +562,125 @@ class BinderReveal extends StatelessWidget {
   }
 }
 
-/// Une case de la page.
+/// Le dos d'une carte, pendant qu'une page tourne.
 ///
-/// **Pleine et vide doivent se distinguer de loin.** Une première version les
-/// dessinait dans deux gris voisins : sur la capture, une case possédée à côté
-/// de la carte demandée était indiscernable d'un trou — c'est-à-dire que les
-/// voisines ne servaient à rien. Le pochoir est donc franc, et une case vide
-/// porte son numéro.
+/// **Dessiné, jamais chargé.** La face cachée d'une carte Magic est une œuvre de
+/// l'éditeur ; le projet ne réhéberge aucune illustration (§IV.3), et à
+/// vingt-quatre millisecondes la page, un dos générique fait le même effet.
+class _CardBack extends StatelessWidget {
+  const _CardBack({super.key, required this.couleurs});
+
+  final ColorScheme couleurs;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(8),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          couleurs.surfaceContainerHighest,
+          couleurs.surfaceContainerHigh,
+        ],
+      ),
+      border: Border.all(color: couleurs.outlineVariant),
+    ),
+    child: Center(
+      child: Transform.rotate(
+        angle: math.pi / 4,
+        child: Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: couleurs.outline.withValues(alpha: 0.6),
+              width: 1.5,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Une case de la page — le même vocabulaire que l'écran de collection.
+///
+/// **Pleine : l'illustration. Vide : la même, en fantôme, avec son numéro.**
+/// L'écran de classeur montre l'illustration manquante à un quart d'opacité,
+/// « un manque qu'on montre, pas une carte » : le numéro seul nommait la case et
+/// non la carte, et il fallait chercher ailleurs pour savoir quoi acheter.
 class _Slot extends StatelessWidget {
-  const _Slot({required this.cell, required this.owned, required this.target});
+  const _Slot({
+    required this.cell,
+    required this.couleurs,
+    required this.sortie,
+  });
 
   final BinderCell? cell;
-  final bool owned;
-  final bool target;
+  final ColorScheme couleurs;
+
+  /// Vrai pour la case dont la carte est en train de sortir.
+  final bool sortie;
+
+  /// Ce qu'il reste d'une carte qu'on ne possède pas. Assez pour la
+  /// reconnaître, assez peu pour qu'aucune case vide ne se confonde avec une
+  /// case pleine.
+  static const double _ghostOpacity = 0.24;
 
   @override
   Widget build(BuildContext context) {
-    // La case visée se dessine comme un trou : la carte en est sortie.
-    final creuse = !owned || target;
+    final radius = BorderRadius.circular(8);
+    final courante = cell;
+    final image = courante?.imageUrl;
+    final pleine = !sortie && (courante?.owned ?? 0) > 0;
+
+    if (pleine && image != null) {
+      return ClipRRect(
+        borderRadius: radius,
+        child: FoilSheen(
+          foil: courante!.hasFoil,
+          borderRadius: radius,
+          child: CardImage(url: image, uprightInCell: true),
+        ),
+      );
+    }
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: creuse ? const Color(0xFF1A1622) : const Color(0xFF5B5470),
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(
-          color: creuse ? const Color(0x2BFFFFFF) : const Color(0x59FFFFFF),
-        ),
-        boxShadow: creuse
-            ? null
-            : const [
-                BoxShadow(
-                  color: Color(0x55000000),
-                  blurRadius: 6,
-                  offset: Offset(0, 2),
-                ),
-              ],
+        borderRadius: radius,
+        color: couleurs.surfaceContainerHighest.withValues(alpha: 0.35),
+        border: Border.all(color: couleurs.outlineVariant),
       ),
-      child: creuse && !target && cell != null
-          ? Center(
-              child: Text(
-                '#${cell!.collectorNumber}',
-                style: const TextStyle(color: Color(0x77FFFFFF), fontSize: 12),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (image != null)
+              Opacity(
+                opacity: _ghostOpacity,
+                child: CardImage(url: image, uprightInCell: true),
               ),
-            )
-          : null,
+            if (courante != null)
+              Center(
+                child: Text(
+                  '#${courante.collectorNumber}',
+                  style: TextStyle(
+                    color: couleurs.onSurfaceVariant,
+                    fontSize: 12,
+                    // Sur une illustration, même fantôme, le numéro perdrait
+                    // ses contours clairs.
+                    shadows: image == null
+                        ? null
+                        : [Shadow(blurRadius: 4, color: couleurs.surface)],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
