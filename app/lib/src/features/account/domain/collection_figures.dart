@@ -26,6 +26,7 @@ class CollectionFigure {
     required this.value,
     required this.label,
     required this.detail,
+    this.fromBoosterPrice = false,
   });
 
   /// Le nombre, déjà mis en forme — l'écran ne décide pas des décimales.
@@ -37,9 +38,22 @@ class CollectionFigure {
   /// Ce qui empêche de le lire de travers : une nuance, une réserve, une
   /// précision d'assiette.
   final String detail;
+
+  /// Vrai quand ce chiffre repose sur le prix d'un booster, donc sur une valeur
+  /// que l'utilisateur peut corriger.
+  ///
+  /// **C'est le seul chiffre du profil dont l'utilisateur est la source.** Tous
+  /// les autres se déduisent de la collection et des cotes ; celui-ci dépend de
+  /// ce qu'il paie en boutique, que rien ne publie. L'écran s'en sert pour
+  /// ouvrir le réglage depuis la ligne qui affiche le prix — le rendre
+  /// modifiable ailleurs obligerait à le chercher.
+  final bool fromBoosterPrice;
 }
 
 /// Les chiffres de gauche : ce que la collection contient.
+///
+/// N'utilise que la **taille** du booster, qui est un fait publié : ces trois
+/// chiffres ne dépendent d'aucun réglage.
 List<CollectionFigure> countFigures(CollectionSummary totals, String game) {
   final booster = boosterFactsFor(game);
   return [
@@ -70,8 +84,18 @@ List<CollectionFigure> countFigures(CollectionSummary totals, String game) {
 ///
 /// [unspecifiedPrints] nuance la première : une valorisation fondée sur des
 /// éditions inconnues est un plancher, pas une estimation.
-List<CollectionFigure> valueFigures(CollectionSummary totals, String game) {
+///
+/// [boosterPrices] porte ce que l'utilisateur a déclaré payer, par jeu. Une
+/// clef absente laisse le prix de repère s'appliquer ; **un zéro déclaré est
+/// respecté**, et l'indicateur annonce alors zéro euro plutôt que d'inventer
+/// des dépenses.
+List<CollectionFigure> valueFigures(
+  CollectionSummary totals,
+  String game, {
+  Map<String, double> boosterPrices = const {},
+}) {
   final booster = boosterFactsFor(game);
+  final prix = boosterPriceFor(game, boosterPrices);
   return [
     CollectionFigure(
       value: totals.totalValueEur.toStringAsFixed(2),
@@ -85,15 +109,15 @@ List<CollectionFigure> valueFigures(CollectionSummary totals, String game) {
       label: 'euros',
       detail: 'une de chaque, sans les doublons',
     ),
-    if (booster != null)
+    if (booster != null && prix != null)
       CollectionFigure(
         // Ce que la collection aurait coûté si chaque carte était sortie d'un
         // booster acheté — la question posée est bien « combien j'aurais
         // dépensé », et non « combien je pourrais racheter ».
-        value: (totals.totalCards / booster.cards * booster.priceEur)
-            .toStringAsFixed(2),
+        value: (totals.totalCards / booster.cards * prix).toStringAsFixed(2),
         label: 'euros',
-        detail: 'en boosters, à ${booster.priceEur.toStringAsFixed(2)} € pièce',
+        detail: 'en boosters, à ${prix.toStringAsFixed(2)} € pièce',
+        fromBoosterPrice: true,
       ),
     if (totals.topCardName != null)
       CollectionFigure(

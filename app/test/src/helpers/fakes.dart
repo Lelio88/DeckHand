@@ -502,6 +502,16 @@ class FakeProfileRepository implements ProfileRepository {
   /// Chaque enregistrement reçu, dans l'ordre.
   final List<List<Game>> saved = [];
 
+  /// Ce que la base rend pour les prix de booster déclarés.
+  Map<String, double> prices = const {};
+
+  /// Chaque prix enregistré, dans l'ordre — `null` valant « retour au repère ».
+  ///
+  /// **Ce couple est ce qui distingue les deux effacements** : refermer la boîte
+  /// n'écrit rien du tout, alors que « revenir au repère » écrit un `null`. Sans
+  /// la trace, les deux se ressembleraient à l'arrivée.
+  final List<(String, double?)> savedPrices = [];
+
   /// Levée par le prochain enregistrement, pour éprouver l'écran en panne.
   Object? error;
 
@@ -513,6 +523,22 @@ class FakeProfileRepository implements ProfileRepository {
     if (error != null) throw error!;
     saved.add(List.of(games));
     declared = List.of(games);
+  }
+
+  @override
+  Future<Map<String, double>> boosterPrices() async => prices;
+
+  @override
+  Future<void> saveBoosterPrice(String game, double? priceEur) async {
+    if (error != null) throw error!;
+    savedPrices.add((game, priceEur));
+    final merged = Map<String, double>.from(prices);
+    if (priceEur == null) {
+      merged.remove(game);
+    } else {
+      merged[game] = priceEur;
+    }
+    prices = merged;
   }
 }
 

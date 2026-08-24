@@ -45,12 +45,31 @@ autres existent — sans eux, personne ne penserait à appuyer.
 retient la plus chère des finitions d'une même case : c'est celle qu'on
 garderait.
 
-**Les deux chiffres en boosters ne se déduisent d'aucune donnée.** Ils exigent de
-savoir ce qu'un booster contient et coûte, et aucune source ne le publie carte
-par carte ; les valeurs sont donc inscrites dans `booster_size.dart`, jeu par
-jeu. **Un jeu absent de cette table n'affiche pas ces deux chiffres** plutôt que
-d'en inventer — seul Magic y figure (Play Booster, 14 cartes, 5,50 €). Ces
-nombres vieillissent, et se corrigent en une ligne.
+**Les deux chiffres en boosters ne se déduisent d'aucune donnée**, et les deux
+moitiés du problème ne se règlent pas au même endroit.
+
+La **taille** d'un booster est un fait publié par l'éditeur : elle figure sur
+l'emballage, ne bouge qu'à un remaniement de format, et vaut pour tout le monde.
+Elle est inscrite dans `booster_size.dart`, où les huit jeux figurent — de 9
+cartes chez Yu-Gi-Oh à 16 chez Star Wars Unlimited. **Un jeu absent de cette
+table n'affiche pas ces chiffres** plutôt que d'en inventer.
+
+Le **prix**, lui, n'existe pas au singulier. Relevé le 24 août 2026, même
+produit, même jour : un booster Pokémon Méga-Évolution vaut **4,99 €** chez
+Micromania et **9,90 €** chez Play-in ; un Play Booster Magic revient à
+**5,29 €** acheté par display et **7,40 €** à l'unité. Près du double d'écart. Un
+prix inscrit dans le code serait donc faux pour à peu près tout le monde, et faux
+**sans le dire** — et l'indicateur répond justement à « combien **j'aurais**
+dépensé ». Le prix est donc **une préférence du compte**
+(`profiles.booster_prices`, un `jsonb` indexé par jeu), réglable depuis la ligne
+même qui l'affiche ; ce qui reste dans le code n'est qu'un **repère daté et
+sourcé**, appliqué tant que l'utilisateur n'a rien dit.
+
+**Trois états, comme pour les jeux joués.** Clef absente = « je n'ai rien
+déclaré », et le repère s'applique. Zéro = « je n'achète pas de boosters », et
+l'indicateur affiche zéro euro. Vider le champ **écrit** le retour au repère,
+plutôt que de ne rien écrire — sans quoi on n'y reviendrait qu'en retapant le
+repère de mémoire.
 
 **Une CTE n'est pas une variable.** La première version de la fonction dépassait
 le `statement_timeout` de huit secondes du rôle `authenticated` : depuis

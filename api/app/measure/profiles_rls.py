@@ -22,6 +22,7 @@ Usage :
 
 from __future__ import annotations
 
+import json
 import sys
 import uuid
 
@@ -73,26 +74,37 @@ def any_account(config: SupabaseConfig, values: dict[str, str]) -> tuple[str, st
     return None
 
 
-def snapshot(config: SupabaseConfig, user_id: str) -> list[str] | None:
-    """L'état du profil vu du propriétaire de la base, ou None s'il n'y a pas de ligne."""
+def snapshot(config: SupabaseConfig, user_id: str) -> tuple[list[str], dict] | None:
+    """L'état du profil vu du propriétaire de la base, ou None s'il n'y a pas de ligne.
+
+    **Toutes les colonnes, pas seulement celle qu'on éprouve.** Le banc écrit un
+    prix de booster ; ne relever que `games` le laisserait derrière lui, et le
+    profil réel du propriétaire porterait un prix de test.
+    """
     with psycopg.connect(config.db_url, connect_timeout=30) as conn, conn.cursor() as cur:
-        cur.execute("SELECT games FROM public.profiles WHERE user_id = %s", (user_id,))
+        cur.execute(
+            "SELECT games, booster_prices FROM public.profiles WHERE user_id = %s",
+            (user_id,),
+        )
         row = cur.fetchone()
-    return None if row is None else list(row[0])
+    return None if row is None else (list(row[0]), dict(row[1] or {}))
 
 
-def restore(config: SupabaseConfig, user_id: str, games: list[str] | None) -> None:
+def restore(config: SupabaseConfig, user_id: str, state: tuple[list[str], dict] | None) -> None:
     with psycopg.connect(config.db_url, connect_timeout=30) as conn, conn.cursor() as cur:
-        if games is None:
+        if state is None:
             cur.execute("DELETE FROM public.profiles WHERE user_id = %s", (user_id,))
         else:
+            games, prices = state
             cur.execute(
                 """
-                INSERT INTO public.profiles (user_id, games)
-                VALUES (%s, %s)
-                ON CONFLICT (user_id) DO UPDATE SET games = EXCLUDED.games
+                INSERT INTO public.profiles (user_id, games, booster_prices)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    games = EXCLUDED.games,
+                    booster_prices = EXCLUDED.booster_prices
                 """,
-                (user_id, games),
+                (user_id, games, json.dumps(prices)),
             )
         conn.commit()
 
@@ -155,6 +167,39 @@ def main(argv: list[str]) -> int:
                 )
             )
 
+            # PERMIS — déclarer ce qu'on paie un booster, et le relire.
+            #
+            # La politique `profiles_owner` est FOR ALL et porte sur la LIGNE :
+            # elle est censée couvrir la colonne ajoutée sans être rejouée. Ce
+            # « censée » est précisément ce qui se vérifie ici — un GRANT est
+            # accordé table par table, pas colonne par colonne, mais rien ne
+            # remplace le chemin réel.
+            priced = client.post(
+                REST,
+                headers={**headers, "Prefer": "resolution=merge-duplicates,return=representation"},
+                json={"user_id": user_id, "booster_prices": {"magic": 4.2}},
+            )
+            verdicts.append(
+                (
+                    "declarer son prix de booster",
+                    priced.status_code in (200, 201),
+                    f"HTTP {priced.status_code}",
+                )
+            )
+
+            relu = client.get(
+                REST, headers=headers, params={"select": "user_id,booster_prices"}
+            )
+            lignes = relu.json() if relu.status_code == 200 else []
+            mien = [r for r in lignes if r["user_id"] == user_id]
+            verdicts.append(
+                (
+                    "relire son prix de booster",
+                    len(mien) == 1 and mien[0]["booster_prices"] == {"magic": 4.2},
+                    f"HTTP {relu.status_code}, {mien[0]['booster_prices'] if mien else 'aucune ligne'}",
+                )
+            )
+
             # REFUSÉ — écrire le profil d'un autre.
             other = str(uuid.uuid4())
             forged = client.post(
@@ -191,7 +236,11 @@ def main(argv: list[str]) -> int:
         print(f"{'OK  ' if ok else 'ECHEC'} {name} ({detail})")
 
     failed = [v for v in verdicts if not v[1]]
-    etat = "aucune ligne" if initial is None else f"games = {initial}"
+    etat = (
+        "aucune ligne"
+        if initial is None
+        else f"games = {initial[0]}, booster_prices = {initial[1]}"
+    )
     print(f"\nProfil restauré dans son état initial : {etat}.")
     if failed:
         print(f"{len(failed)} contrôle(s) en échec.", file=sys.stderr)

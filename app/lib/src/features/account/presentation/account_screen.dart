@@ -26,7 +26,9 @@ import 'game_tile.dart';
 import 'pick_games_screen.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../collection/domain/booster_size.dart';
 import '../domain/collection_figures.dart';
+import 'booster_price_dialog.dart';
 import 'sharing_screen.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -49,20 +51,28 @@ class AccountScreen extends ConsumerWidget {
           ),
           error: (error, _) => Text('Collection illisible : $error'),
           data: (totals) {
-            final jeu = ref.watch(selectedGameProvider).id;
+            final jeu = ref.watch(selectedGameProvider);
+            // **Le prix des boosters n'est pas attendu.** Il arrive du serveur
+            // comme le reste, mais son absence n'empêche rien : les prix de
+            // repère s'appliquent, et l'affichage se corrige tout seul quand la
+            // réponse arrive. Bloquer les six chiffres sur un réglage de
+            // confort serait disproportionné.
+            final prix =
+                ref.watch(boosterPricesProvider).asData?.value ?? const {};
             return Row(
               children: [
                 Expanded(
                   child: _Figure(
                     icon: Icons.style_outlined,
-                    figures: countFigures(totals, jeu),
+                    figures: countFigures(totals, jeu.id),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _Figure(
                     icon: Icons.euro,
-                    figures: valueFigures(totals, jeu),
+                    figures: valueFigures(totals, jeu.id, boosterPrices: prix),
+                    onEditPrice: () => _reglerLePrix(context, ref, jeu, prix),
                   ),
                 ),
               ],
@@ -110,6 +120,35 @@ class AccountScreen extends ConsumerWidget {
   }
 }
 
+/// Ouvre le réglage du prix d'un booster, puis rafraîchit ce qui en dépend.
+///
+/// **Rien n'est écrit tant que la boîte n'a pas rendu un choix.** Elle rend
+/// `null` quand on la referme, et ce `null`-là ne doit surtout pas être confondu
+/// avec celui d'un choix « revenir au repère » : c'est pourquoi la boîte rend un
+/// [BoosterPriceChoice] et non un `double?`, où les deux seraient le même objet.
+Future<void> _reglerLePrix(
+  BuildContext context,
+  WidgetRef ref,
+  Game jeu,
+  Map<String, double> prix,
+) async {
+  final facts = boosterFactsFor(jeu.id);
+  if (facts == null) return;
+
+  final choix = await showBoosterPriceDialog(
+    context,
+    gameLabel: jeu.label,
+    facts: facts,
+    current: prix[jeu.id],
+  );
+  if (choix == null) return;
+
+  await ref
+      .read(profileRepositoryProvider)
+      .saveBoosterPrice(jeu.id, choix.priceEur);
+  ref.invalidate(boosterPricesProvider);
+}
+
 /// Un chiffre de la collection, et ceux qu'on peut lui préférer.
 ///
 /// **Une pression change de chiffre.** Les afficher tous tiendrait de
@@ -117,10 +156,15 @@ class AccountScreen extends ConsumerWidget {
 /// est montré ; les autres sont à un doigt, et de petits points disent qu'ils
 /// existent, faute de quoi personne ne penserait à appuyer.
 class _Figure extends StatefulWidget {
-  const _Figure({required this.icon, required this.figures});
+  const _Figure({required this.icon, required this.figures, this.onEditPrice});
 
   final IconData icon;
   final List<CollectionFigure> figures;
+
+  /// Appelé quand on touche la ligne de détail d'un chiffre qui repose sur le
+  /// prix d'un booster. `null` sur la tuile de gauche, dont aucun chiffre n'en
+  /// dépend.
+  final VoidCallback? onEditPrice;
 
   @override
   State<_Figure> createState() => _FigureState();
@@ -143,6 +187,7 @@ class _FigureState extends State<_Figure> {
     final figures = widget.figures;
     if (figures.isEmpty) return const SizedBox.shrink();
     final figure = figures[_index % figures.length];
+    final modifiable = figure.fromBoosterPrice && widget.onEditPrice != null;
 
     return GestureDetector(
       onTap: _suivant,
@@ -191,13 +236,44 @@ class _FigureState extends State<_Figure> {
             Text(figure.value, style: theme.textTheme.headlineSmall),
             Text(figure.label, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 4),
-            Text(
-              figure.detail,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            // **La ligne qui dit le prix est celle qui le règle.** Le chiffre
+            // « en boosters achetés » est le seul du profil dont l'utilisateur
+            // est la source ; mettre son réglage ailleurs obligerait à le
+            // chercher, alors que la phrase qui l'affiche le désigne déjà.
+            // Le geste est imbriqué dans celui qui fait défiler : en Dart, le
+            // détecteur le plus profond gagne l'arène, donc toucher la ligne
+            // règle le prix et toucher ailleurs change de chiffre.
+            if (modifiable)
+              GestureDetector(
+                onTap: widget.onEditPrice,
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        figure.detail,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                        maxLines: 2,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 12,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+              )
+            else
+              Text(
+                figure.detail,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 2,
               ),
-              maxLines: 2,
-            ),
           ],
         ),
       ),
