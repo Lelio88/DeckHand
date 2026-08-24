@@ -358,9 +358,28 @@ site de projet est servi sous `/<dépôt>/`.
 
 ### Le bot de chat lit par la même porte
 
-`api/app/twitch/` répond à `!card <nom>` dans un chat Twitch, en **lecture
-seule**. Il tourne sur le poste qui diffuse, le temps d'un direct ; rien n'est
-déployé.
+`api/app/twitch/` répond dans un chat Twitch, en **lecture seule**. Il tourne sur
+le poste qui diffuse, le temps d'un direct ; rien n'est déployé.
+
+| commande | ce qu'elle dit | ce qu'elle appelle |
+|---|---|---|
+| `!card <nom>` | la carte est-elle possédée, et où | `binder_locate` |
+| `!dernieres` | les trois dernières cartes entrées au classeur | `public_recent_additions` |
+| `!classeur` | l'avancement, extension par extension | `public_binder_shelf` |
+| `!deckhand` | l'adresse du classeur et le crédit | rien |
+
+**`!dernieres` est celle que le direct rend possible.** Un spectateur qui arrive
+en cours de route rattrape en une ligne ce qui vient d'être ouvert — et cela n'a
+de sens que parce que les cartes sont scannées au fur et à mesure. Aucun bot de
+collection générique ne peut la servir.
+
+**Une fonction publique n'est pas une fonction accordée à `anon`.** `my_binder_
+shelf` l'est, et ne rend pourtant rien au bot : elle filtre sur `auth.uid()`,
+nul sous la clé anonyme. Trois fonctions seulement acceptent une **adresse de
+partage**, et ce sont les seules que le bot puisse appeler — d'où
+`public_binder_shelf`, écrite pour lui et calquée sur `binder_locate`. Le droit
+d'exécution ne dit rien de ce qu'une fonction accepte en argument ; c'est la
+signature qui décide.
 
 **Il ne voit rien de plus que la page publique, et ce n'est pas une prudence de
 son code.** Il s'adresse à Supabase avec la clé anonyme et une adresse de
@@ -378,6 +397,19 @@ faute de quoi le bot nommerait une page où la carte n'est pas.
 retirée du partage : « pas dans le classeur ». C'est la même anti-énumération
 que la page — et le débit épuisé se tait aussi, plutôt que d'annoncer qu'il
 l'est, ce qui consommerait la ressource protégée.
+
+**Un second essai quand le premier ne rend rien**, traits d'union et espaces
+échangés. `!card ka zar` répondait « pas dans le classeur » alors que *Ka-Zar*
+y est — une réponse fausse, pas une absence de réponse. La cause n'est pas la
+normalisation : mesuré, un **nom complet** mal saisi est retrouvé dans 100 % des
+cas (2 111 noms Magic, zéro perdu, autant dans l'autre sens). Le défaut ne vit
+que sur un **fragment**, où la similarité trigramme s'effondre — « ka-zar »
+contre « ka-zar of the savage land » vaut 0,27 quand le seuil est à 0,30 — et où
+il ne reste que la branche préfixe, un `LIKE` littéral. Coût : 21 cartes en
+Magic, 32 en Yu-Gi-Oh, **zéro** en Lorcana et Riftbound, dont le trait d'union
+sépare deux mots au lieu d'en lier un. Le repli ne part que sur un échec, et le
+débit est vérifié avant l'appel réseau : il ne peut pas déborder le plafond.
+`normalize_card_name` n'est pas touchée, ni son jumeau Dart.
 
 Le crédit Scryfall est annoncé à la connexion, au plus une fois par demi-heure :
 le garde-fou §IV.2 vaut pour un chat comme pour une page, mais une reconnexion

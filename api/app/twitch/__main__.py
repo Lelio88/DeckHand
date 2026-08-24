@@ -23,11 +23,23 @@ from .bot import Bot
 from .irc import IrcCredentials
 from .locator import Locator
 
+#: Où la page publique des classeurs est servie.
+#:
+#: Le workflow `pages.yml` y publie le build web ; l'adresse de partage est
+#: cette base suivie de la poignée. `--share-url` la remplace si elle bouge, sans
+#: quoi une adresse périmée s'annoncerait dans le chat en silence.
+DEFAULT_SHARE_BASE = "https://lelio88.github.io/DeckHand/"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Bot Twitch DeckHand, en lecture seule")
     parser.add_argument("--game", default="magic", choices=["magic", "riftbound"])
     parser.add_argument("--command", default="!card", help="préfixe de la commande")
+    parser.add_argument(
+        "--share-url",
+        default="",
+        help="adresse publique du classeur, si elle diffère de celle construite",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -48,6 +60,11 @@ def main() -> int:
         ),
         channel=twitch.channel,
         command=args.command,
+        # **Construite, pas configurée en double.** L'adresse de partage est la
+        # poignée : une seconde variable dans le coffre pourrait la contredire,
+        # et `!deckhand` annoncerait alors un classeur qui n'est pas celui que
+        # le bot lit.
+        share_url=args.share_url or f"{DEFAULT_SHARE_BASE}?c={twitch.handle}",
     )
     bot.run(IrcCredentials(nick=twitch.nick, token=twitch.token))
     return 0

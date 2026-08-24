@@ -1,4 +1,12 @@
-"""L'appel à `binder_locate` — le seul point du bot qui touche au réseau.
+"""Le seul point du bot qui touche au réseau.
+
+Trois fonctions publiques y sont appelées, et toutes par la même porte :
+`binder_locate` (où est cette carte), `public_recent_additions` (ce qui vient
+d'entrer au classeur) et `public_binder_shelf` (l'avancement par extension).
+Elles ont en commun d'accepter une **adresse de partage** — ce qui n'est pas le
+cas de la plupart des fonctions du projet, dont `my_binder_shelf`, qui lisent la
+collection de l'appelant et ne rendent donc rien sous la clé anonyme.
+
 
 **Le bot passe par la porte publique, et par elle seule.** Clé anonyme, adresse
 de partage, une fonction `SECURITY INVOKER` : les règles de ligne qui protègent
@@ -20,7 +28,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from .reply import Location
+from .reply import Addition, Location, Shelf
 
 logger = logging.getLogger(__name__)
 
@@ -94,15 +102,42 @@ class Locator:
             return []
         return self._interroger(client, variante)
 
+    def recent(self, client: httpx.Client, limit: int = 3) -> list[Addition]:
+        """Les dernières cartes entrées au classeur partagé."""
+        rows = self._appeler(
+            client, "public_recent_additions", {"p_handle": self.handle, "p_limit": limit}
+        )
+        return [Addition.from_row(row) for row in rows]
+
+    def shelf(self, client: httpx.Client) -> list[Shelf]:
+        """Les extensions visibles du classeur partagé, et leur remplissage."""
+        rows = self._appeler(
+            client, "public_binder_shelf", {"p_handle": self.handle, "p_game": self.game}
+        )
+        return [Shelf.from_row(row) for row in rows]
+
     def _interroger(self, client: httpx.Client, query: str) -> list[Location]:
+        rows = self._appeler(
+            client,
+            "binder_locate",
+            {"p_handle": self.handle, "p_query": query, "p_game": self.game},
+        )
+        return [Location.from_row(row) for row in rows]
+
+    def _appeler(
+        self, client: httpx.Client, fonction: str, corps: dict[str, object]
+    ) -> list[dict[str, object]]:
+        """Un appel à la porte publique, ou une liste vide.
+
+        **Une seule fonction touche au réseau**, quelle que soit la commande :
+        la clé anonyme, l'en-tête et le traitement des pannes s'y écrivent une
+        fois. Une commande qui appellerait Supabase de son côté échapperait au
+        contrat de silence ci-dessus, et probablement à la clé anonyme.
+        """
         try:
             response = client.post(
-                f"{self.supabase_url.rstrip('/')}/rest/v1/rpc/binder_locate",
-                json={
-                    "p_handle": self.handle,
-                    "p_query": query,
-                    "p_game": self.game,
-                },
+                f"{self.supabase_url.rstrip('/')}/rest/v1/rpc/{fonction}",
+                json=corps,
                 headers={
                     "apikey": self.anon_key,
                     "Authorization": f"Bearer {self.anon_key}",
@@ -122,7 +157,8 @@ class Locator:
             if isinstance(error, httpx.HTTPStatusError):
                 detail = f" [{error.response.status_code}] {error.response.text[:200]}"
             logger.warning(
-                "binder_locate injoignable (%s)%s — réponse vide",
+                "%s injoignable (%s)%s — réponse vide",
+                fonction,
                 type(error).__name__,
                 detail,
             )
@@ -130,4 +166,4 @@ class Locator:
 
         if not isinstance(rows, list):
             return []
-        return [Location.from_row(row) for row in rows if isinstance(row, dict)]
+        return [row for row in rows if isinstance(row, dict)]

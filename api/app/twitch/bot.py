@@ -1,9 +1,16 @@
 """La boucle qui relie le chat au classeur.
 
-**Une commande, et c'est délibéré.** `!card <nom>` dit si la carte est possédée
-et où. La désignation — un spectateur qui ferait afficher une carte sur
-l'overlay — est repoussée, pas refusée : ce sera un petit ajout une fois
-l'overlay en place, et la décision sera plus facile à prendre à ce moment-là.
+**Quatre commandes, et toutes en lecture.** `!card <nom>` dit si la carte est
+possédée et où ; `!dernieres` ce qui vient d'entrer au classeur ; `!classeur`
+l'avancement par extension ; `!deckhand` l'adresse et le crédit. Aucune n'écrit,
+et aucune ne le pourra : la porte publique est la clé anonyme, et une commande
+qui aurait besoin de la clé de service serait le signal qu'elle n'a rien à faire
+dans un chat.
+
+**Ce qui n'y est pas.** La désignation — un spectateur qui ferait afficher une
+carte sur l'overlay — attend l'overlay lui-même : ses questions (une file ou une
+seule case ? qui a la main quand le diffuseur scanne ?) ne se tranchent que
+devant lui.
 
 **La reconnexion est le régime normal.** Twitch coupe une connexion inactive, et
 un direct dure des heures : `run` reconnecte plutôt que de s'arrêter, avec une
@@ -25,7 +32,13 @@ import httpx
 
 from .irc import ChatMessage, IrcCredentials, channel_name, connect, parse_privmsg
 from .locator import Locator
-from .reply import format_reply, parse_command
+from .reply import (
+    format_recent,
+    format_reply,
+    format_shelf,
+    parse_bare_command,
+    parse_command,
+)
 from .throttle import Throttle
 
 logger = logging.getLogger(__name__)
@@ -37,7 +50,10 @@ _MAX_RETRY_SECONDS = 60.0
 # §IV.2 impose une attribution visible partout où des inconnus voient ces
 # données ; un chat en fait partie. Elle est annoncée à la connexion plutôt
 # qu'accrochée à chaque réponse, qui deviendrait illisible.
-ANNOUNCE = "DeckHand lit le classeur — !card <nom>. Cartes, images et prix : Scryfall."
+ANNOUNCE = (
+    "DeckHand lit le classeur — !card <nom> · !dernieres · !classeur · "
+    "!deckhand. Cartes, images et prix : Scryfall."
+)
 
 # Une reconnexion ne réannonce pas : un réseau instable transformerait le crédit
 # en spam, et un spam se fait couper — donc plus de crédit du tout.
@@ -54,12 +70,16 @@ class Bot:
         channel: str,
         throttle: Throttle | None = None,
         command: str = "!card",
+        share_url: str = "",
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.locator = locator
         self.channel = channel_name(channel)
         self.throttle = throttle or Throttle()
         self.command = command
+        # Vide tant que rien n'est partagé : `!deckhand` le dit alors, plutôt
+        # que d'annoncer une adresse qui ne mènerait nulle part.
+        self.share_url = share_url
         self._clock = clock
         self._announced_at: float | None = None
 
@@ -82,13 +102,42 @@ class Bot:
             return None
 
         query = parse_command(message.text, self.command)
-        if query is None:
-            return None
-        if not self.throttle.allows(message.author, query):
-            return None
+        if query is not None:
+            if not self.throttle.allows(message.author, query):
+                return None
+            locations = self.locator.locate(client, query)
+            return f"@{message.author} {format_reply(query, locations)}"
 
-        locations = self.locator.locate(client, query)
-        return f"@{message.author} {format_reply(query, locations)}"
+        # **Les commandes sans argument passent par le même débit.** La clé de
+        # cooldown est leur nom : sans elle, `!classeur` répété dix fois
+        # produirait dix réponses identiques là où `!card ka-zar` en produit une.
+        for nom, repondre in self._sans_argument.items():
+            if not parse_bare_command(message.text, nom):
+                continue
+            if not self.throttle.allows(message.author, nom):
+                return None
+            return f"@{message.author} {repondre(client)}"
+        return None
+
+    @property
+    def _sans_argument(self) -> dict[str, Callable[[httpx.Client], str]]:
+        return {
+            "!dernieres": lambda client: format_recent(self.locator.recent(client)),
+            "!classeur": lambda client: format_shelf(self.locator.shelf(client)),
+            "!deckhand": lambda _client: self._adresse(),
+        }
+
+    def _adresse(self) -> str:
+        """L'adresse du classeur, et le crédit.
+
+        **Aucun appel réseau** : l'adresse est celle qu'on a déjà. Et le crédit
+        y figure parce que le §IV.2 veut une attribution visible de qui regarde
+        — un spectateur qui tape cette commande n'a pas forcément vu l'annonce
+        de connexion, qui ne repasse que toutes les demi-heures.
+        """
+        if not self.share_url:
+            return "classeur non partagé pour l'instant."
+        return f"le classeur : {self.share_url} — cartes, images et prix : Scryfall."
 
     def run(self, credentials: IrcCredentials) -> None:
         """Écoute le chat jusqu'à interruption, en se reconnectant."""
