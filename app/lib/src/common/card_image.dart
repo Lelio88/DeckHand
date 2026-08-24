@@ -341,3 +341,34 @@ class CardImageProvider extends ImageProvider<CardImageProvider> {
   @override
   String toString() => 'CardImageProvider("$url", scale: $scale)';
 }
+
+/// Amène une image en cache sans l'afficher.
+///
+/// **À quoi cela sert dans un classeur.** La feuille suivante n'est construite
+/// qu'une fois le geste de retournement commencé : ses neuf images ne partent
+/// donc qu'à cet instant, et la feuille se découvre vide. La précharger dès que
+/// ses données arrivent la rend lisible au moment où elle apparaît.
+///
+/// **La vignette seulement.** Neuf cartes en taille normale font 900 Ko ; en
+/// 146 × 204 elles font 126 Ko. Précharger les grandes rapatrierait près de
+/// deux mégaoctets par déplacement — le remède serait pire que le mal. La
+/// grande continue d'arriver derrière, comme sur la feuille courante.
+///
+/// Rien n'est attendu et rien n'échoue : une image qu'on n'a pas pu précharger
+/// se téléchargera au moment de l'afficher, exactement comme avant.
+void precacheCardPreview(String? url) {
+  final preview = previewCardImage(url);
+  if (preview == null || preview.isEmpty) return;
+
+  // `resolve` suffit : il passe par [CardImageProvider], donc par le cache
+  // disque, et dépose le résultat dans l'`ImageCache` de Flutter. Celui-ci
+  // déduplique par clé, ce qui rend cet appel sans effet quand l'image est
+  // déjà connue — on peut donc l'émettre à chaque reconstruction sans compter.
+  final stream = CardImageProvider(preview).resolve(ImageConfiguration.empty);
+  late final ImageStreamListener listener;
+  listener = ImageStreamListener(
+    (_, _) => stream.removeListener(listener),
+    onError: (_, _) => stream.removeListener(listener),
+  );
+  stream.addListener(listener);
+}

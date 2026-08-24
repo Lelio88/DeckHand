@@ -2098,8 +2098,46 @@ attendant — `NetworkUnreachable` nomme le VPN, cause fréquente ici puisqu'un
 tunnel impose son propre résolveur. On intercepte `ClientException` et non
 `SocketException`, qui vient de `dart:io` et casserait la cible web.
 
-L'index d'empreintes garde son propre délai (15 s, mesuré : l'index complet
-arrive en 6,6 s depuis un poste filaire, soit environ 130 ms par page).
+L'index d'empreintes garde son propre délai (15 s), justifié par sa mesure.
+
+### Ce que l'attente coûte, et où elle était
+
+Quatre coûts mesurés le 2026-08-24, tous sur le chemin qui sépare un appui de
+ce qu'on vient voir.
+
+**L'index était attendu avant la caméra.** `live_scan_screen` enchaînait
+préférences → index (relecture, plus un appel de comptage au serveur) → caméra.
+Or l'aperçu ne dépend d'aucun des deux : `_onFrame` écarte déjà les images tant
+que le scanner est nul. Les deux chaînes courent désormais en parallèle, et
+`_armerLeScanner` réunit ce qui arrive en premier — d'où le jeu et l'orientation
+du capteur devenus des champs de l'écran, le scanner ne pouvant plus leur servir
+de mémoire.
+
+**Le téléchargement était strictement séquentiel.** Cinquante pages bout à bout.
+Mesuré sur l'index Magic depuis une liaison filaire : **25,10 s** à une page à la
+fois, **10,35 s** à deux, **9,44 s à quatre**, puis un plateau (10,16 s à six,
+9,62 s à douze). Au-delà de quatre, ce n'est plus la latence qui borne mais les
+6,4 Mio à rapatrier. `indexConcurrency` vaut donc **4**, et `indexBatches`
+isole le découpage pour qu'il s'éprouve sans réseau — une erreur d'un rang y
+perdrait mille empreintes en silence.
+
+**L'index vivait dans `shared_preferences`.** Mesuré par `tool/index_bench.dart` :
+l'index Magic pèse 3 929 Kio, soit **5 239 Kio une fois encodé en base64** ; les
+huit jeux mis en cache montent à 10,1 Mio. Or le greffon charge **toutes** ses
+clés en mémoire Dart au premier `getInstance()`, lequel a lieu au démarrage pour
+lire le jeu courant — cinq caractères. Il vit désormais dans un fichier
+(`art_index_store_io.dart`), les préférences ne servant plus que sur le web, où
+`dart:io` n'existe pas. Le base64 disparaît avec, soit un tiers de volume et
+25 ms de décodage en moins. **Un index laissé dans les anciennes clés est repris
+puis effacé** : le déménagement ne coûte aucun téléchargement.
+
+**Le décodage bloquait l'isolat principal** — 22 ms sur un poste, trois à cinq
+fois plus sur un téléphone, au moment précis où l'écran de scan s'ouvre.
+`compute` l'éloigne.
+
+Ce que ces mesures ont écarté, faute d'effet ressenti : la lecture des
+préférences au démarrage n'allonge pas le lancement, le notifier du jeu courant
+rendant `Game.magic` sans l'attendre.
 
 
 Chaque écran a été écrit à son tour, et chacun a inventé sa réponse à des questions que les précédents avaient déjà tranchées. Les divergences relevées ici n'étaient pas des choix : elles tenaient à l'ordre d'écriture. Un test par écran ne les aurait jamais vues — elles ne sont visibles qu'en comparant les écrans entre eux, ce que fait `test/src/features/ui_coherence_test.dart`.

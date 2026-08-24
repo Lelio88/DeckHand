@@ -124,6 +124,25 @@ vides** : la page part du catalogue, pas de la collection. Une case vide **dit
 laquelle** — l'illustration manquante s'y affiche en fantôme à 24 %, sans requête
 supplémentaire, le numéro restant par-dessus.
 
+### Ce que tourner une page coûtait
+
+Les feuilles voisines étaient préchargées, mais **seulement leurs données** :
+3,5 Kio, 57 à 78 ms mesurés sous `authenticated` — ce n'est pas ce qu'on
+attendait. `page_turn.dart` ne construit la feuille suivante qu'à l'intérieur de
+son `AnimatedBuilder`, c'est-à-dire **une fois le geste commencé** : au repos,
+`_atRest` ne bâtit que la feuille courante. Les neuf images de la suivante
+partaient donc à l'instant précis où l'on tirait la feuille, et celle-ci se
+découvrait vide.
+
+Les **vignettes** des feuilles voisines sont désormais demandées dès que leurs
+données arrivent — 126 Ko par feuille, contre 900 Ko si l'on préchargeait les
+grandes, ce qui ferait près de deux mégaoctets par déplacement. Les grandes
+continuent d'arriver derrière, comme sur la feuille courante : c'est la
+stratégie qui existait déjà, appliquée une feuille plus tôt.
+
+**L'ouverture d'un classeur, elle, n'a jamais été le problème** : un seul appel,
+78 ms, et l'étagère est déjà chargée.
+
 ### Deux régimes de lecture
 
 - Par **numéro**, le classeur range et montre les trous — « que me manque-t-il ».

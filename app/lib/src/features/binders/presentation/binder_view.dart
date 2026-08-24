@@ -820,9 +820,19 @@ class _Binder extends ConsumerWidget {
     // cartes entières ; en précharger davantage rapatrierait un classeur entier
     // pour en montrer un neuvième. Le `watch` suffit à déclencher la requête et
     // à la garder en cache le temps qu'on reste sur ce classeur.
+    //
+    // **Et ses images avec, ce qui manquait.** Le `watch` ne ramenait que le
+    // JSON — 3,5 Kio, 57 à 78 ms mesurés : ce n'est pas lui qu'on attendait en
+    // tournant les pages. La feuille suivante n'est construite qu'une fois le
+    // geste commencé (`page_turn.dart` la bâtit dans l'`AnimatedBuilder`), si
+    // bien que ses neuf images partaient à cet instant précis et qu'elle se
+    // découvrait vide. Les vignettes sont donc demandées dès que les données
+    // arrivent : 126 Ko par feuille, contre 900 Ko si l'on préchargeait les
+    // grandes — celles-ci continuent d'arriver derrière, comme sur la feuille
+    // courante.
     for (final neighbour in neighbours) {
       if (neighbour >= 1 && neighbour <= pages) {
-        ref.watch(
+        final voisine = ref.watch(
           binderPageProvider((
             setCode: setCode,
             page: neighbour,
@@ -831,6 +841,12 @@ class _Binder extends ConsumerWidget {
             descending: reading.descending,
           )),
         );
+        for (final cell in voisine.asData?.value ?? const <BinderCell>[]) {
+          // `imageUrl` et non l'illustration brute : c'est exactement l'URL que
+          // la case affichera, donc exactement la clé de cache qu'elle
+          // cherchera. Précharger autre chose ne servirait à rien.
+          precacheCardPreview(cell.imageUrl);
+        }
       }
     }
 

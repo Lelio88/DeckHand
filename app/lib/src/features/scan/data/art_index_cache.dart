@@ -1,8 +1,8 @@
 /// Conservation locale de l'index d'empreintes.
 ///
-/// Sans cache, l'application retélécharge près d'un mégaoctet à chaque
-/// démarrage — une trentaine de secondes avant de pouvoir scanner, ce qui vide
-/// de son sens l'argument de la reconnaissance embarquée.
+/// Sans cache, l'application retélécharge six mégaoctets à chaque démarrage —
+/// mesuré, 9,4 s sur une liaison filaire — ce qui viderait de son sens
+/// l'argument de la reconnaissance embarquée.
 ///
 /// **Fraîcheur et hors ligne se contredisent**, et l'arbitrage est explicite :
 /// le cache est **toujours** servi s'il existe, et sa péremption est vérifiée
@@ -11,16 +11,16 @@
 /// scanner faute de réseau serait une régression bien pire que d'ignorer la
 /// dernière extension.
 ///
-/// **Un seul mécanisme pour toutes les plateformes.** `shared_preferences`
-/// s'appuie sur `localStorage` en web et sur le stockage natif ailleurs, ce qui
-/// évite d'entretenir deux implémentations. Une version antérieure écrivait un
-/// fichier via `path_provider`, absent du web : le scan depuis un navigateur
-/// mobile — cas parfaitement réel, la caméra y est accessible — retéléchargeait
-/// alors l'index à chaque visite.
+/// **Le support dépend de la plateforme**, et c'est `art_index_store.dart` qui
+/// tranche : un fichier là où `dart:io` existe, `localStorage` sur le web. La
+/// raison tient en un chiffre — l'index Magic pèse 5 239 Kio en base64, et
+/// `shared_preferences` charge toutes ses clés en mémoire Dart dès le premier
+/// accès, qui a lieu au démarrage pour lire le jeu courant.
 ///
-/// L'index est encodé en base64 : cela gonfle d'un tiers, mais la donnée n'est
-/// lue qu'une fois au démarrage et le surcoût reste sans conséquence face à un
-/// téléchargement complet.
+/// **Le décodage ne se fait pas sur l'isolat principal.** Reconstruire l'index
+/// depuis ses octets coûte 22 ms sur un poste, donc trois à cinq fois plus sur
+/// un téléphone : autant de gel de l'interface au moment précis où l'écran de
+/// scan s'ouvre. `compute` l'éloigne.
 library;
 
 import 'dart:convert';
@@ -31,29 +31,33 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../config/selected_game.dart';
 import '../domain/art_hash_index.dart';
+import 'art_index_store.dart';
 
 /// Index conservé localement, avec le nombre d'entrées qu'il contenait.
 typedef CachedIndex = ({ArtHashIndex index, int count});
 
-/// Préfixe des clés de stockage, **versionné par l'algorithme d'empreinte**.
+/// Clés de l'ancien rangement dans les préférences.
 ///
-/// Une empreinte calculée avec un autre algorithme est inexploitable. La leçon
-/// vient de l'expérience : le redimensionnement a déjà changé une fois, rendant
-/// caduques onze mille empreintes. Incrémenter ce suffixe fait proprement
-/// ignorer l'ancien cache au lieu de le servir silencieusement.
-const _cachePrefix = 'art_hash_index_dhash64_v1';
+/// **Elles sont reprises une fois, puis effacées.** Retélécharger six
+/// mégaoctets pour cause de déménagement serait une punition gratuite : les
+/// octets sont déjà là, il suffit de les recopier au bon endroit. Une fois
+/// recopiés, la clé part — c'est tout l'objet de l'opération que de ne plus
+/// avoir cela dans les préférences.
+const String _oldPrefix = 'art_hash_index_dhash64_v1';
 
 /// Clé de l'unique index d'avant le cloisonnement par jeu.
 ///
-/// **Elle est purgée, jamais relue.** Elle contient les deux catalogues mêlés,
-/// donc une donnée fausse pour l'un comme pour l'autre : servir ce blob en
-/// Riftbound proposerait des cartes Magic, et le garder en Magic laisserait
-/// dormir 1,6 Mo de base64 sur l'appareil.
-const _legacyKey = _cachePrefix;
+/// **Elle est purgée, jamais relue.** Elle contient plusieurs catalogues mêlés,
+/// donc une donnée fausse pour chacun : servir ce blob en Riftbound proposerait
+/// des cartes Magic.
+const String _legacyKey = _oldPrefix;
 
-/// Une clé par jeu : basculer de catalogue ne doit pas écraser l'autre index,
-/// sinon chaque aller-retour coûterait un téléchargement complet.
-String _keyFor(Game game) => '${_cachePrefix}_${game.id}';
+String _oldKeyFor(Game game) => '${_oldPrefix}_${game.id}';
+
+/// Reconstruit l'index depuis ses octets. Hors de l'isolat principal.
+///
+/// Fonction de premier niveau : `compute` ne sait pas transporter une fermeture.
+ArtHashIndex _decode(Uint8List bytes) => ArtHashIndex.fromBytes(bytes);
 
 class ArtIndexCache {
   const ArtIndexCache();
@@ -65,13 +69,11 @@ class ArtIndexCache {
   /// rendrait le scan définitivement inaccessible.
   Future<CachedIndex?> read(Game game) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await _dropLegacy(prefs);
+      var bytes = await readIndexBytes(game.id);
+      bytes ??= await _adoptFromPreferences(game);
+      if (bytes == null || bytes.isEmpty) return null;
 
-      final encoded = prefs.getString(_keyFor(game));
-      if (encoded == null || encoded.isEmpty) return null;
-
-      final index = ArtHashIndex.fromBytes(base64Decode(encoded));
+      final index = await compute(_decode, bytes);
       return (index: index, count: index.length);
     } on Object catch (error) {
       debugPrint('cache d\'empreintes illisible, purge : $error');
@@ -81,22 +83,35 @@ class ArtIndexCache {
   }
 
   Future<void> write(Game game, ArtHashIndex index) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyFor(game), base64Encode(index.toBytes()));
-    } on Object catch (error) {
-      // Un cache qu'on n'arrive pas à écrire n'empêche pas de fonctionner :
-      // l'index reste en mémoire pour la durée de la session.
-      debugPrint('cache d\'empreintes non enregistré : $error');
-    }
+    // Un cache qu'on n'arrive pas à écrire n'empêche pas de fonctionner :
+    // l'index reste en mémoire pour la durée de la session. Le magasin avale
+    // déjà ses propres erreurs.
+    await writeIndexBytes(game.id, index.toBytes());
   }
 
-  Future<void> clear(Game game) async {
+  Future<void> clear(Game game) => deleteIndexBytes(game.id);
+
+  /// Récupère l'index de l'ancien rangement, puis libère les préférences.
+  ///
+  /// Rend les octets repris, ou `null` s'il n'y avait rien. L'écriture au
+  /// nouvel emplacement a lieu ici : sans elle, la reprise recommencerait à
+  /// chaque ouverture, base64 compris.
+  Future<Uint8List?> _adoptFromPreferences(Game game) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_keyFor(game));
-    } on Object {
-      // Rien à faire de plus : le cache sera écrasé au prochain enregistrement.
+      await _dropLegacy(prefs);
+
+      final key = _oldKeyFor(game);
+      final encoded = prefs.getString(key);
+      if (encoded == null || encoded.isEmpty) return null;
+
+      final bytes = base64Decode(encoded);
+      await writeIndexBytes(game.id, bytes);
+      await prefs.remove(key);
+      return bytes;
+    } on Object catch (error) {
+      debugPrint('ancien cache d\'empreintes ignoré : $error');
+      return null;
     }
   }
 

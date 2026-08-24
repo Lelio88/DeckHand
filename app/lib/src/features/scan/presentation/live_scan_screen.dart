@@ -106,6 +106,14 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   final Map<String, String> _editions = {};
   CameraController? _controller;
   LiveScanner? _scanner;
+
+  /// Le jeu et l'orientation du capteur, retenus hors du scanner.
+  ///
+  /// Ils lui servaient de mémoire ; ils ne le peuvent plus, l'index et la
+  /// caméra n'arrivant plus dans un ordre garanti.
+  String? _game;
+  int _uprightTurns = 0;
+  bool _cameraPrete = false;
   final _basket = ScanBasket();
 
   /// Ce qu'on sait des cartes du panier. Résolu au fil de l'eau : une carte
@@ -151,26 +159,21 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
     super.dispose();
   }
 
+  /// Ouvre la caméra, et charge l'index **à côté** plutôt qu'avant.
+  ///
+  /// **L'ordre était le problème.** La séquence attendait les préférences, puis
+  /// l'index — sa relecture, et un appel de comptage au serveur — et n'ouvrait
+  /// la caméra qu'ensuite. Or l'aperçu est ce que l'utilisateur vient voir, et
+  /// il ne dépend d'aucun des deux : [_onFrame] écarte déjà les images tant que
+  /// `_scanner` est nul. Les deux chaînes courent donc en parallèle, et la
+  /// reconnaissance s'arme quand ses conditions sont réunies.
   Future<void> _start() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _showQuad = prefs.getBool(_clefApercuCadre) ?? false;
-      final zone = prefs.getStringList(_clefZone);
-      if (zone != null && zone.length == 4) {
-        final v = zone.map(double.tryParse).whereType<double>().toList();
-        if (v.length == 4) {
-          _region = ScanRegion(
-            left: v[0],
-            top: v[1],
-            right: v[2],
-            bottom: v[3],
-          ).sane;
-        }
-      }
+    await _lireLesReglages();
+    unawaited(_chargerIndex());
 
-      final index = await ref.read(artHashIndexProvider.future);
-      _index = index;
+    try {
       final game = ref.read(selectedGameProvider);
+      _game = game.id;
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
         if (mounted) setState(() => _status = 'Aucune caméra disponible.');
@@ -202,26 +205,87 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
       }
       setState(() {
         _controller = controller;
-        _scanner = LiveScanner(
-          index: index,
-          game: game.id,
-          region: _region,
-          // **Le capteur ne livre pas ce que l'écran montre.** Son buffer
-          // arrive en paysage, et l'écran de scan est verrouillé en portrait
-          // (`AndroidManifest.xml`) : une carte posée droite y est couchée.
-          // Sans cette valeur, le contrôle d'aspect la rejetait, et le flux ne
-          // détectait rien du tout sur les jeux qui n'impriment aucune carte en
-          // travers. Flutter définit `sensorOrientation` comme l'angle horaire
-          // qui redresse l'image, ce que [LiveScanner.uprightTurns] attend tel
-          // quel.
-          uprightTurns: back.sensorOrientation ~/ 90,
-        );
+        // **Le capteur ne livre pas ce que l'écran montre.** Son buffer arrive
+        // en paysage, et l'écran de scan est verrouillé en portrait
+        // (`AndroidManifest.xml`) : une carte posée droite y est couchée. Sans
+        // cette valeur, le contrôle d'aspect la rejetait, et le flux ne
+        // détectait rien du tout sur les jeux qui n'impriment aucune carte en
+        // travers. Flutter définit `sensorOrientation` comme l'angle horaire
+        // qui redresse l'image, ce que [LiveScanner.uprightTurns] attend tel
+        // quel.
+        _uprightTurns = back.sensorOrientation ~/ 90;
+        _cameraPrete = true;
         _status = null;
       });
+      _armerLeScanner();
       await controller.startImageStream(_onFrame);
     } catch (e) {
       if (mounted) setState(() => _status = 'Caméra indisponible : $e');
     }
+  }
+
+  /// Les réglages de confort : l'aperçu du cadre et la zone de lecture.
+  ///
+  /// Leur absence n'empêche pas de scanner — d'où l'échec avalé. Ils sont lus
+  /// avant tout le reste parce que la zone entre dans la construction du
+  /// scanner, et parce que la lecture est déjà chaude : le jeu courant a
+  /// ouvert les préférences au démarrage de l'application.
+  Future<void> _lireLesReglages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _showQuad = prefs.getBool(_clefApercuCadre) ?? false;
+      final zone = prefs.getStringList(_clefZone);
+      if (zone != null && zone.length == 4) {
+        final v = zone.map(double.tryParse).whereType<double>().toList();
+        if (v.length == 4) {
+          _region = ScanRegion(
+            left: v[0],
+            top: v[1],
+            right: v[2],
+            bottom: v[3],
+          ).sane;
+        }
+      }
+    } on Object catch (error) {
+      debugPrint('réglages de scan illisibles : $error');
+    }
+  }
+
+  /// Charge l'index, sans bloquer l'aperçu.
+  ///
+  /// **Son échec ne remplace pas l'écran.** `_status` n'est posé que si rien
+  /// d'autre ne s'y trouve : une caméra indisponible est une panne plus grave
+  /// qu'un index manquant, et son message ne doit pas être écrasé par celui-ci.
+  Future<void> _chargerIndex() async {
+    try {
+      final index = await ref.read(artHashIndexProvider.future);
+      if (!mounted) return;
+      _index = index;
+      _armerLeScanner();
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _status ??= 'Index indisponible : $error');
+    }
+  }
+
+  /// Arme la reconnaissance dès que ses conditions sont réunies.
+  ///
+  /// Appelé des deux côtés de la course — par la caméra et par l'index — sans
+  /// savoir lequel arrive en premier : la garde est ici, une fois, plutôt que
+  /// dupliquée chez les deux appelants.
+  void _armerLeScanner() {
+    final index = _index;
+    final game = _game;
+    if (index == null || game == null || !_cameraPrete || !mounted) return;
+    setState(() {
+      _corners = null;
+      _scanner = LiveScanner(
+        index: index,
+        game: game,
+        region: _region.sane,
+        uprightTurns: _uprightTurns,
+      );
+    });
   }
 
   void _onFrame(CameraImage image) {
@@ -437,19 +501,15 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
   /// cours de route laisserait un suivi de quadrilatère qui décrit un champ
   /// qui n'existe plus.
   void _zoneChangee(ScanRegion zone) {
-    final index = _index;
-    final scanner = _scanner;
-    if (index == null || scanner == null) return;
-    setState(() {
-      _region = zone;
-      _corners = null;
-      _scanner = LiveScanner(
-        index: index,
-        game: scanner.game,
-        uprightTurns: scanner.uprightTurns,
-        region: zone.sane,
-      );
-    });
+    // Le jeu et l'orientation sont des champs de l'écran, et non des propriétés
+    // relues sur le scanner : celui-ci peut ne pas exister encore, l'index
+    // arrivant après la caméra. La zone se règle alors quand même.
+    _region = zone;
+    if (_scanner == null) {
+      setState(() {});
+      return;
+    }
+    _armerLeScanner();
   }
 
   /// Montre ou masque le cadre, et retient le choix.
