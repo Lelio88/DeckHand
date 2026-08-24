@@ -185,6 +185,32 @@ Future<void> main(List<String> args) async {
     final aveugle = index.searchAny(toutes, limit: 2);
     final meilleurAveugle = aveugle.result.best;
 
+    // **La variante guidée : deux sens, pas quatre.**
+    //
+    // Le rapport du quadrilatère élimine la moitié des sens sans rien coûter.
+    // Un carton debout donne un quadrilatère debout, que seuls les demi-tours
+    // laissent debout ; un carton couché donne un quadrilatère couché, que seuls
+    // les quarts de tour redressent. Essayer les deux autres, c'est prélever
+    // l'empreinte sur une zone qu'aucune carte n'occupe — et c'est un tirage de
+    // plus dans l'index, donc un risque d'annonce fausse.
+    //
+    // C'est aussi la **réciproque exacte** de la règle déjà en place pour les
+    // gabarits couchés dans un quadrilatère debout.
+    final guidees = <ArtHypothesis, ArtHash>{};
+    final quadDebout = quad.aspect <= 1;
+    for (final frame in CardFrame.values) {
+      if (frame.game != game) continue;
+      final aligne = frame.landscape != quadDebout;
+      for (final t in aligne ? const [0, 2] : const [1, 3]) {
+        guidees[(frame: frame, quarterTurns: t)] = toutes[(
+          frame: frame,
+          quarterTurns: t,
+        )]!;
+      }
+    }
+    final guide = index.searchAny(guidees, limit: 2);
+    final meilleurGuide = guide.result.best;
+
     releve.add({
       'file': nom,
       'width': scene.width,
@@ -228,6 +254,31 @@ Future<void> main(List<String> args) async {
                 'confident': aveugle.result.isConfident,
                 'frame': aveugle.source?.frame.name,
                 'turns': aveugle.source?.quarterTurns,
+              },
+      },
+      'orientations_guidees': {
+        'hypotheses': [
+          for (final e in guidees.entries)
+            {
+              'frame': e.key.frame.name,
+              'turns': e.key.quarterTurns,
+              'hash': e.value.toHex(),
+              'window': _fenetre(
+                quad.quarterTurned(e.key.quarterTurns),
+                e.key.frame.box,
+              ),
+            },
+        ],
+        'verdict': meilleurGuide == null
+            ? null
+            : {
+                'oracleId': meilleurGuide.oracleId,
+                'printId': meilleurGuide.printId,
+                'distance': meilleurGuide.distance,
+                'margin': guide.result.margin,
+                'confident': guide.result.isConfident,
+                'frame': guide.source?.frame.name,
+                'turns': guide.source?.quarterTurns,
               },
       },
     });

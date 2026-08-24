@@ -464,26 +464,42 @@ Map<ArtHypothesis, ArtHash> artHashCandidates(
 /// le scan indifférent au cadrage — mesuré, la reconnaissance passe de 0 à 37
 /// sur 40 dès qu'une photo s'écarte de 8 % du cadre idéal.
 ///
-/// **Un cadre couché cherché dans un quadrilatère droit est tourné, jamais lu
-/// tel quel.** Une carte couchée glissée dans une pochette verticale se laisse
-/// détecter comme une carte debout : ce sont les bords de la pochette que la
-/// détection trouve, et son rapport est celui d'une carte. Le gabarit couché
-/// s'appliquait alors à une zone parcourue de travers — mesuré sur du carton,
-/// « Altar of Blood » ressortait au rang 492 sur 1 035, quand le quart de tour
-/// la ramène **au rang 1, à 8 bits, avec une marge de 9**.
+/// **Le rapport du quadrilatère choisit les sens, et n'en laisse que deux.**
+/// Un carton debout donne un quadrilatère debout, que seuls les demi-tours
+/// laissent debout ; un carton couché donne un quadrilatère couché, que seuls
+/// les quarts de tour redressent. Les deux autres sens prélèveraient l'empreinte
+/// sur une zone qu'aucune carte n'occupe.
 ///
-/// Les deux sens sont essayés parce qu'une empreinte ne survit pas au demi-tour :
-/// la même carte lue dans le mauvais sens retombe au rang 197.
+/// Il en faut **deux** et pas un, parce qu'une empreinte ne survit pas au
+/// demi-tour : mesuré sur du carton, la même carte lue dans le mauvais sens
+/// retombe au rang 197.
 ///
-/// **La réciproque n'est pas faite, et c'est délibéré.** Un cadre droit cherché
-/// dans un quadrilatère couché resterait lu tel quel : une carte debout ne se
-/// présente pas couchée, et un quadrilatère couché autour d'une carte debout
-/// signifie que la détection s'est trompée. Or chaque hypothèse est un tirage de
-/// plus dans l'index, et un tirage sur du bruit a environ une chance sur cent de
-/// passer les deux garde-fous (mesuré, `app.measure.art_collisions`). Essayé sur
-/// une photo au masque faux, ce tirage-là annonçait « Mirror Image » à 12 bits
-/// avec la marge requise — une carte inventée, sur le seul résultat que ce
-/// pipeline protège. On n'échafaude pas d'hypothèse sur une détection fausse.
+/// **Ce que la règle recouvre.** Une carte couchée glissée dans une pochette
+/// verticale se laisse détecter comme une carte debout : ce sont les bords de la
+/// pochette que la détection trouve. Le gabarit couché s'appliquait alors à une
+/// zone parcourue de travers — mesuré, « Altar of Blood » ressortait au rang 492
+/// sur 1 035, quand le quart de tour la ramène **au rang 1, à 8 bits, avec une
+/// marge de 9**.
+///
+/// **La réciproque a longtemps été refusée, et le refus se trompait de
+/// conclusion.** L'argument était : un quadrilatère couché autour d'une carte
+/// debout signale une détection fausse, et on n'échafaude pas d'hypothèse
+/// dessus. Mesuré sur 36 photos réelles, **treize montrent un carton posé de
+/// travers** : la prémisse est fausse, et aucune de ces treize n'était reconnue.
+///
+/// Mais l'argument avait raison sur le danger, et c'est ce qui fait la forme de
+/// la règle. Chaque hypothèse est un tirage de plus dans l'index, avec environ
+/// une chance sur cent de passer les deux garde-fous sur du bruit (mesuré,
+/// `app.measure.art_collisions`). Or la lecture *telle quelle* — tour 0 d'un
+/// gabarit droit dans un quadrilatère couché — est précisément celle qui a
+/// produit les deux cartes annoncées à tort du banc réel. Elle est donc
+/// **remplacée**, jamais ajoutée : sur ce banc, ouvrir les quatre sens rend 8
+/// cartes justes et 2 inventées, n'ouvrir que les deux sens compatibles avec le
+/// rapport en rend **8 et 1**, contre 3 et 2 auparavant.
+///
+/// **Le flux caméra garde sa propre règle**, plus fermée : il ne redresse que ce
+/// que l'orientation de son capteur lui apprend, et rien n'a été mesuré sur un
+/// flux réel pour justifier d'y ouvrir davantage. Voir `live_scanner.dart`.
 Map<ArtHypothesis, ArtHash> artHashCandidatesInQuad(
   img.Image photo,
   CardQuad quad, {
@@ -494,8 +510,10 @@ Map<ArtHypothesis, ArtHash> artHashCandidatesInQuad(
 
   for (final frame in CardFrame.values) {
     if (frame.game != game) continue;
-    final turns = frame.landscape && quadIsUpright ? const [1, 3] : const [0];
-    for (final t in turns) {
+    // Le gabarit et le quadrilatère pointent-ils dans le même sens ? Si oui la
+    // carte est déjà lisible, au demi-tour près ; sinon il faut la redresser.
+    final aligne = frame.landscape != quadIsUpright;
+    for (final t in aligne ? const [0, 2] : const [1, 3]) {
       candidates[(frame: frame, quarterTurns: t)] = computeArtHash(
         sampleArt(photo, quad.quarterTurned(t), frame.box),
       );

@@ -527,8 +527,23 @@ class LiveScanner {
       // Un cadre couché cherché dans un quadrilatère droit est lu tourné, dans
       // les deux sens : une carte couchée glissée dans une pochette verticale
       // se laisse détecter comme une carte debout, et une empreinte ne survit
-      // pas au demi-tour. La réciproque est refusée — un quadrilatère couché
-      // autour d'une carte debout signale une détection fausse.
+      // pas au demi-tour.
+      //
+      // **Le flux reste plus fermé que le mode photo, et c'est délibéré.**
+      // `artHashCandidatesInQuad` ouvre désormais deux sens par cadre, le
+      // rapport du quadrilatère décidant lesquels — mesuré sur 36 photos, cela
+      // fait passer 3 cartes justes à 8. Rien de tel n'a été mesuré ici, et deux
+      // choses distinguent ce chemin :
+      //
+      // - une carte Magic posée en travers n'y arrive jamais, `_hasCardAspect`
+      //   la rejetant en amont ; ouvrir les sens ici ne servirait qu'à ajouter
+      //   des tirages sans rien récupérer ;
+      // - le flux tire trente fois par seconde là où une photo tire une fois,
+      //   si bien qu'une chance sur cent d'annonce fausse par tirage n'a pas le
+      //   même poids.
+      //
+      // Le cas de la carte tenue à l'envers, lui, mériterait la même ouverture.
+      // Il attend une mesure **sur l'appareil**, pas un raisonnement.
       final turns = frame.landscape && uprightQuad ? const [1, 3] : const [0];
       for (final tour in turns) {
         // Le redressement du capteur se compose avec le tour de l'hypothèse :

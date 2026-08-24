@@ -174,24 +174,38 @@ void main() {
       },
     );
 
-    test('un quad couché lit chaque cadre tel quel', () {
-      // **La réciproque n'est pas faite.** Une carte debout ne se présente pas
-      // couchée ; un quadrilatère couché autour d'une carte debout signifie que
-      // la détection s'est trompée, et on n'échafaude pas d'hypothèse sur une
-      // détection fausse. Mesuré : ce tirage-là annonçait une carte inventée à
-      // 12 bits avec la marge requise, sur une photo au masque faux.
+    test('un cadre droit dans un quad couché est redressé, pas lu tel quel', () {
+      // **La réciproque est faite, et l'ancien refus se trompait de
+      // conclusion.** Il disait : « une carte debout ne se présente pas
+      // couchée, donc un quadrilatère couché signale une détection fausse ».
+      // Sur 36 photos réelles, treize montrent un carton posé de travers : la
+      // prémisse est fausse.
+      //
+      // Mais il avait raison sur le danger. La lecture *telle quelle* — tour 0
+      // d'un cadre droit dans un quadrilatère couché — prélève l'empreinte sur
+      // une bande de texte, et c'est exactement l'hypothèse qui a produit les
+      // deux cartes inventées du banc. Elle est donc **remplacée** par les deux
+      // quarts de tour, jamais complétée.
       final photo = img.Image(width: 1100, height: 800);
-      final keys = artHashCandidatesInQuad(
-        photo,
-        landscape,
-        game: 'riftbound',
-      ).keys.toSet();
+      for (final game in ['magic', 'yugioh']) {
+        final keys = artHashCandidatesInQuad(
+          photo,
+          landscape,
+          game: game,
+        ).keys.toSet();
 
-      expect(keys.every((h) => h.quarterTurns == 0), isTrue);
-      expect(keys.length, 2);
+        expect(
+          keys.map((h) => h.quarterTurns).toSet(),
+          {1, 3},
+          reason: '$game : un carton couché ne se lit que redressé',
+        );
+      }
     });
 
-    test('un jeu sans carte couchée ne tourne jamais rien', () {
+    test('un carton debout admet le demi-tour, pas le quart de tour', () {
+      // Une carte posée à l'envers donne un quadrilatère **debout** : seul le
+      // demi-tour la redresse, et une empreinte n'y survit pas. Le banc en
+      // compte une, et elle n'était pas reconnue.
       final photo = img.Image(width: 800, height: 1100);
       for (final game in ['magic', 'yugioh']) {
         final keys = artHashCandidatesInQuad(
@@ -199,11 +213,36 @@ void main() {
           upright,
           game: game,
         ).keys.toSet();
+
         expect(
-          keys.every((h) => h.quarterTurns == 0),
-          isTrue,
-          reason: '$game n\'a aucun cadre couché',
+          keys.map((h) => h.quarterTurns).toSet(),
+          {0, 2},
+          reason: '$game : un quart de tour coucherait une carte debout',
         );
+      }
+    });
+
+    test('le rapport du quadrilatère élimine la moitié des sens', () {
+      // **Deux hypothèses par cadre, jamais quatre.** Chaque hypothèse est un
+      // tirage de plus dans l'index, avec sa chance de passer les deux
+      // garde-fous sur du bruit. Mesuré sur le banc réel : les quatre sens
+      // rendent 8 cartes justes et 2 inventées, les deux sens que le rapport
+      // autorise en rendent 8 et 1 — le sens géométriquement impossible
+      // n'apportait que le faux positif.
+      for (final quad in [upright, landscape]) {
+        for (final game in ['magic', 'yugioh', 'riftbound']) {
+          final keys = artHashCandidatesInQuad(
+            img.Image(width: 800, height: 1100),
+            quad,
+            game: game,
+          ).keys.toList();
+
+          expect(
+            keys.length,
+            2 * keys.map((h) => h.frame).toSet().length,
+            reason: '$game, quadrilatère de rapport ${quad.aspect}',
+          );
+        }
       }
     });
 
@@ -241,6 +280,74 @@ void main() {
       expect(outcome.result.best?.oracleId, 'champ-de-bataille');
       // Le rééchantillonnage n'est pas exact au bit près ; ce qui compte est
       // que la bonne carte soit trouvée, et de très près.
+      expect(
+        outcome.result.best?.distance,
+        lessThanOrEqualTo(maxTrustedDistance),
+      );
+    });
+
+    test('un carton Magic posé de travers se retrouve', () {
+      // **Le gain que la mesure a chiffré, tenu par un test.** Treize photos du
+      // banc réel montrent un carton Magic couché ; aucune n'était reconnue,
+      // parce qu'un gabarit droit n'était essayé que dans un seul sens.
+      final carte = fakeCard(CardFrame.modern);
+      final index = ArtHashIndex.fromEntries([
+        (
+          oracleId: 'carte-posee-de-travers',
+          printId: 'carte-posee-de-travers',
+          hash: computeArtHash(cropArt(carte, CardFrame.modern)),
+        ),
+      ]);
+
+      // La même carte, posée en travers sur la table.
+      final couchee = img.copyRotate(carte, angle: 90);
+      final quad = CardQuad(
+        topLeft: (x: 0, y: 0),
+        topRight: (x: couchee.width.toDouble(), y: 0),
+        bottomRight: (
+          x: couchee.width.toDouble(),
+          y: couchee.height.toDouble(),
+        ),
+        bottomLeft: (x: 0, y: couchee.height.toDouble()),
+      );
+
+      final outcome = index.searchAny(
+        artHashCandidatesInQuad(couchee, quad, game: 'magic'),
+      );
+
+      expect(outcome.result.best?.oracleId, 'carte-posee-de-travers');
+      expect(outcome.source?.quarterTurns, isNot(0));
+      expect(
+        outcome.result.best?.distance,
+        lessThanOrEqualTo(maxTrustedDistance),
+      );
+    });
+
+    test('un carton Magic posé à l\'envers se retrouve', () {
+      // Le demi-tour compte autant que le quart : une empreinte n'y survit pas.
+      final carte = fakeCard(CardFrame.modern);
+      final index = ArtHashIndex.fromEntries([
+        (
+          oracleId: 'carte-a-l-envers',
+          printId: 'carte-a-l-envers',
+          hash: computeArtHash(cropArt(carte, CardFrame.modern)),
+        ),
+      ]);
+
+      final envers = img.copyRotate(carte, angle: 180);
+      final quad = CardQuad(
+        topLeft: (x: 0, y: 0),
+        topRight: (x: envers.width.toDouble(), y: 0),
+        bottomRight: (x: envers.width.toDouble(), y: envers.height.toDouble()),
+        bottomLeft: (x: 0, y: envers.height.toDouble()),
+      );
+
+      final outcome = index.searchAny(
+        artHashCandidatesInQuad(envers, quad, game: 'magic'),
+      );
+
+      expect(outcome.result.best?.oracleId, 'carte-a-l-envers');
+      expect(outcome.source?.quarterTurns, 2);
       expect(
         outcome.result.best?.distance,
         lessThanOrEqualTo(maxTrustedDistance),
