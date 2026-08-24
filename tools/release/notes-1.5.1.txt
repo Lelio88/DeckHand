@@ -1,0 +1,11 @@
+Moins d'attente, partout où il y en avait.
+
+Les pages de classeur se tournent sans temps mort : les cartes de la feuille
+suivante sont chargées d'avance, au lieu de partir au moment où vous tirez la
+page.
+
+Le scan ouvre la caméra tout de suite, sans attendre d'avoir chargé son index
+de reconnaissance — celui-ci arrive derrière, et se télécharge désormais deux
+fois et demie plus vite.
+
+Rien à refaire de votre côté : votre index déjà téléchargé est conservé.
