@@ -66,14 +66,29 @@ Future<FakeProfileRepository> pumpProfil(
   return profile;
 }
 
-/// Amène la tuile de droite sur le chiffre « en boosters », qui est le
-/// troisième de sa série.
-Future<void> allerAuxBoosters(WidgetTester tester) async {
-  for (var i = 0; i < 2; i++) {
-    await tester.tap(find.byIcon(Icons.euro));
+/// Amène une tuile sur le chiffre dont le détail contient [motif].
+///
+/// **Par le contenu, jamais par le rang.** Une première version comptait deux
+/// pressions ; l'ajout d'un chiffre au milieu de la série a fait échouer treize
+/// tests d'un coup, aucun ne portant sur l'ordre. Ce que ces tests veulent
+/// dire, c'est « le chiffre en boosters », pas « le troisième ».
+Future<void> allerAu(
+  WidgetTester tester,
+  IconData icone,
+  Pattern motif,
+) async {
+  // La borne est le nombre de chiffres d'une série : au-delà, on a fait le tour
+  // sans trouver, et boucler cacherait le défaut derrière un test qui pend.
+  for (var i = 0; i < 8; i++) {
+    if (find.textContaining(motif).evaluate().isNotEmpty) return;
+    await tester.tap(find.byIcon(icone));
     await tester.pumpAndSettle();
   }
+  fail('Aucun chiffre ne porte « $motif » après un tour complet.');
 }
+
+Future<void> allerAuxBoosters(WidgetTester tester) =>
+    allerAu(tester, Icons.euro, '€ pièce');
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -119,21 +134,22 @@ void main() {
     ) async {
       await pumpProfil(tester);
 
+      expect(find.text('167.83'), findsOneWidget);
+
       await tester.tap(find.byIcon(Icons.euro));
       await tester.pumpAndSettle();
 
-      expect(find.text('119.64'), findsOneWidget);
+      // Le chiffre a changé, et aucune boîte ne s'est ouverte. Lequel vient
+      // ensuite ne regarde pas ce test.
+      expect(find.text('167.83'), findsNothing);
       expect(find.text('Le prix que vous payez'), findsNothing);
     });
 
     testWidgets('la tuile de gauche n’ouvre aucun réglage', (tester) async {
       await pumpProfil(tester);
-      // Son troisième chiffre est aussi un booster, mais il ne dépend que de la
+      // Elle porte aussi un chiffre en boosters, mais il ne dépend que de la
       // taille — un fait publié, que l'utilisateur n'a pas à corriger.
-      for (var i = 0; i < 2; i++) {
-        await tester.tap(find.byIcon(Icons.style_outlined));
-        await tester.pumpAndSettle();
-      }
+      await allerAu(tester, Icons.style_outlined, 'cartes le booster');
 
       await tester.tap(find.textContaining('cartes le booster'));
       await tester.pumpAndSettle();

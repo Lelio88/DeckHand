@@ -34,8 +34,8 @@ défilantes** — une pression, ou un glissement latéral, passe à la suivante 
 
 | Série | Ce qu'elle enchaîne |
 |---|---|
-| Contenu | exemplaires → références → boosters équivalents |
-| Valeur | totale → une de chaque → en boosters achetés → carte la plus chère |
+| Contenu | exemplaires → références → extensions entamées → boosters équivalents → complétion au mieux |
+| Valeur | totale → une de chaque → moyenne par carte → en boosters achetés → carte la plus chère |
 
 Les afficher toutes tiendrait de l'inventaire : six nombres sur une page de
 profil ne se lisent plus. Un seul est montré, et de petits points disent que les
@@ -44,6 +44,22 @@ autres existent — sans eux, personne ne penserait à appuyer.
 **« Une de chaque » se compte par référence**, au sens de `distinct_cards`, et
 retient la plus chère des finitions d'une même case : c'est celle qu'on
 garderait.
+
+**Un seul de ces chiffres désigne une action** : la complétion au mieux —
+« Marvel Super Heroes, 234/453 ». Les autres décrivent ; celui-ci dit où aller,
+puisque finir un classeur déjà bien avancé coûte moins cher que d'en ouvrir un
+neuf. Les extensions de **jetons en sont écartées** : dix fois plus petites
+qu'une extension de boosters (27 cartes pour `tmsh` contre 453 pour `msh`),
+elles gagneraient mécaniquement, pour des cartes dont aucune n'est jouable en
+construit. Aucune taille minimale n'est imposée en revanche — ce serait un seuil
+inventé, et s'il faut en poser un, c'est une mesure qui l'établira.
+
+**Le taux n'est pas calculé en base**, seulement ses deux termes : décider des
+décimales et du sens d'une division par zéro n'a rien à faire en SQL.
+
+**La moyenne par carte ne coûte rien** — c'est une division entre deux chiffres
+déjà reçus. Elle distingue ce qu'aucun total ne distingue : mille communes et
+dix rares peuvent valoir la même chose.
 
 **Les deux chiffres en boosters ne se déduisent d'aucune donnée**, et les deux
 moitiés du problème ne se règlent pas au même endroit.
@@ -71,7 +87,19 @@ l'indicateur affiche zéro euro. Vider le champ **écrit** le retour au repère,
 plutôt que de ne rien écrire — sans quoi on n'y reviendrait qu'en retapant le
 repère de mémoire.
 
-**Une CTE n'est pas une variable.** La première version de la fonction dépassait
+**Deux pièges de performance, tous deux invisibles depuis la connexion
+d'ingestion.**
+
+*L'index manquant.* `card_prints` ne portait aucun index sur `set_code`, si bien
+que compter les cases d'une extension balayait ses 245 468 lignes. Mesuré sous
+`authenticated` : **7,85 s à froid**, quand le rôle coupe à 8 s — la fonction
+passait en répétant la mesure et serait tombée au premier appel après un
+redémarrage. `idx_card_prints_set (set_code, collector_number)` ramène la même
+requête de **287 ms à 16 ms** à chaud, et le profil de 7,85 s à 2,92 s à froid.
+`my_binder_shelf` fait exactement ce calcul depuis toujours pour le taux de
+complétion de chaque classeur : l'étagère profite du même index.
+
+*L'inlining des CTE.* La première version de la fonction dépassait
 le `statement_timeout` de huit secondes du rôle `authenticated` : depuis
 PostgreSQL 12, une `WITH` sans effet de bord est *inlinée*, si bien que les trois
 lectures des prix les recalculaient trois fois. `MATERIALIZED` rétablit ce que

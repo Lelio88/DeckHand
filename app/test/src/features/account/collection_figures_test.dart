@@ -19,35 +19,94 @@ const totaux = CollectionSummary(
   uniqueValueEur: 119.64,
   topCardName: 'Simulacrum Synthesizer',
   topCardEur: 15.49,
+  distinctSets: 5,
+  bestSetName: 'Marvel Super Heroes',
+  bestSetOwned: 234,
+  bestSetTotal: 453,
 );
+
+/// Le chiffre dont le détail porte [motif].
+///
+/// **Chercher par le contenu, pas par le rang.** Une première version indexait
+/// la liste ; l'insertion d'un chiffre au milieu a cassé treize tests dont
+/// aucun ne parlait d'ordre.
+CollectionFigure chiffre(List<CollectionFigure> figures, Pattern motif) =>
+    figures.firstWhere((f) => f.detail.contains(motif));
 
 void main() {
   group('ce que la collection contient', () {
-    test('trois chiffres quand le booster du jeu est connu', () {
+    test('la série entière quand le booster du jeu est connu', () {
       final f = countFigures(totaux, 'magic');
 
-      expect(f.map((e) => e.value), ['617', '266', '44']);
+      expect(f.map((e) => e.value), ['617', '266', '5', '44', '52 %']);
     });
 
     test('un booster entamé ne compte pas', () {
       // 617 cartes à 14 la boîte, c'est 44 boosters et des poussières. Arrondir
       // vers le haut annoncerait un booster qu'on n'a jamais ouvert.
-      expect(countFigures(totaux, 'magic')[2].value, '44');
+      expect(chiffre(countFigures(totaux, 'magic'), 'le booster').value, '44');
       expect(617 ~/ 14, 44);
     });
 
     test('la taille du booster suit le jeu, pas une moyenne', () {
       // Yu-Gi-Oh tient en 9 cartes, Star Wars en 16 : le même tas de cartes ne
       // représente pas le même nombre de boosters selon le jeu.
-      expect(countFigures(totaux, 'yugioh')[2].value, '${617 ~/ 9}');
-      expect(countFigures(totaux, 'swu')[2].value, '${617 ~/ 16}');
+      expect(
+        chiffre(countFigures(totaux, 'yugioh'), 'le booster').value,
+        '${617 ~/ 9}',
+      );
+      expect(
+        chiffre(countFigures(totaux, 'swu'), 'le booster').value,
+        '${617 ~/ 16}',
+      );
     });
 
     test('un jeu inconnu de la table n’invente pas de booster', () {
       final f = countFigures(totaux, 'un-jeu-qui-nexiste-pas');
 
-      expect(f.length, 2);
-      expect(f.map((e) => e.value), ['617', '266']);
+      expect(f.any((e) => e.detail.contains('le booster')), isFalse);
+      expect(f.map((e) => e.value), ['617', '266', '5', '52 %']);
+    });
+  });
+
+  group('les extensions', () {
+    test('le taux est arrondi, et porte son assiette', () {
+      final f = chiffre(countFigures(totaux, 'magic'), 'Marvel');
+
+      // 234 / 453 = 51,65 % — arrondi, et le détail donne les deux termes pour
+      // qu'on puisse refaire le calcul.
+      expect(f.value, '52 %');
+      expect(f.detail, 'Marvel Super Heroes, 234/453 cases');
+    });
+
+    test('sans extension entamée, ni compte ni taux', () {
+      // Une collection entièrement sans édition précisée : les cartes existent,
+      // aucune n'est rangeable. Annoncer « 0 extensions, 0 % » serait un
+      // reproche là où ne pas préciser reste légitime.
+      const flou = CollectionSummary(
+        totalCards: 12,
+        distinctCards: 12,
+        totalValueEur: 3,
+        unspecifiedPrints: 12,
+      );
+      final f = countFigures(flou, 'magic');
+
+      expect(f.any((e) => e.detail.contains('entamées')), isFalse);
+      expect(f.any((e) => e.value.endsWith('%')), isFalse);
+    });
+
+    test('une extension complète affiche cent, pas quatre-vingt-dix-neuf', () {
+      const finie = CollectionSummary(
+        totalCards: 453,
+        distinctCards: 453,
+        totalValueEur: 900,
+        distinctSets: 1,
+        bestSetName: 'Marvel Super Heroes',
+        bestSetOwned: 453,
+        bestSetTotal: 453,
+      );
+
+      expect(chiffre(countFigures(finie, 'magic'), 'Marvel').value, '100 %');
     });
   });
 
@@ -159,6 +218,7 @@ void main() {
       expect(f.map((e) => e.value), [
         '167.83',
         '119.64',
+        (167.83 / 617).toStringAsFixed(2),
         // 617 / 14 × 6,90 € : ce qu'on aurait dépensé, et non ce qu'on
         // pourrait racheter.
         (617 / 14 * 6.90).toStringAsFixed(2),
@@ -169,14 +229,14 @@ void main() {
     test('le prix déclaré remplace le repère, et se dit', () {
       final f = valueFigures(totaux, 'magic', boosterPrices: {'magic': 4.20});
 
-      expect(f[2].value, (617 / 14 * 4.20).toStringAsFixed(2));
-      expect(f[2].detail, contains('4.20'));
+      expect(chiffre(f, '€ pièce').value, (617 / 14 * 4.20).toStringAsFixed(2));
+      expect(chiffre(f, '€ pièce').detail, contains('4.20'));
     });
 
     test('un prix à zéro donne zéro, sans retomber sur le repère', () {
       final f = valueFigures(totaux, 'magic', boosterPrices: {'magic': 0});
 
-      expect(f[2].value, '0.00');
+      expect(chiffre(f, '€ pièce').value, '0.00');
     });
 
     test('seul le chiffre en boosters se déclare modifiable', () {
@@ -185,7 +245,7 @@ void main() {
       final f = valueFigures(totaux, 'magic');
 
       expect(f.where((e) => e.fromBoosterPrice).length, 1);
-      expect(f[2].fromBoosterPrice, isTrue);
+      expect(chiffre(f, '€ pièce').fromBoosterPrice, isTrue);
     });
 
     test('un jeu inconnu n’a rien à régler', () {
@@ -209,7 +269,25 @@ void main() {
         totalValueEur: 0,
       );
 
-      expect(valueFigures(sansCote, 'magic').length, 3);
+      expect(
+        valueFigures(sansCote, 'magic').any((e) => e.detail.contains('chère')),
+        isFalse,
+      );
+      expect(valueFigures(sansCote, 'magic').last.detail, contains('pièce'));
+    });
+
+    test('la moyenne par carte ne demande rien au serveur', () {
+      // Une collection de mille communes et une de dix rares peuvent valoir la
+      // même chose : c'est ce que ce chiffre distingue.
+      final f = chiffre(valueFigures(totaux, 'magic'), 'en moyenne');
+
+      expect(f.value, (167.83 / 617).toStringAsFixed(2));
+    });
+
+    test('une collection vide n’essaie pas de diviser par zéro', () {
+      final f = valueFigures(CollectionSummary.empty, 'magic');
+
+      expect(f.any((e) => e.detail.contains('en moyenne')), isFalse);
     });
 
     test('les éditions inconnues sont dites, pas tues', () {

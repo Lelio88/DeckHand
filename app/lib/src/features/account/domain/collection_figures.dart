@@ -69,6 +69,15 @@ List<CollectionFigure> countFigures(CollectionSummary totals, String game) {
       label: totals.distinctCards > 1 ? 'références' : 'référence',
       detail: 'une de chaque, éditions comprises',
     ),
+    if (totals.distinctSets > 0)
+      CollectionFigure(
+        value: '${totals.distinctSets}',
+        label: totals.distinctSets > 1 ? 'extensions' : 'extension',
+        // Le mot « entamées » plutôt que « possédées » : on ne possède pas une
+        // extension, on l'ouvre — et c'est justement ce que dit le chiffre
+        // suivant, qui mesure combien on l'a avancée.
+        detail: 'entamées, jetons compris',
+      ),
     if (booster != null)
       CollectionFigure(
         // Arrondi vers le bas : c'est un nombre de boosters ouverts, et un
@@ -76,6 +85,17 @@ List<CollectionFigure> countFigures(CollectionSummary totals, String game) {
         value: '${totals.totalCards ~/ booster.cards}',
         label: 'boosters',
         detail: 'à ${booster.cards} cartes le booster',
+      ),
+    // **Le seul chiffre qui désigne une action.** Compléter un classeur déjà
+    // bien avancé coûte moins cher que d'en ouvrir un neuf ; les autres
+    // chiffres décrivent, celui-ci suggère où aller.
+    if (totals.bestSetName != null && totals.bestSetTotal > 0)
+      CollectionFigure(
+        value: '${(100 * totals.bestSetOwned / totals.bestSetTotal).round()} %',
+        label: 'au mieux',
+        detail:
+            '${totals.bestSetName}, '
+            '${totals.bestSetOwned}/${totals.bestSetTotal} cases',
       ),
   ];
 }
@@ -109,6 +129,15 @@ List<CollectionFigure> valueFigures(
       label: 'euros',
       detail: 'une de chaque, sans les doublons',
     ),
+    // **Rien à demander au serveur** : c'est une division entre deux chiffres
+    // déjà là. Elle dit ce qu'aucun total ne dit — une collection de mille
+    // communes et une de dix rares peuvent valoir la même chose.
+    if (totals.totalCards > 0)
+      CollectionFigure(
+        value: (totals.totalValueEur / totals.totalCards).toStringAsFixed(2),
+        label: 'euros',
+        detail: 'en moyenne par carte',
+      ),
     if (booster != null && prix != null)
       CollectionFigure(
         // Ce que la collection aurait coûté si chaque carte était sortie d'un

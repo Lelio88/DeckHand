@@ -116,6 +116,10 @@ class CollectionSummary {
     this.uniqueValueEur = 0,
     this.topCardName,
     this.topCardEur = 0,
+    this.distinctSets = 0,
+    this.bestSetName,
+    this.bestSetOwned = 0,
+    this.bestSetTotal = 0,
   });
 
   final int totalCards;
@@ -151,6 +155,25 @@ class CollectionSummary {
   final String? topCardName;
   final double topCardEur;
 
+  /// Extensions où quelque chose est rangé.
+  ///
+  /// Les cartes sans édition précisée n'en ont aucune et ne comptent donc pas —
+  /// ce qui est voulu : elles vivent dans la pile à trier, pas dans un classeur.
+  final int distinctSets;
+
+  /// L'extension la plus avancée, et son remplissage en cases.
+  ///
+  /// **Le taux n'est pas rendu par la base**, seulement ses deux termes : c'est
+  /// l'écran qui décide des décimales, et une division par zéro n'a pas à être
+  /// tranchée en SQL. Nul quand rien n'est rangé.
+  ///
+  /// Les extensions de **jetons en sont écartées** : dix fois plus petites
+  /// qu'une extension de boosters, elles gagneraient mécaniquement — pour des
+  /// cartes dont aucune n'est jouable en construit.
+  final String? bestSetName;
+  final int bestSetOwned;
+  final int bestSetTotal;
+
   bool get isEmpty => totalCards == 0;
 
   static const empty = CollectionSummary(
@@ -168,6 +191,10 @@ class CollectionSummary {
         uniqueValueEur: (json['unique_value_eur'] as num?)?.toDouble() ?? 0,
         topCardName: json['top_card_name'] as String?,
         topCardEur: (json['top_card_eur'] as num?)?.toDouble() ?? 0,
+        distinctSets: (json['distinct_sets'] as num?)?.toInt() ?? 0,
+        bestSetName: json['best_set_name'] as String?,
+        bestSetOwned: (json['best_set_owned'] as num?)?.toInt() ?? 0,
+        bestSetTotal: (json['best_set_total'] as num?)?.toInt() ?? 0,
       );
 }
 
