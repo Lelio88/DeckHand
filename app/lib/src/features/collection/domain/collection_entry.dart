@@ -113,6 +113,9 @@ class CollectionSummary {
     required this.distinctCards,
     required this.totalValueEur,
     this.unspecifiedPrints = 0,
+    this.uniqueValueEur = 0,
+    this.topCardName,
+    this.topCardEur = 0,
   });
 
   final int totalCards;
@@ -136,6 +139,18 @@ class CollectionSummary {
   /// renseigner plutôt qu'à le reprocher : ne pas préciser reste légitime.
   final int unspecifiedPrints;
 
+  /// Ce que vaudrait la collection **sans les doublons** — une de chaque.
+  ///
+  /// Répond à « qu'est-ce que j'ai, vraiment ? » quand [totalValueEur] répond à
+  /// « qu'est-ce que je possède ? ». Une référence existant en ordinaire et en
+  /// brillante compte pour la plus chère des deux : c'est celle qu'on garderait.
+  final double uniqueValueEur;
+
+  /// La carte la plus chère, et sa cote. Nul quand la collection est vide ou
+  /// qu'aucune carte n'est cotée.
+  final String? topCardName;
+  final double topCardEur;
+
   bool get isEmpty => totalCards == 0;
 
   static const empty = CollectionSummary(
@@ -150,6 +165,9 @@ class CollectionSummary {
         distinctCards: (json['distinct_cards'] as num?)?.toInt() ?? 0,
         totalValueEur: (json['total_value_eur'] as num?)?.toDouble() ?? 0,
         unspecifiedPrints: (json['unspecified_prints'] as num?)?.toInt() ?? 0,
+        uniqueValueEur: (json['unique_value_eur'] as num?)?.toDouble() ?? 0,
+        topCardName: json['top_card_name'] as String?,
+        topCardEur: (json['top_card_eur'] as num?)?.toDouble() ?? 0,
       );
 }
 

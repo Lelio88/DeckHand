@@ -26,6 +26,7 @@ import 'game_tile.dart';
 import 'pick_games_screen.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../collection/data/collection_repository.dart';
+import '../domain/collection_figures.dart';
 import 'sharing_screen.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -47,34 +48,26 @@ class AccountScreen extends ConsumerWidget {
             ),
           ),
           error: (error, _) => Text('Collection illisible : $error'),
-          data: (totals) => Row(
-            children: [
-              Expanded(
-                child: _Figure(
-                  icon: Icons.style_outlined,
-                  value: '${totals.totalCards}',
-                  label: totals.totalCards > 1 ? 'cartes' : 'carte',
-                  detail:
-                      '${totals.distinctCards} référence'
-                      '${totals.distinctCards > 1 ? 's' : ''}',
+          data: (totals) {
+            final jeu = ref.watch(selectedGameProvider).id;
+            return Row(
+              children: [
+                Expanded(
+                  child: _Figure(
+                    icon: Icons.style_outlined,
+                    figures: countFigures(totals, jeu),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _Figure(
-                  icon: Icons.euro,
-                  value: totals.totalValueEur.toStringAsFixed(2),
-                  label: 'euros',
-                  // Une valorisation fondée sur des éditions inconnues est un
-                  // plancher, pas une estimation. Le dire évite de prendre le
-                  // chiffre pour argent comptant.
-                  detail: totals.unspecifiedPrints > 0
-                      ? '${totals.unspecifiedPrints} sans édition'
-                      : 'toutes éditions connues',
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _Figure(
+                    icon: Icons.euro,
+                    figures: valueFigures(totals, jeu),
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            );
+          },
         ),
 
         const SizedBox(height: 28),
@@ -117,44 +110,96 @@ class AccountScreen extends ConsumerWidget {
   }
 }
 
-class _Figure extends StatelessWidget {
-  const _Figure({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.detail,
-  });
+/// Un chiffre de la collection, et ceux qu'on peut lui préférer.
+///
+/// **Une pression change de chiffre.** Les afficher tous tiendrait de
+/// l'inventaire — six nombres sur une page de profil ne se lisent plus. Un seul
+/// est montré ; les autres sont à un doigt, et de petits points disent qu'ils
+/// existent, faute de quoi personne ne penserait à appuyer.
+class _Figure extends StatefulWidget {
+  const _Figure({required this.icon, required this.figures});
 
   final IconData icon;
-  final String value;
-  final String label;
-  final String detail;
+  final List<CollectionFigure> figures;
+
+  @override
+  State<_Figure> createState() => _FigureState();
+}
+
+class _FigureState extends State<_Figure> {
+  int _index = 0;
+
+  void _suivant() {
+    if (widget.figures.length < 2) return;
+    setState(() => _index = (_index + 1) % widget.figures.length);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(height: 10),
-          Text(value, style: theme.textTheme.headlineSmall),
-          Text(label, style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 4),
-          Text(
-            detail,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+    // **Une liste peut rétrécir** — un jeu dont le booster est inconnu offre
+    // moins de chiffres. Sans cette borne, changer de jeu afficherait un index
+    // qui n'existe plus.
+    final figures = widget.figures;
+    if (figures.isEmpty) return const SizedBox.shrink();
+    final figure = figures[_index % figures.length];
+
+    return GestureDetector(
+      onTap: _suivant,
+      // Glisser change aussi : c'est le geste qu'on essaie devant une valeur
+      // qu'on soupçonne d'en cacher d'autres.
+      onHorizontalDragEnd: (_) => _suivant(),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Les points sur la ligne de l'icône, et non sous le chiffre :
+            // les mettre dessous grandissait la tuile, ce qui décalait tout
+            // l'écran — un test de la porte de partage l'a montré avant l'œil.
+            Row(
+              children: [
+                Icon(
+                  widget.icon,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const Spacer(),
+                if (figures.length > 1)
+                  for (var i = 0; i < figures.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: i == _index % figures.length
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.3),
+                        ),
+                      ),
+                    ),
+              ],
             ),
-            maxLines: 2,
-          ),
-        ],
+            const SizedBox(height: 10),
+            Text(figure.value, style: theme.textTheme.headlineSmall),
+            Text(figure.label, style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 4),
+            Text(
+              figure.detail,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
       ),
     );
   }

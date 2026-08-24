@@ -27,6 +27,39 @@ un **plancher**, pas une estimation, et l'interface le dit.
 (extension, numéro), là où le deckbuilding compte des cartes : 871 éditions de
 Plaine partagent un `oracle_id` mais occupent 871 cases d'un classeur.
 
+### Les chiffres que la page de profil sait dire
+
+`my_collection_summary` rend sept colonnes, dont la page tire **deux séries
+défilantes** — une pression, ou un glissement latéral, passe à la suivante :
+
+| Série | Ce qu'elle enchaîne |
+|---|---|
+| Contenu | exemplaires → références → boosters équivalents |
+| Valeur | totale → une de chaque → en boosters achetés → carte la plus chère |
+
+Les afficher toutes tiendrait de l'inventaire : six nombres sur une page de
+profil ne se lisent plus. Un seul est montré, et de petits points disent que les
+autres existent — sans eux, personne ne penserait à appuyer.
+
+**« Une de chaque » se compte par référence**, au sens de `distinct_cards`, et
+retient la plus chère des finitions d'une même case : c'est celle qu'on
+garderait.
+
+**Les deux chiffres en boosters ne se déduisent d'aucune donnée.** Ils exigent de
+savoir ce qu'un booster contient et coûte, et aucune source ne le publie carte
+par carte ; les valeurs sont donc inscrites dans `booster_size.dart`, jeu par
+jeu. **Un jeu absent de cette table n'affiche pas ces deux chiffres** plutôt que
+d'en inventer — seul Magic y figure (Play Booster, 14 cartes, 5,50 €). Ces
+nombres vieillissent, et se corrigent en une ligne.
+
+**Une CTE n'est pas une variable.** La première version de la fonction dépassait
+le `statement_timeout` de huit secondes du rôle `authenticated` : depuis
+PostgreSQL 12, une `WITH` sans effet de bord est *inlinée*, si bien que les trois
+lectures des prix les recalculaient trois fois. `MATERIALIZED` rétablit ce que
+l'on croyait écrire. Mesuré **sous le rôle réel** — la connexion d'ingestion est
+propriétaire et ne porte pas ce délai, elle aurait montré une fonction
+parfaitement saine.
+
 ---
 
 ## 2. Les classeurs
