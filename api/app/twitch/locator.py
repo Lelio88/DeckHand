@@ -1,12 +1,13 @@
 """Le seul point du bot qui touche au réseau.
 
-Trois fonctions publiques y sont appelées, et toutes par la même porte :
-`binder_locate` (où est cette carte), `public_recent_additions` (ce qui vient
-d'entrer au classeur) et `public_binder_shelf` (l'avancement par extension).
+Quatre fonctions publiques y sont appelées, et toutes par la même porte :
+`binder_locate` (où est cette carte, et ce qu'elle vaut),
+`public_recent_additions` (ce qui vient d'entrer au classeur),
+`public_binder_shelf` (l'avancement par extension) et `public_binder_page` (ce
+qui manque à une page).
 Elles ont en commun d'accepter une **adresse de partage** — ce qui n'est pas le
 cas de la plupart des fonctions du projet, dont `my_binder_shelf`, qui lisent la
 collection de l'appelant et ne rendent donc rien sous la clé anonyme.
-
 
 **Le bot passe par la porte publique, et par elle seule.** Clé anonyme, adresse
 de partage, une fonction `SECURITY INVOKER` : les règles de ligne qui protègent
@@ -28,7 +29,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from .reply import Addition, Location, Shelf
+from .reply import Addition, Cell, Location, Shelf
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,23 @@ class Locator:
             client, "public_binder_shelf", {"p_handle": self.handle, "p_game": self.game}
         )
         return [Shelf.from_row(row) for row in rows]
+
+    def page(
+        self, client: httpx.Client, set_code: str, page: int, per_page: int = 9
+    ) -> list[Cell]:
+        """Les cases d'une page du classeur partagé, vides comprises."""
+        rows = self._appeler(
+            client,
+            "public_binder_page",
+            {
+                "p_handle": self.handle,
+                "p_set_code": set_code,
+                "p_page": page,
+                "p_per_page": per_page,
+                "p_game": self.game,
+            },
+        )
+        return [Cell.from_row(row) for row in rows]
 
     def _interroger(self, client: httpx.Client, query: str) -> list[Location]:
         rows = self._appeler(

@@ -34,9 +34,16 @@ class Location:
     slot: int
     copies: int
     has_foil: bool
+    #: Cote de la case, ou `None` quand la carte n'en a pas.
+    #:
+    #: **L'absence de cote n'est pas un prix nul.** Beaucoup d'impressions
+    #: françaises n'en portent aucune ; annoncer « 0,00 € » ferait croire à une
+    #: carte sans valeur là où l'on ne sait simplement pas.
+    price_eur: float | None = None
 
     @classmethod
     def from_row(cls, row: dict[str, object]) -> Location:
+        prix = row.get("price_eur")
         return cls(
             name=str(row.get("name") or ""),
             matched_name=str(row.get("matched_name") or row.get("name") or ""),
@@ -46,6 +53,7 @@ class Location:
             slot=int(row.get("slot") or 0),
             copies=int(row.get("copies") or 0),
             has_foil=bool(row.get("has_foil")),
+            price_eur=float(prix) if prix is not None else None,
         )
 
 
@@ -157,13 +165,93 @@ def format_reply(query: str, locations: list[Location]) -> str:
     return f"{head} — " + " · ".join(parts) + tail
 
 
+def format_prix(euros: float | None) -> str:
+    """Une cote, à la française — ou rien du tout.
+
+    **Rien plutôt que zéro.** Une impression sans cote n'est pas une carte sans
+    valeur : Scryfall ne cote pratiquement que l'anglais, et la plupart des
+    impressions françaises n'en portent aucune. « 0,00 € » serait un mensonge
+    là où le silence est exact.
+    """
+    if euros is None:
+        return ""
+    return f"{euros:.2f} €".replace(".", ",")
+
+
 def _one_place(place: Location) -> str:
     number = f"#{place.collector_number}" if place.collector_number else ""
     where = f"{place.set_name} {number}".strip()
     copies = f"×{place.copies}" if place.copies > 1 else ""
-    marks = ", ".join(part for part in (copies, "brillante" if place.has_foil else "") if part)
+    marks = ", ".join(
+        part
+        for part in (
+            copies,
+            "brillante" if place.has_foil else "",
+            format_prix(place.price_eur),
+        )
+        if part
+    )
     suffix = f" ({marks})" if marks else ""
     return f"{where}, page {place.page} case {place.slot}{suffix}"
+
+
+@dataclass(frozen=True)
+class Cell:
+    """Une case d'une page, telle que `public_binder_page` la rend."""
+
+    collector_number: str
+    name: str
+    owned: int
+
+    @classmethod
+    def from_row(cls, row: dict[str, object]) -> Cell:
+        return cls(
+            collector_number=str(row.get("collector_number") or ""),
+            name=str(row.get("printed_name") or row.get("name") or ""),
+            owned=int(row.get("owned") or 0),
+        )
+
+
+def format_page(set_code: str, page: int, cells: list[Cell]) -> str:
+    """Ce qu'une page de classeur donne en une ligne.
+
+    **Pas les neuf noms.** Une page ne se récite pas dans un chat. On compte les
+    cases pleines et on **nomme les vides par leur numéro** — ce qui tient
+    précisément parce qu'une page en compte neuf au plus.
+
+    C'est la question « qu'est-ce qui te manque » ramenée à une échelle où elle a
+    une réponse : sur une extension entière il manque des centaines de cases, et
+    aucune troncature n'en fait une phrase utile.
+    """
+    if not cells:
+        return f"rien à la page {page} de « {set_code} »."
+    pleines = sum(1 for cell in cells if cell.owned)
+    vides = [cell.collector_number for cell in cells if not cell.owned]
+    tete = f"{set_code.upper()} page {page} : {pleines}/{len(cells)} cases"
+    if not vides:
+        return f"{tete} — complète."
+    return f"{tete} — manquent " + ", ".join(f"#{n}" for n in vides) + "."
+
+
+def parse_page_command(text: str, prefix: str = "!page") -> tuple[str, int] | None:
+    """L'extension et la page demandées, ou `None`.
+
+    **Deux arguments dont un seul est obligatoire.** `!page msh` répond sur la
+    première page : exiger le numéro ferait échouer la forme la plus naturelle.
+    Un second mot qui n'est pas un nombre fait en revanche renoncer — répondre
+    sur la page 1 à `!page msh bidule` inventerait une question.
+    """
+    argument = parse_command(text, prefix)
+    if argument is None:
+        return None
+    mots = argument.split()
+    if not mots:
+        return None
+    if len(mots) == 1:
+        return mots[0], 1
+    if len(mots) == 2 and mots[1].isdigit() and int(mots[1]) > 0:
+        return mots[0], int(mots[1])
+    return None
 
 
 def parse_bare_command(text: str, name: str) -> bool:

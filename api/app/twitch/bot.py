@@ -1,16 +1,18 @@
 """La boucle qui relie le chat au classeur.
 
-**Quatre commandes, et toutes en lecture.** `!card <nom>` dit si la carte est
-possédée et où ; `!dernieres` ce qui vient d'entrer au classeur ; `!classeur`
-l'avancement par extension ; `!deckhand` l'adresse et le crédit. Aucune n'écrit,
+**Cinq commandes, et toutes en lecture.** `!card <nom>` dit si la carte est
+possédée, où, et ce qu'elle vaut ; `!page <ext> <n>` ce qui manque à une page ;
+`!dernieres` ce qui vient d'entrer au classeur ; `!classeur` l'avancement par
+extension ; `!deckhand` l'adresse et le crédit. Aucune n'écrit,
 et aucune ne le pourra : la porte publique est la clé anonyme, et une commande
 qui aurait besoin de la clé de service serait le signal qu'elle n'a rien à faire
 dans un chat.
 
 **Ce qui n'y est pas.** La désignation — un spectateur qui ferait afficher une
-carte sur l'overlay — attend l'overlay lui-même : ses questions (une file ou une
-seule case ? qui a la main quand le diffuseur scanne ?) ne se tranchent que
-devant lui.
+carte sur l'overlay — serait la **seule écriture** de tout le chantier, et c'est
+ce qui la retient : écrire demanderait soit d'ouvrir une table aux écritures
+anonymes, soit la clé de service. L'overlay, lui, existe (#14) et ne bloque plus
+rien.
 
 **La reconnexion est le régime normal.** Twitch coupe une connexion inactive, et
 un direct dure des heures : `run` reconnecte plutôt que de s'arrêter, avec une
@@ -33,11 +35,13 @@ import httpx
 from .irc import ChatMessage, IrcCredentials, channel_name, connect, parse_privmsg
 from .locator import Locator
 from .reply import (
+    format_page,
     format_recent,
     format_reply,
     format_shelf,
     parse_bare_command,
     parse_command,
+    parse_page_command,
 )
 from .throttle import Throttle
 
@@ -51,8 +55,8 @@ _MAX_RETRY_SECONDS = 60.0
 # données ; un chat en fait partie. Elle est annoncée à la connexion plutôt
 # qu'accrochée à chaque réponse, qui deviendrait illisible.
 ANNOUNCE = (
-    "DeckHand lit le classeur — !card <nom> · !dernieres · !classeur · "
-    "!deckhand. Cartes, images et prix : Scryfall."
+    "DeckHand lit le classeur — !card <nom> · !page <ext> <n> · !dernieres · "
+    "!classeur · !deckhand. Cartes, images et prix : Scryfall."
 )
 
 # Une reconnexion ne réannonce pas : un réseau instable transformerait le crédit
@@ -107,6 +111,14 @@ class Bot:
                 return None
             locations = self.locator.locate(client, query)
             return f"@{message.author} {format_reply(query, locations)}"
+
+        demande = parse_page_command(message.text)
+        if demande is not None:
+            set_code, page = demande
+            if not self.throttle.allows(message.author, f"!page {set_code} {page}"):
+                return None
+            cellules = self.locator.page(client, set_code, page)
+            return f"@{message.author} {format_page(set_code, page, cellules)}"
 
         # **Les commandes sans argument passent par le même débit.** La clé de
         # cooldown est leur nom : sans elle, `!classeur` répété dix fois

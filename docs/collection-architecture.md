@@ -363,10 +363,24 @@ le poste qui diffuse, le temps d'un direct ; rien n'est déployé.
 
 | commande | ce qu'elle dit | ce qu'elle appelle |
 |---|---|---|
-| `!card <nom>` | la carte est-elle possédée, et où | `binder_locate` |
+| `!card <nom>` | la carte est-elle possédée, où, et ce qu'elle vaut | `binder_locate` |
+| `!page <ext> <n>` | ce qui manque à une page | `public_binder_page` |
 | `!dernieres` | les trois dernières cartes entrées au classeur | `public_recent_additions` |
 | `!classeur` | l'avancement, extension par extension | `public_binder_shelf` |
 | `!deckhand` | l'adresse du classeur et le crédit | rien |
+
+**`!page` est « qu'est-ce qui te manque » ramené à une échelle où la question a
+une réponse.** Sur une extension entière il manque des centaines de cases — 219
+sur Marvel Super Heroes — et aucune troncature n'en fait une phrase utile ; une
+page en compte neuf au plus, et ses vides se nomment tous par leur numéro. C'est
+pourquoi `!manque <extension>` a été écartée, et pas celle-ci.
+
+**`!card` rend désormais la cote**, prise sur la case à la finition possédée.
+Elle vient de `binder_locate` elle-même : un second appel à `print_price`
+partirait sur **chaque** réponse réussie, là où le repli sur le trait d'union ne
+part que sur un échec. Une impression sans cote n'affiche **rien** plutôt que
+« 0,00 € » — Scryfall ne cote pratiquement que l'anglais, et l'absence de prix
+n'est pas une absence de valeur.
 
 **`!dernieres` est celle que le direct rend possible.** Un spectateur qui arrive
 en cours de route rattrape en une ligne ce qui vient d'être ouvert — et cela n'a

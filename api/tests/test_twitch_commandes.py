@@ -1,4 +1,4 @@
-"""Les trois commandes sans argument, jouées sans réseau (#21).
+"""Les commandes ajoutées au bot, jouées sans réseau (#21).
 
 **Ce que ces tests protègent.** D'abord qu'une commande sans argument se
 distingue d'une phrase qui commence par le même mot : `!classeur de mon ami` ne
@@ -21,10 +21,16 @@ from app.twitch.irc import ChatMessage
 from app.twitch.locator import Locator
 from app.twitch.reply import (
     Addition,
+    Cell,
+    Location,
     Shelf,
+    format_page,
+    format_prix,
     format_recent,
+    format_reply,
     format_shelf,
     parse_bare_command,
+    parse_page_command,
 )
 from app.twitch.throttle import Throttle
 
@@ -50,6 +56,12 @@ class FauxLocator(Locator):
     def shelf(self, client: httpx.Client) -> list[Shelf]:
         self.appels.append("shelf")
         return self._rayonnage
+
+    def page(
+        self, client: httpx.Client, set_code: str, page: int, per_page: int = 9
+    ) -> list[Cell]:
+        self.appels.append(f"page:{set_code}:{page}")
+        return [Cell(str(n), f"Carte {n}", 1 if n < 5 else 0) for n in range(1, 10)]
 
 
 def une_addition(nom: str = "Shuri", numero: str = "75") -> Addition:
@@ -169,3 +181,125 @@ class TestBot:
         )
         assert reply is not None
         assert "Ka-Zar" in reply
+
+
+class TestRoutagePage:
+    def test_page_repond_et_demande_la_bonne_page(self) -> None:
+        locator = FauxLocator()
+        bot = Bot(locator=locator, channel="lelio")
+        reply = bot.answer(ChatMessage("a", "#lelio", "!page msh 3"), httpx.Client())
+        assert reply is not None
+        assert "MSH page 3 : 4/9 cases" in reply
+        assert locator.appels == ["page:msh:3"]
+
+    def test_une_saisie_incomprise_ne_touche_pas_au_reseau(self) -> None:
+        """**Renoncer, c'est aussi ne pas appeler.** Une commande mal formée
+        qui interrogerait quand même consommerait le débit pour rien."""
+        locator = FauxLocator()
+        bot = Bot(locator=locator, channel="lelio")
+        assert bot.answer(ChatMessage("a", "#lelio", "!page msh bidule"), httpx.Client()) is None
+        assert locator.appels == []
+
+
+class TestPage:
+    """`!page <extension> <n>` — ce qui manque à une page.
+
+    **C'est `!manque` ramené à une échelle où il a une réponse.** Sur une
+    extension entière il manque des centaines de cases, et aucune troncature
+    n'en fait une phrase utile ; une page en compte neuf au plus, et ses vides
+    se nomment tous.
+    """
+
+    def test_l_extension_seule_vaut_la_premiere_page(self) -> None:
+        """Exiger le numéro ferait échouer la forme la plus naturelle."""
+        assert parse_page_command("!page msh") == ("msh", 1)
+
+    def test_le_numero_est_lu_quand_il_est_la(self) -> None:
+        assert parse_page_command("!page msh 3") == ("msh", 3)
+
+    def test_un_second_mot_qui_n_est_pas_un_nombre_fait_renoncer(self) -> None:
+        """**Ne pas inventer la question.** Répondre sur la page 1 à
+        « !page msh bidule » répondrait à autre chose que ce qui est demandé."""
+        assert parse_page_command("!page msh bidule") is None
+        assert parse_page_command("!page msh 0") is None
+        assert parse_page_command("!page msh 3 4") is None
+
+    def test_la_commande_sans_argument_ne_declenche_rien(self) -> None:
+        assert parse_page_command("!page") is None
+        assert parse_page_command("!pages msh") is None
+
+    def test_les_cases_vides_sont_nommees_par_leur_numero(self) -> None:
+        cellules = [
+            Cell(collector_number=str(n), name=f"Carte {n}", owned=1 if n % 2 else 0)
+            for n in range(1, 10)
+        ]
+        phrase = format_page("msh", 3, cellules)
+        assert "MSH page 3 : 5/9 cases" in phrase
+        assert "#2" in phrase and "#8" in phrase
+
+    def test_une_page_complete_le_dit(self) -> None:
+        cellules = [Cell(str(n), f"Carte {n}", 1) for n in range(1, 10)]
+        assert "complète" in format_page("msh", 1, cellules)
+
+    def test_une_page_hors_partage_se_tait_comme_le_reste(self) -> None:
+        """Extension non partagée, adresse inconnue, page au-delà de la
+        dernière : la même phrase. C'est l'anti-énumération du projet."""
+        assert "rien à la page 99" in format_page("msh", 99, [])
+
+
+class TestPrix:
+    def test_le_prix_suit_la_localisation(self) -> None:
+        place = Location(
+            name="Ka-Zar",
+            matched_name="Ka-Zar",
+            set_name="Marvel Super Heroes",
+            collector_number="185",
+            page=3,
+            slot=4,
+            copies=1,
+            has_foil=False,
+            price_eur=2.4,
+        )
+        phrase = format_reply("ka-zar", [place])
+        assert "page 3 case 4" in phrase
+        assert "2,40 €" in phrase
+
+    def test_une_carte_sans_cote_n_affiche_pas_zero(self) -> None:
+        """**Rien plutôt que zéro.** Scryfall ne cote pratiquement que
+        l'anglais : « 0,00 € » ferait croire à une carte sans valeur là où l'on
+        ne sait simplement pas."""
+        place = Location(
+            name="Ka-Zar",
+            matched_name="Ka-Zar",
+            set_name="Marvel Super Heroes",
+            collector_number="185",
+            page=3,
+            slot=4,
+            copies=1,
+            has_foil=False,
+            price_eur=None,
+        )
+        phrase = format_reply("ka-zar", [place])
+        assert "€" not in phrase
+        assert format_prix(None) == ""
+
+    def test_le_prix_cohabite_avec_les_autres_marques(self) -> None:
+        place = Location(
+            name="Ka-Zar",
+            matched_name="Ka-Zar",
+            set_name="MSH",
+            collector_number="185",
+            page=3,
+            slot=4,
+            copies=2,
+            has_foil=True,
+            price_eur=12.0,
+        )
+        phrase = format_reply("ka-zar", [place])
+        assert "×2" in phrase and "brillante" in phrase and "12,00 €" in phrase
+
+    def test_une_ligne_sans_prix_se_lit_sans_erreur(self) -> None:
+        """La colonne est neuve : un relevé d'avant la migration n'en porte
+        pas, et `from_row` ne doit pas y voir un zéro."""
+        assert Location.from_row({"name": "x"}).price_eur is None
+        assert Location.from_row({"name": "x", "price_eur": "2.40"}).price_eur == 2.4
