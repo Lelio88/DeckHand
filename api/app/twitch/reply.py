@@ -29,6 +29,9 @@ class Location:
     name: str
     matched_name: str
     set_name: str
+    #: Code de l'extension. `set_name` sert à l'affichage ; celui-ci est la clé
+    #: de la case, celle que la désignation envoie à la base.
+    set_code: str
     collector_number: str
     page: int
     slot: int
@@ -48,6 +51,7 @@ class Location:
             name=str(row.get("name") or ""),
             matched_name=str(row.get("matched_name") or row.get("name") or ""),
             set_name=str(row.get("set_name") or ""),
+            set_code=str(row.get("set_code") or ""),
             collector_number=str(row.get("collector_number") or ""),
             page=int(row.get("page") or 0),
             slot=int(row.get("slot") or 0),
@@ -163,6 +167,25 @@ def format_reply(query: str, locations: list[Location]) -> str:
     parts = [_one_place(place) for place in shown]
     tail = f" (+{rest} autre{'s' if rest > 1 else ''})" if rest > 0 else ""
     return f"{head} — " + " · ".join(parts) + tail
+
+
+def format_spotlight(place: Location, accepte: bool) -> str:
+    """Ce que le bot répond à `!montre`.
+
+    **Trois issues, et une seule est un succès.** La carte monte à l'écran ; ou
+    l'écran vient d'être pris et il faut attendre ; ou la carte n'est pas dans le
+    classeur — ce dernier cas ne passe jamais par ici, la commande renonçant
+    avant d'écrire quoi que ce soit.
+
+    Le refus **dit quoi faire**, contrairement à un refus de débit qui, lui, est
+    un silence. La différence tient à ce que le spectateur a déjà obtenu une
+    réponse : sa commande a été acceptée, la recherche a eu lieu, et se taire
+    laisserait croire à une panne.
+    """
+    if not accepte:
+        return "l'écran est déjà pris — réessaie dans un instant."
+    ou = f"{place.set_name} #{place.collector_number}".strip()
+    return f"{place.matched_name or place.name} à l'écran — {ou}."
 
 
 def format_prix(euros: float | None) -> str:

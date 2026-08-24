@@ -43,10 +43,14 @@ class FauxLocator(Locator):
         *,
         recentes: list[Addition] | None = None,
         rayonnage: list[Shelf] | None = None,
+        places: list[Location] | None = None,
+        accepte: bool = True,
     ) -> None:
         super().__init__(supabase_url="https://x", anon_key="k", handle="lelio")
         object.__setattr__(self, "_recentes", recentes or [])
         object.__setattr__(self, "_rayonnage", rayonnage or [])
+        object.__setattr__(self, "_places", places or [])
+        object.__setattr__(self, "_accepte", accepte)
         object.__setattr__(self, "appels", [])
 
     def recent(self, client: httpx.Client, limit: int = 3) -> list[Addition]:
@@ -62,6 +66,20 @@ class FauxLocator(Locator):
     ) -> list[Cell]:
         self.appels.append(f"page:{set_code}:{page}")
         return [Cell(str(n), f"Carte {n}", 1 if n < 5 else 0) for n in range(1, 10)]
+
+    def locate(self, client: httpx.Client, query: str) -> list[Location]:
+        self.appels.append(f"locate:{query}")
+        return self._places
+
+    def designate(
+        self,
+        client: httpx.Client,
+        set_code: str,
+        collector_number: str,
+        requested_by: str,
+    ) -> bool:
+        self.appels.append(f"designate:{set_code}:{collector_number}:{requested_by}")
+        return self._accepte
 
 
 def une_addition(nom: str = "Shuri", numero: str = "75") -> Addition:
@@ -79,6 +97,20 @@ def une_etagere(code: str = "msh", possedees: int = 234, total: int = 453) -> Sh
         set_name="Marvel Super Heroes" if code == "msh" else code.upper(),
         total_cells=total,
         owned_cells=possedees,
+    )
+
+
+def une_place(nom: str = "Ka-Zar", numero: str = "185") -> Location:
+    return Location(
+        name=nom,
+        matched_name=nom,
+        set_name="Marvel Super Heroes",
+        set_code="msh",
+        collector_number=numero,
+        page=3,
+        slot=4,
+        copies=1,
+        has_foil=False,
     )
 
 
@@ -253,6 +285,7 @@ class TestPrix:
             name="Ka-Zar",
             matched_name="Ka-Zar",
             set_name="Marvel Super Heroes",
+            set_code="msh",
             collector_number="185",
             page=3,
             slot=4,
@@ -272,6 +305,7 @@ class TestPrix:
             name="Ka-Zar",
             matched_name="Ka-Zar",
             set_name="Marvel Super Heroes",
+            set_code="msh",
             collector_number="185",
             page=3,
             slot=4,
@@ -288,6 +322,7 @@ class TestPrix:
             name="Ka-Zar",
             matched_name="Ka-Zar",
             set_name="MSH",
+            set_code="msh",
             collector_number="185",
             page=3,
             slot=4,
@@ -303,3 +338,85 @@ class TestPrix:
         pas, et `from_row` ne doit pas y voir un zéro."""
         assert Location.from_row({"name": "x"}).price_eur is None
         assert Location.from_row({"name": "x", "price_eur": "2.40"}).price_eur == 2.4
+
+
+class TestDesignation:
+    """`!montre <nom>` — la seule commande qui écrive.
+
+    **Ce que ces tests protègent avant tout, c'est l'ordre lecture → écriture.**
+    La commande n'a aucun contrôle de portée à elle : elle s'appuie sur le fait
+    que `binder_locate` ne rend que ce que le propriétaire partage. Si elle
+    écrivait avant de lire — ou même sans avoir rien lu — ce raisonnement
+    tomberait, et rien d'autre ne le rattraperait.
+    """
+
+    def _bot(self, **kwargs: object) -> Bot:
+        defauts: dict[str, object] = {"channel": "lelio"}
+        defauts.update(kwargs)
+        return Bot(**defauts)  # type: ignore[arg-type]
+
+    def test_la_carte_monte_a_l_ecran(self) -> None:
+        locator = FauxLocator(places=[une_place()])
+        bot = self._bot(locator=locator)
+        reply = bot.answer(ChatMessage("alice", "#lelio", "!montre ka-zar"), httpx.Client())
+        assert reply is not None
+        assert "Ka-Zar" in reply and "à l'écran" in reply
+        assert locator.appels == ["locate:ka-zar", "designate:msh:185:alice"]
+
+    def test_une_carte_absente_n_ecrit_rien(self) -> None:
+        """**Le test qui tient tout le raisonnement de sécurité.** Écrire sans
+        avoir trouvé la carte reviendrait à écrire sans avoir vérifié la portée
+        — et le seul contrôle de portée du chantier est celui de la lecture."""
+        locator = FauxLocator(places=[])
+        bot = self._bot(locator=locator)
+        reply = bot.answer(ChatMessage("alice", "#lelio", "!montre bidule"), httpx.Client())
+        assert reply is not None
+        assert "pas dans le classeur" in reply
+        assert locator.appels == ["locate:bidule"]
+
+    def test_un_refus_de_la_base_dit_quoi_faire(self) -> None:
+        """**Un refus de débit est un silence, celui-ci non.** La commande a été
+        acceptée et la recherche a eu lieu : se taire laisserait croire à une
+        panne."""
+        locator = FauxLocator(places=[une_place()], accepte=False)
+        bot = self._bot(locator=locator)
+        reply = bot.answer(ChatMessage("alice", "#lelio", "!montre ka-zar"), httpx.Client())
+        assert reply is not None
+        assert "réessaie" in reply
+        assert "à l'écran" not in reply
+
+    def test_la_premiere_case_monte_et_pas_les_trois(self) -> None:
+        """L'overlay n'a qu'une place ; `!card` en montre jusqu'à trois parce
+        qu'un terrain de base occupe une douzaine de cases."""
+        locator = FauxLocator(
+            places=[une_place(numero="185"), une_place(numero="186")]
+        )
+        bot = self._bot(locator=locator)
+        bot.answer(ChatMessage("alice", "#lelio", "!montre ka-zar"), httpx.Client())
+        assert locator.appels == ["locate:ka-zar", "designate:msh:185:alice"]
+
+    def test_la_commande_sans_argument_ne_declenche_rien(self) -> None:
+        locator = FauxLocator(places=[une_place()])
+        bot = self._bot(locator=locator)
+        assert bot.answer(ChatMessage("a", "#lelio", "!montre"), httpx.Client()) is None
+        assert bot.answer(ChatMessage("a", "#lelio", "!montres ka-zar"), httpx.Client()) is None
+        assert locator.appels == []
+
+    def test_le_debit_s_applique_avant_l_ecriture(self) -> None:
+        """Le débit se vérifie **avant** l'appel réseau : une commande qui n'a
+        pas mérité de réponse ne doit pas non plus écrire."""
+        locator = FauxLocator(places=[une_place()])
+        bot = self._bot(locator=locator, throttle=Throttle(burst=1, window_seconds=60.0))
+        assert bot.answer(ChatMessage("a", "#lelio", "!montre ka-zar"), httpx.Client())
+        assert bot.answer(ChatMessage("b", "#lelio", "!montre shuri"), httpx.Client()) is None
+        assert locator.appels == ["locate:ka-zar", "designate:msh:185:a"]
+
+    def test_card_ne_designe_jamais(self) -> None:
+        """**La commande de lecture reste en lecture.** Une erreur d'ordre dans
+        le routeur ferait écrire `!card`, ce qu'aucune de ses phrases ne
+        signalerait."""
+        locator = FauxLocator(places=[une_place()])
+        bot = self._bot(locator=locator)
+        bot.answer(ChatMessage("a", "#lelio", "!card ka-zar"), httpx.Client())
+        assert locator.appels == ["locate:ka-zar"]
+

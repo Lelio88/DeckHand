@@ -1,10 +1,10 @@
 """Le seul point du bot qui touche au réseau.
 
-Quatre fonctions publiques y sont appelées, et toutes par la même porte :
+Cinq fonctions publiques y sont appelées, et toutes par la même porte :
 `binder_locate` (où est cette carte, et ce qu'elle vaut),
 `public_recent_additions` (ce qui vient d'entrer au classeur),
-`public_binder_shelf` (l'avancement par extension) et `public_binder_page` (ce
-qui manque à une page).
+`public_binder_shelf` (l'avancement par extension), `public_binder_page` (ce
+qui manque à une page) et `public_request_spotlight` — **la seule qui écrive**.
 Elles ont en commun d'accepter une **adresse de partage** — ce qui n'est pas le
 cas de la plupart des fonctions du projet, dont `my_binder_shelf`, qui lisent la
 collection de l'appelant et ne rendent donc rien sous la clé anonyme.
@@ -15,6 +15,14 @@ la page web protègent le bot par la même mécanique. Utiliser la clé de servi
 « pour simplifier » ferait de ce fichier un contournement de la portée choisie
 dans l'écran de partage — c'est l'unique erreur qui rendrait cette
 fonctionnalité dangereuse.
+
+**L'écriture ne fait pas exception, et c'est tout son intérêt.**
+`public_request_spotlight` est `SECURITY DEFINER` parce qu'elle touche une table
+que personne d'autre n'atteint, mais elle est accordée à `anon` comme les
+lectures : le bot n'a toujours aucun privilège qu'un spectateur n'ait pas. Ce
+que la désignation peut faire au pire est borné dans la migration
+`collection_spotlight`, pas ici — un garde-fou écrit côté client se contourne en
+appelant la fonction sans le client.
 
 **Une panne réseau ne dit rien de plus qu'une carte absente.** L'appelant reçoit
 une liste vide, et le chat lit « pas dans le classeur ». Un direct n'est pas un
@@ -134,6 +142,38 @@ class Locator:
         )
         return [Cell.from_row(row) for row in rows]
 
+    def designate(
+        self,
+        client: httpx.Client,
+        set_code: str,
+        collector_number: str,
+        requested_by: str,
+    ) -> bool:
+        """Fait monter une case sur l'overlay. Rend faux si la base refuse.
+
+        **La base refuse pour trois raisons, et le bot n'en rencontre qu'une.**
+        Collection non publiée et case non possédée sont écartées en amont : la
+        commande n'appelle cette méthode qu'après avoir trouvé la carte par
+        `binder_locate`, qui ne rend rien dans ces deux cas. Reste le délai de
+        garde — l'écran est déjà pris.
+
+        **Une panne réseau se lit comme un refus**, comme partout ailleurs ici.
+        Le spectateur est invité à réessayer, ce qui est la bonne conduite dans
+        les deux cas.
+        """
+        rendu = self._poster(
+            client,
+            "public_request_spotlight",
+            {
+                "p_handle": self.handle,
+                "p_set_code": set_code,
+                "p_collector_number": collector_number,
+                "p_requested_by": requested_by,
+                "p_game": self.game,
+            },
+        )
+        return rendu is True
+
     def _interroger(self, client: httpx.Client, query: str) -> list[Location]:
         rows = self._appeler(
             client,
@@ -145,12 +185,25 @@ class Locator:
     def _appeler(
         self, client: httpx.Client, fonction: str, corps: dict[str, object]
     ) -> list[dict[str, object]]:
-        """Un appel à la porte publique, ou une liste vide.
+        """Les lignes rendues par une fonction de lecture, ou une liste vide."""
+        rows = self._poster(client, fonction, corps)
+        if not isinstance(rows, list):
+            return []
+        return [row for row in rows if isinstance(row, dict)]
+
+    def _poster(
+        self, client: httpx.Client, fonction: str, corps: dict[str, object]
+    ) -> object | None:
+        """Un appel à la porte publique, brut — ou `None` si rien n'est revenu.
 
         **Une seule fonction touche au réseau**, quelle que soit la commande :
         la clé anonyme, l'en-tête et le traitement des pannes s'y écrivent une
         fois. Une commande qui appellerait Supabase de son côté échapperait au
         contrat de silence ci-dessus, et probablement à la clé anonyme.
+
+        Elle rend la réponse **telle quelle** parce que toutes les fonctions ne
+        rendent pas des lignes : `public_request_spotlight` répond un booléen. La
+        mise en forme en liste appartient à `_appeler`, qui sert les lectures.
         """
         try:
             response = client.post(
@@ -180,8 +233,6 @@ class Locator:
                 type(error).__name__,
                 detail,
             )
-            return []
+            return None
 
-        if not isinstance(rows, list):
-            return []
-        return [row for row in rows if isinstance(row, dict)]
+        return rows

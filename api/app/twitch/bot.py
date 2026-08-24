@@ -1,18 +1,23 @@
 """La boucle qui relie le chat au classeur.
 
-**Cinq commandes, et toutes en lecture.** `!card <nom>` dit si la carte est
+**Six commandes, dont cinq en lecture.** `!card <nom>` dit si la carte est
 possédée, où, et ce qu'elle vaut ; `!page <ext> <n>` ce qui manque à une page ;
 `!dernieres` ce qui vient d'entrer au classeur ; `!classeur` l'avancement par
-extension ; `!deckhand` l'adresse et le crédit. Aucune n'écrit,
-et aucune ne le pourra : la porte publique est la clé anonyme, et une commande
-qui aurait besoin de la clé de service serait le signal qu'elle n'a rien à faire
-dans un chat.
+extension ; `!deckhand` l'adresse et le crédit. `!montre <nom>` fait monter la
+carte sur l'overlay OBS — **la seule qui écrive**.
 
-**Ce qui n'y est pas.** La désignation — un spectateur qui ferait afficher une
-carte sur l'overlay — serait la **seule écriture** de tout le chantier, et c'est
-ce qui la retient : écrire demanderait soit d'ouvrir une table aux écritures
-anonymes, soit la clé de service. L'overlay, lui, existe (#14) et ne bloque plus
-rien.
+**Ce que la clé de service reste interdite de faire.** La désignation écrit, mais
+elle écrit par la même porte que les lectures : clé anonyme, adresse de partage,
+une fonction accordée à `anon`. Une commande qui aurait besoin de la clé de
+service serait le signal qu'elle n'a rien à faire dans un chat — la règle tient,
+et c'est elle qui a dicté la forme de la migration `collection_spotlight` plutôt
+que l'inverse.
+
+**`!montre` lit avant d'écrire, et c'est ce qui la borne.** Elle passe par
+`binder_locate` — la même fonction que `!card`, `SECURITY INVOKER`, exécutée sous
+la clé anonyme — et n'écrit que ce que celle-ci a bien voulu rendre. Un
+spectateur ne peut donc désigner que ce qu'il pouvait déjà voir, sans qu'aucune
+ligne de Python n'ait à le vérifier.
 
 **La reconnexion est le régime normal.** Twitch coupe une connexion inactive, et
 un direct dure des heures : `run` reconnecte plutôt que de s'arrêter, avec une
@@ -39,6 +44,7 @@ from .reply import (
     format_recent,
     format_reply,
     format_shelf,
+    format_spotlight,
     parse_bare_command,
     parse_command,
     parse_page_command,
@@ -55,8 +61,8 @@ _MAX_RETRY_SECONDS = 60.0
 # données ; un chat en fait partie. Elle est annoncée à la connexion plutôt
 # qu'accrochée à chaque réponse, qui deviendrait illisible.
 ANNOUNCE = (
-    "DeckHand lit le classeur — !card <nom> · !page <ext> <n> · !dernieres · "
-    "!classeur · !deckhand. Cartes, images et prix : Scryfall."
+    "DeckHand lit le classeur — !card <nom> · !montre <nom> · !page <ext> <n> · "
+    "!dernieres · !classeur · !deckhand. Cartes, images et prix : Scryfall."
 )
 
 # Une reconnexion ne réannonce pas : un réseau instable transformerait le crédit
@@ -112,6 +118,12 @@ class Bot:
             locations = self.locator.locate(client, query)
             return f"@{message.author} {format_reply(query, locations)}"
 
+        montre = parse_command(message.text, "!montre")
+        if montre is not None:
+            if not self.throttle.allows(message.author, f"!montre {montre}"):
+                return None
+            return f"@{message.author} {self._designer(client, montre, message.author)}"
+
         demande = parse_page_command(message.text)
         if demande is not None:
             set_code, page = demande
@@ -130,6 +142,30 @@ class Bot:
                 return None
             return f"@{message.author} {repondre(client)}"
         return None
+
+    def _designer(self, client: httpx.Client, query: str, author: str) -> str:
+        """Fait monter une carte sur l'overlay, ou dit pourquoi non.
+
+        **Rien n'est écrit avant d'avoir lu.** La recherche passe par la porte
+        publique en lecture ; si elle ne rend rien, la commande répond
+        exactement comme `!card` et n'appelle pas l'écriture. C'est ce qui rend
+        superflu tout contrôle de portée côté bot : on ne peut désigner que ce
+        qu'on pouvait déjà voir.
+
+        **La première case, et non les trois.** `!card` en montre jusqu'à trois
+        parce qu'un terrain de base occupe une douzaine de cases ; l'overlay,
+        lui, n'a qu'une place. C'est la meilleure correspondance qui monte.
+        """
+        locations = self.locator.locate(client, query)
+        if not locations:
+            # La même phrase qu'une carte absente, une adresse inconnue ou une
+            # extension retirée du partage : l'anti-énumération vaut ici aussi.
+            return format_reply(query, [])
+        place = locations[0]
+        accepte = self.locator.designate(
+            client, place.set_code, place.collector_number, author
+        )
+        return format_spotlight(place, accepte)
 
     @property
     def _sans_argument(self) -> dict[str, Callable[[httpx.Client], str]]:

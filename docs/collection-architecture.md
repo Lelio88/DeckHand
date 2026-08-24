@@ -358,12 +358,13 @@ site de projet est servi sous `/<dépôt>/`.
 
 ### Le bot de chat lit par la même porte
 
-`api/app/twitch/` répond dans un chat Twitch, en **lecture seule**. Il tourne sur
-le poste qui diffuse, le temps d'un direct ; rien n'est déployé.
+`api/app/twitch/` répond dans un chat Twitch. Il tourne sur le poste qui diffuse,
+le temps d'un direct ; rien n'est déployé. Cinq commandes lisent, une écrit.
 
 | commande | ce qu'elle dit | ce qu'elle appelle |
 |---|---|---|
 | `!card <nom>` | la carte est-elle possédée, où, et ce qu'elle vaut | `binder_locate` |
+| `!montre <nom>` | fait monter la carte sur l'overlay | `binder_locate` puis `public_request_spotlight` |
 | `!page <ext> <n>` | ce qui manque à une page | `public_binder_page` |
 | `!dernieres` | les trois dernières cartes entrées au classeur | `public_recent_additions` |
 | `!classeur` | l'avancement, extension par extension | `public_binder_shelf` |
@@ -503,6 +504,61 @@ requêtes, le prix d'une page qui se recharge, étalé.
   l'échéance, la carte serait restée jusqu'à l'arrivée de la suivante,
   c'est-à-dire indéfiniment sur un direct qui s'arrête. Le test l'a montré avant
   l'antenne.
+
+### La désignation — la seule écriture du chantier
+
+`!montre <nom>` fait monter une carte du classeur sur le calque. C'est la seule
+commande qui écrive, et elle a attendu longtemps parce qu'écrire demandait soit
+d'ouvrir une table aux écritures anonymes, soit la clé de service. **La clé de
+service est écartée par doctrine** — elle contournerait la portée choisie dans
+l'écran de partage, ce qui est l'unique erreur qui rendrait ce bot dangereux.
+Restait à borner l'écriture anonyme assez pour qu'elle soit sans conséquence.
+
+**Ce qu'un inconnu peut faire au pire.** Il connaît l'adresse de partage — elle
+est à l'antenne — et appelle `public_request_spotlight` directement, sans passer
+par le chat ni par le débit du bot. Il peut alors faire monter, une fois toutes
+les trente secondes, **une carte que le propriétaire possède déjà et donne déjà à
+lire**. Rien d'autre : la fonction ne touche qu'une table qui n'existe que pour
+ça, n'accepte aucun texte libre hors un pseudonyme borné à quarante caractères,
+et la table ne grossit pas — une ligne par collection, écrasée.
+
+Trois verrous, tous mécaniques : `collection_by_handle` refuse une collection non
+publiée ; la case doit être **possédée**, sans quoi on ferait défiler les 165 000
+impressions du catalogue ; et le délai de garde se lit dans la ligne précédente,
+qui porte son heure — pas de table de compteurs.
+
+**Trente secondes, et d'où vient ce nombre.** C'est le délai par recherche du bot
+(`DEFAULT_QUERY_COOLDOWN_SECONDS`), choisi pour exactement cette raison : « éviter
+de réécrire une réponse encore à l'écran ». La seule contrainte dure est qu'il
+dépasse `overlayLinger`, la durée d'affichage du calque — douze secondes ; en
+deçà, une demande remplacerait une carte que le demandeur précédent n'a pas fini
+de voir.
+
+**La lecture est l'autorité sur la portée, pas l'écriture.** `shared_sets`
+s'applique dans `public_spotlight`, une seule fois. C'est ce qui fait qu'une
+extension retirée du partage **après** la demande disparaît du calque : le
+partage est révocable, y compris a posteriori. Un filtre posé côté écriture
+passerait tous les autres contrôles et manquerait celui-là — c'est le sixième
+contrôle de `app.measure.spotlight_rls`, et le seul qui ne se déduise d'aucune
+lecture du code.
+
+**Côté bot, la sécurité tient à l'ordre lecture → écriture.** `!montre` passe par
+`binder_locate` — la même fonction que `!card`, `SECURITY INVOKER`, sous la clé
+anonyme — et n'écrit que ce que celle-ci a bien voulu rendre. Un spectateur ne
+peut donc désigner que ce qu'il pouvait déjà voir, **sans qu'une seule ligne de
+Python ne le vérifie**. Un test l'exige : une carte absente ne doit produire
+aucun appel d'écriture.
+
+**Le scan prime sur la demande.** Une carte scannée est physiquement devant
+l'objectif ; une désignation n'est qu'une curiosité. Mais une demande évincée
+n'est **pas perdue** : elle n'est marquée vue qu'au moment de s'afficher, si bien
+qu'elle remonte une fois le scan effacé. La laisser tomber ferait disparaître
+sans trace la demande d'un spectateur, et il n'y a pas de file pour la rattraper.
+
+**Un refus dit quoi faire, contrairement à un refus de débit.** « L'écran est
+déjà pris — réessaie dans un instant » : la commande a été acceptée et la
+recherche a eu lieu, se taire laisserait croire à une panne. Le silence reste la
+règle quand c'est le débit qui refuse, avant tout travail.
 
 ### Ce qui a de la valeur pour un spectateur
 

@@ -16,6 +16,7 @@ import 'package:deckhand/src/features/scan/data/card_text_reader.dart';
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
 import 'package:deckhand/src/features/binders/domain/recent_addition.dart';
+import 'package:deckhand/src/features/binders/domain/spotlight_card.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:deckhand/src/features/account/data/profile_repository.dart';
 import 'package:deckhand/src/config/selected_game.dart';
@@ -404,6 +405,13 @@ class FakeCollectionRepository implements CollectionRepository {
     String handle, {
     int limit = 1,
   }) async => additions.take(limit).toList(growable: false);
+
+  /// La carte désignée, ou `null` quand personne n'a rien demandé.
+  SpotlightCard? designated;
+
+  @override
+  Future<SpotlightCard?> spotlight(String handle, {Game game = Game.magic}) async =>
+      designated;
 
   /// Ce que le journal rendra, quelle que soit la fenêtre demandée.
   List<CollectionMovement> movements = const [];
