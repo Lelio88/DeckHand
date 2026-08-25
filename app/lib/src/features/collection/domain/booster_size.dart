@@ -1,14 +1,22 @@
-/// Ce qu'un booster contient, et ce qu'il coûte par défaut.
+/// Ce qu'un booster contient, et ce qu'il coûte — deux repères, tous deux
+/// remplaçables par l'utilisateur.
 ///
-/// **Deux natures de nombre, et une seule vit ici pour de bon.**
+/// **Aucun des deux nombres n'existe au singulier**, et c'est ce qui a changé
+/// depuis la première version de ce fichier : elle tenait la taille pour un fait
+/// publié, stable et identique pour tous, donc inscrite ici « pour de bon ».
+/// C'est faux dès qu'on regarde un rayon. Un même jeu vend plusieurs produits à
+/// des contenus différents — Play Booster à 14 cartes, Collector Booster à 15,
+/// Set Booster à 12 chez Magic — et le commentaire de `onepiece` ci-dessous
+/// l'admettait déjà sans en tirer la conséquence : « les boosters japonais font
+/// 6 à 9 cartes ; c'est le format français qui est retenu ». Retenir un format,
+/// c'est choisir pour quelqu'un d'autre.
 ///
-/// La **taille** d'un booster est un fait publié par l'éditeur : elle figure sur
-/// l'emballage, ne change qu'à un remaniement de format — Magic est passé de 15
-/// à 14 en adoptant le Play Booster — et vaut pour tout le monde. Elle est donc
-/// inscrite ici, et elle y reste.
+/// Les deux nombres sont donc de même nature : un **repère daté et sourcé**, que
+/// celui qui sait ce qu'il achète remplace. Voir `profiles.booster_sizes` et
+/// `profiles.booster_prices`.
 ///
-/// Le **prix**, lui, n'existe pas au singulier. Relevé le 24 août 2026, même
-/// produit, même jour :
+/// Pour le **prix**, l'écart se mesure. Relevé le 24 août 2026, même produit,
+/// même jour :
 ///
 /// | Produit | Enseigne A | Enseigne B |
 /// |---|---|---|
@@ -17,9 +25,9 @@
 ///
 /// Près du double d'écart. Un prix inscrit dans le code serait donc faux pour à
 /// peu près tout le monde, et faux **sans le dire**. Celui qui figure ici n'est
-/// qu'un **repère** — un relevé daté chez un détaillant nommé — et l'utilisateur
-/// peut lui substituer le sien, qui est le seul juste puisque l'indicateur
-/// répond à « combien **j'aurais** dépensé ». Voir `profiles.booster_prices`.
+/// qu'un relevé daté chez un détaillant nommé, et l'utilisateur peut lui
+/// substituer le sien, qui est le seul juste puisque l'indicateur répond à
+/// « combien **j'aurais** dépensé ».
 ///
 /// **Un jeu absent de cette table n'affiche pas ces indicateurs**, plutôt que
 /// d'en afficher d'inventés. Les huit y figurent aujourd'hui ; un neuvième jeu
@@ -35,11 +43,15 @@ class BoosterFacts {
     required this.source,
   });
 
-  /// Cartes par booster, telles que l'éditeur les annonce sur l'emballage.
+  /// Cartes par booster **du produit principal**, telles que l'éditeur les
+  /// annonce sur l'emballage.
   ///
   /// Jetons, cartes-code et cartes d'information comprises quand l'éditeur les
   /// compte — c'est son décompte qui fait foi, pas le nôtre, sans quoi le
   /// nombre cesserait d'être vérifiable sur une boîte.
+  ///
+  /// **Repère, pas vérité** : celui qui ouvre des Collector Boosters ou des
+  /// boosters japonais n'ouvre pas ce produit-là, et le remplace.
   final int cards;
 
   /// Prix de repère, en euros. **Périssable et non contractuel** : un relevé
@@ -115,6 +127,34 @@ const Map<String, BoosterFacts> boosterFacts = {
 
 /// Ce qu'un booster de ce jeu contient et coûte, ou `null` si on l'ignore.
 BoosterFacts? boosterFactsFor(String game) => boosterFacts[game];
+
+/// Le nombre de cartes à retenir pour ce jeu : celui de l'utilisateur s'il en a
+/// donné un, le repère sinon.
+///
+/// **Zéro n'est pas une réponse ici, au contraire du prix.** Un booster à zéro
+/// carte n'existe pas, et il diviserait par zéro les deux indicateurs qui s'en
+/// servent. La saisie le refuse déjà ([parseBoosterSize]) ; ce repli le refuse
+/// une seconde fois, parce qu'une valeur peut aussi arriver d'une base éditée à
+/// la main ou d'une version future.
+int? boosterSizeFor(String game, Map<String, int> mine) {
+  final chosen = mine[game];
+  if (chosen != null && chosen > 0) return chosen;
+  return boosterFacts[game]?.cards;
+}
+
+/// Lit une taille saisie à la main, ou `null` si la saisie ne dit rien
+/// d'exploitable.
+///
+/// Une chaîne vide rend `null`, et l'appelant le lit comme « je retire ma
+/// déclaration » — le repère reprend alors la main. **Zéro et les négatifs sont
+/// refusés** : ils ne décrivent aucun produit et casseraient une division.
+int? parseBoosterSize(String raw) {
+  final cleaned = raw.trim().replaceAll(' ', '');
+  if (cleaned.isEmpty) return null;
+  final value = int.tryParse(cleaned);
+  if (value == null || value <= 0) return null;
+  return value;
+}
 
 /// Le prix à retenir pour ce jeu : celui de l'utilisateur s'il en a donné un,
 /// le repère sinon.

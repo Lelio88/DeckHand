@@ -1249,7 +1249,7 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 | `card_prints` | Impressions : édition, langue, prix, illustration — 162 000 lignes |
 | `art_hashes` | Index d'empreintes, servi à l'app |
 | `users` | Comptes Supabase Auth |
-| `profiles` | Préférences du compte — les jeux joués, dans leur ordre |
+| `profiles` | Préférences du compte — jeux joués dans leur ordre, taille et prix de booster |
 | `collections` / `collection_items` | Possessions, par utilisateur |
 | `decks` / `deck_cards` | Corpus normalisé, toutes sources confondues |
 | `deck_sources` | Provenance et mentions d'attribution |
@@ -1341,8 +1341,14 @@ que l'étape ne s'ouvre — ne concerne que les comptes qui n'ont jamais répond
 
 La politique se vérifie sous le rôle qui la subit :
 `api/app/measure/profiles_rls.py` joue les deux sens — écrire et relire son
-profil, se voir refuser celui d'autrui et la suppression du sien — puis restaure
-l'état initial.
+profil, ses prix et ses tailles de booster ; se voir refuser celui d'autrui, la
+suppression du sien, et un booster à zéro carte — puis restaure l'état initial.
+
+Ce dernier contrôle est le seul du banc qui **ne porte pas sur la RLS**, et il y
+a sa place pour la même raison : l'application refuse déjà cette valeur à la
+saisie, mais rien n'oblige un client à passer par l'application. Voir
+[`collection-architecture.md`](./collection-architecture.md) pour ce que zéro
+veut dire selon qu'il s'agit d'un prix ou d'une taille.
 
 ### Ce qui vit hors du dépôt, et que rien dans le code ne signale
 

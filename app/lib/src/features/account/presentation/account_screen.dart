@@ -28,7 +28,7 @@ import '../../auth/data/auth_repository.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../collection/domain/booster_size.dart';
 import '../domain/collection_figures.dart';
-import 'booster_price_dialog.dart';
+import 'booster_dialog.dart';
 import 'sharing_screen.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -59,20 +59,37 @@ class AccountScreen extends ConsumerWidget {
             // confort serait disproportionné.
             final prix =
                 ref.watch(boosterPricesProvider).asData?.value ?? const {};
+            final tailles =
+                ref.watch(boosterSizesProvider).asData?.value ?? const {};
+            void regler() => _reglerLeBooster(context, ref, jeu, prix, tailles);
+
             return Row(
               children: [
                 Expanded(
                   child: _Figure(
-                    icon: Icons.style_outlined,
-                    figures: countFigures(totals, jeu.id),
+                    key: const Key('tuile-contenu'),
+                    figures: countFigures(
+                      totals,
+                      jeu.id,
+                      boosterSizes: tailles,
+                    ),
+                    // Les deux tuiles ouvrent le même réglage : « 44 boosters »
+                    // et « 210,50 € dépensé » sortent du même produit, et celui
+                    // qui touche l'un des deux veut corriger cet objet-là.
+                    onEditBooster: regler,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _Figure(
-                    icon: Icons.euro,
-                    figures: valueFigures(totals, jeu.id, boosterPrices: prix),
-                    onEditPrice: () => _reglerLePrix(context, ref, jeu, prix),
+                    key: const Key('tuile-valeur'),
+                    figures: valueFigures(
+                      totals,
+                      jeu.id,
+                      boosterPrices: prix,
+                      boosterSizes: tailles,
+                    ),
+                    onEditBooster: regler,
                   ),
                 ),
               ],
@@ -120,51 +137,65 @@ class AccountScreen extends ConsumerWidget {
   }
 }
 
-/// Ouvre le réglage du prix d'un booster, puis rafraîchit ce qui en dépend.
+/// Ouvre le réglage du booster, puis rafraîchit ce qui en dépend.
 ///
 /// **Rien n'est écrit tant que la boîte n'a pas rendu un choix.** Elle rend
 /// `null` quand on la referme, et ce `null`-là ne doit surtout pas être confondu
 /// avec celui d'un choix « revenir au repère » : c'est pourquoi la boîte rend un
-/// [BoosterPriceChoice] et non un `double?`, où les deux seraient le même objet.
-Future<void> _reglerLePrix(
+/// [BoosterChoice] et non deux nombres nullables, où les deux seraient le même
+/// objet.
+Future<void> _reglerLeBooster(
   BuildContext context,
   WidgetRef ref,
   Game jeu,
   Map<String, double> prix,
+  Map<String, int> tailles,
 ) async {
   final facts = boosterFactsFor(jeu.id);
   if (facts == null) return;
 
-  final choix = await showBoosterPriceDialog(
+  final choix = await showBoosterDialog(
     context,
     gameLabel: jeu.label,
     facts: facts,
-    current: prix[jeu.id],
+    currentCards: tailles[jeu.id],
+    currentPrice: prix[jeu.id],
   );
   if (choix == null) return;
 
   await ref
       .read(profileRepositoryProvider)
-      .saveBoosterPrice(jeu.id, choix.priceEur);
+      .saveBoosterSettings(jeu.id, cards: choix.cards, priceEur: choix.priceEur);
   ref.invalidate(boosterPricesProvider);
+  ref.invalidate(boosterSizesProvider);
 }
 
 /// Un chiffre de la collection, et ceux qu'on peut lui préférer.
 ///
 /// **Une pression change de chiffre.** Les afficher tous tiendrait de
 /// l'inventaire — six nombres sur une page de profil ne se lisent plus. Un seul
-/// est montré ; les autres sont à un doigt, et de petits points disent qu'ils
+/// est montré ; les autres sont à un doigt, et une jauge de segments dit qu'ils
 /// existent, faute de quoi personne ne penserait à appuyer.
+///
+/// **Les segments ont remplacé une icône.** La tuile portait en haut à gauche un
+/// pictogramme — des cartes, un euro — qui répétait ce que le label disait déjà
+/// et poussait les points dans un coin. La ligne du haut ne sert plus qu'à une
+/// chose : dire où l'on est dans la série, centré, à la façon d'un carrousel.
+///
+/// **Le glissement va dans les deux sens.** Il n'avançait que d'un cran quel que
+/// soit le sens du doigt, ce qui rendait un aller-retour impossible : sept
+/// gestes pour revenir d'un chiffre. Le sens suit la convention de toutes les
+/// galeries — le doigt **pousse** le contenu, donc vers la gauche pour aller au
+/// suivant, vers la droite pour revenir — et c'est aussi le sens dans lequel le
+/// segment actif se déplace.
 class _Figure extends StatefulWidget {
-  const _Figure({required this.icon, required this.figures, this.onEditPrice});
+  const _Figure({super.key, required this.figures, this.onEditBooster});
 
-  final IconData icon;
   final List<CollectionFigure> figures;
 
-  /// Appelé quand on touche la ligne de détail d'un chiffre qui repose sur le
-  /// prix d'un booster. `null` sur la tuile de gauche, dont aucun chiffre n'en
-  /// dépend.
-  final VoidCallback? onEditPrice;
+  /// Appelé quand on touche la ligne de détail d'un chiffre qui repose sur ce
+  /// qu'un booster contient ou coûte.
+  final VoidCallback? onEditBooster;
 
   @override
   State<_Figure> createState() => _FigureState();
@@ -173,9 +204,17 @@ class _Figure extends StatefulWidget {
 class _FigureState extends State<_Figure> {
   int _index = 0;
 
-  void _suivant() {
-    if (widget.figures.length < 2) return;
-    setState(() => _index = (_index + 1) % widget.figures.length);
+  /// Passe au chiffre suivant, ou au précédent quand [enArriere] est vrai.
+  ///
+  /// Le modulo est appliqué après un `+ length` : en Dart, `-1 % 5` vaut 4,
+  /// mais l'écrire ainsi ne se lit pas — et le jour où l'index viendrait
+  /// d'ailleurs, la forme explicite est celle qui reste juste.
+  void _defiler({bool enArriere = false}) {
+    final total = widget.figures.length;
+    if (total < 2) return;
+    setState(() {
+      _index = (_index + (enArriere ? total - 1 : 1)) % total;
+    });
   }
 
   @override
@@ -187,13 +226,17 @@ class _FigureState extends State<_Figure> {
     final figures = widget.figures;
     if (figures.isEmpty) return const SizedBox.shrink();
     final figure = figures[_index % figures.length];
-    final modifiable = figure.fromBoosterPrice && widget.onEditPrice != null;
+    final modifiable =
+        figure.fromBoosterSettings && widget.onEditBooster != null;
 
     return GestureDetector(
-      onTap: _suivant,
+      onTap: _defiler,
       // Glisser change aussi : c'est le geste qu'on essaie devant une valeur
-      // qu'on soupçonne d'en cacher d'autres.
-      onHorizontalDragEnd: (_) => _suivant(),
+      // qu'on soupçonne d'en cacher d'autres. La vitesse dit le sens ; s'en
+      // remettre au déplacement total obligerait à suivre le geste depuis son
+      // début, pour une information que le `fling` porte déjà.
+      onHorizontalDragEnd: (details) =>
+          _defiler(enArriere: (details.primaryVelocity ?? 0) > 0),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -203,80 +246,126 @@ class _FigureState extends State<_Figure> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Les points sur la ligne de l'icône, et non sous le chiffre :
-            // les mettre dessous grandissait la tuile, ce qui décalait tout
-            // l'écran — un test de la porte de partage l'a montré avant l'œil.
-            Row(
-              children: [
-                Icon(
-                  widget.icon,
-                  size: 18,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const Spacer(),
-                if (figures.length > 1)
-                  for (var i = 0; i < figures.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: i == _index % figures.length
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.3),
-                        ),
-                      ),
-                    ),
-              ],
-            ),
+            // La jauge occupe seule la ligne du haut, et non une place sous le
+            // chiffre : la mettre dessous grandissait la tuile, ce qui décalait
+            // tout l'écran — un test de la porte de partage l'a montré avant
+            // l'œil.
+            _Jauge(total: figures.length, actif: _index % figures.length),
             const SizedBox(height: 10),
             Text(figure.value, style: theme.textTheme.headlineSmall),
             Text(figure.label, style: theme.textTheme.bodyMedium),
             const SizedBox(height: 4),
-            // **La ligne qui dit le prix est celle qui le règle.** Le chiffre
-            // « en boosters achetés » est le seul du profil dont l'utilisateur
-            // est la source ; mettre son réglage ailleurs obligerait à le
-            // chercher, alors que la phrase qui l'affiche le désigne déjà.
+            // **La ligne qui dit le booster est celle qui le règle.** Les deux
+            // chiffres en boosters sont les seuls du profil dont l'utilisateur
+            // est la source ; mettre leur réglage ailleurs obligerait à le
+            // chercher, alors que la phrase qui les affiche le désigne déjà.
             // Le geste est imbriqué dans celui qui fait défiler : en Dart, le
             // détecteur le plus profond gagne l'arène, donc toucher la ligne
-            // règle le prix et toucher ailleurs change de chiffre.
-            if (modifiable)
-              GestureDetector(
-                onTap: widget.onEditPrice,
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        figure.detail,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                        maxLines: 2,
+            // ouvre le réglage et toucher ailleurs change de chiffre.
+            // **Deux lignes réservées, occupées ou non.** Les légendes vont
+            // d'un mot à une phrase ; sans plancher, la tuile changeait de
+            // hauteur à chaque pression et la page tressautait sous le doigt.
+            // Un minimum, et non une hauteur fixe : une police système agrandie
+            // doit pouvoir déborder ce calcul sans peindre une bande d'erreur.
+            ConstrainedBox(
+              constraints: BoxConstraints(minHeight: _hauteurDeuxLignes(theme)),
+              child: modifiable
+                  ? GestureDetector(
+                      onTap: widget.onEditBooster,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              figure.detail,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.primary,
+                              ),
+                              maxLines: 2,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 12,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ],
                       ),
+                    )
+                  : Text(
+                      figure.detail,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 2,
                     ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.edit_outlined,
-                      size: 12,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ],
-                ),
-              )
-            else
-              Text(
-                figure.detail,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 2,
-              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// De quoi loger deux lignes de légende, à la taille de police par défaut.
+///
+/// **Un plancher, pas une mesure.** Le vrai gabarit d'un texte ne se connaît
+/// qu'en le peignant, et le mettre en facteur d'échelle système ici ne ferait
+/// que déplacer l'approximation. C'est pourquoi la valeur sert de `minHeight` :
+/// juste, elle supprime le tressautement ; trop courte, elle laisse simplement
+/// la tuile grandir comme avant.
+double _hauteurDeuxLignes(ThemeData theme) {
+  final style = theme.textTheme.bodySmall;
+  return (style?.fontSize ?? 12) * (style?.height ?? 1.33) * 2;
+}
+
+/// Où l'on en est dans une série de chiffres.
+///
+/// **Des segments plutôt que des points.** Un point de cinq pixels dans un coin
+/// se lit comme une décoration ; un trait qui s'allonge sous le doigt se lit
+/// comme une position, et c'est le vocabulaire qu'emploient les carrousels dont
+/// cette tuile reprend le geste. Le segment actif est **plus long** en plus
+/// d'être plus vif : la couleur seule ne se voit pas de tous les yeux, et un
+/// indicateur de position qui ne tient qu'à une teinte n'en est pas un.
+///
+/// **La transition est animée** parce qu'elle porte une information : elle dit
+/// dans quel sens on vient de se déplacer, ce qu'un changement instantané ne
+/// dirait pas — et c'est justement ce que le glissement en arrière rend utile.
+class _Jauge extends StatelessWidget {
+  const _Jauge({required this.total, required this.actif});
+
+  final int total;
+  final int actif;
+
+  static const _hauteur = 3.0;
+
+  @override
+  Widget build(BuildContext context) {
+    // Une série d'un seul chiffre n'a pas de jauge, mais garde sa hauteur : la
+    // tuile voisine en a une, et deux tuiles côte à côte de hauteurs
+    // différentes se remarquent bien plus que la jauge elle-même.
+    if (total < 2) return const SizedBox(height: _hauteur);
+
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < total; i++)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            width: i == actif ? 16 : 6,
+            height: _hauteur,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(_hauteur),
+              color: i == actif
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+            ),
+          ),
+      ],
     );
   }
 }

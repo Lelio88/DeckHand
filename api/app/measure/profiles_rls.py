@@ -74,37 +74,45 @@ def any_account(config: SupabaseConfig, values: dict[str, str]) -> tuple[str, st
     return None
 
 
-def snapshot(config: SupabaseConfig, user_id: str) -> tuple[list[str], dict] | None:
+def snapshot(config: SupabaseConfig, user_id: str) -> tuple[list[str], dict, dict] | None:
     """L'état du profil vu du propriétaire de la base, ou None s'il n'y a pas de ligne.
 
     **Toutes les colonnes, pas seulement celle qu'on éprouve.** Le banc écrit un
-    prix de booster ; ne relever que `games` le laisserait derrière lui, et le
-    profil réel du propriétaire porterait un prix de test.
+    prix et une taille de booster ; ne relever que `games` les laisserait
+    derrière lui, et le profil réel du propriétaire porterait des valeurs de
+    test.
     """
     with psycopg.connect(config.db_url, connect_timeout=30) as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT games, booster_prices FROM public.profiles WHERE user_id = %s",
+            "SELECT games, booster_prices, booster_sizes"
+            " FROM public.profiles WHERE user_id = %s",
             (user_id,),
         )
         row = cur.fetchone()
-    return None if row is None else (list(row[0]), dict(row[1] or {}))
+    if row is None:
+        return None
+    return list(row[0]), dict(row[1] or {}), dict(row[2] or {})
 
 
-def restore(config: SupabaseConfig, user_id: str, state: tuple[list[str], dict] | None) -> None:
+def restore(
+    config: SupabaseConfig, user_id: str, state: tuple[list[str], dict, dict] | None
+) -> None:
     with psycopg.connect(config.db_url, connect_timeout=30) as conn, conn.cursor() as cur:
         if state is None:
             cur.execute("DELETE FROM public.profiles WHERE user_id = %s", (user_id,))
         else:
-            games, prices = state
+            games, prices, sizes = state
             cur.execute(
                 """
-                INSERT INTO public.profiles (user_id, games, booster_prices)
-                VALUES (%s, %s, %s)
+                INSERT INTO public.profiles
+                    (user_id, games, booster_prices, booster_sizes)
+                VALUES (%s, %s, %s, %s)
                 ON CONFLICT (user_id) DO UPDATE SET
                     games = EXCLUDED.games,
-                    booster_prices = EXCLUDED.booster_prices
+                    booster_prices = EXCLUDED.booster_prices,
+                    booster_sizes = EXCLUDED.booster_sizes
                 """,
-                (user_id, games, json.dumps(prices)),
+                (user_id, games, json.dumps(prices), json.dumps(sizes)),
             )
         conn.commit()
 
@@ -200,6 +208,54 @@ def main(argv: list[str]) -> int:
                 )
             )
 
+            # PERMIS — déclarer ce qu'on ouvre comme booster, et le relire.
+            sized = client.post(
+                REST,
+                headers={**headers, "Prefer": "resolution=merge-duplicates,return=representation"},
+                json={"user_id": user_id, "booster_sizes": {"magic": 15}},
+            )
+            verdicts.append(
+                (
+                    "declarer sa taille de booster",
+                    sized.status_code in (200, 201),
+                    f"HTTP {sized.status_code}",
+                )
+            )
+
+            relues = client.get(
+                REST, headers=headers, params={"select": "user_id,booster_sizes"}
+            )
+            tailles = relues.json() if relues.status_code == 200 else []
+            mienne = [r for r in tailles if r["user_id"] == user_id]
+            verdicts.append(
+                (
+                    "relire sa taille de booster",
+                    len(mienne) == 1 and mienne[0]["booster_sizes"] == {"magic": 15},
+                    f"HTTP {relues.status_code}, "
+                    f"{mienne[0]['booster_sizes'] if mienne else 'aucune ligne'}",
+                )
+            )
+
+            # REFUSÉ — un booster à zéro carte.
+            #
+            # **Le seul contrôle qui ne porte pas sur la RLS**, et il a sa place
+            # ici pour la même raison : l'application refuse déjà cette valeur à
+            # la saisie, mais rien n'oblige un client à passer par
+            # l'application. Zéro diviserait par zéro les deux indicateurs en
+            # boosters ; c'est la base qui doit dire non, pas l'écran.
+            zero = client.post(
+                REST,
+                headers={**headers, "Prefer": "resolution=merge-duplicates"},
+                json={"user_id": user_id, "booster_sizes": {"magic": 0}},
+            )
+            verdicts.append(
+                (
+                    "REFUS d'un booster a zero carte",
+                    zero.status_code in (400, 409),
+                    f"HTTP {zero.status_code}",
+                )
+            )
+
             # REFUSÉ — écrire le profil d'un autre.
             other = str(uuid.uuid4())
             forged = client.post(
@@ -239,7 +295,10 @@ def main(argv: list[str]) -> int:
     etat = (
         "aucune ligne"
         if initial is None
-        else f"games = {initial[0]}, booster_prices = {initial[1]}"
+        else (
+            f"games = {initial[0]}, booster_prices = {initial[1]}, "
+            f"booster_sizes = {initial[2]}"
+        )
     )
     print(f"\nProfil restauré dans son état initial : {etat}.")
     if failed:

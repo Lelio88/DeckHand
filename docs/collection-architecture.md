@@ -38,8 +38,29 @@ défilantes** — une pression, ou un glissement latéral, passe à la suivante 
 | Valeur | totale → une de chaque → moyenne par carte → en boosters achetés → carte la plus chère |
 
 Les afficher toutes tiendrait de l'inventaire : six nombres sur une page de
-profil ne se lisent plus. Un seul est montré, et de petits points disent que les
-autres existent — sans eux, personne ne penserait à appuyer.
+profil ne se lisent plus. Un seul est montré, et une **jauge de segments** dit
+que les autres existent — sans elle, personne ne penserait à appuyer. Le segment
+actif est plus long en plus d'être plus vif : un indicateur de position qui ne
+tient qu'à une teinte n'en est pas un.
+
+**Le label dit ce qu'on regarde, l'unité rejoint le nombre.** Écrire « euros »
+sous chacun des cinq chiffres de valeur gaspillait la seule ligne capable de les
+distinguer : ils s'annonçaient tous pareil, et l'on pouvait ouvrir la page sans
+savoir ce que comptait le dernier. Le symbole est donc accolé au nombre —
+« 15,49 € », espace insécable comprise, sans quoi le chiffre principal se lirait
+en escalier sur une demi-largeur d'écran — et le label porte le sens : « au
+total », « sans doublons », « dépensé », « la plus chère ».
+
+**Le glissement va dans les deux sens**, à la convention des galeries : le doigt
+pousse le contenu, donc vers la gauche pour avancer, vers la droite pour revenir.
+Il n'avançait que d'un cran quel que soit le sens, ce qui demandait sept gestes
+pour revenir d'un chiffre.
+
+**Deux lignes de légende sont réservées, occupées ou non.** Les légendes vont
+d'un mot à une phrase ; sans plancher, la tuile changeait de hauteur à chaque
+pression et la page tressautait sous le doigt. Un minimum, et non une hauteur
+fixe : une police système agrandie doit pouvoir le déborder sans peindre une
+bande d'erreur.
 
 **« Une de chaque » se compte par référence**, au sens de `distinct_cards`, et
 retient la plus chère des finitions d'une même case : c'est celle qu'on
@@ -48,11 +69,18 @@ garderait.
 **Un seul de ces chiffres désigne une action** : la complétion au mieux —
 « Marvel Super Heroes, 234/453 ». Les autres décrivent ; celui-ci dit où aller,
 puisque finir un classeur déjà bien avancé coûte moins cher que d'en ouvrir un
-neuf. Les extensions de **jetons en sont écartées** : dix fois plus petites
-qu'une extension de boosters (27 cartes pour `tmsh` contre 453 pour `msh`),
-elles gagneraient mécaniquement, pour des cartes dont aucune n'est jouable en
-construit. Aucune taille minimale n'est imposée en revanche — ce serait un seuil
+neuf. Aucune taille minimale n'est imposée en revanche — ce serait un seuil
 inventé, et s'il faut en poser un, c'est une mesure qui l'établira.
+
+**Les extensions de jetons sont écartées des deux chiffres d'extension** — le
+compte comme la complétion. Dix fois plus petites qu'une extension de boosters
+(27 cartes pour `tmsh` contre 453 pour `msh`), elles gagneraient mécaniquement la
+complétion, pour des cartes dont aucune n'est jouable en construit ; et une même
+sortie produisant jusqu'à quatre extensions — boosters, decks Commander, jetons
+de chacune —, le compte annonçait « six extensions » à qui a ouvert deux boîtes.
+Le nombre était exact et la réponse fausse : personne ne collectionne un jeu de
+jetons. **L'écran le dit** — « entamées, hors jetons » — parce qu'un total qui
+exclut quelque chose sans le dire se lit comme un bug.
 
 **Le taux n'est pas calculé en base**, seulement ses deux termes : décider des
 décimales et du sens d'une division par zéro n'a rien à faire en SQL.
@@ -61,14 +89,21 @@ décimales et du sens d'une division par zéro n'a rien à faire en SQL.
 déjà reçus. Elle distingue ce qu'aucun total ne distingue : mille communes et
 dix rares peuvent valoir la même chose.
 
-**Les deux chiffres en boosters ne se déduisent d'aucune donnée**, et les deux
-moitiés du problème ne se règlent pas au même endroit.
+**Les deux chiffres en boosters ne se déduisent d'aucune donnée** : ils exigent
+de savoir ce qu'un booster contient et ce qu'il coûte, et **aucun des deux
+nombres n'existe au singulier**.
 
-La **taille** d'un booster est un fait publié par l'éditeur : elle figure sur
-l'emballage, ne bouge qu'à un remaniement de format, et vaut pour tout le monde.
-Elle est inscrite dans `booster_size.dart`, où les huit jeux figurent — de 9
-cartes chez Yu-Gi-Oh à 16 chez Star Wars Unlimited. **Un jeu absent de cette
-table n'affiche pas ces chiffres** plutôt que d'en inventer.
+La première version de `booster_size.dart` tenait la **taille** pour un fait
+publié, stable et identique pour tous, donc inscrite dans le code « pour de
+bon ». C'est faux dès qu'on regarde un rayon : un même jeu vend plusieurs
+produits à des contenus différents — Play Booster à 14 cartes, Collector à 15,
+Set à 12 chez Magic — et le commentaire de `onepiece` l'admettait déjà sans en
+tirer la conséquence, « les boosters japonais font 6 à 9 cartes ; c'est le format
+français qui est retenu ». Retenir un format, c'est choisir pour quelqu'un
+d'autre. La taille est donc **une préférence du compte**
+(`profiles.booster_sizes`), et ce qui reste dans le code est un repère : les huit
+jeux y figurent, de 9 cartes chez Yu-Gi-Oh à 16 chez Star Wars Unlimited. **Un
+jeu absent de cette table n'affiche pas ces chiffres** plutôt que d'en inventer.
 
 Le **prix**, lui, n'existe pas au singulier. Relevé le 24 août 2026, même
 produit, même jour : un booster Pokémon Méga-Évolution vaut **4,99 €** chez
@@ -76,16 +111,33 @@ Micromania et **9,90 €** chez Play-in ; un Play Booster Magic revient à
 **5,29 €** acheté par display et **7,40 €** à l'unité. Près du double d'écart. Un
 prix inscrit dans le code serait donc faux pour à peu près tout le monde, et faux
 **sans le dire** — et l'indicateur répond justement à « combien **j'aurais**
-dépensé ». Le prix est donc **une préférence du compte**
-(`profiles.booster_prices`, un `jsonb` indexé par jeu), réglable depuis la ligne
-même qui l'affiche ; ce qui reste dans le code n'est qu'un **repère daté et
-sourcé**, appliqué tant que l'utilisateur n'a rien dit.
+dépensé ». Le prix est donc lui aussi **une préférence du compte**
+(`profiles.booster_prices`, un `jsonb` indexé par jeu, comme les tailles),
+réglable depuis la ligne même qui l'affiche ; ce qui reste dans le code n'est
+qu'un **repère daté et sourcé**, appliqué tant que l'utilisateur n'a rien dit.
+
+**Les deux réglages tiennent dans une seule boîte, et partent en une seule
+écriture.** Ils décrivent un même objet — le produit qu'on achète : les séparer
+obligerait à ouvrir deux fois pour déclarer « j'ouvre des Collector Boosters à 15
+cartes, payés 22 € », qui est une seule décision, et deux `upsert` successifs
+laisseraient une fenêtre où la taille est enregistrée et le prix non — le temps
+de laquelle l'indicateur afficherait une dépense calculée sur un produit et payée
+sur un autre. Les deux lignes qui en dépendent, une par tuile, ouvrent la même
+boîte.
 
 **Trois états, comme pour les jeux joués.** Clef absente = « je n'ai rien
 déclaré », et le repère s'applique. Zéro = « je n'achète pas de boosters », et
 l'indicateur affiche zéro euro. Vider le champ **écrit** le retour au repère,
 plutôt que de ne rien écrire — sans quoi on n'y reviendrait qu'en retapant le
 repère de mémoire.
+
+**Zéro n'est une réponse que pour le prix.** Un booster à zéro carte ne décrit
+aucun produit, et diviserait par zéro les deux indicateurs qui s'en servent : la
+saisie le refuse, la lecture Dart l'écarte, et une contrainte le refuse en base —
+le seul des trois qu'un client tiers ne peut pas contourner. Elle passe par une
+fonction `IMMUTABLE`, `booster_sizes_are_positive` : parcourir un `jsonb` demande
+`jsonb_each`, qui rend un ensemble, et Postgres refuse une sous-requête dans un
+`CHECK`.
 
 **Deux pièges de performance, tous deux invisibles depuis la connexion
 d'ingestion.**

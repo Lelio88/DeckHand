@@ -1,5 +1,5 @@
-/// Les préférences du compte : les jeux auxquels il joue, et ce qu'il paie un
-/// booster.
+/// Les préférences du compte : les jeux auxquels il joue, et ce qu'un booster
+/// contient et coûte pour lui.
 ///
 /// **Portées par le compte, pas par l'appareil.** Le jeu *courant* vit dans les
 /// préférences locales (`selected_game.dart`) parce qu'il change plusieurs fois
@@ -13,6 +13,10 @@
 /// pleine « voici mes jeux, dans cet ordre ». Sans le premier, l'étape de choix
 /// reviendrait à chaque lancement pour qui a répondu « plus tard » ; c'est la
 /// **présence de la ligne** en base qui fait foi, et non son contenu.
+///
+/// **Les deux réglages de booster voyagent ensemble.** Ils décrivent un seul
+/// objet — le produit qu'on achète — et sont enregistrés en une écriture, sans
+/// quoi une taille pourrait être en base et son prix non.
 ///
 /// **Un identifiant inconnu est écarté, jamais traduit.** Une version plus
 /// récente de l'application peut avoir écrit un jeu que celle-ci ignore ;
@@ -74,29 +78,62 @@ class ProfileRepository {
     return boosterPricesFromColumn(rows.first['booster_prices']);
   }
 
-  /// Enregistre le prix payé pour un jeu, sans toucher aux autres.
+  /// Ce que le compte déclare ouvrir comme booster, en cartes, par jeu.
   ///
-  /// **Une fusion, pas un remplacement.** Envoyer la carte entière écraserait
-  /// les prix qu'une autre session — ou un autre appareil — vient de poser pour
-  /// d'autres jeux. La fusion se fait ici, sur la carte relue juste avant.
+  /// Une carte vide veut dire « je n'ai rien déclaré », et l'application
+  /// retombe alors sur les tailles de repère.
+  Future<Map<String, int>> boosterSizes() async {
+    final rows = await _client
+        .from('profiles')
+        .select('booster_sizes')
+        .limit(1);
+    if (rows.isEmpty) return const {};
+
+    return boosterSizesFromColumn(rows.first['booster_sizes']);
+  }
+
+  /// Enregistre ce qu'un booster contient et coûte pour un jeu, sans toucher
+  /// aux autres.
   ///
-  /// [priceEur] à `null` **retire** la déclaration et rend la main au prix de
-  /// repère. C'est distinct de zéro, qui reste une réponse : « je n'achète pas
-  /// de boosters ».
-  Future<void> saveBoosterPrice(String game, double? priceEur) async {
+  /// **Une fusion, pas un remplacement.** Envoyer les cartes entières
+  /// écraserait ce qu'une autre session — ou un autre appareil — vient de poser
+  /// pour d'autres jeux. La fusion se fait ici, sur les cartes relues juste
+  /// avant.
+  ///
+  /// **Une seule écriture pour les deux réglages**, parce qu'ils sont décidés
+  /// ensemble : deux `upsert` successifs laisseraient une fenêtre où la taille
+  /// est enregistrée et le prix non, et l'indicateur afficherait un instant une
+  /// dépense calculée sur un produit et payée sur un autre.
+  ///
+  /// [cards] et [priceEur] à `null` **retirent** la déclaration et rendent la
+  /// main au repère. Pour le prix, c'est distinct de zéro, qui reste une
+  /// réponse : « je n'achète pas de boosters ».
+  Future<void> saveBoosterSettings(
+    String game, {
+    required int? cards,
+    required double? priceEur,
+  }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
-    final merged = Map<String, double>.from(await boosterPrices());
+    final prices = Map<String, double>.from(await boosterPrices());
+    final sizes = Map<String, int>.from(await boosterSizes());
+
     if (priceEur == null) {
-      merged.remove(game);
+      prices.remove(game);
     } else {
-      merged[game] = priceEur;
+      prices[game] = priceEur;
+    }
+    if (cards == null) {
+      sizes.remove(game);
+    } else {
+      sizes[game] = cards;
     }
 
     await _client.from('profiles').upsert({
       'user_id': userId,
-      'booster_prices': merged,
+      'booster_prices': prices,
+      'booster_sizes': sizes,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     });
   }
@@ -140,6 +177,30 @@ Map<String, double> boosterPricesFromColumn(Object? raw) {
   return out;
 }
 
+/// Traduit la colonne `booster_sizes` en tailles que cette version sait lire.
+///
+/// Même discipline que [boosterPricesFromColumn], à une différence près :
+/// **zéro et les négatifs sont écartés au lieu d'être respectés**. Un prix nul
+/// est une réponse — « je n'en achète pas » — alors qu'un booster à zéro carte
+/// ne décrit aucun produit et diviserait par zéro les deux indicateurs qui s'en
+/// servent.
+///
+/// Une taille écrite `14.0` par un client tiers est acceptée et tronquée : le
+/// nombre décrit un compte d'objets, et refuser la forme décimale d'un entier
+/// ferait perdre la déclaration sans rien protéger.
+Map<String, int> boosterSizesFromColumn(Object? raw) {
+  if (raw is! Map) return const {};
+  final out = <String, int>{};
+  for (final entry in raw.entries) {
+    final key = entry.key;
+    final value = entry.value;
+    if (key is! String) continue;
+    if (value is! num || value.isNaN || value < 1) continue;
+    out[key] = value.toInt();
+  }
+  return out;
+}
+
 final profileRepositoryProvider = Provider<ProfileRepository>(
   (ref) => ProfileRepository(Supabase.instance.client),
 );
@@ -166,4 +227,15 @@ final boosterPricesProvider = FutureProvider<Map<String, double>>((ref) async {
   final session = ref.watch(sessionProvider).asData?.value;
   if (session == null) return const {};
   return ref.watch(profileRepositoryProvider).boosterPrices();
+});
+
+/// Les tailles de booster déclarées par le compte connecté.
+///
+/// Vide sans session, même repli et pour la même raison que les prix : la page
+/// de profil n'est atteignable que connecté, et un vide y produit exactement
+/// l'affichage voulu — les tailles de repère.
+final boosterSizesProvider = FutureProvider<Map<String, int>>((ref) async {
+  final session = ref.watch(sessionProvider).asData?.value;
+  if (session == null) return const {};
+  return ref.watch(profileRepositoryProvider).boosterSizes();
 });

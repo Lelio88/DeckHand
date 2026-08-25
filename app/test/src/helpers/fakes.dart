@@ -526,12 +526,16 @@ class FakeProfileRepository implements ProfileRepository {
   /// Ce que la base rend pour les prix de booster déclarés.
   Map<String, double> prices = const {};
 
-  /// Chaque prix enregistré, dans l'ordre — `null` valant « retour au repère ».
+  /// Ce que la base rend pour les tailles de booster déclarées.
+  Map<String, int> sizes = const {};
+
+  /// Chaque réglage enregistré, dans l'ordre — un `null` valant « retour au
+  /// repère » pour la valeur concernée.
   ///
-  /// **Ce couple est ce qui distingue les deux effacements** : refermer la boîte
-  /// n'écrit rien du tout, alors que « revenir au repère » écrit un `null`. Sans
-  /// la trace, les deux se ressembleraient à l'arrivée.
-  final List<(String, double?)> savedPrices = [];
+  /// **Ce triplet est ce qui distingue les deux effacements** : refermer la
+  /// boîte n'écrit rien du tout, alors que « revenir au repère » écrit un
+  /// `null`. Sans la trace, les deux se ressembleraient à l'arrivée.
+  final List<(String, int?, double?)> savedBoosters = [];
 
   /// Levée par le prochain enregistrement, pour éprouver l'écran en panne.
   Object? error;
@@ -550,16 +554,32 @@ class FakeProfileRepository implements ProfileRepository {
   Future<Map<String, double>> boosterPrices() async => prices;
 
   @override
-  Future<void> saveBoosterPrice(String game, double? priceEur) async {
+  Future<Map<String, int>> boosterSizes() async => sizes;
+
+  @override
+  Future<void> saveBoosterSettings(
+    String game, {
+    required int? cards,
+    required double? priceEur,
+  }) async {
     if (error != null) throw error!;
-    savedPrices.add((game, priceEur));
-    final merged = Map<String, double>.from(prices);
+    savedBoosters.add((game, cards, priceEur));
+
+    final prixFusionnes = Map<String, double>.from(prices);
     if (priceEur == null) {
-      merged.remove(game);
+      prixFusionnes.remove(game);
     } else {
-      merged[game] = priceEur;
+      prixFusionnes[game] = priceEur;
     }
-    prices = merged;
+    prices = prixFusionnes;
+
+    final taillesFusionnees = Map<String, int>.from(sizes);
+    if (cards == null) {
+      taillesFusionnees.remove(game);
+    } else {
+      taillesFusionnees[game] = cards;
+    }
+    sizes = taillesFusionnees;
   }
 }
 
