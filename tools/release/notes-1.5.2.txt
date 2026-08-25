@@ -1,0 +1,9 @@
+Les chiffres de la page de compte disent enfin ce qu'ils comptent.
+
+- Chaque chiffre porte son sens plutôt que son unite : « au total »,
+  « depense », « la plus chere ». Le symbole rejoint le nombre.
+- Le nombre de cartes par booster se regle, comme son prix : un Collector
+  Booster et un Play Booster n'ont pas le meme contenu.
+- Les extensions de jetons ne comptent plus parmi les extensions entamees.
+- Une jauge centree remplace les points, et le glissement va desormais dans
+  les deux sens.
