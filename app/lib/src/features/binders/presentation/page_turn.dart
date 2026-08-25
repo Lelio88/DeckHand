@@ -280,7 +280,9 @@ class _PageTurnerState extends State<PageTurner>
         // feuille n'occupe qu'une moitié : c'est cette largeur qui sert de
         // référence au geste comme à la géométrie, faute de quoi il faudrait
         // parcourir deux largeurs de feuille pour la tourner.
-        final width = _isSpread ? constraints.maxWidth / 2 : constraints.maxWidth;
+        final width = _isSpread
+            ? constraints.maxWidth / 2
+            : constraints.maxWidth;
         final height = constraints.maxHeight;
 
         return GestureDetector(
@@ -337,8 +339,8 @@ class _PageTurnerState extends State<PageTurner>
                     fit: StackFit.expand,
                     children: [
                       _Mirrored(mirrored: !forward, child: beneath),
-                      _CastShadow(t: t),
-                      _CurlingLeaf(
+                      CastShadow(t: t),
+                      CurlingLeaf(
                         t: t,
                         width: width,
                         height: height,
@@ -455,8 +457,8 @@ class _SheetBack extends StatelessWidget {
 ///
 /// Sans elle, les deux pages semblent peintes sur le même plan : c'est l'ombre,
 /// plus que la rotation, qui dit qu'une feuille est passée devant l'autre.
-class _CastShadow extends StatelessWidget {
-  const _CastShadow({required this.t});
+class CastShadow extends StatelessWidget {
+  const CastShadow({super.key, required this.t});
 
   final double t;
 
@@ -483,13 +485,23 @@ class _CastShadow extends StatelessWidget {
 }
 
 /// La feuille en mouvement, pliée en lamelles jointes.
-class _CurlingLeaf extends StatelessWidget {
-  const _CurlingLeaf({
+///
+/// **Publique parce que le produit feuillette à deux endroits.** Le calque de
+/// `!montre` (`binder_reveal.dart`) fait défiler des pages jusqu'à celle de la
+/// carte demandée ; il avait sa propre rotation, un plan rigide qui pivotait de
+/// l'autre sens et **s'enfonçait dans le classeur** au lieu de venir vers
+/// l'œil. Écrire une seconde géométrie de page qui tourne, c'était s'assurer
+/// que les deux divergent — et elles avaient déjà divergé. Les deux
+/// feuilletages partagent donc le même pliage, à la force de la perspective près.
+class CurlingLeaf extends StatelessWidget {
+  const CurlingLeaf({
+    super.key,
     required this.t,
     required this.width,
     required this.height,
     required this.front,
     required this.back,
+    this.perspective = _perspective,
   });
 
   final double t;
@@ -497,6 +509,15 @@ class _CurlingLeaf extends StatelessWidget {
   final double height;
   final Widget front;
   final Widget back;
+
+  /// Force de la perspective — voir [_perspective].
+  ///
+  /// **Réglable parce que le cadre n'est pas le même.** Une feuille dressée
+  /// double de taille sous la perspective de l'application, et c'est bien : le
+  /// téléphone n'a rien autour. Le calque, lui, est une planche de taille
+  /// connue posée sur une vidéo — une feuille qui en déborde se fait trancher
+  /// net par le bord de la couverture.
+  final double perspective;
 
   @override
   Widget build(BuildContext context) {
@@ -515,7 +536,7 @@ class _CurlingLeaf extends StatelessWidget {
         Transform(
           alignment: Alignment.topLeft,
           transform: Matrix4.identity()
-            ..setEntry(3, 2, _perspective)
+            ..setEntry(3, 2, perspective)
             ..translateByDouble(placement.x, 0, placement.z, 1)
             ..rotateY(placement.angle),
           child: _Stripe(

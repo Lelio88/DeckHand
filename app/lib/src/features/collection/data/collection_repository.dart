@@ -21,7 +21,7 @@ import '../../../config/selected_game.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../binders/domain/recent_addition.dart';
 import '../../binders/domain/binder.dart';
-import '../../binders/domain/spotlight_card.dart';
+import '../../binders/domain/spotlight_request.dart';
 import '../domain/collection_entry.dart';
 import '../domain/collection_movement.dart';
 
@@ -230,7 +230,10 @@ class CollectionRepository {
   /// `shared_sets` au moment de rendre la carte, si bien qu'une extension
   /// retirée du partage après la demande disparaît du calque. Répéter ce filtre
   /// côté client en ferait deux à tenir d'accord.
-  Future<SpotlightCard?> spotlight(String handle, {Game game = Game.magic}) async {
+  Future<SpotlightRequest?> spotlight(
+    String handle, {
+    Game game = Game.magic,
+  }) async {
     final rows = await _client
         .rpc<List<dynamic>>(
           'public_spotlight',
@@ -238,7 +241,12 @@ class CollectionRepository {
         )
         .timedOut();
     if (rows.isEmpty) return null;
-    return SpotlightCard.fromJson(rows.first as Map<String, dynamic>);
+    // **La liste entière, et non sa première ligne.** Un tapis rend une ligne
+    // par version, toutes sous la même demande ; n_en lire qu_une montrerait
+    // une seule carte, sans erreur ni signal.
+    return SpotlightRequest.fromRows([
+      for (final row in rows) row as Map<String, dynamic>,
+    ]);
   }
 
   /// Les cases d'une page d'un classeur partagé, vides comprises.

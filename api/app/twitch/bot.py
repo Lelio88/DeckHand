@@ -116,7 +116,7 @@ class Bot:
             if not self.throttle.allows(message.author, query):
                 return None
             locations = self.locator.locate(client, query)
-            return f"@{message.author} {format_reply(query, locations)}"
+            return f"@{message.author} {self._repondre(client, query, locations, message.author)}"
 
         montre = parse_command(message.text, "!montre")
         if montre is not None:
@@ -129,8 +129,7 @@ class Bot:
             set_code, page = demande
             if not self.throttle.allows(message.author, f"!page {set_code} {page}"):
                 return None
-            cellules = self.locator.page(client, set_code, page)
-            return f"@{message.author} {format_page(set_code, page, cellules)}"
+            return f"@{message.author} {self._montrer_page(client, set_code, page, message.author)}"
 
         # **Les commandes sans argument passent par le même débit.** La clé de
         # cooldown est leur nom : sans elle, `!classeur` répété dix fois
@@ -142,6 +141,41 @@ class Bot:
                 return None
             return f"@{message.author} {repondre(client)}"
         return None
+
+    def _repondre(
+        self,
+        client: httpx.Client,
+        query: str,
+        locations: list[Location],
+        author: str,
+    ) -> str:
+        """La réponse de `!card`, et le tapis quand il apprend quelque chose.
+
+        **`!card` reste gratuite dans le cas courant.** Le tapis ne monte que si
+        la collection tient **plusieurs dessins** de la carte — c'est-à-dire
+        exactement quand il montre ce que le chat ne peut pas dire. Mesuré sur
+        la collection réelle : 18 noms sur 265, soit 6,8 % des recherches. Sans
+        ce verrou, l'écran ne se reposerait jamais et `!montre` n'aurait plus de
+        raison d'être.
+
+        **Le filtre ici n'est qu'un raccourci**, et la règle reste en base : une
+        seule case possédée ne peut pas porter deux dessins, donc on s'épargne
+        l'appel ; deux cases, en revanche, peuvent partager une illustration, et
+        c'est la base qui tranche.
+
+        **Un refus est muet, contrairement à `!montre`.** La différence tient à
+        ce que la réponse est déjà complète : `!card` a dit où sont les cartes,
+        et le tapis n'était qu'un supplément. Annoncer « écran occupé » là où
+        personne n'attendait d'écran ajouterait du bruit.
+        """
+        texte = format_reply(query, locations)
+        if len(locations) < 2:
+            return texte
+        place = locations[0]
+        monte = self.locator.designate_strip(
+            client, place.set_code, place.collector_number, author
+        )
+        return f"{texte} À l'écran." if monte else texte
 
     def _designer(self, client: httpx.Client, query: str, author: str) -> str:
         """Fait monter une carte sur l'overlay, ou dit pourquoi non.
@@ -166,6 +200,29 @@ class Bot:
             client, place.set_code, place.collector_number, author
         )
         return format_spotlight(place, accepte)
+
+    def _montrer_page(
+        self, client: httpx.Client, set_code: str, page: int, author: str
+    ) -> str:
+        """Répond une page, et la fait monter sur l'overlay.
+
+        **Rien n'est écrit avant d'avoir lu**, comme pour `!montre`. Les cases
+        viennent de la porte publique, qui applique la portée ; si elles ne
+        rendent rien — extension inconnue, page hors bornes, classeur non
+        partagé —, la commande répond et n'appelle pas l'écriture. On ne peut
+        donc montrer que ce qu'on pouvait déjà voir.
+
+        **La phrase et l'image ne disent pas la même chose.** Le chat nomme les
+        trous par leur numéro, ce qui se copie et se retient ; l'écran les
+        montre à leur place, avec le fantôme de la carte qui manque. Les deux
+        valent mieux que l'un des deux, et la ligne de chat reste utile pour
+        qui n'a pas le calque allumé.
+        """
+        cellules = self.locator.page(client, set_code, page)
+        if not cellules:
+            return format_page(set_code, page, cellules)
+        accepte = self.locator.designate_page(client, set_code, page, author)
+        return format_page(set_code, page, cellules, a_lecran=accepte)
 
     @property
     def _sans_argument(self) -> dict[str, Callable[[httpx.Client], str]]:

@@ -8,7 +8,7 @@ library;
 
 import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/binders/domain/recent_addition.dart';
-import 'package:deckhand/src/features/binders/domain/spotlight_card.dart';
+import 'package:deckhand/src/features/binders/domain/spotlight_request.dart';
 import 'package:deckhand/src/features/binders/presentation/overlay_screen.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:flutter/material.dart';
@@ -222,9 +222,7 @@ void main() {
       expect(find.textContaining('case comblée'), findsNothing);
     });
 
-    testWidgets("un demandeur inconnu ne s'invente pas un nom", (
-      tester,
-    ) async {
+    testWidgets("un demandeur inconnu ne s'invente pas un nom", (tester) async {
       final repo = OverlayRepo();
       await pumpOverlay(tester, repo);
       await tester.pump(const Duration(milliseconds: 100));
@@ -323,9 +321,7 @@ void main() {
       expect(find.text('Demandée'), findsNothing);
     });
 
-    testWidgets("la chute d'une source n'emporte pas l'autre", (
-      tester,
-    ) async {
+    testWidgets("la chute d'une source n'emporte pas l'autre", (tester) async {
       final repo = OverlayRepo()
         ..rows = [addition(id: 1)]
         ..spotlightFailure = Exception('désignation indisponible');

@@ -235,7 +235,12 @@ class Cell:
         )
 
 
-def format_page(set_code: str, page: int, cells: list[Cell]) -> str:
+def format_page(
+    set_code: str,
+    page: int,
+    cells: list[Cell],
+    a_lecran: bool | None = None,
+) -> str:
     """Ce qu'une page de classeur donne en une ligne.
 
     **Pas les neuf noms.** Une page ne se récite pas dans un chat. On compte les
@@ -245,15 +250,27 @@ def format_page(set_code: str, page: int, cells: list[Cell]) -> str:
     C'est la question « qu'est-ce qui te manque » ramenée à une échelle où elle a
     une réponse : sur une extension entière il manque des centaines de cases, et
     aucune troncature n'en fait une phrase utile.
+
+    **Et la phrase reste utile même sans écran.** `a_lecran` n'ajoute qu'une
+    mention : la liste des trous se lit seule, et c'est voulu — le calque n'est
+    pas allumé chez tout le monde, ni tout le temps. `None` quand la question ne
+    se pose pas (aucune case à montrer).
     """
     if not cells:
         return f"rien à la page {page} de « {set_code} »."
     pleines = sum(1 for cell in cells if cell.owned)
     vides = [cell.collector_number for cell in cells if not cell.owned]
     tete = f"{set_code.upper()} page {page} : {pleines}/{len(cells)} cases"
-    if not vides:
-        return f"{tete} — complète."
-    return f"{tete} — manquent " + ", ".join(f"#{n}" for n in vides) + "."
+    corps = (
+        f"{tete} — complète."
+        if not vides
+        else f"{tete} — manquent " + ", ".join(f"#{n}" for n in vides) + "."
+    )
+    if a_lecran is None:
+        return corps
+    # Le refus **dit quoi faire**, comme pour `!montre` : le spectateur a déjà
+    # obtenu sa réponse, et un silence lui ferait croire à une panne.
+    return corps + (" À l'écran." if a_lecran else " (écran occupé.)")
 
 
 def parse_page_command(text: str, prefix: str = "!page") -> tuple[str, int] | None:

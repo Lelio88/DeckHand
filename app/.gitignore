@@ -44,7 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Captures produites par test/apercu_tuiles_test.dart : des artefacts, regardés
+# Captures produites par les tests test/apercu_*.dart : des artefacts, regardés
 # une fois puis jetés. Les commiter figerait un rendu qui depend de la police
 # locale et du SDK.
 /test/apercu/

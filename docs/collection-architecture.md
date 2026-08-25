@@ -612,6 +612,113 @@ déjà pris — réessaie dans un instant » : la commande a été acceptée et 
 recherche a eu lieu, se taire laisserait croire à une panne. Le silence reste la
 règle quand c'est le débit qui refuse, avant tout travail.
 
+### `!card` — le tapis des versions
+
+`!card trésor` répond « 3 cases (+5 autres) ». Les cinq autres, personne ne
+saura jamais à quoi elles ressemblent — et c'est précisément la question qu'on
+se pose devant une carte qu'on possède en plusieurs dessins. Un **tapis de
+présentation** les pose côte à côte, en bas d'écran : moins de place qu'une
+planche, et rien qui prétende être une page de classeur.
+
+**Le verrou qui rend la commande vivable.** `!card` est la commande banale,
+tapée sans y penser. Si chaque appel prenait l'écran, le calque ne se reposerait
+jamais et `!montre` n'aurait plus de raison d'être. Le tapis ne monte donc **que
+si la collection tient au moins deux dessins** de la carte — exactement quand il
+montre ce que le chat ne peut pas dire. **Mesuré sur la collection réelle : 18
+noms sur 265, soit 6,8 %**, avec un maximum de quatre dessins (les cinq terrains
+de base). La règle vit **en base** : la compter côté bot demanderait une seconde
+lecture, et deux endroits pour décider d'une même chose finissent par diverger.
+Le bot ne garde qu'un raccourci — une seule case possédée ne peut pas porter
+deux dessins, donc il s'épargne l'appel.
+
+**Une entrée par illustration, pas par impression.** Un Trésor imprimé dans cinq
+extensions avec le même dessin s'afficherait cinq fois ; `illustration_id`, que
+Scryfall publie et que le catalogue porte, dit lesquelles diffèrent vraiment.
+Quand il manque — les autres jeux ne le publient pas tous —, on retombe sur la
+case : cela ne dédoublonne rien, mais n'invente rien non plus.
+
+**Ce n'est pas un classeur, et le type l'impose.** Ni reliure, ni page, ni
+numéro de case : une planche de six Trésors venus de six extensions n'existe
+nulle part dans le classeur, et lui donner un feuilletage raconterait « je suis
+allé page 12 » là où il n'y a pas de page où aller. D'où un widget séparé
+(`card_mat.dart`) et un niveau de plus dans la hiérarchie scellée :
+`BinderReveal` ne prend qu'un `BinderRequest`, et le compilateur refuse de lui
+passer un tapis.
+
+**Les tailles sont mesurées, pas choisies.** Sur les 646 points utiles : jusqu'à
+**six** cartes tiennent à la taille d'une case de classeur (88 × 123), huit à
+74 × 103, **dix à 57 × 80** — et douze à 47 × 65, où l'on ne reconnaît plus rien.
+D'où un plafond de dix, le dernier compte où une carte reste une carte. Au-delà,
+on tronque **en le disant** (« 10 des 14 versions ») : tronquer en silence se
+lirait « j'en ai dix ». Et la largeur du tapis **suit son contenu**, entre la
+place qu'il faut à la légende et celle de la planche — un panneau de pleine
+largeur pour quatre cartes serait un grand rectangle sombre avec quelque chose
+au milieu.
+
+**La portée s'applique version par version.** Une carte possédée dans quatre
+extensions dont deux sont partagées n'en montre que deux : le partage est
+révocable, et il l'est case par case. Un contrôle du banc RLS l'éprouve —
+**19/19 sous `anon`**.
+
+**Un refus est muet, contrairement à `!montre`.** La différence tient à ce que
+la réponse est déjà complète : `!card` a dit où sont les cartes, et le tapis
+n'était qu'un supplément. Annoncer « écran occupé » là où personne n'attendait
+d'écran ajouterait du bruit.
+
+**Trois défauts que seule l'image rendue a montrés :** le nom se rendait en
+rectangles (`RichText` n'hérite pas du `DefaultTextStyle`, donc pas de la police
+de l'application) ; le tapis occupait toute la largeur pour quatre cartes ; et
+une seule version s'annonçait « 1 versions ». Un quatrième a été pris par un
+test : la légende débordait de 26 px quand le demandeur est inconnu — le
+pseudonyme cède désormais par ellipse, le crédit jamais.
+
+### `!page` — la même réponse, montrée
+
+`!page msh 3` écrit dans le chat « MSH page 3 : 4/9 cases — manquent #20, #21,
+#23 ». C'est exact et illisible : personne ne se représente trois numéros. La
+même page **montrée** dit la même chose d'un coup d'œil, chaque trou portant le
+fantôme de la carte qui manque. Les deux valent mieux que l'un des deux — la
+ligne de chat se copie et se retient, et reste utile pour qui n'a pas le calque
+allumé.
+
+**Une désignation porte désormais un genre.** `card` fait sortir une carte de sa
+case ; `page` s'arrête une fois la page posée, et la sortie n'est pas seulement
+sautée mais **retirée du tempo** — la laisser courir à vide ferait attendre
+devant une page qui ne bouge plus. Une seule ligne par collection, comme avant :
+l'écran n'a qu'une place, et le délai de garde de trente secondes est **partagé**
+entre les deux commandes puisque c'est le même écran.
+
+**Côté Dart, une hiérarchie scellée plutôt qu'un drapeau.** `SpotlightRequest`
+se décline en `SpotlightCard` et `SpotlightPage` ; le calque fait un `switch`
+exhaustif, et le jour où un troisième genre arrive le compilateur montre chaque
+endroit à compléter. Un booléen, lui, aurait laissé le troisième cas se ranger
+silencieusement du côté de l'un des deux autres.
+
+**La sécurité tient au même ordre que `!montre` : lire, puis écrire.** Les cases
+viennent de `public_binder_page`, qui applique la portée ; si elles ne rendent
+rien — extension inconnue, page hors bornes, classeur non partagé —, la commande
+répond et **n'appelle pas l'écriture**. On ne peut donc montrer que ce qu'on
+pouvait déjà voir. Un test tient cet ordre, parce qu'une inversion ne casse rien
+de visible : la page s'afficherait quand même, simplement on aurait montré une
+extension qu'on n'avait pas le droit de voir.
+
+**Le filtre de portée a changé de colonne, et c'est le piège.** Il porte
+désormais sur la demande et non sur la carte — une page n'en a pas, et serait
+passée au travers d'un filtre écrit pour les cartes. D'où un jumeau du contrôle
+décisif côté page dans `app.measure.spotlight_rls` : **14/14 sous `anon`**, dans
+les deux sens.
+
+**Deux défauts que seule l'image rendue a montrés :**
+
+- **La couverture gardait la place de la carte qui sort.** Un tiers de panneau
+  vide et sombre à droite de la page, qui n'attendait rien. Elle se resserre
+  désormais quand rien ne sort — mais la **planche**, elle, garde sa taille :
+  c'est un rectangle placé une fois dans une scène OBS, et le voir se rétrécir
+  d'une commande à l'autre déplacerait le classeur sous les yeux.
+- **La légende débordait de 49 px.** Le pseudonyme peut faire quarante
+  caractères ; il cède maintenant par ellipse. Le crédit Scryfall n'est pas ce
+  qui peut disparaître (§IV.2).
+
 ### Le classeur qui s'ouvre — ce que voit le spectateur
 
 Une désignation n'affiche pas une bannière : elle **ouvre un classeur**, le
@@ -627,12 +734,118 @@ s'arrête sur le bon, si bien que le feuilletage **dit** la distance parcourue a
 lieu de seulement l'illustrer.
 
 **Ce qui le rend bon marché** : les pages qui défilent sont **génériques**, et
-montrent le **dos des cartes**. À vingt-quatre millisecondes la page personne ne
-lit rien, et charger quarante-cinq vraies pages coûterait quarante-cinq appels
-réseau pour du flou. Le dos est **dessiné**, non chargé : la face cachée d'une
+montrent le **dos des cartes**. Une feuille traverse en cent quatre-vingts
+millisecondes — le mouvement se lit, son contenu non —, et charger quarante-cinq
+vraies pages coûterait quarante-cinq appels réseau pour du flou. Le dos est **dessiné**, non chargé : la face cachée d'une
 carte Magic est une œuvre de l'éditeur, et le projet ne réhéberge rien (§IV.3).
 Seule la page qui se pose est réelle — un unique appel à `public_binder_page`,
 lancé à l'arrivée de la demande et non à chaque interrogation.
+
+**Une feuille est peinte, pas construite — et c'est la lamelle qui l'exige.**
+Chacune des dix lamelles d'une feuille **reconstruit la face entière** pour n'en
+garder qu'une tranche : avec une `GridView` de neuf cases, une image en plein
+feuilletage comptait **2 100 widgets**, dont 1 688 pour les seules feuilles, et
+coûtait 33 ms quand le budget est de 16,7 à soixante hertz. `sheet_face.dart`
+peint la page en une poignée d'ordres de dessin, que le rognage de la lamelle
+écarte pour la plupart avant même de les exécuter : **530 widgets**, `pump`
+divisé par trois. Le banc est `test/bench_montre_test.dart`, et il rend deux
+chiffres parce qu'un seul mentirait — le temps varie d'une machine et d'une
+exécution à l'autre, le **nombre de widgets** ne varie pas.
+
+**Les feuilles montrent le vrai dos du jeu.** Ce qu'on attend d'un classeur
+Magic, c'est le dos Magic ; d'un classeur Pokémon, le dos Pokémon. Un motif
+inventé dit « carte » là où il faut dire « **cette** carte-là ». **On pointe, on
+ne réhéberge pas** (§IV.3, §IV.9) : l'URL est celle de la source qui la sert,
+exactement comme pour les illustrations.
+
+**Et il ne suffit pas qu'une URL réponde : le calque est un navigateur.**
+`backs.scryfall.io` envoie `Access-Control-Allow-Origin: *` — le dos Magic se
+charge donc dans la *browser source* comme dans l'application.
+`images.ygoprodeck.com` **n'envoie aucun en-tête CORS** : le dos Yu-Gi-Oh se
+charge sur mobile et se fait **bloquer en silence** sur le web, où il retombe
+sur le motif. C'est une limite de la source, pas du code, et elle ne se voit ni
+dans un code de retour ni à la lecture — il faut la demander à l'hôte, en-tête
+`Origin` en main.
+
+**Deux jeux sur huit en ont un, et c'est une constatation.** Chaque URL a été
+vérifiée par une requête réelle ; les six autres jeux sont absents parce
+qu'**aucune source utilisée par le projet ne publie leur dos** — Scryfall sert le
+dos Magic (`backs.scryfall.io`, rapport 0,7157), YGOPRODeck le dos Yu-Gi-Oh, et
+TCGdex, Riftcodex, optcgapi, Lorcast, SWU-DB et Wankuldex n'exposent que des
+images par carte. **Deviner une URL sur le CDN d'un éditeur** serait au mieux un
+404, au pire une ressource qu'on n'a pas le droit de servir : un jeu sans dos
+publié garde le motif dessiné, repli assumé. Pour en ajouter un : trouver la
+source, vérifier d'une requête, l'inscrire dans `card_back.dart`.
+
+**L'image est décodée une fois par session, et c'est *moins* cher que le motif.**
+Neuf cases par feuille, trois feuilles, dix lamelles : la même `ui.Image` est
+dessinée jusqu'à 270 fois par image de vidéo, contre cinq figures par case pour
+le motif. Elle est recadrée, jamais étirée — le dos Yu-Gi-Oh fait 0,6971 quand
+la case fait 0,7154 — et rognée aux coins arrondis de la pochette. Le chargement
+appartient à celui qui tient l'horloge : `BinderReveal` reçoit l'image, il ne va
+jamais la chercher.
+
+**Le motif dessiné reste le repli, et il est un vrai motif.** Une tranche sombre
+qui borde, un panneau plus clair, un médaillon cerclé avec son losange, deux
+barres : le tout sans imiter le dos d'aucun jeu — la face cachée d'une carte
+Magic est une œuvre de l'éditeur, et le projet ne réhéberge aucune illustration
+(§IV.3). Le verso d'une feuille montre les **pochettes** et leur échancrure à
+pouce. Les deux sortent du même peintre : les séparer aurait fait deux
+géométries de grille à garder d'accord.
+
+**Une version du motif ne se voyait pas**, et c'est une leçon sur ce
+qu'un dos de carte est. Elle était faite de traits gris à 45 % sur un carton
+gris : à l'arrêt on distinguait le dessin, à cent quatre-vingts millisecondes le
+tour il n'en restait rien, et le feuilletage montrait neuf rectangles vides. Un
+dos se lit à sa **structure** — trois masses, du contraste — pas à ses détails,
+et le filet reprend désormais la couleur d'accent du thème, seule teinte franche
+de la planche et seule qui survive à la vitesse. Le motif se juge **à l'arrêt et
+de près** (`patron-recto.png`, `patron-verso.png`), faute de quoi on ne sait pas
+si ce qu'on ne voit pas en mouvement est absent ou seulement trop discret.
+
+**La vitesse des feuilles est découplée du compte des pages, et c'est ce qui
+rend le feuilletage visible.** Une feuille tournait par page comptée, soit 24 ms
+le tour : **une image et demie** à soixante hertz. Aucune géométrie ne survit à
+cela — courbure, profondeur, ombre portée se réduisaient à un scintillement, et
+c'est très exactement ce qu'on voyait. Une feuille met désormais 180 ms, une
+dizaine d'images, le plancher en deçà duquel un mouvement se lit comme une coupe
+(et environ un tiers du tour de page délibéré de l'application, 520 ms sous le
+doigt : un feuilletage est plus vif qu'une page qu'on tourne, pas cinquante fois
+plus vif). **Ce que le découplage ne coûte rien** : les feuilles en vol sont
+génériques, elles n'ont jamais prétendu être telle ou telle page ; ce qui *dit*
+la distance parcourue, c'est le numéro, qui monte toujours de 1 à la page visée.
+Et une page lointaine fait toujours défiler plus de feuilles qu'une page proche,
+puisque le défilé dure plus longtemps.
+
+**Les feuilles en vol sont celles du classeur de l'application.** Le calque
+pivotait d'abord un plan rigide autour de sa reliure, `-local * π` : le signe
+envoyait la feuille **derrière** le plan de l'écran — elle rétrécissait en
+s'enfonçant dans le classeur au lieu de venir vers l'œil —, et l'absence de
+courbure la faisait lire comme une carte à jouer qu'on retourne. Or le produit
+sait tourner une page : `page_turn.dart` le fait sous le doigt à l'écran de
+collection, avec un pliage en lamelles jointes dont la profondeur va vers le
+lecteur. `CurlingLeaf`, `SheetBack` et `CastShadow` en sortent donc, et les
+**deux feuilletages du produit partagent la même géométrie** — écrire la seconde
+était s'assurer qu'elles divergent, et elles avaient déjà divergé.
+
+**Ce que le calque règle en propre est le renflement, et il est déduit.** Une
+feuille dressée vient vers l'œil, donc grossit — c'est *ce qui se voit* du
+mouvement —, et elle grossit vers le bas depuis le coin haut-gauche de la page.
+L'application s'en permet 2,4 fois : sa feuille occupe l'écran et ce qui déborde
+sort par le bord du téléphone, où personne ne le voit. La **couverture** du
+calque, 694 × 537, n'a que 489 points de hauteur sous elle pour une page de 413 :
+**18 %, et pas un de plus**. C'est ce chiffre qui donne la perspective —
+`p = (1 − 1/renflement) / largeur` —, jamais l'inverse ; réglée à vue, elle
+divergerait de la boîte au premier changement de géométrie, et une feuille
+tranchée en deux ne ressemble à rien. Deux tests tiennent les deux bouts.
+
+**La feuille est rognée sur la reliure, et c'est le classeur qui le dit.** Passé
+le quart de tour, les lamelles du bord libre se rabattent de l'autre côté du dos
+et se peignaient par-dessus les anneaux, en fragments translucides. Dans un
+classeur, ce qui a franchi la reliure passe derrière ; ici, il disparaît. Le
+rognage est **explicite** : le `Stack` de `CurlingLeaf` décide de rogner d'après
+la *disposition* de ses enfants, et les lamelles ne sortent de leur boîte qu'à la
+*peinture*, par leur matrice — il ne rogne donc rien du tout.
 
 **C'est la page du classeur, et elle doit s'y ressembler.** Une première version
 dessinait les neuf cases en aplats gris, au motif qu'à cette taille neuf
@@ -652,6 +865,145 @@ de thème ; c'est exactement ce qui lui donnait un air de panneau bleu-violet
 `Image.network` : c'est le point de passage unique où l'URL est composée, et le
 contourner a déjà coûté 20 964 cartes Pokémon dont aucune ne s'affichait. Un test
 vérifie que toute `Image` de la planche porte un `CardImageProvider`.
+
+**La carte ne glisse pas vers la droite : on la sort d'abord.** Un déplacement
+d'un trait de la case au grand format traverse la page — la carte ne sort de
+rien, et le classeur n'est plus qu'un décor. La sortie se fait donc en deux
+temps : sur le premier tiers, la carte **monte droit**, à taille constante, hors
+de sa pochette ; sur les deux autres, elle s'envole vers la droite **en
+grandissant**. **La même courbe pour les deux temps** (`easeInOutCubic`) : une
+fin à vitesse nulle enchaînée sur un départ à vitesse maximale donnait une carte
+qui s'arrête net puis part d'un coup.
+
+**Le hissement vaut une hauteur de carte entière**, parce que c'est le geste :
+on ne tire pas une carte d'un quart de pochette, on l'en sort. Son bord bas
+finit là où son bord haut était, et le trou qu'elle laisse est alors
+entièrement découvert. Deux conséquences, et ce sont elles qui coûtent :
+
+- **La carte sortie est dessinée hors du rognage de la couverture.** Sur la
+  première rangée, hissée d'une hauteur entière, elle passe *au-dessus* du
+  classeur — ce qu'on veut voir, et ce qui la couperait net si elle restait
+  dans la pile rognée. Elle est donc posée sur la planche, à côté de la
+  couverture, avec une conversion de repère qui vit à un seul endroit.
+- **La planche a grandi, et la source OBS change de taille** : 694 × **640** au
+  lieu de 694 × 537. La bande ajoutée est transparente, mais le rectangle à
+  placer dans la scène n'est plus le même. Sa hauteur se déduit — la hauteur
+  d'une carte, moins ce que la première rangée a déjà au-dessus d'elle, plus la
+  portée de l'ombre — et un test le vérifie plutôt que de le supposer.
+
+**L'ombre suit le décollement, pas la course entière.** Elle est le seul indice
+qui dise « cette carte est devant la page, plus dedans ». Calée sur l'avancement
+de la sortie, elle n'avait qu'un tiers de sa force à la fin du hissement : la
+carte, montée d'une case pile, se lisait alors comme *glissée dans la pochette
+du dessus* plutôt que sortie de la sienne. Vu sur l'image, pas dans le code.
+
+### Le froissement des pages
+
+Le calque **sonne** : un froissement par feuille tournée. Un feuilletage muet se
+regarde ; un feuilletage qui froisse se *voit* mieux — même principe que l'ombre
+portée sous une feuille levée, un indice de matière.
+
+**Rien n'est chargé, et aucune dépendance n'a été ajoutée.** Un enregistrement de
+page qui tourne est l'œuvre de quelqu'un (§IV.3). Le navigateur verse des
+échantillons calculés dans un tampon Web Audio, déclaré par six types d'interop —
+ni paquet audio, ni fichier embarqué, ni requête réseau au moment où le direct en
+a le moins besoin.
+
+**Un froissement, ce sont trois gestes — et une première version n'en avait
+qu'un.** Elle était du bruit blanc sous un filtre à un pôle et une enveloppe en
+cloche : cela donne un « chhh », un souffle, pas du papier. Ce qui manque à un
+souffle pour devenir une matière :
+
+1. **Le crépitement.** Une feuille qu'on relâche craque — des centaines de
+   micro-ruptures de fibres. On le modélise par un train d'impulsions
+   *clairsemé*, pas du bruit continu, passé dans un résonateur. C'est la chose
+   absente, et un test la tient : le facteur de crête doit dépasser 6, ce qu'un
+   souffle lisse ne fait jamais.
+2. **L'air.** Le déplacement de la feuille, sous un passe-bande qui **monte puis
+   redescend** : la feuille prend de la vitesse, puis s'arrête. Un passe-bande à
+   deux pôles, pas un filtre à un pôle — celui-ci n'a pas de bande, il ne fait
+   qu'incliner le spectre, et le bruit reste du bruit.
+3. **La pose.** Le contact final, une basse très courte. Sans elle le son
+   n'aboutit nulle part et l'oreille reste en attente — c'est ce qui rend un
+   bruitage « insatisfaisant » sans qu'on sache dire pourquoi.
+
+**Et la douceur, qui est ce qu'« ASMR » veut dire techniquement.** Un passe-bas
+final ôte le haut du spectre. C'est le réglage qui décide entre agréable et
+sifflant, et **il se mesure** : le banc rend le centroïde spectral, la part de
+graves et la part au-dessus de 7 kHz. Une version réglée au jugé donnait un
+centroïde de 3,8 kHz et 15 % au-dessus de 7 kHz — précis et désagréable. Un
+froissement de page enregistré de près a son centre de gravité vers 1,5–2,5 kHz.
+
+**Trois voix ont encadré la réponse, `papier` a été retenue.** Ces réglages ne se
+jugent qu'à l'oreille, et personne ne peut les régler sans écouter : `douce`
+(centroïde 1 975 Hz), `papier` (2 335 Hz) et `seche` (3 607 Hz) ont été écrites
+côte à côte pour qu'on désigne la bonne plutôt que d'écarter la mauvaise.
+**`papier` est celle que le direct joue**, choisie à l'écoute le 2026-08-25. Les
+deux autres restent : elles sont le point de départ d'un réglage futur, et elles
+prouvent que l'empreinte ci-dessous n'est pas vide de sens.
+
+**La voix retenue est figée au bit près, et il a fallu s'y reprendre à deux
+fois.** Une première empreinte ne comparait que trois descripteurs — durée,
+facteur de crête, cadence de passages par zéro. Essai fait : `crackleHz` déplacé
+de 1 400 à 1 800 Hz, **vingt-neuf pour cent**, et le test passait au vert — le
+passe-bas final masque la résonance, et le descripteur n'y est pas sensible. **Un
+garde-fou qui ne se déclenche jamais est pire que pas de garde-fou.** La synthèse
+étant déterministe, une somme sur les échantillons quantifiés en seize bits
+couvre désormais *tous* les réglages ; les trois descripteurs restent à côté pour
+dire **en quoi** le son a changé — durée, grain, brillance — car une somme seule
+n'apprend rien. Éprouvé dans les deux sens : les deux dérives essayées font
+échouer le test avec un message lisible.
+
+**Hors du web, le silence.** Le calque ne tourne que dans une *browser source* ;
+un import conditionnel donne une implémentation muette partout ailleurs, y
+compris sous `flutter test` — aucun test n'a donc à se protéger de l'audio.
+
+**Un navigateur refuse l'audio avant un geste, et le refus est silencieux.**
+OBS n'a pas cette règle — une *browser source* joue ses sons sans qu'on clique —
+mais l'aperçu, lui, s'ouvre dans un Chrome ordinaire *et démarre l'animation
+tout seul* : la première lecture y était donc muette, ce qui se lit comme « le
+son ne marche pas ». Trois choses le règlent, et la troisième est la seule qui
+compte vraiment :
+
+1. n'importe quel clic dans l'aperçu ouvre l'audio ;
+2. un bouton **écouter** déverrouille et rejoue dans la foulée ;
+3. le bandeau **affiche l'état de l'audio** — « prêt », « le navigateur attend un
+   clic », « son actif », « refusé ». Sans lui, « je n'entends rien » ne
+   distingue pas un navigateur qui attend d'un son mal réglé, et l'on cherche
+   une heure du mauvais côté. Le calque, lui, garde son silence : un direct ne
+   fait pas entendre une erreur de DeckHand.
+
+**Il n'y a pas de réglage de volume, et c'est délibéré.** OBS range une *browser
+source* dans sa table de mixage : couper, baisser ou router s'y fait avec le
+reste du direct. Un second réglage dans l'URL serait un endroit de plus où
+chercher quand le son manque.
+
+**Le compte des feuilles vit dans `RevealTiming`**, pas dans celui qui joue le
+son : le calque et l'aperçu pilotent chacun leur horloge, et deux comptes
+séparés dériveraient. `RiffleSound` ne fait que traduire « une feuille de plus a
+tourné » en « joue un froissement », **une fois par tour au plus** — si l'horloge
+saute, on ne rattrape pas le retard, sans quoi le calque crépiterait au moment
+précis où la machine est déjà en peine. Et le son est déclenché par le pilote de
+l'horloge, jamais par `BinderReveal` : ce widget est **pur**, c'est ce qui permet
+de l'interroger à un instant choisi.
+
+**Ce qu'un test peut dire d'un son, et ce qu'il ne peut pas.** Il vérifie qu'un
+tampon sonne, ne sature pas, part de zéro et y revient (sans quoi il claque à
+chaque déclenchement), qu'il **craque** plutôt que de souffler, que les trois
+voix sont réellement distinctes, et qu'il ne change pas d'une session à l'autre.
+Il ne dira jamais si cela *ressemble* à une page qui tourne : cela s'écoute.
+
+```bash
+cd app && DECKHAND_BENCH=1 flutter test test/ecoute_son_test.dart
+```
+
+écrit `test/apercu/page-{papier,douce,seche}.wav` — six feuilles enchaînées par
+voix, hors dépôt. L'onde y vient de la production ; seule la mise bout à bout est
+une approximation de ce que fait Web Audio, et rien ne la relit.
+
+**La page de destination est dessous dès le premier tour.**
+
+### Le détail du classeur (suite)
 
 **La page de destination est dessous dès le premier tour.** Ne la peupler qu'à la
 fin faisait apparaître ses neuf cartes d'un coup ; les feuilles qui passent la
@@ -698,6 +1050,17 @@ la planche et la regarder.
   une page est de l'autre côté du dos ; sans rognage à la couverture elle
   flottait sur la vidéo. Elle s'efface désormais en franchissant le dos, ce qui
   est aussi plus juste que la traîner jusqu'au demi-tour.
+- **Les feuilles héritaient d'une seconde perspective, et le défaut vivait deux
+  widgets plus haut.** La couverture porte une matrice pour basculer vers le
+  lecteur en s'ouvrant ; une fois ouverte elle gardait sa ligne de perspective,
+  la rotation seule étant remise à zéro. **Une matrice de perspective sans
+  rotation n'est pas neutre** : elle ne fait rien aux enfants plats, mais divise
+  par `1 + p·z` tout ce qui porte une profondeur — et les feuilles en vol en
+  portent une. Prise autour du **milieu** de la couverture là où la leur part du
+  haut de la page, elle les dilatait de moitié en plus et faisait monter leur
+  bord supérieur en biais au-dessus de la page. Rien dans le code de la feuille
+  ne le laissait voir. La couverture ouverte ne porte plus aucune matrice, et un
+  test l'exige.
 
 Un quatrième, celui-là pris par un test : le repli de l'illustration affichait le
 nom de la carte, que la légende porte déjà — **deux « Ka-Zar » à l'écran**. Il
@@ -715,6 +1078,21 @@ faute déjà payée sur `probe_photo` et `recette.dart`. Il propose les trois
 distances qui comptent — page 1 sans feuilletage, page 12 court, page 48 presque
 au plafond (1 128 ms sur 1 200) — parce que c'est la seule façon de juger si le
 plafond tombe au bon endroit. Le bandeau affiche les deux durées.
+
+**Et pour figer le mouvement**, qui ne se laisse pas rattraper à l'œil à
+vingt-quatre millisecondes la page :
+
+```bash
+cd app && DECKHAND_FONTS=<flutter>/bin/cache/artifacts/material_fonts \
+    flutter test test/apercu_montre_test.dart --update-goldens
+```
+
+Six images — l'ouverture, quatre prises dans le feuilletage, la page posée — qui
+atterrissent dans `test/apercu/`, hors dépôt. Elles n'assèrent rien : elles
+existent parce que le sens de rotation, le renflement et les fragments qui
+franchissaient la reliure ne se voient que sur une image arrêtée. Comme
+`apercu_tuiles_test.dart`, ce test est **sauté par `flutter test`** — sans police
+réelle le texte se rend en rectangles.
 
 Le rendu **en conditions réelles** — la vraie collection, le vrai chat — demande
 `flutter build web` puis un navigateur sur `?o=<adresse>`, la collection publiée

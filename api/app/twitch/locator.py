@@ -174,6 +174,65 @@ class Locator:
         )
         return rendu is True
 
+    def designate_page(
+        self,
+        client: httpx.Client,
+        set_code: str,
+        page: int,
+        requested_by: str,
+    ) -> bool:
+        """Fait monter une page sur l'overlay. Rend faux si la base refuse.
+
+        **Le jumeau de `designate`, et le même ordre : lire, puis écrire.** La
+        commande n'appelle ceci qu'après avoir obtenu les cases de la page ; une
+        extension absente du classeur, une page hors bornes ou une collection
+        non publiée ne rendent rien, et l'écriture n'a pas lieu. Reste le délai
+        de garde — **partagé avec les cartes**, puisque c'est le même écran.
+
+        **Une panne réseau se lit comme un refus**, comme partout ailleurs ici.
+        """
+        rendu = self._poster(
+            client,
+            "public_request_spotlight_page",
+            {
+                "p_handle": self.handle,
+                "p_set_code": set_code,
+                "p_page": page,
+                "p_requested_by": requested_by,
+                "p_game": self.game,
+            },
+        )
+        return rendu is True
+
+    def designate_strip(
+        self,
+        client: httpx.Client,
+        set_code: str,
+        collector_number: str,
+        requested_by: str,
+    ) -> bool:
+        """Fait monter le tapis des versions d'une carte. Rend faux si refusé.
+
+        **La règle du « au moins deux dessins » vit en base, pas ici.** La
+        compter côté bot demanderait une seconde lecture — le catalogue ne dit
+        pas combien d'illustrations une carte a dans *cette* collection — et
+        deux endroits pour décider d'une même chose finissent par diverger.
+
+        **Une panne réseau se lit comme un refus**, comme partout ailleurs ici.
+        """
+        rendu = self._poster(
+            client,
+            "public_request_spotlight_strip",
+            {
+                "p_handle": self.handle,
+                "p_set_code": set_code,
+                "p_collector_number": collector_number,
+                "p_requested_by": requested_by,
+                "p_game": self.game,
+            },
+        )
+        return rendu is True
+
     def _interroger(self, client: httpx.Client, query: str) -> list[Location]:
         rows = self._appeler(
             client,

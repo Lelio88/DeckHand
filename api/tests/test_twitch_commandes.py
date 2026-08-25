@@ -45,12 +45,14 @@ class FauxLocator(Locator):
         rayonnage: list[Shelf] | None = None,
         places: list[Location] | None = None,
         accepte: bool = True,
+        cases: list[Cell] | None = None,
     ) -> None:
         super().__init__(supabase_url="https://x", anon_key="k", handle="lelio")
         object.__setattr__(self, "_recentes", recentes or [])
         object.__setattr__(self, "_rayonnage", rayonnage or [])
         object.__setattr__(self, "_places", places or [])
         object.__setattr__(self, "_accepte", accepte)
+        object.__setattr__(self, "_cases", cases)
         object.__setattr__(self, "appels", [])
 
     def recent(self, client: httpx.Client, limit: int = 3) -> list[Addition]:
@@ -65,6 +67,8 @@ class FauxLocator(Locator):
         self, client: httpx.Client, set_code: str, page: int, per_page: int = 9
     ) -> list[Cell]:
         self.appels.append(f"page:{set_code}:{page}")
+        if self._cases is not None:
+            return self._cases
         return [Cell(str(n), f"Carte {n}", 1 if n < 5 else 0) for n in range(1, 10)]
 
     def locate(self, client: httpx.Client, query: str) -> list[Location]:
@@ -79,6 +83,22 @@ class FauxLocator(Locator):
         requested_by: str,
     ) -> bool:
         self.appels.append(f"designate:{set_code}:{collector_number}:{requested_by}")
+        return self._accepte
+
+    def designate_page(
+        self, client: httpx.Client, set_code: str, page: int, requested_by: str
+    ) -> bool:
+        self.appels.append(f"designate_page:{set_code}:{page}:{requested_by}")
+        return self._accepte
+
+    def designate_strip(
+        self,
+        client: httpx.Client,
+        set_code: str,
+        collector_number: str,
+        requested_by: str,
+    ) -> bool:
+        self.appels.append(f"designate_strip:{set_code}:{collector_number}")
         return self._accepte
 
 
@@ -222,7 +242,9 @@ class TestRoutagePage:
         reply = bot.answer(ChatMessage("a", "#lelio", "!page msh 3"), httpx.Client())
         assert reply is not None
         assert "MSH page 3 : 4/9 cases" in reply
-        assert locator.appels == ["page:msh:3"]
+        # **Lire puis écrire** : la page est lue par la porte publique, qui
+        # applique la portée, et n_est montée à l_écran qu_ensuite.
+        assert locator.appels == ["page:msh:3", "designate_page:msh:3:a"]
 
     def test_une_saisie_incomprise_ne_touche_pas_au_reseau(self) -> None:
         """**Renoncer, c'est aussi ne pas appeler.** Une commande mal formée
@@ -420,3 +442,134 @@ class TestDesignation:
         bot.answer(ChatMessage("a", "#lelio", "!card ka-zar"), httpx.Client())
         assert locator.appels == ["locate:ka-zar"]
 
+
+class TestPageALEcran:
+    """`!page` répond **et** fait monter la page sur le calque.
+
+    **L'ordre est la sécurité**, comme pour `!montre` : on lit d'abord par la
+    porte publique — qui applique la portée —, on n'écrit qu'ensuite. Ces tests
+    tiennent cet ordre, parce qu'une inversion ne casse rien de visible : la
+    page s'afficherait quand même, simplement on aurait montré une extension
+    qu'on n'avait pas le droit de voir.
+    """
+
+    def _bot(self, **kwargs: object) -> tuple[Bot, FauxLocator]:
+        locator = FauxLocator(**kwargs)  # type: ignore[arg-type]
+        return Bot(locator=locator, channel="lelio", throttle=Throttle()), locator
+
+    def test_une_page_lue_monte_a_l_ecran(self) -> None:
+        bot, locator = self._bot()
+        with httpx.Client() as client:
+            reponse = bot.answer(ChatMessage("viewer", "#lelio", "!page msh 3"), client)
+        assert reponse is not None
+        assert "MSH page 3" in reponse
+        assert "À l'écran." in reponse
+        assert "designate_page:msh:3:viewer" in locator.appels
+
+    def test_la_lecture_precede_l_ecriture(self) -> None:
+        # **Le contrôle qui vaut pour la sécurité.** Écrire avant de lire
+        # laisserait monter une page d'une extension retirée du partage : la
+        # portée s'applique à la lecture, et c'est elle qui doit trancher.
+        bot, locator = self._bot()
+        with httpx.Client() as client:
+            bot.answer(ChatMessage("viewer", "#lelio", "!page msh 3"), client)
+        assert locator.appels.index("page:msh:3") < locator.appels.index(
+            "designate_page:msh:3:viewer"
+        )
+
+    def test_une_page_vide_ne_monte_pas(self) -> None:
+        # Extension inconnue, page hors bornes, classeur non partagé : la
+        # lecture ne rend rien, et **rien n'est écrit**. Un calque ouvert sur
+        # une page vide serait pire qu'un calque muet.
+        bot, locator = self._bot(cases=[])
+        with httpx.Client() as client:
+            reponse = bot.answer(ChatMessage("viewer", "#lelio", "!page msh 999"), client)
+        assert reponse is not None
+        assert "rien à la page 999" in reponse
+        assert not any(a.startswith("designate_page") for a in locator.appels)
+
+    def test_l_ecran_pris_le_dit(self) -> None:
+        # Le refus dit quoi faire : le spectateur a déjà sa réponse, et un
+        # silence lui ferait croire à une panne.
+        bot, locator = self._bot(accepte=False)
+        with httpx.Client() as client:
+            reponse = bot.answer(ChatMessage("viewer", "#lelio", "!page msh 3"), client)
+        assert reponse is not None
+        assert "écran occupé" in reponse
+        # La ligne reste utile : les trous sont nommés dans les deux cas.
+        assert "manquent" in reponse
+
+
+class TestCardTapis:
+    """`!card` pose un tapis quand la carte a plusieurs dessins possédés.
+
+    **Le verrou est ce qui rend la commande vivable.** `!card` est la commande
+    banale, tapée sans y penser ; si chaque appel prenait l'écran, le calque ne
+    se reposerait jamais et `!montre` n'aurait plus de raison d'être. Ces tests
+    tiennent les deux bords : le tapis monte quand il apprend quelque chose, et
+    ne monte pas sinon.
+    """
+
+    def _place(self, numero: str) -> Location:
+        return Location(
+            name="Forest",
+            matched_name="Forêt",
+            set_code="msh",
+            set_name="Marvel Super Heroes",
+            collector_number=numero,
+            page=1,
+            slot=1,
+            copies=1,
+            has_foil=False,
+        )
+
+    def test_une_seule_case_ne_prend_pas_l_ecran(self) -> None:
+        # **Le raccourci qui garde `!card` gratuite.** Une seule case possédée
+        # ne peut pas porter deux dessins : inutile d_appeler la base.
+        locator = FauxLocator(places=[self._place("285")])
+        bot = Bot(locator=locator, channel="lelio")
+        reply = bot.answer(ChatMessage("a", "#lelio", "!card foret"), httpx.Client())
+        assert reply is not None
+        assert "À l'écran" not in reply
+        assert not any(a.startswith("designate_strip") for a in locator.appels)
+
+    def test_plusieurs_cases_montent_sur_le_tapis(self) -> None:
+        locator = FauxLocator(
+            places=[self._place("285"), self._place("286"), self._place("295")]
+        )
+        bot = Bot(locator=locator, channel="lelio")
+        reply = bot.answer(ChatMessage("a", "#lelio", "!card foret"), httpx.Client())
+        assert reply is not None
+        assert "À l'écran." in reply
+        # La première correspondance porte la demande ; la base en déduit les
+        # autres versions.
+        assert "designate_strip:msh:285" in locator.appels
+
+    def test_la_lecture_precede_l_ecriture(self) -> None:
+        locator = FauxLocator(places=[self._place("285"), self._place("286")])
+        bot = Bot(locator=locator, channel="lelio")
+        bot.answer(ChatMessage("a", "#lelio", "!card foret"), httpx.Client())
+        assert locator.appels.index("locate:foret") < locator.appels.index(
+            "designate_strip:msh:285"
+        )
+
+    def test_un_refus_est_muet(self) -> None:
+        # **Contrairement à `!montre`.** La réponse est déjà complète : `!card`
+        # a dit où sont les cartes, le tapis n_était qu_un supplément. Annoncer
+        # « écran occupé » là où personne n_attendait d_écran ajouterait du bruit.
+        locator = FauxLocator(
+            places=[self._place("285"), self._place("286")], accepte=False
+        )
+        bot = Bot(locator=locator, channel="lelio")
+        reply = bot.answer(ChatMessage("a", "#lelio", "!card foret"), httpx.Client())
+        assert reply is not None
+        assert "écran" not in reply
+        assert "Forêt" in reply
+
+    def test_une_carte_absente_ne_touche_pas_a_l_ecran(self) -> None:
+        locator = FauxLocator(places=[])
+        bot = Bot(locator=locator, channel="lelio")
+        reply = bot.answer(ChatMessage("a", "#lelio", "!card bidule"), httpx.Client())
+        assert reply is not None
+        assert "pas dans le classeur" in reply
+        assert not any(a.startswith("designate_strip") for a in locator.appels)

@@ -23,14 +23,29 @@
 /// fait en direct — rien n'est réhébergé (§IV.3). Hors ligne, la carte affiche
 /// son numéro et l'animation reste lisible.
 ///
+/// **Le son demande un clic, et l'aperçu le dit.** Un navigateur refuse de
+/// démarrer l'audio avant un geste de l'utilisateur, et le refus est
+/// *silencieux*. Comme l'animation démarre toute seule à l'ouverture, la
+/// première lecture est muette — ce qui, dans l'outil qui sert justement à juger
+/// le son, se lit comme « le son ne marche pas ». Le bandeau affiche donc l'état
+/// de l'audio, n'importe quel clic le déverrouille, et le bouton **écouter**
+/// rejoue dans la foulée. OBS, lui, n'a pas cette règle : une *browser source*
+/// joue ses sons sans qu'on clique.
+///
 /// Usage :
 ///
 ///     cd app && flutter run -d chrome -t tool/apercu_montre.dart
 library;
 
+import 'dart:ui' as ui;
+
+import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/binders/domain/binder.dart';
-import 'package:deckhand/src/features/binders/domain/spotlight_card.dart';
+import 'package:deckhand/src/features/binders/domain/spotlight_request.dart';
 import 'package:deckhand/src/features/binders/presentation/binder_reveal.dart';
+import 'package:deckhand/src/features/binders/presentation/card_back.dart';
+import 'package:deckhand/src/features/binders/presentation/card_mat.dart';
+import 'package:deckhand/src/features/binders/presentation/page_sound.dart';
 import 'package:flutter/material.dart';
 
 void main() => runApp(const ApercuApp());
@@ -143,29 +158,94 @@ class _ApercuState extends State<_Apercu> with TickerProviderStateMixin {
   static const _pages = [1, 12, 48];
 
   int _page = 48;
+
+  /// Le genre rejoué. Les trois se jugent côte à côte : c'est la seule façon
+  /// de voir que la couverture se resserre quand il n'y a pas de carte à poser
+  /// à droite, et que le tapis prend bien moins de place qu'une planche.
+  _Genre _genre = _Genre.carte;
   AnimationController? _horloge;
+
+  /// Le froissement des pages, comme en direct. **C'est ici qu'on l'entend** :
+  /// le calque réel vit dans OBS, où l'on ne juge pas un son au casque. Un
+  /// navigateur ordinaire n'ouvre l'audio qu'après un geste — les boutons de
+  /// cet aperçu en font un.
+  final RiffleSound _riffle = RiffleSound(createPageSound());
+
+  /// Le vrai dos Magic, chargé chez Scryfall comme en direct.
+  ui.Image? _back;
 
   @override
   void initState() {
     super.initState();
     _rejouer();
+    loadCardBack(Game.magic).then((image) {
+      if (mounted && image != null) setState(() => _back = image);
+    });
   }
 
   @override
   void dispose() {
     _horloge?.dispose();
+    _riffle.dispose();
     super.dispose();
   }
 
+  /// Ce qu'on demande de montrer, selon le genre choisi.
+  SpotlightRequest get _demande => switch (_genre) {
+    _Genre.carte => _carte(_page),
+    _Genre.page => SpotlightPage(
+      requestId: _page,
+      requestedBy: 'bob',
+      setCode: 'msh',
+      setName: 'Marvel Super Heroes',
+      page: _page,
+      pages: 51,
+    ),
+    _Genre.tapis => _tapis(),
+  };
+
+  /// Un tapis de quatre versions — le cas réel de la collection : quatre
+  /// dessins de Forêt dans une même extension.
+  SpotlightStrip _tapis() => SpotlightStrip(
+    requestId: _page,
+    requestedBy: 'carol',
+    entries: [
+      for (final cellule in _cases.take(4))
+        SpotlightCard(
+          requestId: _page,
+          name: 'Forest',
+          printedName: 'Forêt',
+          setCode: 'msh',
+          setName: 'Marvel Super Heroes',
+          collectorNumber: cellule.collectorNumber,
+          artCropUrl: cellule.artCropUrl,
+          copies: 2,
+        ),
+    ],
+  );
+
+  /// La durée d'une apparition, quel qu'en soit le genre.
+  double get _duree => switch (_demande) {
+    final BinderRequest r => RevealTiming.of(r).total,
+    final SpotlightStrip s => MatTiming(s.entries.length).total,
+  };
+
   void _rejouer() {
     _horloge?.dispose();
-    _horloge =
-        AnimationController(
-          vsync: this,
-          duration: Duration(
-            milliseconds: RevealTiming(_page).total.round(),
-          ),
-        )..forward();
+    final demande = _demande;
+    final horloge = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: _duree.round()),
+    );
+    _riffle.restart();
+    // Le froissement accompagne un feuilletage, pas un tapis.
+    if (demande is BinderRequest) {
+      final timing = RevealTiming.of(demande);
+      horloge.addListener(
+        () => _riffle.at(timing, horloge.value * timing.total),
+      );
+    }
+    _horloge = horloge..forward();
     setState(() {});
   }
 
@@ -174,64 +254,119 @@ class _ApercuState extends State<_Apercu> with TickerProviderStateMixin {
     _rejouer();
   }
 
+  void _basculer() {
+    _genre = _Genre.values[(_genre.index + 1) % _Genre.values.length];
+    _rejouer();
+  }
+
+  /// Ce que le bandeau dit de l'audio.
+  String get _etatDuSon => switch (_riffle.status) {
+    PageSoundStatus.silencieux => 'son indisponible hors navigateur',
+    PageSoundStatus.attente => 'son : prêt au premier froissement',
+    PageSoundStatus.suspendu => 'son : le navigateur attend un clic',
+    PageSoundStatus.actif => 'son actif',
+    PageSoundStatus.indisponible => 'son refusé par le navigateur',
+  };
+
   @override
   Widget build(BuildContext context) {
     final horloge = _horloge;
-    final carte = _carte(_page);
+    final demande = _demande;
     return Scaffold(
       // Un fond qui rappelle une image de caméra : le calque est transparent,
       // et le juger sur du blanc ne dit rien de ce qu'il donnera en direct.
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF3B3A45), Color(0xFF57452F), Color(0xFF1B1B22)],
-            stops: [0, 0.45, 1],
-          ),
-        ),
-        child: Stack(
-          children: [
-            Center(
-              child: horloge == null
-                  ? const SizedBox.shrink()
-                  : AnimatedBuilder(
-                      animation: horloge,
-                      builder: (_, _) => BinderReveal(
-                        card: carte,
-                        cells: _cases,
-                        elapsed:
-                            horloge.value * RevealTiming(_page).total,
-                      ),
-                    ),
+      // **N'importe quel clic ouvre l'audio.** Le geste que le navigateur exige
+      // n'a pas à être un geste *sur un bouton* : le lui donner au premier
+      // contact évite d'expliquer une règle de navigateur dans une interface.
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => setState(_riffle.unlock),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF3B3A45), Color(0xFF57452F), Color(0xFF1B1B22)],
+              stops: [0, 0.45, 1],
             ),
-            Positioned(
-              left: 20,
-              top: 20,
-              child: Row(
-                children: [
-                  for (final page in _pages) ...[
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: horloge == null
+                    ? const SizedBox.shrink()
+                    : AnimatedBuilder(
+                        animation: horloge,
+                        builder: (_, _) {
+                          final ecoule = horloge.value * _duree;
+                          return switch (demande) {
+                            final BinderRequest r => BinderReveal(
+                              request: r,
+                              cells: _cases,
+                              elapsed: ecoule,
+                              sheetBack: _back,
+                            ),
+                            final SpotlightStrip s => CardMat(
+                              strip: s,
+                              elapsed: ecoule,
+                            ),
+                          };
+                        },
+                      ),
+              ),
+              Positioned(
+                left: 20,
+                top: 20,
+                child: Row(
+                  children: [
+                    for (final page in _pages) ...[
+                      _Bouton(
+                        libelle: 'page $page',
+                        actif: page == _page,
+                        onTap: () => _choisir(page),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     _Bouton(
-                      libelle: 'page $page',
-                      actif: page == _page,
-                      onTap: () => _choisir(page),
+                      libelle: _genre.libelle,
+                      actif: _genre != _Genre.carte,
+                      onTap: _basculer,
                     ),
                     const SizedBox(width: 8),
-                  ],
-                  _Bouton(libelle: '↻ rejouer', actif: false, onTap: _rejouer),
-                  const SizedBox(width: 14),
-                  Text(
-                    'intro ${RevealTiming(_page).total.round()} ms · '
-                    'feuilletage ${RevealTiming(_page).riffle.round()} ms',
-                    style: const TextStyle(
-                      color: Color(0xCCFFFFFF),
-                      fontSize: 12,
+                    _Bouton(
+                      libelle: '↻ rejouer',
+                      actif: false,
+                      onTap: _rejouer,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    _Bouton(
+                      libelle: 'écouter',
+                      actif: _riffle.status == PageSoundStatus.actif,
+                      onTap: () {
+                        _riffle.unlock();
+                        _rejouer();
+                      },
+                    ),
+                    const SizedBox(width: 14),
+                    // **Le bandeau suit l'horloge**, et pas seulement les
+                    // clics : `resume()` est asynchrone, si bien qu'un état lu
+                    // juste après le geste dirait encore « suspendu ».
+                    // Rafraîchi à chaque image, il dit la vérité.
+                    AnimatedBuilder(
+                      animation: horloge ?? kAlwaysCompleteAnimation,
+                      builder: (_, _) => Text(
+                        'intro ${_duree.round()} ms · $_etatDuSon',
+                        style: const TextStyle(
+                          color: Color(0xCCFFFFFF),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -265,4 +400,15 @@ class _Bouton extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// Les trois genres que le calque sait montrer.
+enum _Genre {
+  carte('carte'),
+  page('page seule'),
+  tapis('tapis');
+
+  const _Genre(this.libelle);
+
+  final String libelle;
 }

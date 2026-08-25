@@ -46,6 +46,7 @@
 library;
 
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,8 +54,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../collection/data/collection_repository.dart';
 import '../domain/binder.dart';
 import '../domain/recent_addition.dart';
-import '../domain/spotlight_card.dart';
+import '../domain/spotlight_request.dart';
+import '../../../config/selected_game.dart';
 import 'binder_reveal.dart';
+import 'card_back.dart';
+import 'card_mat.dart';
+import 'page_sound.dart';
 
 /// Adresse de partage lue dans l'URL pour le mode overlay, ou `null`.
 ///
@@ -153,10 +158,11 @@ class OverlayScreen extends ConsumerStatefulWidget {
 }
 
 class _OverlayScreenState extends ConsumerState<OverlayScreen>
-    // **Pluriel, et pas SingleTicker.** Chaque designation ouvre sa propre
-    // horloge ; le mixin a ticker unique refuse la seconde, meme apres avoir
-    // dispose la premiere. Un test l a montre avant l antenne.
-    with TickerProviderStateMixin {
+        // **Pluriel, et pas SingleTicker.** Chaque designation ouvre sa propre
+        // horloge ; le mixin a ticker unique refuse la seconde, meme apres avoir
+        // dispose la premiere. Un test l a montre avant l antenne.
+        with
+        TickerProviderStateMixin {
   Timer? _timer;
 
   /// **L'effacement a besoin de son propre réveil.** Une première version
@@ -170,8 +176,8 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
   /// au plus un des deux champs est renseigné.
   OverlayCard? _card;
 
-  /// La carte désignée à l'écran, ou `null`.
-  SpotlightCard? _designated;
+  /// Ce qui a été désigné à l'écran — une carte ou une page —, ou `null`.
+  SpotlightRequest? _designated;
 
   /// Les neuf cases de sa page. Vides tant que la lecture n'est pas revenue —
   /// et **elle peut ne jamais revenir** sans que la carte cesse de sortir.
@@ -180,6 +186,19 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
   /// L'horloge de l'apparition. Le classeur est un widget pur : c'est ce
   /// contrôleur qui lui donne le temps qui passe.
   AnimationController? _reveal;
+
+  /// Le froissement des pages. **Ici et non dans `BinderReveal`** : le classeur
+  /// est un widget pur, il ne porte ni horloge ni effet de bord, et c'est ce
+  /// qui permet à un test de l'interroger à un instant choisi. Le son est un
+  /// effet de bord ; il appartient à celui qui tient l'horloge.
+  final RiffleSound _riffle = RiffleSound(createPageSound());
+
+  /// Le vrai dos des cartes du jeu, une fois décodé.
+  ///
+  /// **Chargé une fois, au lancement.** C'est une image unique pour toute la
+  /// session ; l'attendre au moment de la demande ferait défiler les premières
+  /// feuilles avec le motif de repli, et changer de dos en cours d'animation.
+  ui.Image? _back;
 
   /// Le dernier mouvement déjà vu. **Comparer les identifiants et non les
   /// noms** : deux exemplaires successifs de la même carte sont deux
@@ -197,6 +216,7 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
   @override
   void initState() {
     super.initState();
+    unawaited(_chargerLeDos());
     unawaited(_poll());
     _timer = Timer.periodic(overlayPollInterval, (_) => unawaited(_poll()));
   }
@@ -206,7 +226,17 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
     _timer?.cancel();
     _hide?.cancel();
     _reveal?.dispose();
+    _riffle.dispose();
     super.dispose();
+  }
+
+  /// Va chercher le dos des cartes. **Le jeu est celui que le calque
+  /// interroge** — Magic aujourd'hui, `spotlight` n'ayant pas d'autre paramètre
+  /// ici : le jour où le calque saura son jeu, le dos suivra sans rien changer.
+  Future<void> _chargerLeDos() async {
+    final image = await loadCardBack(Game.magic);
+    if (!mounted || image == null) return;
+    setState(() => _back = image);
   }
 
   /// Lance une lecture dont l'échec est sans effet.
@@ -259,7 +289,7 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
     return true;
   }
 
-  void _takeDesignation(SpotlightCard? card) {
+  void _takeDesignation(SpotlightRequest? card) {
     if (card == null) {
       _firstSpotlight = false;
       return;
@@ -284,16 +314,38 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
       _cells = const [];
     });
     _startReveal(card);
-    unawaited(_loadCells(card));
+    // **Un tapis n'a pas de page.** Ses cartes viennent avec la demande ; aller
+    // chercher neuf cases serait un appel pour rien.
+    if (card is BinderRequest) unawaited(_loadCells(card));
     _relaunchHide();
   }
 
-  void _startReveal(SpotlightCard card) {
+  /// La durée d'une apparition, quel qu'en soit le genre.
+  double _dureeDe(SpotlightRequest demande) => switch (demande) {
+    final BinderRequest r => RevealTiming.of(r).total,
+    final SpotlightStrip s => MatTiming(
+      s.entries.take(MatMetrics.maxCards).length,
+    ).total,
+  };
+
+  void _startReveal(SpotlightRequest card) {
     _reveal?.dispose();
-    _reveal = AnimationController(
+    final duree = _dureeDe(card);
+    final horloge = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: RevealTiming(card.page).total.round()),
-    )..forward();
+      duration: Duration(milliseconds: duree.round()),
+    );
+    _riffle.restart();
+    // **Le froissement accompagne un feuilletage, pas un tapis.** Rien ne
+    // tourne quand des cartes se posent ; y coller le même son ferait entendre
+    // du papier là où il n'y en a pas.
+    if (card is BinderRequest) {
+      final timing = RevealTiming.of(card);
+      horloge.addListener(
+        () => _riffle.at(timing, horloge.value * timing.total),
+      );
+    }
+    _reveal = horloge..forward();
   }
 
   /// Va chercher les voisines de la case.
@@ -303,7 +355,12 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
   /// seconde et deux dixièmes : les cases sont là avant que la page ne se pose.
   /// Si elles ne le sont pas, la grille se dessine sans elles et la carte sort
   /// quand même.
-  Future<void> _loadCells(SpotlightCard card) async {
+  /// Va chercher les neuf cases de la page concernée.
+  ///
+  /// **Le même appel pour les deux genres.** Une carte les veut pour montrer
+  /// ses voisines ; une page, parce qu'elles *sont* ce qu'on a demandé. Rien à
+  /// brancher : `setCode` et `page` vivent sur la demande, pas sur la carte.
+  Future<void> _loadCells(BinderRequest card) async {
     final setCode = card.setCode;
     if (setCode == null || setCode.isEmpty) return;
     final cells = await _quiet(
@@ -352,11 +409,21 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
           padding: const EdgeInsets.only(bottom: 40),
           child: AnimatedBuilder(
             animation: clock,
-            builder: (_, _) => BinderReveal(
-              card: designated,
-              cells: _cells,
-              elapsed: clock.value * RevealTiming(designated.page).total,
-            ),
+            builder: (_, _) {
+              final ecoule = clock.value * _dureeDe(designated);
+              // **Un classeur ou un tapis, jamais les deux.** Le type le dit :
+              // `BinderReveal` ne prend qu'un `BinderRequest`, et le
+              // compilateur refuse de lui passer un tapis.
+              return switch (designated) {
+                final BinderRequest r => BinderReveal(
+                  request: r,
+                  cells: _cells,
+                  elapsed: ecoule,
+                  sheetBack: _back,
+                ),
+                final SpotlightStrip s => CardMat(strip: s, elapsed: ecoule),
+              };
+            },
           ),
         ),
       );
@@ -426,7 +493,10 @@ class _CardBanner extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   _subtitle(card),
-                  style: const TextStyle(color: Color(0xFFB9BCC6), fontSize: 13),
+                  style: const TextStyle(
+                    color: Color(0xFFB9BCC6),
+                    fontSize: 13,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Container(

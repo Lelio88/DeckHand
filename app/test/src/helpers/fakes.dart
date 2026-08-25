@@ -17,7 +17,7 @@ import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
 import 'package:deckhand/src/features/binders/domain/binder.dart';
 import 'package:deckhand/src/features/binders/domain/recent_addition.dart';
-import 'package:deckhand/src/features/binders/domain/spotlight_card.dart';
+import 'package:deckhand/src/features/binders/domain/spotlight_request.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:deckhand/src/features/account/data/profile_repository.dart';
 import 'package:deckhand/src/config/selected_game.dart';
@@ -423,8 +423,10 @@ class FakeCollectionRepository implements CollectionRepository {
   SpotlightCard? designated;
 
   @override
-  Future<SpotlightCard?> spotlight(String handle, {Game game = Game.magic}) async =>
-      designated;
+  Future<SpotlightCard?> spotlight(
+    String handle, {
+    Game game = Game.magic,
+  }) async => designated;
 
   /// Ce que le journal rendra, quelle que soit la fenêtre demandée.
   List<CollectionMovement> movements = const [];
