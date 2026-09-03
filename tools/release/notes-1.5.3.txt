@@ -1,0 +1,9 @@
+La liste qui suit une photo dit ce que vous avez, et se corrige.
+
+- Chaque carte trouvee annonce les exemplaires deja en collection : plus
+  besoin de deviner si vous completez un jeu de quatre ou si vous en
+  ouvrez un.
+- Une carte mal reconnue se remplace d'un appui sur son nom, sans perdre
+  le reste de la photo. Une carte oubliee se saisit au bas de la liste.
+- Collection, suggestions de decks et scan nettement plus rapides. Les
+  erreurs de delai depasse qui coupaient un scan ont disparu.
