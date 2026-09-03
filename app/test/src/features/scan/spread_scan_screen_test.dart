@@ -36,6 +36,10 @@ import '../../helpers/fakes.dart';
 /// Le faux catalogue partage rend la meme carte quelle que soit la recherche,
 /// ce qui suffit a un scan d'une seule carte mais confond toutes les lignes
 /// d'un etalement en une : chaque nom lu retrouverait la meme carte.
+///
+/// **Il contient plus que ce que la photo a lu**, faute de quoi corriger une
+/// ligne serait intestable : la correction consiste precisement a designer une
+/// carte que la reconnaissance n'a pas proposee.
 class _FakeCatalogue implements CardRepository {
   _FakeCatalogue(this.cards);
 
@@ -47,16 +51,24 @@ class _FakeCatalogue implements CardRepository {
     int limit = 20,
     Game game = Game.magic,
     Iterable<String> types = const [],
-  }) async => cards
-      .where((c) => c.matchedName.toLowerCase() == query.toLowerCase())
-      .take(limit)
-      .toList(growable: false);
+  }) async {
+    searched.add(query);
+    return cards
+        .where(
+          (c) => c.matchedName.toLowerCase().contains(query.toLowerCase()),
+        )
+        .take(limit)
+        .toList(growable: false);
+  }
 
   @override
   Future<List<CardHit>> byOracleIds(
     List<String> oracleIds, {
     List<String> prints = const [],
   }) async => cards;
+
+  /// Noms cherches via la feuille de correction, dans l'ordre.
+  final List<String> searched = [];
 
   /// Panne a simuler, pour verifier que l'ecran la montre au lieu de rendre
   /// une liste vide indiscernable d'un etalement illisible.
@@ -89,7 +101,12 @@ class _FakePhotoSource implements PhotoSource {
   }) async => CapturedPhoto(bytes: Uint8List(0), path: 'etalement.jpg');
 }
 
-CardHit _hit(String oracleId, String name, {String lang = 'fr'}) => CardHit(
+CardHit _hit(
+  String oracleId,
+  String name, {
+  String lang = 'fr',
+  int owned = 0,
+}) => CardHit(
   oracleId: oracleId,
   name: name,
   matchedName: name,
@@ -97,16 +114,24 @@ CardHit _hit(String oracleId, String name, {String lang = 'fr'}) => CardHit(
   legalPauper: true,
   legalModern: true,
   legalCommander: true,
+  owned: owned,
   score: 1,
 );
 
 /// Monte l'écran, déclenche un scan, et rend les doublures pour inspection.
 Future<
-  ({FakeCollectionRepository collection, FakePrintingRepository printings})
+  ({
+    FakeCollectionRepository collection,
+    FakePrintingRepository printings,
+    _FakeCatalogue catalogue,
+  })
 >
 pumpSpreadScan(
   WidgetTester tester, {
   required List<CardHit> found,
+  /// Cartes presentes au catalogue sans avoir ete lues sur la photo — celles
+  /// qu'une correction ou un ajout a la main peut aller chercher.
+  List<CardHit> alsoInCatalogue = const [],
   Map<String, CardPrinting> sole = const {},
   Object? soleError,
 }) async {
@@ -122,7 +147,7 @@ pumpSpreadScan(
     ]
     ..sole = sole
     ..soleError = soleError;
-  final cards = _FakeCatalogue(found);
+  final cards = _FakeCatalogue([...found, ...alsoInCatalogue]);
   // Une ligne par carte, assez grande pour passer le filtre de taille : ce
   // n'est pas lui qu'on éprouve ici.
   final reader = FakeCardTextReader()
@@ -135,6 +160,10 @@ pumpSpreadScan(
     ProviderScope(
       overrides: [
         photoSourceProvider.overrideWithValue(_FakePhotoSource()),
+        // La feuille de correction cherche par ce dépôt-là, et non par le
+        // service de scan : sans la doublure, elle tombe sur le vrai client
+        // Supabase, jamais initialisé sous `flutter test`.
+        cardRepositoryProvider.overrideWithValue(cards),
         collectionRepositoryProvider.overrideWithValue(collection),
         printingRepositoryProvider.overrideWithValue(printings),
         scanServiceProvider.overrideWith(
@@ -149,7 +178,31 @@ pumpSpreadScan(
   await tester.tap(find.text('Photographier'));
   await tester.pumpAndSettle();
 
-  return (collection: collection, printings: printings);
+  return (collection: collection, printings: printings, catalogue: cards);
+}
+
+/// Ouvre la feuille de recherche depuis la ligne nommee [from], y cherche
+/// [query], et retient la carte [pick]. Sans [from], c'est un ajout a la main.
+///
+/// Le champ est pre-rempli par le nom lu : on le remplace, comme le ferait
+/// quelqu'un qui vient de constater que la lecture est fausse.
+Future<void> _pickCard(
+  WidgetTester tester, {
+  String? from,
+  required String query,
+  required String pick,
+}) async {
+  await tester.tap(
+    from == null ? find.text('Saisir une carte oubliée') : find.text(from),
+  );
+  await tester.pumpAndSettle();
+
+  await tester.enterText(find.byType(TextField).last, query);
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.text(pick).last);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -521,6 +574,219 @@ void main() {
 
       expect(find.textContaining('Photographiez vos cartes'), findsOneWidget);
       expect(find.textContaining('trouvée'), findsNothing);
+    });
+  });
+
+  testWidgets('la ligne tient sur un écran étroit, nom long et pastille', (
+    tester,
+  ) async {
+    // **Le défaut le plus récurrent du projet, et celui qu'aucune analyse ne
+    // voit.** Une largeur ne se déduit pas du code : le sélecteur de mode
+    // débordait de 6,2 px, la légende du calque de 49, et les deux ont été
+    // trouvés à l'oeil. Un débordement leve une exception sous `flutter test`,
+    // donc un simple montage suffit à le tenir — à condition de choisir le pire
+    // cas : un téléphone étroit, un nom long, et la pastille qui prend la place.
+    //
+    // **360 et non 320**, parce que la police des tests rend chaque glyphe
+    // comme un carré plein de la hauteur du texte : « Déjà 12 » y réclame
+    // 80,5 px quand une vraie police en prend la moitié. Viser 320 sous cette
+    // police reviendrait à concevoir pour une largeur qui n'existe pas, et
+    // l'aperçu a montré ce que ça coûte — un nom amputé à « Archi… » avec la
+    // moitié de la ligne vide à côté. 360 est la plus étroite des largeurs
+    // Android courantes.
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pumpSpreadScan(
+      tester,
+      found: [
+        _hit(
+          'id-1',
+          'Archimage Elminster de Valombre le Prolixe',
+          owned: 12,
+        ),
+      ],
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Déjà 12'), findsOneWidget);
+  });
+
+  group('ce qui est déjà en collection', () {
+    // **La question qu'on se pose carte en main.** Une collection se saisit en
+    // plusieurs séances : sans ce chiffre, rien ne distingue la carte qui
+    // complète un jeu de quatre de celle qui en ouvre un, et l'on ressaisit ce
+    // qu'on possède déjà.
+    testWidgets('une carte déjà possédée le dit', (tester) async {
+      await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Agent Phil Coulson', owned: 3)],
+      );
+
+      expect(find.text('Déjà 3'), findsOneWidget);
+    });
+
+    testWidgets("une carte qu'on ne possède pas ne dit rien", (tester) async {
+      // « Déjà 0 » serait du bruit sur dix-sept lignes, et le mot « Déjà »
+      // désigne un stock : il n'a rien à dire quand il n'y en a pas.
+      await pumpSpreadScan(tester, found: [_hit('id-1', 'Agent Phil Coulson')]);
+
+      expect(find.textContaining('Déjà'), findsNothing);
+    });
+  });
+
+  group('corriger une ligne mal reconnue', () {
+    // **Ce que décocher ne remplaçait pas.** Une carte mal lue est sur la
+    // table : la décocher la perd, et elle devait alors être ressaisie
+    // ailleurs — donc, le plus souvent, oubliée.
+    testWidgets('la carte retenue remplace celle qui avait été lue', (
+      tester,
+    ) async {
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Agent Phil Coulson')],
+        alsoInCatalogue: [_hit('id-2', 'Ancêtre Vénérable')],
+      );
+
+      await _pickCard(
+        tester,
+        from: 'Agent Phil Coulson',
+        query: 'Ancêtre',
+        pick: 'Ancêtre Vénérable',
+      );
+      await tester.tap(find.textContaining('Ajouter ('));
+      await tester.pumpAndSettle();
+
+      expect(
+        fakes.collection.quantities.keys.map((k) => k.$1),
+        ['id-2'],
+        reason:
+            "une correction qui n'atteindrait pas le dépôt aurait l'air juste "
+            "à l'écran et enregistrerait la carte lue de travers",
+      );
+    });
+
+    testWidgets("l'édition de la carte remplacée ne la suit pas", (
+      tester,
+    ) async {
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Agent Phil Coulson')],
+        alsoInCatalogue: [_hit('id-2', 'Ancêtre Vénérable')],
+      );
+
+      // On précise l'édition, puis on s'aperçoit que la carte est fausse.
+      await tester.tap(find.text("Préciser l'édition"));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Marvel').last);
+      await tester.pumpAndSettle();
+
+      await _pickCard(
+        tester,
+        from: 'Agent Phil Coulson',
+        query: 'Ancêtre',
+        pick: 'Ancêtre Vénérable',
+      );
+      await tester.tap(find.textContaining('Ajouter ('));
+      await tester.pumpAndSettle();
+
+      expect(
+        fakes.collection.quantities.keys.single.$2,
+        isNull,
+        reason:
+            "garder l'extension de la carte précédente enregistrerait un "
+            "tirage qui n'existe pas, et la valorisation paraîtrait précise "
+            "en restant fausse",
+      );
+    });
+
+    testWidgets('la quantité ajustée survit au remplacement', (tester) async {
+      // La quantité compte des cartons posés sur la table ; corriger un nom ne
+      // les fait pas disparaître.
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Agent Phil Coulson')],
+        alsoInCatalogue: [_hit('id-2', 'Ancêtre Vénérable')],
+      );
+
+      await tester.tap(find.byTooltip('Un de plus'));
+      await tester.pumpAndSettle();
+      await _pickCard(
+        tester,
+        from: 'Agent Phil Coulson',
+        query: 'Ancêtre',
+        pick: 'Ancêtre Vénérable',
+      );
+      await tester.tap(find.textContaining('Ajouter ('));
+      await tester.pumpAndSettle();
+
+      expect(fakes.collection.quantities[('id-2', null)], 2);
+    });
+
+    testWidgets('refermer la feuille sans choisir ne change rien', (
+      tester,
+    ) async {
+      await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Agent Phil Coulson')],
+        alsoInCatalogue: [_hit('id-2', 'Ancêtre Vénérable')],
+      );
+
+      await tester.tap(find.text('Agent Phil Coulson'));
+      await tester.pumpAndSettle();
+      // Hors de la feuille : on renonce.
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Agent Phil Coulson'), findsOneWidget);
+    });
+  });
+
+  group('ajouter une carte que la photo a manquée', () {
+    testWidgets('elle atteint la collection', (tester) async {
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Agent Phil Coulson')],
+        alsoInCatalogue: [_hit('id-2', 'Ancêtre Vénérable')],
+      );
+
+      await _pickCard(tester, query: 'Ancêtre', pick: 'Ancêtre Vénérable');
+      await tester.tap(find.textContaining('Ajouter ('));
+      await tester.pumpAndSettle();
+
+      expect(
+        fakes.collection.quantities.keys.map((k) => k.$1).toList()..sort(),
+        ['id-1', 'id-2'],
+      );
+    });
+
+    testWidgets('elle ne gonfle pas le nombre trouvé sur la photo', (
+      tester,
+    ) async {
+      // **Le compteur est le témoin de ce que la reconnaissance a vu.** Y
+      // fondre une carte ajoutée à la main effacerait l'écart entre la table
+      // et la photo, qui est exactement ce qu'il sert à montrer.
+      await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Agent Phil Coulson')],
+        alsoInCatalogue: [_hit('id-2', 'Ancêtre Vénérable')],
+      );
+
+      await _pickCard(tester, query: 'Ancêtre', pick: 'Ancêtre Vénérable');
+
+      expect(
+        find.textContaining('1 carte trouvée sur la photo'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('+1 à la main'), findsOneWidget);
+      expect(
+        find.textContaining('Ajouter (2)'),
+        findsOneWidget,
+        reason:
+            'le bouton décompte la sélection, lui, et doit donc inclure ce '
+            "qu'on vient d'ajouter",
+      );
     });
   });
 }

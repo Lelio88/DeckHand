@@ -58,6 +58,10 @@ Future<void> chargerRoboto() async {
   for (final (famille, fichier) in const [
     ('Roboto', 'roboto-regular.ttf'),
     ('Roboto', 'roboto-medium.ttf'),
+    // Sans elle, chaque icône se rend en carré plein : elles occupent alors la
+    // place d'un glyphe quelconque, et l'aperçu ment sur la mise en page qu'il
+    // sert justement à juger.
+    ('MaterialIcons', 'materialicons-regular.otf'),
   ]) {
     final octets = await File('$dossier/$fichier').readAsBytes();
     final loader = FontLoader(famille)

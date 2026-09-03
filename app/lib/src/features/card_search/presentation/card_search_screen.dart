@@ -17,6 +17,7 @@ import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/card_repository.dart';
 import '../domain/card_hit.dart';
+import 'owned_badge.dart';
 import '../domain/card_type.dart';
 
 /// Amortissement de la frappe. 250 ms : au-delà la liste semble traîner,
@@ -500,7 +501,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
                     runSpacing: 6,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (_quantity > 0) _OwnedBadge(quantity: _quantity),
+                      if (_quantity > 0) OwnedBadge(quantity: _quantity),
                       if (hit.legalPauper) const _FormatChip('Pauper'),
                       if (hit.legalModern) const _FormatChip('Modern'),
                       if (hit.legalCommander) const _FormatChip('Commander'),
@@ -597,60 +598,6 @@ class _PrintingSelector extends StatelessWidget {
             Icon(Icons.arrow_drop_down, size: 18, color: color),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// « Déjà 3 » — ce qu'on possède, mis en avant plutôt que dans un coin.
-///
-/// C'est l'information qui évite de saisir deux fois la même carte quand on
-/// remplit sa collection en plusieurs séances.
-/// Combien d'exemplaires on possède déjà, avant d'en ajouter un.
-///
-/// **Trois formes, trois sens** — c'est le lexique du comptage dans toute
-/// l'application, et il vaut mieux qu'un mot unique employé au hasard :
-///
-/// | Forme | Sens | Où |
-/// |---|---|---|
-/// | « Déjà N » | stock **avant** l'ajout, donc un avertissement anti-doublon | recherche, sélecteur d'édition |
-/// | « ×N » | compte compact **posé sur une image**, faute de place pour un mot | case de classeur, résultat de recherche d'étagère |
-/// | « N exemplaires » | la même chose en toutes lettres, quand la ligne a la place | feuille d'action d'une case |
-///
-/// « Déjà » n'est donc pas une graphie interchangeable des deux autres : il
-/// dit *quand* on regarde le nombre, pas seulement lequel. Le lire ailleurs
-/// qu'avant un ajout serait une faute.
-class _OwnedBadge extends StatelessWidget {
-  const _OwnedBadge({required this.quantity});
-
-  final int quantity;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            size: 13,
-            color: theme.colorScheme.onPrimary,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            'Déjà $quantity',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
       ),
     );
   }

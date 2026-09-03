@@ -18,6 +18,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../../config/selected_game.dart';
 import '../../../diagnostics/diagnostics.dart';
 import '../../card_search/domain/card_hit.dart';
+import '../../card_search/presentation/card_picker.dart';
+import '../../card_search/presentation/owned_badge.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../printings/data/printing_repository.dart';
 import '../../printings/domain/card_printing.dart';
@@ -30,9 +32,29 @@ import '../data/photo_source.dart';
 class _Spotted {
   _Spotted(SpreadFind find, {this.keep = true})
     : card = find.card,
-      quantity = find.copies;
+      quantity = find.copies,
+      fromPhoto = true;
 
-  final CardHit card;
+  /// Une carte que la photo n'a pas vue, ajoutée à la main.
+  ///
+  /// Elle arrive **cochée** : on ne la désigne pas par accident, on est allé la
+  /// chercher dans le catalogue. C'est l'inverse exact du recours par
+  /// illustration, qui propose sans qu'on ait rien demandé.
+  _Spotted.manual(this.card) : quantity = 1, keep = true, fromPhoto = false;
+
+  /// La carte retenue. **Remplaçable** : une ligne mal lue se corrige sur
+  /// place, faute de quoi la seule issue était de la décocher et de ressaisir
+  /// la carte ailleurs — c'est-à-dire de perdre le geste.
+  CardHit card;
+
+  /// Vrai quand la ligne vient de la photo, faux quand elle a été ajoutée à la
+  /// main.
+  ///
+  /// **Le compteur d'en-tête en dépend.** Il répond à « la photo a-t-elle tout
+  /// vu ? » ; une carte que l'utilisateur vient d'ajouter lui-même gonflerait
+  /// ce nombre et lui ferait dire le contraire de ce qu'il sert à dire.
+  final bool fromPhoto;
+
   bool keep;
 
   /// Quantité proposée, pré-remplie par le nombre d'exemplaires vus sur la
@@ -55,6 +77,19 @@ class _Spotted {
   /// édition : il n'y a alors rien à deviner, et rien à choisir. C'est le cas
   /// de quatre cartes du catalogue sur dix.
   PrintingChoice? printing;
+
+  /// Remplace la carte, et **oublie l'édition** retenue pour la précédente.
+  ///
+  /// Les deux gestes ne se séparent pas : une édition désigne un tirage d'une
+  /// carte donnée, et la garder après un remplacement ferait enregistrer
+  /// l'extension d'une carte sous l'identité d'une autre — une ligne fausse
+  /// que rien à l'écran ne signalerait. La quantité, elle, survit : c'est le
+  /// nombre de cartons posés sur la table, et corriger un nom ne les fait pas
+  /// disparaître.
+  void replaceWith(CardHit replacement) {
+    card = replacement;
+    printing = null;
+  }
 }
 
 class SpreadScanScreen extends ConsumerStatefulWidget {
@@ -161,13 +196,20 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
   /// L'échec est sans conséquence sur le scan : les lignes restent affichées et
   /// l'édition se précise à la main, comme avant. Le journal de mesure en garde
   /// trace pour qui enquête.
-  Future<void> _fillSoleEditions() async {
+  ///
+  /// [targets] restreint le travail aux lignes qui viennent de changer — une
+  /// carte remplacée, une carte ajoutée à la main. Sans lui, chaque correction
+  /// relancerait la requête pour les seize autres lignes, dont l'édition est
+  /// déjà réglée.
+  Future<void> _fillSoleEditions([Iterable<_Spotted>? targets]) async {
+    final concerned = (targets ?? _spotted).toList(growable: false);
+    if (concerned.isEmpty) return;
     final repository = ref.read(printingRepositoryProvider);
 
     // Groupé par langue du nom trouvé : au plus deux requêtes, une par langue
     // présente sur la photo, plutôt qu'une par carte.
     final byLang = <String, Set<String>>{};
-    for (final spotted in _spotted) {
+    for (final spotted in concerned) {
       byLang
           .putIfAbsent(spotted.card.matchedLang, () => <String>{})
           .add(spotted.card.oracleId);
@@ -187,7 +229,7 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
 
     if (!mounted || sole.isEmpty) return;
     setState(() {
-      for (final spotted in _spotted) {
+      for (final spotted in concerned) {
         final only = sole[spotted.card.oracleId];
         if (only == null) continue;
         // Une édition qui n'existe qu'en brillante l'est d'office : enregistrer
@@ -198,6 +240,45 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         );
       }
     });
+  }
+
+  /// Remplace une ligne mal reconnue par la bonne carte.
+  ///
+  /// **Ce que la décocher ne remplaçait pas.** Une carte mal lue n'est pas une
+  /// carte absente : elle est sur la table, elle a été photographiée, et jusqu'ici
+  /// la seule issue était de la décocher puis d'aller la saisir au clavier
+  /// ailleurs — c'est-à-dire de payer deux fois le même geste, et le plus
+  /// souvent de l'oublier.
+  ///
+  /// Le nom lu pré-remplit la recherche : quand la lecture n'a raté qu'une
+  /// lettre, la bonne carte est déjà à l'écran quand la feuille s'ouvre.
+  Future<void> _replace(_Spotted item) async {
+    final chosen = await showCardPicker(
+      context,
+      title: 'Remplacer par',
+      initialQuery: item.card.matchedName,
+    );
+    if (chosen == null || !mounted) return;
+    setState(() => item.replaceWith(chosen));
+    await _fillSoleEditions([item]);
+  }
+
+  /// Ajoute une carte que la photo n'a pas vue.
+  ///
+  /// **Le pendant du remplacement, et le seul autre défaut qu'on peut corriger
+  /// sans reprendre la photo.** Le compteur d'en-tête annonce « seize trouvées »
+  /// quand dix-sept sont sur la table ; rephotographier pour une carte oblige à
+  /// tout revalider, et l'écrire ailleurs suppose de s'en souvenir.
+  ///
+  /// La ligne ajoutée **ne compte pas** dans « trouvées sur la photo » : ce
+  /// nombre est le témoin de ce que la reconnaissance a vu, et le gonfler
+  /// reviendrait à effacer l'écart qu'il sert justement à montrer.
+  Future<void> _addManually() async {
+    final chosen = await showCardPicker(context, title: 'Ajouter une carte');
+    if (chosen == null || !mounted) return;
+    final added = _Spotted.manual(chosen);
+    setState(() => _spotted.add(added));
+    await _fillSoleEditions([added]);
   }
 
   Future<void> _saveAll() async {
@@ -253,6 +334,9 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
     final keptCount = _spotted
         .where((s) => s.keep)
         .fold<int>(0, (sum, s) => sum + s.quantity);
+    // L'en-tête témoigne de la photo, le bouton d'ajout de la sélection : les
+    // lignes ajoutées à la main appartiennent au second, jamais au premier.
+    final fromPhoto = _spotted.where((s) => s.fromPhoto).toList(growable: false);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Photographier des cartes')),
@@ -263,8 +347,9 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
             child: Column(
               children: [
                 _Header(
-                  cards: _spotted.fold<int>(0, (n, s) => n + s.quantity),
-                  distinct: _spotted.length,
+                  cards: fromPhoto.fold<int>(0, (n, s) => n + s.quantity),
+                  distinct: fromPhoto.length,
+                  manual: _spotted.length - fromPhoto.length,
                   scanned: _scanned,
                 ),
                 if (_busy) const LinearProgressIndicator(minHeight: 2),
@@ -340,12 +425,18 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-            itemCount: _spotted.length,
+            // Une ligne de plus que de cartes : « ajouter une carte » vit au
+            // bas de la liste, là où l'on arrive après avoir tout relu et où
+            // l'on constate qu'il en manque une.
+            itemCount: _spotted.length + 1,
             separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, index) => _SpottedTile(
-              item: _spotted[index],
-              onChanged: () => setState(() {}),
-            ),
+            itemBuilder: (context, index) => index == _spotted.length
+                ? _AddByHand(onTap: _saving ? null : _addManually)
+                : _SpottedTile(
+                    item: _spotted[index],
+                    onChanged: () => setState(() {}),
+                    onCorrect: () => _replace(_spotted[index]),
+                  ),
           ),
         ),
       ],
@@ -354,10 +445,17 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
 }
 
 class _SpottedTile extends StatelessWidget {
-  const _SpottedTile({required this.item, required this.onChanged});
+  const _SpottedTile({
+    required this.item,
+    required this.onChanged,
+    required this.onCorrect,
+  });
 
   final _Spotted item;
   final VoidCallback onChanged;
+
+  /// Ouvre la correction de la carte elle-même — pas de son édition.
+  final VoidCallback onCorrect;
 
   @override
   Widget build(BuildContext context) {
@@ -396,15 +494,74 @@ class _SpottedTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    card.matchedName,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: item.keep
-                          ? null
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      // **Le nom est ce qu'on corrige**, donc c'est lui qu'on
+                      // touche. Un bouton de plus sur une ligne qui en porte
+                      // déjà quatre (cocher, moins, plus, édition) se serait
+                      // disputé la place avec eux ; le crayon dit qu'il y a
+                      // quelque chose à toucher sans en prendre.
+                      // `Expanded`, non `Flexible` : sous contrainte lâche, une
+                      // `Row` à taille minimale réclame sa largeur naturelle et
+                      // déborde de ce qui manque — 1,6 px ici, mesurés. Une
+                      // largeur ferme oblige le nom à s'élider, ce qu'il sait
+                      // faire.
+                      Expanded(
+                        child: InkWell(
+                          onTap: onCorrect,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  card.matchedName,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    color: item.keep
+                                        ? null
+                                        : theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.edit_outlined,
+                                size: 13,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // **Ce qu'on possède déjà, avant d'en ajouter.** Sans ce
+                      // chiffre, une carte en main ne dit pas si elle complète
+                      // un jeu de quatre ou si elle en ouvre un — et une
+                      // collection se saisit en plusieurs séances.
+                      //
+                      // **Sur la ligne du nom, en forme dense, et les deux
+                      // décisions sont mesurées.** La pastille pleine prend
+                      // 117,5 px quand cette ligne n'en laisse que 106 sur un
+                      // écran de 320 : elle débordait de 22 px. La ligne
+                      // d'édition, essayée ensuite, débordait encore de 5,6 —
+                      // et c'était de toute façon le mauvais endroit : sur un
+                      // écran étroit, quelque chose doit céder, et un nom
+                      // tronqué reste identifiable là où « MS… » ne permet plus
+                      // de confronter le numéro imprimé (§IV.8).
+                      if (card.owned > 0) ...[
+                        const SizedBox(width: 8),
+                        // **Ni `Expanded` ni `Flexible` ici, et l'aperçu l'a
+                        // montré** : deux enfants flexibles se partagent
+                        // l'espace libre à parts égales, si bien que le nom
+                        // était amputé à « Archi… » avec la moitié de la ligne
+                        // vide à sa droite. Le compte fait quelques dizaines de
+                        // pixels et n'a rien à négocier ; c'est au nom, en
+                        // `Expanded`, de prendre tout le reste et de s'élider
+                        // quand il le faut.
+                        OwnedBadge(quantity: card.owned, dense: true),
+                      ],
+                    ],
                   ),
                   if (card.isLocalized)
                     Text(
@@ -424,6 +581,14 @@ class _SpottedTile extends StatelessWidget {
             // ne distingue pas deux cartes côte à côte d'un nom lu deux fois. La
             // quantité s'ajuste donc à la main.
             IconButton(
+              // **Resserrés, pour rendre au nom la place que le compte prend.**
+              // Deux boutons pleine taille et leur nombre occupaient 116 dp des
+              // 360 d'un téléphone étroit ; l'aperçu montrait « Levée de b… »
+              // là où le nom tient largement. La cible tactile reste au-dessus
+              // des 40 dp que réclame Material.
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              padding: EdgeInsets.zero,
               icon: const Icon(Icons.remove_circle_outline),
               tooltip: 'Un de moins',
               onPressed: item.quantity > 1
@@ -433,8 +598,17 @@ class _SpottedTile extends StatelessWidget {
                     }
                   : null,
             ),
-            Text('${item.quantity}', style: theme.textTheme.titleMedium),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                '${item.quantity}',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
             IconButton(
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              padding: EdgeInsets.zero,
               icon: const Icon(Icons.add_circle_outline),
               tooltip: 'Un de plus',
               onPressed: () {
@@ -443,6 +617,48 @@ class _SpottedTile extends StatelessWidget {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Dernière ligne de la liste : la carte que la photo n'a pas vue.
+///
+/// **Elle ne dit pas « Ajouter », et c'est un test qui l'a montré.** Le mot est
+/// déjà pris par le bouton d'enregistrement — « Ajouter (17) » —, où il désigne
+/// l'écriture en collection ; le porter aussi sur une ligne qui ne fait que
+/// compléter la liste donnait deux gestes de portée très différente sous un
+/// verbe unique. « Saisir » est le mot que le projet emploie déjà pour la
+/// frappe au clavier.
+///
+/// **Pourquoi au bas de la liste et non dans la barre d'actions.** La barre
+/// porte les gestes qui engagent la photo entière — reprendre, importer,
+/// enregistrer ; celui-ci corrige la liste, comme les cases à cocher et les
+/// quantités au-dessus. Il vit donc au même endroit qu'elles, et on l'atteint
+/// après avoir tout relu, c'est-à-dire au moment précis où l'on s'aperçoit
+/// qu'il en manque une.
+///
+/// **Absente quand la photo n'a rien trouvé, à dessein.** L'écran montre alors
+/// un conseil de prise de vue, et le geste utile est de reprendre la photo :
+/// saisir dix-sept cartes une à une n'est pas ce que cet écran sert à faire —
+/// l'écran de saisie au clavier est là pour ça.
+class _AddByHand extends StatelessWidget {
+  const _AddByHand({required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: onTap,
+        icon: const Icon(Icons.add, size: 18),
+        label: const Text('Saisir une carte oubliée'),
+        style: TextButton.styleFrom(
+          foregroundColor: theme.colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -477,8 +693,14 @@ class _Actions extends StatelessWidget {
                   onPressed: busy || saving
                       ? null
                       : () => onCapture(ImageSource.camera),
-                  icon: const Icon(Icons.photo_camera),
-                  label: const Text('Photographier'),
+                  // Sans ce resserrement, « Photographier » se brisait en
+                  // « Photographie / r » sur un téléphone de 360 dp — vu sur
+                  // l'aperçu, jamais dans un test.
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                  icon: const Icon(Icons.photo_camera, size: 18),
+                  label: const Text('Photographier', maxLines: 1),
                 ),
               ),
               const SizedBox(width: 10),
@@ -487,8 +709,11 @@ class _Actions extends StatelessWidget {
                   onPressed: busy || saving
                       ? null
                       : () => onCapture(ImageSource.gallery),
-                  icon: const Icon(Icons.image_outlined),
-                  label: const Text('Importer'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                  icon: const Icon(Icons.image_outlined, size: 18),
+                  label: const Text('Importer', maxLines: 1),
                 ),
               ),
             ],
@@ -547,14 +772,24 @@ class _Header extends StatelessWidget {
   const _Header({
     required this.cards,
     required this.distinct,
+    required this.manual,
     required this.scanned,
   });
 
-  /// Exemplaires trouvés, doublons compris.
+  /// Exemplaires trouvés sur la photo, doublons compris.
   final int cards;
 
-  /// Cartes différentes, c'est-à-dire lignes de la liste.
+  /// Cartes différentes vues sur la photo, c'est-à-dire lignes issues du scan.
   final int distinct;
+
+  /// Lignes ajoutées à la main, **comptées à part**.
+  ///
+  /// Les fondre dans [cards] ferait dire au témoin le contraire de ce qu'il
+  /// sert à dire : on ajoute une carte à la main précisément parce que la photo
+  /// ne l'a pas vue, et l'écart entre la table et la photo est ce qu'on veut
+  /// garder sous les yeux. Les afficher tout de même, parce que rien d'autre
+  /// n'explique qu'« Ajouter (17) » suive « 16 trouvées ».
+  final int manual;
 
   final bool scanned;
 
@@ -597,6 +832,14 @@ class _Header extends StatelessWidget {
                   if (distinct != cards)
                     TextSpan(
                       text: '   $distinct différentes',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  if (manual > 0)
+                    TextSpan(
+                      text:
+                          '   +$manual à la main',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),

@@ -1871,6 +1871,105 @@ la photo de dix-sept cartes toutes différentes, il n'invente aucun exemplaire.
 La quantité proposée reste une proposition : l'écran la présente, l'utilisateur
 l'ajuste (garde-fou §IV.8).
 
+### Corriger la liste : ce qu'on possède déjà, et ce que la photo a mal vu
+
+La liste qui suit une photo se contentait de proposer. Deux manques la rendaient
+plus coûteuse qu'elle n'en avait l'air.
+
+**Ce qu'on possède déjà.** Une collection se saisit en plusieurs séances : carte
+en main, rien ne distinguait celle qui complète un jeu de quatre de celle qui en
+ouvre un. Chaque ligne porte donc le compte des exemplaires déjà en collection,
+sous le mot que l'application emploie partout ailleurs pour ce sens précis —
+« Déjà N », stock **avant** l'ajout, à ne pas confondre avec le « ×N » des cases
+de classeur (voir `owned_badge.dart`, qui tient le lexique).
+
+Le chiffre est **celui de la carte, toutes éditions et finitions confondues** :
+la question posée devant un carton est « est-ce que je l'ai ? », pas « est-ce que
+j'ai ce tirage-là ? », à quoi le sélecteur d'édition répond déjà ligne à ligne.
+
+**La voie des noms l'avait gratuitement, l'autre non.** `search_cards_bulk` rend
+`owned` depuis son écriture ; `cards_by_oracle_ids`, par où passe le recours à
+l'illustration, ne le rendait pas. L'écran aurait annoncé « rien en collection »
+sur une carte possédée en trois exemplaires, et ce mensonge aurait été muet :
+rien ne distingue « zéro » de « je n'en sais rien ». L'écran doit dire la même
+chose quelle que soit la voie qui a parlé.
+
+**Le calcul est passé par une fonction `SECURITY DEFINER`, et c'est un contrôle
+sous les deux rôles qui l'a imposé.** La somme joint `collections` pour retrouver
+le propriétaire ; or `anon` a le `SELECT` sur `collection_items` — les classeurs
+publics en dépendent — et **pas** sur `collections`. Recopier la jointure faisait
+passer l'appel anonyme de 200 à `42501 permission denied for table collections`.
+Sans conséquence dans l'application, toujours authentifiée, mais la fonction est
+accordée à `anon` depuis son écriture et le bot de chat pourrait l'appeler
+demain : elle serait restée accordée tout en cessant de répondre.
+`owned_by_oracle(p_ids)` consulte donc `owner_id` sans jamais le rendre, comme
+`readable_collection` ; sous `anon`, `auth.uid()` est nul, aucune collection
+n'est retenue, et le compte vaut zéro — la réponse juste, un inconnu ne possédant
+rien. `search_cards_bulk` porte le même défaut depuis son écriture, vérifié : ce
+n'est pas une raison de l'imiter.
+
+**Corriger une carte, en ajouter une.** Une ligne mal reconnue ne pouvait que se
+décocher — la carte était sur la table, elle avait été photographiée, et il
+fallait la ressaisir ailleurs, donc l'oublier. Un appui sur le nom ouvre une
+recherche libre (`card_picker.dart`) pré-remplie du nom lu ; la carte choisie
+remplace la ligne **et efface l'édition retenue pour la précédente**, les deux
+gestes étant indissociables — une extension désigne le tirage d'une carte donnée,
+la garder enregistrerait un tirage qui n'existe pas. La quantité, elle, survit :
+elle compte des cartons posés sur la table, qu'un nom corrigé ne fait pas
+disparaître.
+
+**La recherche libre plutôt que les candidats voisins de la reconnaissance** :
+ceux-ci supposent que la bonne réponse était dans la liste, à une place près,
+alors que les erreurs qui coûtent sont celles où la lecture tombe franchement à
+côté — un nom coupé en deux, une ligne de type prise pour un nom.
+
+Le bas de liste porte le geste symétrique, pour la carte que la photo n'a pas
+vue. **Elle ne compte pas dans « trouvées sur la photo »** : ce nombre est le
+témoin de ce que la reconnaissance a vu, et l'y fondre effacerait l'écart entre
+la table et la photo, qui est exactement ce qu'il sert à montrer. L'en-tête
+affiche donc « 16 trouvées · +1 à la main » quand le bouton annonce « Ajouter
+(17) ». Elle ne dit pas non plus « Ajouter » mais « Saisir » — un test l'a montré
+en trouvant deux boutons pour un même verbe désignant, l'un une ligne de liste,
+l'autre une écriture en collection.
+
+**Ce que les tests ne voyaient pas.** Une largeur ne se déduit pas du code. Le
+compte a débordé la ligne trois fois — 22 px sous le nom, 5,6 sur la ligne
+d'édition, 1,6 à nouveau — avant de tenir. Deux enseignements. La police des
+tests rend chaque glyphe comme un carré plein : « Déjà 12 » y réclame 80,5 px
+quand une vraie police en prend la moitié, si bien qu'un test calibré sur elle
+conçoit pour une largeur qui n'existe pas. Et deux enfants flexibles d'une même
+rangée se partagent l'espace libre à parts égales : le nom se retrouvait amputé à
+« Archi… » avec la moitié de la ligne vide à sa droite, ce qu'aucun test n'a
+signalé et que la première capture a montré d'un coup d'œil.
+
+`test/apercu_scan_test.dart` produit cette capture, polices réelles chargées
+depuis le cache du SDK, à 360 dp — la plus étroite des largeurs Android
+courantes. Il n'assère rien : il existe pour être regardé. Deux défauts n'ont été
+vus que là, dont un antérieur à ce travail — « Photographier » se brisait en
+« Photographie / r ».
+
+**Éprouvé sur un appareil, sur la vraie base.** Émulateur Android 13, compte du
+propriétaire, une photo du banc (huit cartes réelles) importée depuis la
+galerie : les comptes affichés — « Déjà 5 », « Déjà 7 », « Déjà 3 » — sont ceux
+de la collection, les deux cartes non possédées n'affichent rien, la correction
+remplace la ligne sans emporter l'édition, et l'en-tête distingue bien « 10
+cartes trouvées sur la photo · +1 à la main » du bouton « Ajouter (11) ».
+
+Trois enseignements que seul l'appareil donne. **Le clavier masquait la moitié
+des résultats** : `autofocus` l'ouvrait alors qu'une correction arrive avec son
+nom déjà cherché et ses candidats affichés — il ne s'ouvre plus que sur un ajout
+à la main, où le champ est vide et où la liste ne dit encore rien. **La lecture
+a rendu dix cartes pour huit** : « Vol » et « Vigilance » sont des mots-clés de
+capacité qui nomment aussi de vraies cartes, et le filtre à deux mots-clés les
+laisse passer par construction — c'est exactement le cas que le §IV.8 sert à
+rattraper, et la correction en fait un geste d'un appui au lieu d'une saisie
+ailleurs. Enfin, **le premier import a échoué sur
+`canceling statement due to statement timeout` (57014)** : sur une base froide,
+`search_cards_bulk` dépasse les huit secondes du rôle `authenticated` malgré son
+découpage en lots de cinquante, calibré à chaud. Le second essai passe. L'écran
+dit la panne au lieu de rendre « aucune carte trouvée », ce qui est le
+comportement voulu — mais le défaut est réel et attend une mesure à froid.
+
 ### Les bords servent de garde-fou, jamais de source
 
 Les rectangles de cartes sont calculés et **branchés au scan** — mais comme
