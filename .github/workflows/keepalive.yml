@@ -1,0 +1,90 @@
+# Tient le projet Supabase éveillé.
+#
+# **Le plan gratuit met en pause un projet qui n'a pas reçu « suffisamment
+# d'activité base de données » pendant sept jours.** Une pause n'est pas une
+# perte — les données et la configuration reviennent — mais elle est *muette*
+# côté application : l'app publiée en test fermé, le classeur partagé et le bot
+# Twitch cessent simplement de répondre, sans qu'aucun écran ne dise pourquoi.
+# Le dépôt a déjà connu le cas : neuf jours sans commit entre le 25 août et le
+# 3 septembre 2026 ont suffi à déclencher l'avertissement.
+#
+# **Ce qui est envoyé est une vraie lecture de la base**, par PostgREST, et non
+# un ping sur le domaine du projet : le critère porte sur l'activité *de la
+# base*, et une requête qui s'arrête au proxy ne la touche pas.
+#
+# **Tous les jours, et non toutes les semaines.** La documentation parle de
+# « quelques requêtes utilisateur par jour sur la semaine écoulée » ; un battement
+# hebdomadaire a été rapporté insuffisant. Trois lectures quotidiennes coûtent
+# une centaine de millisecondes et seize octets chacune.
+#
+# **La clé publiable, jamais la clé de service** : c'est le moindre privilège qui
+# fasse le travail, elle est déjà un secret d'actions (§IV.7), et les lectures
+# restent bornées par les politiques RLS. Aucun secret nouveau n'est nécessaire.
+#
+# **L'échec est bruyant, à dessein.** Un réveil qui échoue en silence est pire
+# que pas de réveil : on se croit couvert. Chaque lecture est vérifiée sur son
+# code *et* sur son contenu — un 200 qui rend un tableau vide signalerait une
+# base répondante mais vidée — et le travail échoue, ce dont GitHub avertit par
+# courriel.
+#
+# **Le mode de défaillance connu, qu'aucune ligne d'ici ne corrige** : GitHub
+# désactive les workflows planifiés d'un dépôt resté soixante jours sans
+# activité, c'est-à-dire précisément quand le projet dort et que ce réveil sert
+# le plus. GitHub prévient alors par courriel ; il faut le réactiver à la main.
+#
+# **Pourquoi pas `pg_cron`** : rien d'officiel ne dit qu'une activité *interne*
+# au projet compte. La documentation parle d'activité « utilisateur », et le seul
+# signal confirmé est l'appel REST. Parier l'inverse coûterait le projet entier.
+
+name: Réveil Supabase
+
+on:
+  schedule:
+    # 06:17 UTC : jamais au sommet d'une heure, où GitHub retarde massivement
+    # les tâches planifiées.
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  reveil:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lire la base
+        env:
+          URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -u
+          echec=0
+          for table in card_sets cards card_prints; do
+            corps=$(curl -sS -m 30 \
+              -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+              -w '\n%{http_code}' \
+              "$URL/rest/v1/$table?select=*&limit=1") || {
+                echo "::error::$table : la requete n'a pas abouti"
+                echec=1
+                continue
+              }
+            code=$(printf '%s' "$corps" | tail -n1)
+            json=$(printf '%s' "$corps" | sed '$d')
+
+            if [ "$code" != "200" ]; then
+              echo "::error::$table : HTTP $code"
+              echec=1
+            elif [ "$json" = "[]" ] || [ -z "$json" ]; then
+              # La base repond mais ne rend rien : restauration incomplete,
+              # politique retiree, table videe. A signaler, pas a ignorer.
+              echo "::error::$table : HTTP 200 mais reponse vide"
+              echec=1
+            else
+              echo "$table : HTTP 200, ${#json} octets"
+            fi
+          done
+          exit $echec
