@@ -1970,6 +1970,82 @@ découpage en lots de cinquante, calibré à chaud. Le second essai passe. L'éc
 dit la panne au lieu de rendre « aucune carte trouvée », ce qui est le
 comportement voulu — mais le défaut est réel et attend une mesure à froid.
 
+### Le timeout du scan : ce n'était ni le volume ni le froid
+
+L'application rendait régulièrement `canceling statement due to statement
+timeout` (57014). Le rôle `authenticated` coupe à huit secondes, et le scan d'un
+étalement les dépassait — assez souvent pour que le propriétaire le décrive
+comme un défaut ordinaire.
+
+**Deux explications évidentes, toutes deux fausses, écartées par la mesure.**
+Le volume : cent cinquante noms tiennent en 2,8 s à chaud, et le découpage à
+cinquante borne déjà chaque instruction. Le bruit de l'OCR : du texte qui ne
+ressemble à aucune carte coûte *moins* cher qu'un vrai nom (0,52 s contre
+1,15 s pour cinquante), la recherche floue ne trouvant rien à relire.
+
+**Le coupable est le prix.** `card_cheapest_price` est une vue
+`SELECT oracle_id, min(price_eur) ... GROUP BY oracle_id` ; Postgres ne pousse
+pas le filtre à travers son agrégat, et la calcule **pour tout le catalogue** —
+245 468 impressions, 76 873 cartes — avant de joindre les cinquante cartes
+trouvées. Le plan porte la trace de ce choix : un `Index Scan ... rows=245468`
+sur `card_prints` qui n'a rien à faire dans une recherche de cinquante noms.
+
+**Ce qui se mesure n'est pas la moyenne mais la queue.** Un timeout qui frappe
+« de temps en temps » n'est pas un ralentissement, c'est une bascule de plan :
+
+| lot | vue — médiane / pire | latérale — médiane / pire | blocs vue | blocs latérale |
+|---|---|---|---|---|
+| 10 noms | 0,52 s / **5,46 s** (×10,5) | 0,17 s / 0,18 s (×1,1) | 9 504 Mio | 298 Mio |
+| 50 noms | 1,17 s / 1,60 s | 0,76 s / 0,82 s | 10 713 Mio | 1 513 Mio |
+| 150 noms | 2,80 s / 3,50 s | 2,48 s / 2,58 s | 14 262 Mio | 5 073 Mio |
+
+Sur dix noms, la vue a rendu **5,46 s pour une médiane de 0,52** — un facteur
+dix. La médiane restait bonne, et c'est précisément pour cela que le défaut a
+tenu si longtemps. Les blocs disent la même chose autrement : ce sont eux qu'il
+faut lire au disque quand le cache est froid, donc ce qui décide du premier
+appel après une pause.
+
+Le remède est une latérale — `min(price_eur)` calculé pour la carte trouvée et
+pour elle seule. Elle supprime le mauvais plan au lieu de parier qu'il ne sera
+pas choisi : le rapport pire/médian tombe à 1,0-1,1. Mesuré via REST, sous le
+rôle réel : un nom passe de 0,41 s à **0,11 s**, cinquante de 1,21 s à 0,89 s.
+
+**Trois fonctions changent**, celles qui cherchent peu de cartes :
+`search_cards`, `search_cards_bulk`, `cards_by_oracle_ids`. Les six autres
+lectrices de la vue portent sur des centaines ou des milliers de cartes —
+`my_collection`, `deck_suggestions`, `my_collection_summary`,
+`my_buildable_cards`, `my_unsorted_pile`, `deck_missing_cards` — et l'agrégat
+complet peut y être le bon plan. Les changer sans les mesurer serait remplacer
+un pari par un autre.
+
+**La justesse se vérifie avant la vitesse.** Une requête plus rapide qui rendrait
+un autre prix serait pire que le timeout qu'elle corrige : une collection mal
+valorisée ne se voit pas, là où une erreur se lit à l'écran. Le banc compare les
+deux jointures sur le catalogue entier — 76 873 cartes, zéro écart.
+
+### Photographier seize cartes d'un coup coûte-t-il plus cher ?
+
+Oui en total, non en risque, et les deux ne se déduisent pas l'un de l'autre :
+le délai de huit secondes s'applique **par instruction**, et l'application
+découpe à cinquante noms. Ce qui grandit avec le nombre de cartes n'est donc pas
+le coût d'un appel, c'est leur nombre.
+
+| cartes | noms lus | lots | total | pire lot |
+|---|---|---|---|---|
+| 1 | 7 | 1 | 0,95 s | 0,95 s |
+| 8 | 53 | 2 | 1,78 s | 1,60 s |
+| 16 | 105 | 3 | 2,48 s | 1,35 s |
+| 24 | 158 | 4 | 4,09 s | 1,47 s |
+
+Le pire lot ne bouge pas — il reste sous une seconde et demie quel que soit le
+nombre de cartes, soit une marge de plus de cinq contre le plafond. Avant le
+correctif, ce même pire lot pouvait atteindre 5,46 s : la marge n'était plus que
+de 1,5, et c'est là que le timeout se logeait. Photographier vingt-quatre cartes
+d'un coup reste donc sans danger ; ce qui augmente, très légèrement, est le
+nombre d'occasions — quatre appels au lieu d'un.
+
+Banc : `api/app/measure/price_join.py`.
+
 ### Les bords servent de garde-fou, jamais de source
 
 Les rectangles de cartes sont calculés et **branchés au scan** — mais comme
