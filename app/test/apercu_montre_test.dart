@@ -259,7 +259,15 @@ void main() {
         matchesGoldenFile('apercu/patron-$nom.png'),
       );
     }
-  });
+    // **Sauté comme ses voisins, et il ne l'était pas.** Ce test compare contre
+    // une image de `test/apercu/`, dossier tenu hors dépôt — ce sont des
+    // captures à regarder, pas des références de non-régression. Sur une
+    // machine propre le fichier n'existe pas et le test échoue ; la CI le
+    // rendait rouge depuis le commit qui l'a introduit, sans que rien ne le
+    // montre en local, où les images sont là. Le motif ne dépend pourtant
+    // d'aucune police : c'est la garde des aperçus qu'il lui manquait, pas
+    // celle des polices.
+  }, skip: Platform.environment['DECKHAND_FONTS'] == null);
 
   testWidgets(
     'capture le vrai dos du jeu, quand on lui en donne un',
