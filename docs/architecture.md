@@ -2010,13 +2010,36 @@ pour elle seule. Elle supprime le mauvais plan au lieu de parier qu'il ne sera
 pas choisi : le rapport pire/médian tombe à 1,0-1,1. Mesuré via REST, sous le
 rôle réel : un nom passe de 0,41 s à **0,11 s**, cinquante de 1,21 s à 0,89 s.
 
-**Trois fonctions changent**, celles qui cherchent peu de cartes :
-`search_cards`, `search_cards_bulk`, `cards_by_oracle_ids`. Les six autres
-lectrices de la vue portent sur des centaines ou des milliers de cartes —
-`my_collection`, `deck_suggestions`, `my_collection_summary`,
-`my_buildable_cards`, `my_unsorted_pile`, `deck_missing_cards` — et l'agrégat
-complet peut y être le bon plan. Les changer sans les mesurer serait remplacer
-un pari par un autre.
+**Les neuf fonctions qui lisaient la vue joignent désormais par latérale.** Les
+trois de recherche d'abord — `search_cards`, `search_cards_bulk`,
+`cards_by_oracle_ids` — puis les six autres, laissées de côté un temps par
+prudence : elles portent sur des collections et des corpus de decks, et
+l'agrégat complet pouvait y être le bon plan.
+
+**Cette prudence était infondée, et seule la mesure pouvait le dire.** Ces
+fonctions paginent ou plafonnent : elles ne rendent que quelques dizaines de
+lignes — cinquante pour une page de collection, trente pour des suggestions —
+quand l'agrégat coûte le catalogue entier quoi qu'on en garde. Jouées sous
+`authenticated` avec l'identité du propriétaire, médiane et pire de trois
+essais :
+
+| fonction | avant | après | gain |
+|---|---|---|---|
+| `my_collection` | 0,414 s / **6,187 s** | 0,057 s / 1,983 s | ×7,3 |
+| `my_collection_summary` | 0,547 s / 0,829 s | 0,112 s / 1,930 s | ×4,9 |
+| `my_buildable_cards` | 0,351 s / 0,361 s | 0,034 s / 0,050 s | ×10,4 |
+| `my_unsorted_pile` | 0,128 s / 0,146 s | 0,018 s / 0,067 s | ×7,0 |
+| `deck_suggestions` | 3,952 s / 5,260 s | 0,455 s / 2,979 s | ×8,7 |
+| `deck_missing_cards` | 0,485 s / 0,667 s | 0,030 s / 0,044 s | ×16,0 |
+
+**Deux de ces chiffres expliquaient des pannes réelles.** `my_collection`
+touchait 6,187 s — l'écran de collection, ouvert plusieurs fois par séance, à un
+cheveu du plafond. Et `deck_suggestions` tenait une médiane de 3,95 s, les deux
+tiers du plafond en marche normale, sans rien de particulier.
+
+La vue `card_cheapest_price` reste en place : plus aucune fonction ne la lit,
+mais c'est une surface publique, et la retirer serait un changement d'API plutôt
+qu'une optimisation.
 
 **La justesse se vérifie avant la vitesse.** Une requête plus rapide qui rendrait
 un autre prix serait pire que le timeout qu'elle corrige : une collection mal

@@ -12,6 +12,12 @@ Le coupable est `card_cheapest_price`, une vue
 pas le filtre à travers son agrégat : il la calcule **pour tout le catalogue**
 — 245 468 impressions, 76 873 cartes — puis joint les cinquante cartes trouvées.
 
+Les neuf fonctions qui la lisaient sont passées à la latérale (migrations
+20260903150000 et 20260903170000). Ce banc reste : il compare les deux formes
+toutes choses égales, et sert à trancher le jour où la question se reposera —
+c'est lui qui a montré que la prudence gardée sur six d'entre elles était
+infondée, gains de ×4,9 à ×16.
+
 **Ce qui se mesure ici n'est pas la moyenne mais les blocs touchés.** Un timeout
 n'arrive pas quand la requête est lente en moyenne, il arrive quand le cache est
 froid et qu'il faut aller lire au disque ce qu'on croyait gratuit. Les blocs
