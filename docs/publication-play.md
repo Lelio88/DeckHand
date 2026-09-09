@@ -20,8 +20,13 @@ de toute façon une première release manuelle avant d'ouvrir l'API.
 
 ## 2. La clé de signature — à faire une seule fois
 
-**Le keystore n'est pas dans le dépôt** (garde-fou §IV.7) et **le perdre interdit toute mise à jour de
-l'app, définitivement.** Il vit dans `../.deckhand-secrets/`, avec les autres secrets.
+**Le keystore n'est pas dans le dépôt** (garde-fou §IV.7). Il vit dans `../.deckhand-secrets/`, avec
+les autres secrets. Le perdre n'interdit pas les mises à jour — Play App Signing étant actif, Google
+détient la clé vue par les appareils et sait réinitialiser celle-ci, qui n'est qu'une clé *d'upload* —
+mais cela les immobilise le temps de la procédure.
+
+La convention est commune à toutes les apps du conteneur : emplacement, alias, chemin absolu et
+câblage Gradle dans [`../../android-signing-guide.md`](../../android-signing-guide.md).
 
 ```bash
 cd ../.deckhand-secrets
