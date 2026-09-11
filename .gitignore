@@ -57,6 +57,7 @@ app/build/
 app/.packages
 app/ios/Pods/
 app/android/.gradle/
+app/android/.kotlin/
 app/android/local.properties
 app/**/GeneratedPluginRegistrant.*
 *.iml
