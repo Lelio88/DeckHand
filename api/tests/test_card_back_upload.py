@@ -37,6 +37,15 @@ def jpeg(width: int, height: int, fmt: str = "JPEG") -> bytes:
     return buffer.getvalue()
 
 
+def _config() -> SupabaseConfig:
+    return SupabaseConfig(
+        url="https://abc.supabase.co",
+        anon_key="anon",
+        service_key="service",
+        db_url="postgresql://…",
+    )
+
+
 def test_chaque_source_cite_ce_qui_autorise_la_copie():
     """**La table est l'accord.** Une entrée sans base écrite serait un dos
     réhébergé sur rien — exactement ce que §IV.10 interdit."""
@@ -180,8 +189,61 @@ def test_un_jeu_sans_base_ecrite_est_refuse_avant_tout_appel():
 
 
 def test_la_ligne_de_commande_separe_les_jeux_du_fichier():
-    assert _parse([]) == ([], None)
-    assert _parse(["yugioh"]) == (["yugioh"], None)
-    games, file = _parse(["wankul", "--file", "dos.jpg"])
+    assert _parse([]) == ([], None, False)
+    assert _parse(["yugioh"]) == (["yugioh"], None, False)
+    games, file, scan = _parse(["wankul", "--file", "dos.jpg", "--scan"])
     assert games == ["wankul"]
     assert file is not None and file.name == "dos.jpg"
+    assert scan is True
+
+
+def test_un_scan_verse_un_jeu_que_la_table_n_autorise_pas():
+    """**La porte qui ne copie personne.** Le fichier vient d'une carte
+    possédée : rien n'est réhébergé, donc l'absence d'accord de source ne
+    bloque pas. Lorcana n'est pas dans la table, et se verse quand même."""
+    appels: list[tuple[str, str]] = []
+
+    def repond(request: httpx.Request) -> httpx.Response:
+        appels.append((request.method, request.url.path))
+        if request.method == "POST":
+            return httpx.Response(200, json={"Key": "card-art/lorcana/back.jpg"})
+        return httpx.Response(
+            200, content=b"\xff\xd8", headers={"Access-Control-Allow-Origin": "*"}
+        )
+
+    fichier = Path(tempfile.mkdtemp()) / "scan.jpg"
+    fichier.write_bytes(jpeg(430, 600))
+
+    with httpx.Client(transport=httpx.MockTransport(repond)) as client:
+        code = run(["lorcana"], file=fichier, scan=True, config=_config(), client=client)
+
+    assert code == 0
+    assert "lorcana" not in SOURCES
+    assert appels == [
+        ("POST", "/storage/v1/object/card-art/lorcana/back.jpg"),
+        ("GET", "/storage/v1/object/public/card-art/lorcana/back.jpg"),
+    ]
+
+
+def test_un_scan_de_travers_est_refuse_comme_les_autres():
+    """Le contrôle reste entier : un scan couché se voit ici, pas sur un direct."""
+    fichier = Path(tempfile.mkdtemp()) / "couche.jpg"
+    fichier.write_bytes(jpeg(600, 430))
+
+    def repond(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError(f"aucun versement attendu, reçu {request.url}")
+
+    with httpx.Client(transport=httpx.MockTransport(repond)) as client:
+        code = run(["lorcana"], file=fichier, scan=True, config=_config(), client=client)
+
+    assert code == 1
+
+
+def test_un_scan_exige_son_fichier_et_un_jeu_du_projet():
+    with pytest.raises(SystemExit) as sortie:
+        run(["lorcana"], scan=True)
+    assert "--file" in str(sortie.value)
+
+    with pytest.raises(SystemExit) as sortie:
+        run(["lorcanaa"], file=Path("x.jpg"), scan=True)
+    assert "jeu inconnu du projet" in str(sortie.value)

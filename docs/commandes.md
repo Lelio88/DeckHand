@@ -74,6 +74,9 @@ cd api && .venv/Scripts/python -m app.twitch                       # --game rift
 # cite l'accord écrit de la source sont acceptés ; --file pour un dos remis
 # hors ligne par un éditeur.
 cd api && .venv/Scripts/python -m app.ingestion.card_back_upload   # tous · <jeu> · <jeu> --file <chemin>
+# Un dos scanné d'une carte possédée : rien n'est réhébergé, la table n'a donc
+# pas à donner son accord — mais le fichier reste contrôlé (JPEG debout, rapport du jeu).
+cd api && .venv/Scripts/python -m app.ingestion.card_back_upload <jeu> --file <chemin> --scan
 
 # L'animation de `!montre`, sans base ni compte — le widget de production
 cd app && flutter run -d chrome -t tool/apercu_montre.dart

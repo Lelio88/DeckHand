@@ -18,6 +18,11 @@ cité : un jeu qui n'y figure pas est **refusé**, même avec un fichier sous la
 main. Le jour où un éditeur donne un dos, on l'inscrit d'abord ici, avec ce
 qu'il a écrit — puis on le verse avec `--file`.
 
+**`--scan` est l'autre porte, et elle ne copie personne** : le fichier vient
+d'une carte possédée, pas d'une source. Rien n'est alors réhébergé, donc la
+table n'a pas à donner son accord — mais le contrôle du fichier, lui, reste
+entier.
+
 **Et il n'y a rien à inventer.** Six jeux sur huit n'ont pas de dos publié par
 une source que le projet utilise (vérifié source par source, API, docs et
 bundles de leurs sites) ; en deviner l'URL sur le CDN d'un éditeur serait au
@@ -38,6 +43,7 @@ Usage :
     cd api && .venv/Scripts/python -m app.ingestion.card_back_upload            # tous
     cd api && .venv/Scripts/python -m app.ingestion.card_back_upload yugioh     # un seul
     cd api && .venv/Scripts/python -m app.ingestion.card_back_upload <jeu> --file <chemin>
+    cd api && .venv/Scripts/python -m app.ingestion.card_back_upload <jeu> --file <chemin> --scan
 """
 
 from __future__ import annotations
@@ -52,7 +58,7 @@ from PIL import Image, UnidentifiedImageError
 
 from app.card_art import back_path, back_url, upload
 from app.config import SupabaseConfig
-from app.vision.card_geometry import card_aspect_for
+from app.vision.card_geometry import CARD_ASPECTS, card_aspect_for
 
 USER_AGENT = (
     "DeckHand/1.0 (collection perso, non commercial; "
@@ -171,23 +177,37 @@ def verify_cors(client: httpx.Client, url: str) -> str | None:
 def run(
     games: list[str],
     file: Path | None = None,
+    scan: bool = False,
     config: SupabaseConfig | None = None,
     client: httpx.Client | None = None,
 ) -> int:
     """Verse le dos des jeux demandés. Rend 1 si l'un d'eux a échoué.
 
-    `config` et `client` sont injectables pour le test — le chemin `--file` est
-    celui qu'empruntera un dos remis hors ligne, et il doit être éprouvé avant
-    d'être utilisé en vrai, non pas le jour où le fichier arrive.
+    `scan` déclare que le fichier vient d'une **carte possédée**, et non d'une
+    source : rien n'est alors copié à personne, et la table n'a pas à donner son
+    accord. Le fichier reste contrôlé comme les autres — un scan de travers ou
+    le dos d'un autre jeu se refuse ici plutôt qu'à l'écran.
+
+    `config` et `client` sont injectables pour le test.
     """
     if file is not None and len(games) != 1:
         sys.exit("--file s'applique à un jeu, et un seul")
-    inconnus = [g for g in games if g not in SOURCES]
-    if inconnus:
-        sys.exit(
-            f"aucune base écrite pour {', '.join(inconnus)} — l'inscrire dans "
-            "SOURCES avec ce que la source autorise, avant de verser quoi que ce soit"
-        )
+    if scan and file is None:
+        sys.exit("--scan attend le fichier scanné : --file <chemin>")
+    if scan:
+        # Un jeu que le projet ne connaît pas est une faute de frappe, et elle
+        # se verrait comme un 404 muet sous un préfixe inventé.
+        etrangers = [g for g in games if g not in CARD_ASPECTS]
+        if etrangers:
+            sys.exit(f"jeu inconnu du projet : {', '.join(etrangers)}")
+    else:
+        inconnus = [g for g in games if g not in SOURCES]
+        if inconnus:
+            sys.exit(
+                f"aucune base écrite pour {', '.join(inconnus)} — l'inscrire dans "
+                "SOURCES avec ce que la source autorise, avant de verser quoi que "
+                "ce soit. Un dos scanné d'une carte possédée passe par --scan."
+            )
     if not games:
         games = [g for g, s in SOURCES.items() if s.url is not None]
 
@@ -199,11 +219,11 @@ def run(
     echecs = 0
     try:
         for game in games:
-            source = SOURCES[game]
+            source = SOURCES.get(game)
             try:
                 if file is not None:
                     payload = file.read_bytes()
-                elif source.url is not None:
+                elif source is not None and source.url is not None:
                     payload = fetch(client, source.url)
                 else:
                     raise RuntimeError("remis hors ligne : passer --file")
@@ -215,7 +235,8 @@ def run(
             except (RuntimeError, OSError, httpx.HTTPError) as erreur:
                 raison = str(erreur)
             if raison is None:
-                print(f"  {game} : versé et relu avec CORS — {back_url(config.url, game)}")
+                origine = "scanné" if scan else "versé"
+                print(f"  {game} : {origine} et relu avec CORS — {back_url(config.url, game)}")
             else:
                 echecs += 1
                 print(f"  {game} : ÉCHEC — {raison}")
@@ -225,9 +246,10 @@ def run(
     return 1 if echecs else 0
 
 
-def _parse(argv: list[str]) -> tuple[list[str], Path | None]:
+def _parse(argv: list[str]) -> tuple[list[str], Path | None, bool]:
     games: list[str] = []
     file: Path | None = None
+    scan = False
     it = iter(argv)
     for arg in it:
         if arg == "--file":
@@ -235,9 +257,11 @@ def _parse(argv: list[str]) -> tuple[list[str], Path | None]:
             if chemin is None:
                 sys.exit("--file attend un chemin")
             file = Path(chemin)
+        elif arg == "--scan":
+            scan = True
         else:
             games.append(arg)
-    return games, file
+    return games, file, scan
 
 
 if __name__ == "__main__":
