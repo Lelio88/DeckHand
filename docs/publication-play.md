@@ -170,6 +170,32 @@ fois, et `*.aab` / `*.apk` le sont aussi — un bundle pèse 60 Mo et se régén
 l'application, définitivement — aucune récupération n'existe. Play App Signing
 laissé activé à l'envoi est le seul filet.
 
+## 4 ter. La chaîne Android, et les deux nouveautés qu'elle refuse
+
+Les versions suivent celles qu'un projet Flutter neuf reçoit : **Gradle 9.3.1,
+plugin Android 9.1.0, Kotlin 2.4.0**. Les garder alignées évite les
+avertissements de fin de support que `flutter build` affiche à chaque passage.
+
+Le plugin Android 9 apporte deux nouveautés, **toutes deux désactivées ici** —
+et c'est aussi le cas d'un projet Flutter neuf, qui naît avec les mêmes deux
+lignes à `false` dans `app/android/gradle.properties` :
+
+| Drapeau | Ce qui l'empêche |
+|---|---|
+| `android.builtInKotlin` | Sept plugins tiers appliquent encore le plugin Kotlin classique : caméra, les deux modules de lecture de texte, sélecteur d'images, préférences, dictée, ouverture de liens. Le build échoue à la configuration du premier d'entre eux. |
+| `android.newDsl` | Le plugin Gradle de Flutter lit `BaseExtension` et `applicationVariants`, les deux interfaces que la nouvelle DSL supprime. Flutter le dit lui-même à l'écran : appliquer son plugin échoue. |
+
+Les rouvrir se fera quand les plugins auront migré, pas avant. Le migrateur de
+Flutter repose ces deux lignes dès qu'elles manquent, **quelle que soit leur
+valeur** : les écrire à `true` le ferait taire aussi, au prix d'un build cassé.
+
+**Ce que la montée a demandé**, aligné sur le gabarit officiel : le plugin
+Kotlin n'est plus déclaré dans `app/android/app/build.gradle.kts`, celui de
+Flutter l'appliquant lui-même tant que le Kotlin intégré est désactivé ; et la
+cible Java sort du bloc `android` pour un bloc `kotlin`, l'ancienne forme étant
+devenue une erreur de compilation. La troisième ligne, `kotlin.incremental`,
+tient à ce poste seul — sa raison est écrite dans le fichier.
+
 ## 5. La release
 
 ```bash
