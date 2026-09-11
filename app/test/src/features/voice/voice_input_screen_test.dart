@@ -73,11 +73,15 @@ Future<({_FakeSpeech speech, FakeCollectionRepository collection})> pumpVoice(
   required List<CardHit> catalogue,
   Map<String, CardPrinting> sole = const {},
   Object? soleError,
+
+  /// Éditions que le sélecteur proposera, pour les cartes qui en ont plusieurs.
+  List<CardPrinting> printings = const [],
 }) async {
   final speech = _FakeSpeech();
   final collection = FakeCollectionRepository();
   final cards = FakeCardRepository()..results = catalogue;
-  final printings = FakePrintingRepository()
+  final printingRepo = FakePrintingRepository()
+    ..printings = printings
     ..sole = sole
     ..soleError = soleError;
 
@@ -87,7 +91,7 @@ Future<({_FakeSpeech speech, FakeCollectionRepository collection})> pumpVoice(
         speechServiceProvider.overrideWithValue(speech),
         cardRepositoryProvider.overrideWithValue(cards),
         collectionRepositoryProvider.overrideWithValue(collection),
-        printingRepositoryProvider.overrideWithValue(printings),
+        printingRepositoryProvider.overrideWithValue(printingRepo),
       ],
       child: const MaterialApp(home: VoiceInputScreen()),
     ),
@@ -170,7 +174,7 @@ void main() {
     tester,
   ) async {
     // Le catalogue ne rend une édition unique que pour les cartes qui n'en ont
-    // qu'une : les autres partent sans édition, et se rangent depuis la pile.
+    // qu'une : les autres partent sans édition tant que personne ne tranche.
     final fakes = await pumpVoice(tester, catalogue: [_hit('id-1', 'Foudre')]);
 
     fakes.speech.say('Foudre');
@@ -180,6 +184,123 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fakes.collection.added.single.printId, isNull);
+  });
+
+  group("l'édition se précise à la main, une fois l'écoute arrêtée", () {
+    // **Ce que ce groupe protège.** La dictée était la seule voie d'ajout sans
+    // sélecteur d'édition : tout ce que le catalogue ne tranchait pas d'office
+    // partait dans la pile à trier, à ranger plus tard. Le geste manquait parce
+    // qu'une feuille modale ouverte pendant que le micro écoute laisserait les
+    // cartes s'accumuler derrière elle — un argument qui tombe dès qu'on a
+    // coupé, c'est-à-dire au moment où l'on relit sa liste avant de l'ajouter.
+    const msh = CardPrinting(
+      printId: 'print-msh',
+      setCode: 'msh',
+      setName: 'Marvel',
+      lang: 'fr',
+      hasNonfoil: true,
+    );
+
+    testWidgets('la ligne reste inerte tant que le micro écoute', (
+      tester,
+    ) async {
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Foudre')],
+        printings: const [msh],
+      );
+
+      fakes.speech.say('Foudre');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text("Préciser l'édition"));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text("Ne pas préciser l'édition"),
+        findsNothing,
+        reason:
+            'le sélecteur masquerait la liste pendant que les cartes '
+            'continuent de s\'y ajouter',
+      );
+    });
+
+    testWidgets("l'édition choisie accompagne la carte jusqu'au dépôt", (
+      tester,
+    ) async {
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Foudre')],
+        printings: const [msh],
+      );
+
+      fakes.speech.say('Foudre');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Arrêter'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text("Préciser l'édition"));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Marvel').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(
+        fakes.collection.added.single.printId,
+        'print-msh',
+        reason:
+            'une édition affichée mais non transmise vaudrait pire que pas '
+            "d'édition : la valorisation paraîtrait précise en restant fausse",
+      );
+    });
+
+    testWidgets("« ne pas préciser » survit à la reprise de l'écoute", (
+      tester,
+    ) async {
+      // Écarter l'édition laisse la ligne nulle, exactement comme une carte
+      // jamais examinée : sans marque, le remplissage d'office la reprendrait
+      // à la phrase suivante et défairait le geste.
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Agent d\'Atlas')],
+        sole: const {'id-1': mar},
+      );
+
+      fakes.speech.say('Agent d\'Atlas');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('MAR'), findsOneWidget);
+
+      await tester.tap(find.text('Arrêter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('MAR'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text("Ne pas préciser l'édition"));
+      await tester.pumpAndSettle();
+      expect(find.text("Préciser l'édition"), findsOneWidget);
+
+      // La dictée reprend, et une phrase de plus rappelle le remplissage
+      // d'office sur toute la liste : c'est là que le geste se défaisait.
+      await tester.tap(find.text('Dicter'));
+      await tester.pumpAndSettle();
+      fakes.speech.say('un agent d\'Atlas de plus');
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text("Préciser l'édition"),
+        findsOneWidget,
+        reason:
+            'le catalogue ne doit pas rendre une édition que l\'on vient '
+            'd\'écarter',
+      );
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(fakes.collection.added.single.printId, isNull);
+    });
   });
 
   testWidgets('une panne du catalogue laisse la dictée intacte', (

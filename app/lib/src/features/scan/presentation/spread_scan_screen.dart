@@ -24,6 +24,7 @@ import '../../collection/data/collection_repository.dart';
 import '../../printings/data/printing_repository.dart';
 import '../../printings/domain/card_printing.dart';
 import '../../printings/presentation/card_art_view.dart';
+import '../../printings/presentation/edition_line.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../application/scan_service.dart';
 import '../data/photo_source.dart';
@@ -336,7 +337,9 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         .fold<int>(0, (sum, s) => sum + s.quantity);
     // L'en-tête témoigne de la photo, le bouton d'ajout de la sélection : les
     // lignes ajoutées à la main appartiennent au second, jamais au premier.
-    final fromPhoto = _spotted.where((s) => s.fromPhoto).toList(growable: false);
+    final fromPhoto = _spotted
+        .where((s) => s.fromPhoto)
+        .toList(growable: false);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Photographier des cartes')),
@@ -573,7 +576,16 @@ class _SpottedTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   const SizedBox(height: 4),
-                  _EditionLine(item: item, onChanged: onChanged),
+                  EditionLine(
+                    oracleId: item.card.oracleId,
+                    cardName: item.card.matchedName,
+                    lang: item.card.matchedLang,
+                    printing: item.printing,
+                    onChanged: (choice) {
+                      item.printing = choice;
+                      onChanged();
+                    },
+                  ),
                 ],
               ),
             ),
@@ -838,8 +850,7 @@ class _Header extends StatelessWidget {
                     ),
                   if (manual > 0)
                     TextSpan(
-                      text:
-                          '   +$manual à la main',
+                      text: '   +$manual à la main',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -922,179 +933,6 @@ class _Note extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Ligne d'édition d'une carte repérée : ce qu'on possède, ou rien.
-///
-/// **Discrète à dessein.** Sur une liste de vingt cartes, un bouton par ligne
-/// encombrerait ; c'est un texte qui se touche, effacé tant qu'aucune édition
-/// n'est choisie, affirmé une fois qu'elle l'est.
-///
-/// **Le numéro de collection s'affiche avec l'extension.** L'édition étant
-/// désormais parfois retenue sans geste de l'utilisateur, il faut qu'un coup
-/// d'œil suffise à la confronter à ce qui est imprimé en bas de la carte —
-/// c'est là que se joue la confirmation exigée par le garde-fou §IV.8.
-///
-/// **La finition se règle ici**, sans ouvrir le sélecteur : c'est le seul choix
-/// que le catalogue ne peut pas faire à notre place quand l'édition est unique,
-/// et le seul qui distingue deux exemplaires par ailleurs identiques.
-class _EditionLine extends StatelessWidget {
-  const _EditionLine({required this.item, required this.onChanged});
-
-  final _Spotted item;
-  final VoidCallback onChanged;
-
-  Future<void> _choose(BuildContext context) async {
-    final chosen = await showPrintingPicker(
-      context,
-      oracleId: item.card.oracleId,
-      cardName: item.card.matchedName,
-      currentPrintId: item.printing?.printing.printId,
-      currentIsFoil: item.printing?.isFoil ?? false,
-      // La langue du nom trouvé restreint la liste : on a reconnu la carte par
-      // son nom français, c'est donc l'impression française qu'on tient.
-      lang: item.card.matchedLang,
-      allowUnspecified: true,
-    );
-    if (chosen == null) return;
-    item.printing = chosen.isUnspecified ? null : chosen;
-    onChanged();
-  }
-
-  /// Bascule normal / brillant sans quitter la liste.
-  void _toggleFoil() {
-    final printing = item.printing;
-    if (printing == null) return;
-    item.printing = PrintingChoice(printing.printing, isFoil: !printing.isFoil);
-    onChanged();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final printing = item.printing;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Flexible(
-          child: InkWell(
-            onTap: () => _choose(context),
-            borderRadius: BorderRadius.circular(6),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    printing == null ? Icons.layers_outlined : Icons.layers,
-                    size: 14,
-                    color: printing == null
-                        ? theme.colorScheme.onSurfaceVariant
-                        : theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 5),
-                  Flexible(
-                    child: Text(
-                      printing == null
-                          ? "Préciser l'édition"
-                          : _label(printing.printing),
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: printing == null
-                            ? theme.colorScheme.onSurfaceVariant
-                            : theme.colorScheme.primary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        // Sans édition retenue, la finition n'a rien à régler : le prix est
-        // alors celui de l'impression la moins chère, toutes finitions
-        // confondues.
-        if (printing != null && printing.printing.hasFoil) ...[
-          const SizedBox(width: 8),
-          _FoilChip(
-            value: printing.isFoil,
-            // Une édition qui n'existe qu'en brillante ne se débascule pas.
-            onTap: printing.printing.hasNonfoil ? _toggleFoil : null,
-          ),
-        ],
-      ],
-    );
-  }
-
-  static String _label(CardPrinting printing) {
-    final number = printing.collectorNumber;
-    return [
-      printing.setCode.toUpperCase(),
-      if (number != null) '#$number',
-    ].join(' ');
-  }
-}
-
-/// Marqueur de finition brillante, à même la liste.
-///
-/// Assez petit pour ne pas concurrencer la case à cocher et les quantités, mais
-/// touchable : c'est un réglage qu'on prend au vol, en regardant la carte.
-class _FoilChip extends StatelessWidget {
-  const _FoilChip({required this.value, required this.onTap});
-
-  final bool value;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = value
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
-
-    return Tooltip(
-      message: value ? 'Exemplaire brillant' : 'Exemplaire normal',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-          decoration: BoxDecoration(
-            color: value ? theme.colorScheme.primaryContainer : null,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: value
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.outlineVariant,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                value ? Icons.auto_awesome : Icons.auto_awesome_outlined,
-                size: 12,
-                color: color,
-              ),
-              const SizedBox(width: 4),
-              // **« Brillant » et non « Foil ».** Le classeur nomme la même
-              // finition en français partout — filtre « Brillantes », bascule
-              // « Normale / Brillante », actions « un exemplaire brillant ».
-              // Deux mots pour la facette qui double le prix ne disaient pas
-              // qu'il s'agissait de la même. Le mot est au masculin ici :
-              // il qualifie l'exemplaire, comme le dit l'infobulle.
-              Text(
-                'Brillant',
-                style: theme.textTheme.labelSmall?.copyWith(color: color),
-              ),
-            ],
-          ),
         ),
       ),
     );

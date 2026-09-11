@@ -25,6 +25,7 @@ import '../../collection/data/collection_repository.dart';
 import '../../printings/data/printing_repository.dart';
 import '../../printings/domain/card_printing.dart';
 import '../../printings/presentation/card_art_view.dart';
+import '../../printings/presentation/edition_line.dart';
 import '../../printings/presentation/printing_picker.dart' show PrintingChoice;
 import '../data/speech_service.dart';
 import '../domain/dictation_parser.dart';
@@ -43,15 +44,29 @@ class _Heard {
   final CardHit? match;
   final List<CardHit> alternatives;
 
-  /// Édition retenue quand le catalogue n'en connaît qu'une.
+  /// Édition retenue : d'office quand le catalogue n'en connaît qu'une, à la
+  /// main le reste du temps.
   ///
-  /// **Elle se remplit seule, et ne se touche pas.** La dictée est la voie
-  /// « mains occupées » : un sélecteur modal s'y ouvrirait pendant que le
-  /// micro écoute encore, et les cartes s'accumuleraient derrière lui. Mais
-  /// « ne pas demander de geste » n'oblige pas à ne rien savoir — quand une
-  /// carte n'admet qu'une seule édition, la désigner n'apporte aucune
-  /// information que la carte elle-même ne porte déjà.
+  /// **Elle se remplit seule, et se touche une fois l'écoute arrêtée.** La
+  /// dictée est la voie « mains occupées » : un sélecteur modal ouvert pendant
+  /// que le micro écoute laisserait les cartes s'accumuler derrière lui. Mais
+  /// cet argument tombe dès que l'on a coupé — c'est-à-dire au moment où l'on
+  /// relit sa liste avant de l'enregistrer, et où toutes les autres voies
+  /// d'ajout proposent de préciser. Sans ce geste, la dictée était la seule à
+  /// envoyer dans la pile à trier tout ce que le catalogue ne tranchait pas.
+  ///
+  /// Le remplissage d'office garde sa raison d'être : quand une carte n'admet
+  /// qu'une seule édition, la désigner n'apporte aucune information que la
+  /// carte elle-même ne porte déjà.
   PrintingChoice? printing;
+
+  /// Vrai dès que l'utilisateur a lui-même statué sur l'édition.
+  ///
+  /// **Ce que ce drapeau protège.** Choisir « ne pas préciser » laisse
+  /// [printing] nul, exactement comme une carte jamais examinée ; sans marque,
+  /// la reprise de l'écoute relancerait le remplissage d'office et écraserait
+  /// ce choix par l'édition unique que l'on venait d'écarter.
+  bool printingIsUserSet = false;
 
   bool get isResolved => match != null;
 }
@@ -254,6 +269,9 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
     for (final item in _heard) {
       final match = item.match;
       if (match == null || item.printing != null) continue;
+      // Une ligne que l'utilisateur a lui-même laissée sans édition n'est pas
+      // une ligne en attente : la remplir serait défaire son geste.
+      if (item.printingIsUserSet) continue;
       byLang
           .putIfAbsent(match.matchedLang, () => <String>{})
           .add(match.oracleId);
@@ -277,6 +295,7 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
     if (!mounted || sole.isEmpty) return;
     setState(() {
       for (final item in _heard) {
+        if (item.printingIsUserSet) continue;
         final only = sole[item.match?.oracleId];
         if (only == null) continue;
         // Une édition qui n'existe qu'en brillante l'est d'office : enregistrer
@@ -369,10 +388,15 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
                           separatorBuilder: (_, _) => const SizedBox(height: 8),
                           itemBuilder: (context, index) => _HeardTile(
                             item: _heard[index],
+                            listening: _listening,
                             onRemove: () =>
                                 setState(() => _heard.removeAt(index)),
                             onQuantity: (value) =>
                                 setState(() => _heard[index].quantity = value),
+                            onPrinting: (choice) => setState(() {
+                              _heard[index].printing = choice;
+                              _heard[index].printingIsUserSet = true;
+                            }),
                           ),
                         ),
                 ),
@@ -450,13 +474,23 @@ class _Hint extends StatelessWidget {
 class _HeardTile extends StatelessWidget {
   const _HeardTile({
     required this.item,
+    required this.listening,
     required this.onRemove,
     required this.onQuantity,
+    required this.onPrinting,
   });
 
   final _Heard item;
+
+  /// Vrai tant que l'utilisateur n'a pas coupé le micro.
+  ///
+  /// La ligne d'édition s'éteint alors : c'est l'état du bouton qui compte ici,
+  /// pas celui du moteur, qui s'interrompt seul entre deux phrases et rallumerait
+  /// la ligne sous le doigt au milieu d'une dictée.
+  final bool listening;
   final VoidCallback onRemove;
   final ValueChanged<int> onQuantity;
+  final ValueChanged<PrintingChoice?> onPrinting;
 
   @override
   Widget build(BuildContext context) {
@@ -494,18 +528,23 @@ class _HeardTile extends StatelessWidget {
                   style: muted,
                   overflow: TextOverflow.ellipsis,
                 ),
-                // **L'édition retenue s'annonce, elle ne se subit pas.** Elle
-                // a été choisie sans geste de l'utilisateur : il faut donc
-                // qu'un coup d'œil suffise à la confronter à ce qui est
-                // imprimé en bas de la carte. C'est la confirmation qu'exige
-                // le garde-fou §IV.8, et le même parti que l'étalement.
-                if (item.printing case final chosen?)
-                  Text(
-                    '${chosen.printing.label}'
-                    '${chosen.isFoil ? ' · brillante' : ''}',
-                    style: muted?.copyWith(color: theme.colorScheme.primary),
-                    overflow: TextOverflow.ellipsis,
+                // **L'édition s'annonce, et se corrige.** Retenue d'office, il
+                // faut qu'un coup d'œil suffise à la confronter à ce qui est
+                // imprimé en bas de la carte — c'est la confirmation qu'exige
+                // le garde-fou §IV.8. Absente, il faut pouvoir la donner :
+                // c'est la même ligne qu'à l'étalement, éteinte tant que le
+                // micro écoute.
+                if (match != null) ...[
+                  const SizedBox(height: 4),
+                  EditionLine(
+                    oracleId: match.oracleId,
+                    cardName: match.matchedName,
+                    lang: match.matchedLang,
+                    printing: item.printing,
+                    enabled: !listening,
+                    onChanged: onPrinting,
                   ),
+                ],
               ],
             ),
           ),
