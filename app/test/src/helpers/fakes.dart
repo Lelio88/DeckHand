@@ -401,11 +401,23 @@ class FakeCollectionRepository implements CollectionRepository {
   /// sans rapport avec ce qu'ils vérifient.
   List<RecentAddition> additions = const [];
 
+  /// Les jeux reçus par les trois lectures du calque, sans doublon.
+  ///
+  /// **Un ensemble plutôt qu'une dernière valeur.** Le calque fait trois
+  /// lectures, et le défaut qu'on protège ici est d'en oublier une : un
+  /// `lastGame` écrasé par la suivante laisserait passer exactement ce cas,
+  /// alors qu'un ensemble à deux éléments le dénonce.
+  final Set<Game> publicGamesAsked = {};
+
   @override
   Future<List<RecentAddition>> recentAdditions(
     String handle, {
+    Game game = Game.magic,
     int limit = 1,
-  }) async => additions.take(limit).toList(growable: false);
+  }) async {
+    publicGamesAsked.add(game);
+    return additions.take(limit).toList(growable: false);
+  }
 
   /// Les cases que rendra la page publique. Vides par défaut : le calque doit
   /// savoir dessiner une grille dont il ne connaît pas encore les voisines.
@@ -417,7 +429,10 @@ class FakeCollectionRepository implements CollectionRepository {
     required String setCode,
     required int page,
     Game game = Game.magic,
-  }) async => publicCells;
+  }) async {
+    publicGamesAsked.add(game);
+    return publicCells;
+  }
 
   /// La carte désignée, ou `null` quand personne n'a rien demandé.
   SpotlightCard? designated;
@@ -426,7 +441,10 @@ class FakeCollectionRepository implements CollectionRepository {
   Future<SpotlightCard?> spotlight(
     String handle, {
     Game game = Game.magic,
-  }) async => designated;
+  }) async {
+    publicGamesAsked.add(game);
+    return designated;
+  }
 
   /// Ce que le journal rendra, quelle que soit la fenêtre demandée.
   List<CollectionMovement> movements = const [];

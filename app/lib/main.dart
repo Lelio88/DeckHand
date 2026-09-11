@@ -97,7 +97,11 @@ class _AuthGate extends ConsumerWidget {
     // transparent, aucune navigation. Les deux se résolvent sans compte, par la
     // même porte publique.
     final overlay = overlayFromUrl(Uri.base);
-    if (overlay != null) return OverlayScreen(handle: overlay);
+    if (overlay != null) {
+      // Le jeu vient de la même adresse, faute de compte à qui demander sa
+      // préférence : un calque est lu par un navigateur anonyme dans OBS.
+      return OverlayScreen(handle: overlay, game: overlayGameFromUrl(Uri.base));
+    }
 
     final shared = collectionFromUrl(Uri.base);
     if (shared != null) return PublicBinderScreen(handle: shared);

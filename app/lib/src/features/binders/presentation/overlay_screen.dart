@@ -82,6 +82,41 @@ String? overlayFromUrl(Uri url) {
   return (inner == null || inner.isEmpty) ? null : inner;
 }
 
+/// Jeu que le calque doit interroger, lu dans l'URL. Magic par défaut.
+///
+/// **Le bot sait viser un jeu, le calque l'ignorait** (#36). Un direct
+/// Riftbound pointait donc un bot Riftbound vers un calque Magic : le bot
+/// répondait dans le chat, l'écran ne montrait jamais rien, et rien ne le
+/// signalait. Le jeu se règle désormais au montage de la scène OBS, au moment
+/// même où l'on lance le bot avec son `--game`.
+///
+/// **Par l'adresse plutôt que par la collection publiée.** Déduire le jeu de ce
+/// qui est publié supposerait qu'une collection ne porte qu'un jeu à la fois,
+/// ce qui n'est écrit nulle part et fermerait la porte aux collections mixtes.
+///
+/// Un paramètre absent ou illisible vaut Magic : les scènes déjà montées n'ont
+/// rien à retoucher, et une faute de frappe ne doit pas empêcher un calque de
+/// s'ouvrir en plein direct.
+Game overlayGameFromUrl(Uri url) {
+  final direct = url.queryParameters[_gameParameter];
+  if (direct != null && direct.isNotEmpty) return Game.fromId(direct);
+
+  final fragment = url.fragment;
+  if (fragment.isEmpty) return Game.magic;
+  final question = fragment.indexOf('?');
+  if (question < 0) return Game.magic;
+  final inner = Uri.splitQueryString(
+    fragment.substring(question + 1),
+  )[_gameParameter];
+  return Game.fromId(inner);
+}
+
+/// Nom du paramètre de jeu dans l'adresse du calque.
+///
+/// En français comme le reste de ce qui est saisi à la main : c'est une scène
+/// OBS que son propriétaire monte, pas une API.
+const _gameParameter = 'jeu';
+
 /// Cadence d'interrogation.
 ///
 /// **Une seconde et demie, et c'est un choix.** Assez court pour qu'une carte
@@ -148,10 +183,22 @@ class OverlayCard {
 }
 
 class OverlayScreen extends ConsumerStatefulWidget {
-  const OverlayScreen({super.key, required this.handle});
+  const OverlayScreen({
+    super.key,
+    required this.handle,
+    this.game = Game.magic,
+  });
 
   /// Ce que portait l'adresse : un nom choisi, ou l'identifiant brut.
   final String handle;
+
+  /// Jeu que le calque interroge, Magic par défaut.
+  ///
+  /// **Il traverse les quatre lectures, pas seulement une.** Le journal, la
+  /// désignation, la page de classeur et le dos des cartes doivent parler du
+  /// même jeu : en oublier une donnerait un calque qui montre un dos Yu-Gi-Oh
+  /// sur des cartes Magic, ou l'inverse.
+  final Game game;
 
   @override
   ConsumerState<OverlayScreen> createState() => _OverlayScreenState();
@@ -231,10 +278,10 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
   }
 
   /// Va chercher le dos des cartes. **Le jeu est celui que le calque
-  /// interroge** — Magic aujourd'hui, `spotlight` n'ayant pas d'autre paramètre
-  /// ici : le jour où le calque saura son jeu, le dos suivra sans rien changer.
+  /// interroge**, lu dans l'adresse : un calque Yu-Gi-Oh montre le dos
+  /// Yu-Gi-Oh, et non celui de Magic sous une étiquette étrangère.
   Future<void> _chargerLeDos() async {
-    final image = await loadCardBack(Game.magic);
+    final image = await loadCardBack(widget.game);
     if (!mounted || image == null) return;
     setState(() => _back = image);
   }
@@ -255,8 +302,8 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
   Future<void> _poll() async {
     final repo = ref.read(collectionRepositoryProvider);
     final (additions, designated) = await (
-      _quiet(() => repo.recentAdditions(widget.handle)),
-      _quiet(() => repo.spotlight(widget.handle)),
+      _quiet(() => repo.recentAdditions(widget.handle, game: widget.game)),
+      _quiet(() => repo.spotlight(widget.handle, game: widget.game)),
     ).wait;
     if (!mounted) return;
 
@@ -366,7 +413,12 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
     final cells = await _quiet(
       () => ref
           .read(collectionRepositoryProvider)
-          .publicBinderPage(widget.handle, setCode: setCode, page: card.page),
+          .publicBinderPage(
+            widget.handle,
+            setCode: setCode,
+            page: card.page,
+            game: widget.game,
+          ),
     );
     if (!mounted || cells == null) return;
     // La demande a pu être remplacée pendant l'appel : ces cases ne seraient

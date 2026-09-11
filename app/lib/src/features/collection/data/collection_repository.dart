@@ -210,12 +210,17 @@ class CollectionRepository {
   /// deux sens.
   Future<List<RecentAddition>> recentAdditions(
     String handle, {
+    Game game = Game.magic,
     int limit = 1,
   }) async {
     final rows = await _client
         .rpc<List<dynamic>>(
           'public_recent_additions',
-          params: {'p_handle': handle, 'p_limit': limit},
+          params: {
+            'p_handle': handle,
+            'p_game': game.id,
+            'p_limit': limit,
+          },
         )
         .timedOut();
     return rows

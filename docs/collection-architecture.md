@@ -777,6 +777,37 @@ images par carte. **Deviner une URL sur le CDN d'un éditeur** serait au mieux u
 publié garde le motif dessiné, repli assumé. Pour en ajouter un : trouver la
 source, vérifier d'une requête, l'inscrire dans `card_back.dart`.
 
+**Le calque sait enfin quel jeu il regarde** (#36). Le bot vise un jeu depuis
+toujours — `python -m app.twitch --game riftbound` — mais ses quatre lectures
+partaient avec la valeur par défaut. Un direct Riftbound pointait donc un bot
+Riftbound vers un calque Magic : le bot répondait dans le chat, l'écran ne
+montrait jamais rien, et rien ne le signalait. C'est le pire des défauts,
+silencieux, et il ne coûtait rien tant que la collection réelle était
+entièrement Magic.
+
+**Le jeu vient de l'adresse**, `?o=<adresse>&jeu=riftbound`, et non de la
+collection publiée. Le déduire de ce qui est publié supposerait qu'une
+collection ne porte qu'un jeu à la fois : rien ne l'écrit, et cela fermerait la
+porte aux collections mixtes. L'adresse, elle, se règle au montage de la scène
+OBS, au moment même où l'on lance le bot avec son `--game`. Absent ou illisible,
+le paramètre vaut Magic — les scènes déjà montées n'ont rien à retoucher, et une
+faute de frappe ne doit pas empêcher un calque de s'ouvrir en plein direct.
+
+**Le journal public a dû apprendre le jeu ; les deux autres lectures le
+savaient déjà.** `public_spotlight` et `public_binder_page` prenaient `p_game`,
+`public_recent_additions` non : le filtre se pose au même endroit qu'ailleurs,
+sur la jointure au catalogue. Ajouter le paramètre **remplace** la fonction et
+ne la surcharge pas — deux signatures rendraient l'appel ambigu pour PostgREST —
+et les droits se réattribuent, faute de quoi l'anonyme, c'est-à-dire le
+navigateur d'OBS, perdrait la porte. Vérifié sous le rôle `anon` et dans les
+deux sens : Magic rend des lignes, Riftbound et Yu-Gi-Oh n'en rendent aucune.
+
+**Et le dos suit le même jeu.** C'est ce qui débloque le dos Yu-Gi-Oh, qui
+existe mais n'était jamais chargé tant que le calque se croyait sur Magic. Le
+test porte sur l'ensemble des jeux reçus par le dépôt, et non sur le dernier :
+une valeur écrasée par la lecture suivante avalerait exactement le défaut qu'on
+protège, l'oubli d'une seule des quatre.
+
 **L'image est décodée une fois par session, et c'est *moins* cher que le motif.**
 Neuf cases par feuille, trois feuilles, dix lamelles : la même `ui.Image` est
 dessinée jusqu'à 270 fois par image de vidéo, contre cinq figures par case pour

@@ -60,9 +60,11 @@ class OverlayRepo extends FakeCollectionRepository {
   @override
   Future<List<RecentAddition>> recentAdditions(
     String handle, {
+    Game game = Game.magic,
     int limit = 1,
   }) async {
     calls++;
+    publicGamesAsked.add(game);
     final boom = failure;
     if (boom != null) throw boom;
     return rows;
@@ -73,17 +75,22 @@ class OverlayRepo extends FakeCollectionRepository {
     String handle, {
     Game game = Game.magic,
   }) async {
+    publicGamesAsked.add(game);
     final boom = spotlightFailure;
     if (boom != null) throw boom;
     return asked;
   }
 }
 
-Future<OverlayRepo> pumpOverlay(WidgetTester tester, OverlayRepo repo) async {
+Future<OverlayRepo> pumpOverlay(
+  WidgetTester tester,
+  OverlayRepo repo, {
+  Game game = Game.magic,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [collectionRepositoryProvider.overrideWithValue(repo)],
-      child: const MaterialApp(home: OverlayScreen(handle: 'essai')),
+      child: MaterialApp(home: OverlayScreen(handle: 'essai', game: game)),
     ),
   );
   await tester.pump();
@@ -109,6 +116,59 @@ void main() {
 
     test('une adresse vide ne vaut pas une adresse', () {
       expect(overlayFromUrl(Uri.parse('https://x/?o=')), isNull);
+    });
+  });
+
+  group('le jeu', () {
+    // **Le calque était câblé sur Magic** (#36). Le bot, lui, sait viser un
+    // jeu ; un direct Riftbound pointait donc un bot Riftbound vers un calque
+    // Magic, qui ne montrait jamais rien — sans erreur ni signal.
+    test('se lit dans la requête', () {
+      expect(
+        overlayGameFromUrl(Uri.parse('https://x/?o=moi&jeu=riftbound')),
+        Game.riftbound,
+      );
+    });
+
+    test('se lit aussi derrière le fragment', () {
+      // Flutter sert ses routes tantôt derrière un `#`, tantôt non : l'adresse
+      // et le jeu doivent se lire du même côté, faute de quoi une scène OBS
+      // montée sur une URL à fragment retomberait sur Magic sans le dire.
+      expect(
+        overlayGameFromUrl(Uri.parse('https://x/#/?o=moi&jeu=yugioh')),
+        Game.yugioh,
+      );
+    });
+
+    test('absent, il vaut Magic', () {
+      // Les scènes déjà montées n'ont pas ce paramètre : elles doivent
+      // continuer de fonctionner sans être retouchées.
+      expect(overlayGameFromUrl(Uri.parse('https://x/?o=moi')), Game.magic);
+    });
+
+    testWidgets("atteint le dépôt, et pas seulement l'écran", (tester) async {
+      // **C'est là que ce genre de câblage cède en silence.** Un calque qui
+      // connaîtrait son jeu sans le transmettre interrogerait toujours Magic,
+      // et l'écran resterait vide sans que rien ne le dise — le défaut même
+      // que l'issue décrit. L'ensemble dénonce aussi l'oubli d'une seule des
+      // lectures, là où une dernière valeur l'avalerait.
+      final repo = await pumpOverlay(
+        tester,
+        OverlayRepo()..rows = [addition(id: 1)],
+        game: Game.riftbound,
+      );
+      await tester.pump(overlayPollInterval);
+
+      expect(repo.publicGamesAsked, {Game.riftbound});
+    });
+
+    test('illisible, il vaut Magic plutôt que rien', () {
+      // Un calque est posé sur un direct : mieux vaut un jeu par défaut qu'un
+      // écran qui refuse de s'ouvrir sur une faute de frappe.
+      expect(
+        overlayGameFromUrl(Uri.parse('https://x/?o=moi&jeu=riftbond')),
+        Game.magic,
+      );
     });
   });
 
