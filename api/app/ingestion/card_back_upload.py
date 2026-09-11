@@ -107,7 +107,21 @@ SOURCES: dict[str, Source] = {
             "yourself. » La copie n'est pas tolérée, elle est demandée."
         ),
     ),
+    # `url=None` : l'accord couvre la copie, mais aucun dos n'est publié ni
+    # n'était dans le lot fourni. Il se demande, puis `--file`.
+    "wankul": Source(
+        url=None,
+        basis=(
+            "LINK DIGITAL SPIRIT, éditeur du jeu : autorisation nominative "
+            "couvrant la copie comme la collecte (§IV.10), celle-là même qui "
+            "autorise les vignettes déjà versées."
+        ),
+    ),
 }
+
+#: Riftbound n'y est pas : la *Legal Jibber Jabber* de Riot refuse son IP
+#: « in a game or app », ce que DeckHand est. Il faudrait l'accès approuvé à
+#: l'API Riftbound, que la clé de développement n'obtient pas (403).
 
 
 def fetch(client: httpx.Client, url: str) -> bytes:
@@ -154,7 +168,18 @@ def verify_cors(client: httpx.Client, url: str) -> str | None:
     return None
 
 
-def run(games: list[str], file: Path | None = None) -> int:
+def run(
+    games: list[str],
+    file: Path | None = None,
+    config: SupabaseConfig | None = None,
+    client: httpx.Client | None = None,
+) -> int:
+    """Verse le dos des jeux demandés. Rend 1 si l'un d'eux a échoué.
+
+    `config` et `client` sont injectables pour le test — le chemin `--file` est
+    celui qu'empruntera un dos remis hors ligne, et il doit être éprouvé avant
+    d'être utilisé en vrai, non pas le jour où le fichier arrive.
+    """
     if file is not None and len(games) != 1:
         sys.exit("--file s'applique à un jeu, et un seul")
     inconnus = [g for g in games if g not in SOURCES]
@@ -166,9 +191,13 @@ def run(games: list[str], file: Path | None = None) -> int:
     if not games:
         games = [g for g, s in SOURCES.items() if s.url is not None]
 
-    config = SupabaseConfig.load()
+    config = config or SupabaseConfig.load()
+    # Ne fermer que ce que l'on a ouvert : un client injecté appartient à
+    # l'appelant, qui peut s'en resservir après.
+    a_nous = client is None
+    client = client or httpx.Client(timeout=60, follow_redirects=True)
     echecs = 0
-    with httpx.Client(timeout=60, follow_redirects=True) as client:
+    try:
         for game in games:
             source = SOURCES[game]
             try:
@@ -190,6 +219,9 @@ def run(games: list[str], file: Path | None = None) -> int:
             else:
                 echecs += 1
                 print(f"  {game} : ÉCHEC — {raison}")
+    finally:
+        if a_nous:
+            client.close()
     return 1 if echecs else 0
 
 

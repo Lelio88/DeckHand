@@ -782,8 +782,11 @@ réponse connue d'avance.
 absents parce qu'**aucune source utilisée par le projet ne publie leur dos** —
 vérifié source par source (API, docs, et jusqu'aux bundles de leurs sites) :
 TCGdex, Riftcodex, optcgapi, Lorcast et SWU-DB n'exposent que des images par
-carte, les pages publiques de Riot n'en montrent pas non plus, et l'accord
-Wankul ne porte pas sur un dos. **Deviner une URL sur le CDN d'un éditeur**
+carte, et les pages publiques de Riot n'en montrent pas non plus. Deux cas se
+distinguent parmi eux : **Wankul** a le droit — son accord couvre la copie — et
+pas le fichier, il est donc inscrit dans la table en attendant qu'on le lui
+demande ; **Riftbound** a l'inverse, la *Legal Jibber Jabber* de Riot refusant
+son IP « in a game or app ». **Deviner une URL sur le CDN d'un éditeur**
 serait au mieux un 404, au pire une ressource qu'on n'a pas le droit de servir :
 un jeu sans dos publié garde le motif dessiné, repli assumé. Pour en ajouter
 un : obtenir le fichier et l'accord écrit, les inscrire dans la table du module,

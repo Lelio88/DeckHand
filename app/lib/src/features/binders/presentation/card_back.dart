@@ -38,7 +38,7 @@
 /// | One Piece | optcgapi | non — `card_image` est par carte |
 /// | Lorcana | Lorcast | non — `image_uris` est par carte |
 /// | Star Wars Unlimited | SWU-DB | non — `FrontArt`/`BackArt` sont par carte, le verso des leaders |
-/// | Wankul | Wankuldex | non — l'accord ne porte pas sur un dos, il se demande |
+/// | Wankul | Wankuldex | non — le droit est acquis, le fichier manque |
 ///
 /// **Deviner une URL serait la faute exacte que ce projet a déjà payée** :
 /// aller chercher un fichier au jugé sur le CDN d'un éditeur, c'est au mieux un

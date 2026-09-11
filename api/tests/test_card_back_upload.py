@@ -11,17 +11,21 @@ et que la vérification CORS exige bien l'en-tête, pas seulement un 200.
 from __future__ import annotations
 
 import io
+import tempfile
+from pathlib import Path
 
 import httpx
 import pytest
 from PIL import Image
 
+from app.config import SupabaseConfig
 from app.ingestion.card_back_upload import (
     ASPECT_TOLERANCE,
     OVERLAY_ORIGIN,
     SOURCES,
     _parse,
     check,
+    run,
     verify_cors,
 )
 from app.vision.card_geometry import card_aspect_for
@@ -41,10 +45,17 @@ def test_chaque_source_cite_ce_qui_autorise_la_copie():
         assert source.url is None or source.url.startswith("https://"), game
 
 
-def test_seuls_magic_et_yugioh_ont_une_base_ecrite():
-    """Les six autres n'ont pas de dos publié par une source du projet :
-    vérifié source par source, et en inventer un serait au mieux un 404."""
-    assert set(SOURCES) == {"magic", "yugioh"}
+def test_la_table_dit_exactement_qui_a_le_droit():
+    """Une entrée ajoutée par habitude passerait la copie sans base écrite."""
+    assert set(SOURCES) == {"magic", "yugioh", "wankul"}
+    assert "riftbound" not in SOURCES
+
+
+def test_wankul_a_le_droit_mais_pas_de_fichier():
+    """`url=None` suffit à l'écarter d'une course sans argument, qui ne va
+    chercher que ce qui est publié."""
+    assert SOURCES["wankul"].url is None
+    assert "LINK DIGITAL SPIRIT" in SOURCES["wankul"].basis
 
 
 @pytest.mark.parametrize(
@@ -106,6 +117,66 @@ def test_la_verification_exige_l_en_tete_et_part_avec_l_origine_du_calque():
         assert verify_cors(client, "https://avec-cors/back.jpg") is None
 
     assert origines == [OVERLAY_ORIGIN, OVERLAY_ORIGIN]
+
+
+def test_un_dos_remis_hors_ligne_se_verse_sans_appeler_la_source():
+    """Éprouvé avant qu'un dos hors ligne n'arrive, non le jour où il arrive :
+    `--file` lit le disque, verse, relit — et ne frappe aucune source."""
+    appels: list[tuple[str, str]] = []
+
+    def repond(request: httpx.Request) -> httpx.Response:
+        appels.append((request.method, request.url.path))
+        if request.method == "POST":
+            return httpx.Response(200, json={"Key": "card-art/wankul/back.jpg"})
+        return httpx.Response(
+            200, content=b"\xff\xd8", headers={"Access-Control-Allow-Origin": "*"}
+        )
+
+    fichier = Path(tempfile.mkdtemp()) / "dos-wankul.jpg"
+    fichier.write_bytes(jpeg(430, 600))
+    config = SupabaseConfig(
+        url="https://abc.supabase.co",
+        anon_key="anon",
+        service_key="service",
+        db_url="postgresql://…",
+    )
+
+    with httpx.Client(transport=httpx.MockTransport(repond)) as client:
+        code = run(["wankul"], file=fichier, config=config, client=client)
+
+    assert code == 0
+    assert appels == [
+        ("POST", "/storage/v1/object/card-art/wankul/back.jpg"),
+        ("GET", "/storage/v1/object/public/card-art/wankul/back.jpg"),
+    ]
+
+
+def test_sans_fichier_wankul_echoue_au_lieu_de_verser_n_importe_quoi():
+    """Un jeu sans dos publié et sans `--file` n'a rien à verser. L'échec est
+    la bonne réponse : il dit quoi faire, et n'invente pas d'URL."""
+    config = SupabaseConfig(
+        url="https://abc.supabase.co",
+        anon_key="anon",
+        service_key="service",
+        db_url="postgresql://…",
+    )
+
+    def repond(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError(f"aucun appel attendu, reçu {request.url}")
+
+    with httpx.Client(transport=httpx.MockTransport(repond)) as client:
+        code = run(["wankul"], config=config, client=client)
+
+    assert code == 1
+
+
+def test_un_jeu_sans_base_ecrite_est_refuse_avant_tout_appel():
+    """**La table est l'accord**, et ce refus en est la serrure : un fichier en
+    main ne suffit pas, il faut l'accord inscrit."""
+    with pytest.raises(SystemExit) as sortie:
+        run(["riftbound"])
+
+    assert "aucune base écrite pour riftbound" in str(sortie.value)
 
 
 def test_la_ligne_de_commande_separe_les_jeux_du_fichier():
