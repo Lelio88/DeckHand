@@ -1,0 +1,8 @@
+La dictée choisit l'édition de ses cartes, comme les autres saisies.
+
+- Sous chaque carte dictée, une ligne indique l'édition retenue, ou propose
+  de la préciser. Elle s'active dès que vous arrêtez le micro, au moment où
+  vous relisez votre liste avant de l'ajouter.
+- La finition brillante se règle à même la ligne, sans ouvrir de fenêtre.
+- Les cartes qui n'existent qu'en une seule édition restent renseignées
+  toutes seules, comme avant.
