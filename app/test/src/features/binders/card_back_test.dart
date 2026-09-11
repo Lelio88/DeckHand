@@ -1,14 +1,16 @@
-/// Le vrai dos des cartes : ce qui est publié, et ce qui ne l'est pas.
+/// Le vrai dos des cartes : ce qui est dans le bucket, et ce qui n'y est pas.
 ///
 /// **Ce que ces tests protègent.** Pas la beauté du dos — cela se regarde. Ils
-/// tiennent deux choses qu'un remaniement casse sans bruit : qu'aucune URL n'ait
-/// été *devinée* (elles sont toutes en https chez une source que le projet
-/// utilise déjà), et que le peintre **lise** réellement l'image qu'on lui donne.
-/// Un paramètre branché mais jamais lu se voit à l'œil sur un écran et jamais
-/// dans une revue de code.
+/// tiennent trois choses qu'un remaniement casse sans bruit : que l'adresse
+/// reste celle du bucket du projet, dérivée de la configuration et jamais d'un
+/// hôte tiers ; qu'elle soit **la même** que celle que le versement Python
+/// calcule de son côté, les deux ne se consultant pas ; et que le peintre
+/// **lise** réellement l'image qu'on lui donne. Un paramètre branché mais
+/// jamais lu se voit à l'œil sur un écran et jamais dans une revue de code.
 library;
 
 import 'package:deckhand/src/config/selected_game.dart';
+import 'package:deckhand/src/config/supabase_config.dart';
 import 'package:deckhand/src/features/binders/presentation/card_back.dart';
 import 'package:deckhand/src/features/binders/presentation/sheet_face.dart';
 import 'dart:ui' as ui;
@@ -17,22 +19,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('les dos publiés', () {
+  group('les dos versés', () {
     test('deux jeux en ont un, et ce sont ceux-là', () {
       // **Une constatation, pas un abandon.** Les six autres sources ne
       // publient pas de dos ; en inventer une URL serait au mieux un 404, au
       // pire une ressource qu'on n'a pas le droit de servir.
-      expect(cardBackUrls.keys.toSet(), {Game.magic, Game.yugioh});
+      expect(hostedCardBacks, {Game.magic, Game.yugioh});
       expect(cardBackUrl(Game.pokemon), isNull);
       expect(cardBackUrl(Game.wankul), isNull);
     });
 
-    test('chaque URL est servie par une source que le projet utilise déjà', () {
-      const hotes = {'backs.scryfall.io', 'images.ygoprodeck.com'};
-      for (final url in cardBackUrls.values) {
-        final uri = Uri.parse(url);
-        expect(uri.scheme, 'https');
-        expect(hotes, contains(uri.host), reason: url);
+    test('l_adresse est celle du bucket, calculée comme le versement', () {
+      // **Le jumeau Python est `back_url`.** Les deux dérivent la même
+      // adresse de l'URL du projet : `<projet>/storage/v1/object/public/
+      // card-art/<jeu>/back.jpg`. Ce test verrouille le côté Dart de
+      // l'accord ; `test_card_art.py` verrouille l'autre.
+      for (final game in hostedCardBacks) {
+        final url = cardBackUrl(game);
+        expect(url, isNotNull);
+        expect(url, startsWith(SupabaseConfig.url));
+        expect(
+          url,
+          endsWith('/storage/v1/object/public/card-art/${game.id}/back.jpg'),
+        );
+        // Sans `/normal/` : `previewCardImage` ne tenterait une vignette
+        // que sur ce segment, et elle n'existe pas.
+        expect(url, isNot(contains('/normal/')));
       }
     });
 

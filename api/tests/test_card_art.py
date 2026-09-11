@@ -19,6 +19,8 @@ from app.card_art import (
     FULL,
     SMALL,
     SMALL_MAX_SIDE,
+    back_path,
+    back_url,
     encode,
     object_path,
     public_url,
@@ -95,3 +97,14 @@ def test_l_encodage_ne_touche_pas_l_image_qu_on_lui_donne():
     encode(source, SMALL)
 
     assert source.size == (430, 600)
+
+
+def test_le_dos_vit_sous_le_prefixe_du_jeu_et_hors_des_paliers():
+    """**Le dos ne porte pas `/normal/`, à dessein.** `previewCardImage` ne
+    tente une vignette que sur ce segment ; le dos n'en a pas, et une adresse
+    qui l'y inviterait pointerait dans le vide."""
+    assert back_path("yugioh") == "yugioh/back.jpg"
+    assert "/normal/" not in back_url(BASE, "yugioh")
+    assert back_url(BASE + "/", "yugioh") == (
+        f"{BASE}/storage/v1/object/public/{BUCKET}/yugioh/back.jpg"
+    )

@@ -41,7 +41,7 @@ import httpx
 import psycopg
 from PIL import Image, UnidentifiedImageError
 
-from app.card_art import BUCKET, FULL, SMALL, encode, object_path
+from app.card_art import BUCKET, FULL, SMALL, encode, object_path, upload
 from app.config import SupabaseConfig
 from app.vision.local_index import files_by_illustration, load_card
 from app.vision.wankul_frame import upright
@@ -106,26 +106,6 @@ def reading_orientation(image: Image.Image, layout: str | None) -> Image.Image:
     return upright(image) if layout == "horizontal" else image
 
 
-def put(client: httpx.Client, base_url: str, key: str, path: str, payload: bytes) -> str | None:
-    """Verse un objet. Rend `None` en cas de succès, la raison sinon.
-
-    `x-upsert` est vrai : rejouer un versement doit remplacer, pas échouer.
-    C'est ce qui rend `--force` utile le jour où la qualité d'encodage change.
-    """
-    response = client.post(
-        f"{base_url.rstrip('/')}/storage/v1/object/{BUCKET}/{path}",
-        content=payload,
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "image/jpeg",
-            "x-upsert": "true",
-        },
-    )
-    if response.status_code in (200, 201):
-        return None
-    return f"HTTP {response.status_code} {response.text[:120]}"
-
-
 def run(folder: Path, force: bool = False) -> int:
     config = SupabaseConfig.load()
     with psycopg.connect(config.db_url, connect_timeout=60) as conn:
@@ -165,7 +145,7 @@ def run(folder: Path, force: bool = False) -> int:
 
         with httpx.Client(timeout=60) as client:
             for chemin, payload in charges:
-                raison = put(client, config.url, config.service_key, chemin, payload)
+                raison = upload(client, config.url, config.service_key, chemin, payload)
                 with lock:
                     if raison is None:
                         report.sent += 1

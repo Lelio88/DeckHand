@@ -12,6 +12,15 @@ titre que la collecte du catalogue (§IV.10).
 parce que son CDN a eu un hoquet : il y entre avec son propre accord. Le préfixe
 de jeu dans le chemin est là pour que la question se pose à chaque fois.
 
+**Les dos de cartes y vivent aussi, et sous la même règle.** Le calque de direct
+est une *browser source* : une image sans en-tête CORS s'y fait bloquer en
+silence, et sur les deux dos publiés par les sources du projet, un seul en
+envoyait. Plutôt que de dépendre du CDN de chacun en plein direct, le dos de
+chaque jeu est versé ici, en `<jeu>/back.jpg`, **à condition que sa source
+l'écrive** : YGOPRODeck *demande* la copie, Scryfall n'interdit que le paywall,
+le *repackaging* et la déformation. Un jeu dont aucune source ne publie le dos
+n'en a pas ici non plus — voir `app.ingestion.card_back_upload`.
+
 **Le chemin imite celui de Scryfall, et c'est ce qui rend le Dart inutile à
 modifier.** L'application affiche déjà une vignette légère avant la grande, en
 échangeant un segment d'URL (`previewCardImage` : `/normal/` → `/small/`).
@@ -33,10 +42,16 @@ from __future__ import annotations
 
 import io
 
+import httpx
 from PIL import Image
 
 #: Bucket public, créé par `20260817100000_card_art_bucket.sql`.
 BUCKET = "card-art"
+
+#: Nom de l'objet qui porte le dos d'un jeu, sous son préfixe. Sans segment
+#: `/normal/` à dessein : `previewCardImage` ne tentera pas de lui trouver une
+#: vignette qui n'existe pas.
+BACK = "back.jpg"
 
 #: Palier plein — la carte à sa résolution d'origine. Nommé comme chez Scryfall.
 FULL = "normal"
@@ -80,6 +95,39 @@ def public_url(base_url: str, game: str, tier: str, illustration_id: str) -> str
         f"{base_url.rstrip('/')}/storage/v1/object/public/"
         f"{BUCKET}/{object_path(game, tier, illustration_id)}"
     )
+
+
+def back_path(game: str) -> str:
+    """Chemin du dos d'un jeu dans le bucket."""
+    return f"{game}/{BACK}"
+
+
+def back_url(base_url: str, game: str) -> str:
+    """URL publique du dos d'un jeu. Le jumeau de `cardBackUrl`, côté Dart :
+    les deux dérivent la même adresse de l'URL du projet, sans se consulter."""
+    return f"{base_url.rstrip('/')}/storage/v1/object/public/{BUCKET}/{back_path(game)}"
+
+
+def upload(
+    client: httpx.Client, base_url: str, key: str, path: str, payload: bytes
+) -> str | None:
+    """Verse un objet JPEG. Rend `None` en cas de succès, la raison sinon.
+
+    `x-upsert` est vrai : rejouer un versement doit remplacer, pas échouer.
+    C'est ce qui rend `--force` utile le jour où la qualité d'encodage change.
+    """
+    response = client.post(
+        f"{base_url.rstrip('/')}/storage/v1/object/{BUCKET}/{path}",
+        content=payload,
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "image/jpeg",
+            "x-upsert": "true",
+        },
+    )
+    if response.status_code in (200, 201):
+        return None
+    return f"HTTP {response.status_code} {response.text[:120]}"
 
 
 def encode(image: Image.Image, tier: str) -> bytes:

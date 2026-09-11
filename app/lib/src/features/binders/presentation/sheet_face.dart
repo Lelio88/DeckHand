@@ -13,9 +13,9 @@
 ///
 /// **Le vrai dos du jeu quand il existe, un motif dessiné sinon.** Ce qu'on
 /// attend d'un classeur Magic, c'est le dos Magic ; d'un classeur Pokémon, le
-/// dos Pokémon. [back] est cette image — pointée chez la source qui la publie,
-/// jamais réhébergée (§IV.3, §IV.9) — et `card_back.dart` dit lesquels des huit
-/// jeux en ont un et pourquoi les autres n'en ont pas.
+/// dos Pokémon. [back] est cette image — servie par le dépôt d'images du
+/// projet, sous l'accord écrit de sa source (§IV.10) — et `card_back.dart` dit
+/// lesquels des huit jeux en ont un et pourquoi les autres n'en ont pas.
 ///
 /// **Le motif dessiné reste, comme repli.** Six jeux sur huit n'ont pas de dos
 /// publié, et l'image peut ne pas être arrivée : dans les deux cas la feuille

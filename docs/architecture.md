@@ -450,18 +450,36 @@ par `art_crop_url` : cette dernière porte l'URL d'affichage, qui n'est pas
 toujours celle du rendu que le dossier contient. Détail et chiffres :
 [`multi-game.md` §9](./multi-game.md#9-wankul--un-catalogue-sans-prix-sans-decks-et-sans-images).
 
-### Le dépôt d'images — une exception, et une seule
+### Le dépôt d'images — des exceptions, chacune sur parole écrite
 
 Le catalogue ne stocke qu'une **adresse** par impression, jamais l'image : c'est
 ce qui permet de couvrir 165 000 impressions Magic sans rien héberger, et c'est
 la contrepartie de l'usage gratuit qu'on fait de Scryfall (§IV.3).
 
-Wankul est la seule exception. Son CDN refuse de servir ses images à qui que ce
-soit, et l'accord nominatif de son éditeur couvre l'hébergement au même titre que
-la collecte. Les rendus sont donc versés dans le bucket **`card-art`**, créé par
-migration, public en lecture, et rangés sous un **préfixe de jeu** : ce bucket
-n'est pas un cache où l'on déverserait les autres sources au premier ennui de
-réseau, et le préfixe est là pour que la question se pose à chaque fois.
+Wankul est l'exception fondatrice. Son CDN refuse de servir ses images à qui que
+ce soit, et l'accord nominatif de son éditeur couvre l'hébergement au même titre
+que la collecte. Les rendus sont donc versés dans le bucket **`card-art`**, créé
+par migration, public en lecture, et rangés sous un **préfixe de jeu** : ce
+bucket n'est pas un cache où l'on déverserait les autres sources au premier
+ennui de réseau, et le préfixe est là pour que la question se pose à chaque
+fois.
+
+**Les dos de cartes du calque y vivent aussi**, en `<jeu>/back.jpg`, et pour une
+raison que les illustrations n'ont pas : le calque est une *browser source* OBS,
+et une image que son hôte sert sans en-tête CORS s'y fait **bloquer en
+silence** — pas de code de retour, rien à lire dans le code, il faut le demander
+à l'hôte, en-tête `Origin` en main. Sur les deux dos publiés par les sources du
+projet, un seul en envoyait ; et un CDN tiers peut tomber au milieu d'un
+direct. Le bucket, lui, les sert à tous. La question de l'accord se pose donc
+jeu par jeu, comme pour Wankul, et la réponse est **dans la table du module de
+versement** (`app.ingestion.card_back_upload`), citée : YGOPRODeck *demande* de
+réhéberger ses images, Scryfall n'interdit que le paywall, le *repackaging* et
+la déformation, le dos restant © Wizards sous sa *Fan Content Policy*. Un jeu
+absent de cette table est **refusé**, même fichier en main ; les six jeux dont
+aucune source ne publie le dos gardent le motif dessiné. Le fichier est versé
+tel quel — pas de réencodage —, et le versement se **relit avec l'`Origin` du
+calque** avant de se dire réussi : c'est la seule preuve qui vaille. Détail
+côté calque : [`collection-architecture.md`](./collection-architecture.md).
 
 Le chemin imite celui de Scryfall — `/normal/<id>.jpg` et `/small/<id>.jpg` —
 parce que l'application sait déjà passer de l'un à l'autre pour afficher une
@@ -1153,7 +1171,7 @@ Rôle **secondaire** : désambiguïsation quand plusieurs empreintes sont proche
 
 | Source | Rôle | Accès | Contraintes |
 |---|---|---|---|
-| **Scryfall** | Catalogue, noms localisés FR, identité couleur, légalités par format, prix EUR/USD | Public, sans clé | ≤ 10 req/s · `User-Agent` descriptif obligatoire · *bulk data* à privilégier · prix rafraîchis 1×/jour · attribution · interdiction de paywaller ou de simplement repackager |
+| **Scryfall** | Catalogue, noms localisés FR, identité couleur, légalités par format, prix EUR/USD | Public, sans clé | ≤ 10 req/s · `User-Agent` descriptif obligatoire · *bulk data* à privilégier · prix rafraîchis 1×/jour · attribution · interdiction de paywaller ou de simplement repackager. Rien contre la copie d'un fichier : le **dos** est versé dans `card-art` pour le calque, tel quel |
 | **TopDeck.gg** | Corpus méta — decklists de tournoi, formats 60 cartes | Clé gratuite au portail développeur | 100 req/min · **crédit visible + lien obligatoires** · ne couvre **pas** le Commander multijoueur |
 | **EDHTop16** | Corpus Commander compétitif (cEDH) | GraphQL public sans clé, `https://edhtop16.com/api/graphql` | Conditions d'usage non formalisées — API publique et documentée, son auteur en encourage l'usage. À surveiller. |
 | **MTGJSON** | Précons officiels (Commander, Challenger, starter) | Téléchargement libre | Licence MIT, redistribution libre |
@@ -1163,7 +1181,7 @@ Rôle **secondaire** : désambiguïsation quand plusieurs empreintes sont proche
 | **EDHREC** | — | **Interdit** | Les conditions prohibent explicitement les requêtes automatisées et la republication. |
 | **Riftcodex** | Catalogue Riftbound — noms, types, domaines, raretés, extensions, illustrations | Public, sans clé, paginé à 100 | **Conditions non publiées.** Projet de fans non affilié à Riot. À défaut de règles explicites, on lui applique celles de Scryfall : `User-Agent` descriptif, débit bas, attribution visible. Les illustrations qu'il référence sont servies par le CDN officiel de Riot, jamais réhébergées. |
 | **API Riot (Riftbound)** | Source officielle visée pour Riftbound | **Fermée** aux clés de développement | Mesuré : une clé valide obtient 403 sur les quatre routes régionales tout en répondant 200 ailleurs. L'ouverture demande une approbation nommée avec prototype. Attribution imposée, texte officiel obligatoire, pas d'assets externes. |
-| **YGOPRODeck** | Catalogue Yu-Gi-Oh — noms EN et FR, types, niveaux, attributs, impressions, illustrations | Public, sans clé, **catalogue entier en un appel** (21 Mo, 14 491 cartes) | **Pas de CGU publiées** ; le guide d'API fait foi et **demande** le stockage local (« please download and store all data locally »). Débit annoncé : 20 req/s — ce connecteur en fait deux en tout. Garde-fou §IV.9 : on lui applique les règles de Scryfall. Illustrations jamais réhébergées. |
+| **YGOPRODeck** | Catalogue Yu-Gi-Oh — noms EN et FR, types, niveaux, attributs, impressions, illustrations | Public, sans clé, **catalogue entier en un appel** (21 Mo, 14 491 cartes) | **Pas de CGU publiées** ; le guide d'API fait foi et **demande** le stockage local (« please download and store all data locally »). Débit annoncé : 20 req/s — ce connecteur en fait deux en tout. Garde-fou §IV.9 : on lui applique les règles de Scryfall. Illustrations jamais réhébergées — sauf le **dos**, que son guide demande de copier et que `images.ygoprodeck.com` sert sans CORS : il est versé dans `card-art` pour le calque |
 
 ### Ce qui protège une longue course
 

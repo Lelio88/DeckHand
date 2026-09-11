@@ -736,8 +736,8 @@ lieu de seulement l'illustrer.
 **Ce qui le rend bon marché** : les pages qui défilent sont **génériques**, et
 montrent le **dos des cartes**. Une feuille traverse en cent quatre-vingts
 millisecondes — le mouvement se lit, son contenu non —, et charger quarante-cinq
-vraies pages coûterait quarante-cinq appels réseau pour du flou. Le dos est **dessiné**, non chargé : la face cachée d'une
-carte Magic est une œuvre de l'éditeur, et le projet ne réhéberge rien (§IV.3).
+vraies pages coûterait quarante-cinq appels réseau pour du flou. Le dos est une
+seule image, décodée une fois par session et dessinée neuf fois par feuille.
 Seule la page qui se pose est réelle — un unique appel à `public_binder_page`,
 lancé à l'arrivée de la demande et non à chaque interrogation.
 
@@ -754,28 +754,40 @@ exécution à l'autre, le **nombre de widgets** ne varie pas.
 
 **Les feuilles montrent le vrai dos du jeu.** Ce qu'on attend d'un classeur
 Magic, c'est le dos Magic ; d'un classeur Pokémon, le dos Pokémon. Un motif
-inventé dit « carte » là où il faut dire « **cette** carte-là ». **On pointe, on
-ne réhéberge pas** (§IV.3, §IV.9) : l'URL est celle de la source qui la sert,
-exactement comme pour les illustrations.
+inventé dit « carte » là où il faut dire « **cette** carte-là ».
 
-**Et il ne suffit pas qu'une URL réponde : le calque est un navigateur.**
-`backs.scryfall.io` envoie `Access-Control-Allow-Origin: *` — le dos Magic se
-charge donc dans la *browser source* comme dans l'application.
-`images.ygoprodeck.com` **n'envoie aucun en-tête CORS** : le dos Yu-Gi-Oh se
-charge sur mobile et se fait **bloquer en silence** sur le web, où il retombe
-sur le motif. C'est une limite de la source, pas du code, et elle ne se voit ni
-dans un code de retour ni à la lecture — il faut la demander à l'hôte, en-tête
-`Origin` en main.
+**Le dos est la seule image que le projet ne pointe pas chez sa source, et
+c'est le calque qui l'impose.** Il ne suffit pas qu'une URL réponde : le calque
+est un navigateur, et une image que son hôte sert sans en-tête CORS s'y fait
+**bloquer en silence** — pas de code de retour, rien à lire dans le code, il
+faut le demander à l'hôte, en-tête `Origin` en main. Mesuré : `backs.scryfall.io`
+envoie `Access-Control-Allow-Origin: *`, `images.ygoprodeck.com` n'envoie rien,
+et le calque Yu-Gi-Oh retombait sur le motif sans que rien ne le dise. Plutôt
+que de dépendre du CDN de chacun — et de sa disponibilité au milieu d'un direct
+—, le dos de chaque jeu est **versé dans le bucket `card-art`**, en
+`<jeu>/back.jpg`, qui le sert avec CORS à tous. `cardBackUrl` dérive cette
+adresse de `SupabaseConfig.url` ; `back_url`, côté Python, calcule la même, et
+un test de chaque côté tient les deux d'accord sans qu'ils se consultent.
 
-**Deux jeux sur huit en ont un, et c'est une constatation.** Chaque URL a été
-vérifiée par une requête réelle ; les six autres jeux sont absents parce
-qu'**aucune source utilisée par le projet ne publie leur dos** — Scryfall sert le
-dos Magic (`backs.scryfall.io`, rapport 0,7157), YGOPRODeck le dos Yu-Gi-Oh, et
-TCGdex, Riftcodex, optcgapi, Lorcast, SWU-DB et Wankuldex n'exposent que des
-images par carte. **Deviner une URL sur le CDN d'un éditeur** serait au mieux un
-404, au pire une ressource qu'on n'a pas le droit de servir : un jeu sans dos
-publié garde le motif dessiné, repli assumé. Pour en ajouter un : trouver la
-source, vérifier d'une requête, l'inscrire dans `card_back.dart`.
+**Chaque copie repose sur ce que sa source écrit** (§IV.10) : YGOPRODeck
+*demande* de réhéberger ses images, Scryfall n'interdit que le paywall, le
+*repackaging* et la déformation. La table de `app.ingestion.card_back_upload`
+cite l'accord de chaque jeu, et le module **refuse** un jeu qui n'y est pas ; il
+verse le fichier tel quel, puis le relit avec l'`Origin` du calque avant de se
+dire réussi. Côté Dart, `hostedCardBacks` dit lesquels sont là — une liste, non
+un appel pour voir : six 404 par session à notre propre infrastructure pour une
+réponse connue d'avance.
+
+**Deux jeux sur huit en ont un, et c'est une constatation.** Les six autres sont
+absents parce qu'**aucune source utilisée par le projet ne publie leur dos** —
+vérifié source par source (API, docs, et jusqu'aux bundles de leurs sites) :
+TCGdex, Riftcodex, optcgapi, Lorcast et SWU-DB n'exposent que des images par
+carte, les pages publiques de Riot n'en montrent pas non plus, et l'accord
+Wankul ne porte pas sur un dos. **Deviner une URL sur le CDN d'un éditeur**
+serait au mieux un 404, au pire une ressource qu'on n'a pas le droit de servir :
+un jeu sans dos publié garde le motif dessiné, repli assumé. Pour en ajouter
+un : obtenir le fichier et l'accord écrit, les inscrire dans la table du module,
+verser avec `--file`, puis l'ajouter à `hostedCardBacks`.
 
 **Le calque sait enfin quel jeu il regarde** (#36). Le bot vise un jeu depuis
 toujours — `python -m app.twitch --game riftbound` — mais ses quatre lectures

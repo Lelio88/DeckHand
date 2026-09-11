@@ -69,6 +69,12 @@ cd api && .venv/Scripts/python -m app.vision.local_index wankul <dossier>
 # · !montre* <nom> · !dernieres · !classeur · !deckhand
 cd api && .venv/Scripts/python -m app.twitch                       # --game riftbound
 
+# Le dos des cartes que feuillette le calque, versé dans le bucket card-art et
+# relu avec l'Origin du calque (CORS). Seuls les jeux dont la table du module
+# cite l'accord écrit de la source sont acceptés ; --file pour un dos remis
+# hors ligne par un éditeur.
+cd api && .venv/Scripts/python -m app.ingestion.card_back_upload   # tous · <jeu> · <jeu> --file <chemin>
+
 # L'animation de `!montre`, sans base ni compte — le widget de production
 cd app && flutter run -d chrome -t tool/apercu_montre.dart
 # Le même mouvement, figé : huit images du feuilletage et de la sortie, hors dépôt

@@ -87,7 +87,9 @@ DeckHand n'existe que grâce à ces services, qui ouvrent leurs données.
 - **[Scryfall](https://scryfall.com)** — catalogue des cartes, noms localisés, légalités,
   identité couleur, prix et illustrations. DeckHand respecte leurs
   [directives d'API](https://scryfall.com/docs/api) : débit limité, `User-Agent` identifiant,
-  exports groupés plutôt qu'appels unitaires.
+  exports groupés plutôt qu'appels unitaires. Le dos de carte Magic, © Wizards of the Coast,
+  est servi depuis l'hébergement du projet pour le calque de direct — tel quel, sans
+  déformation, et sans rien paywaller ni repackager.
 - **[TopDeck.gg](https://topdeck.gg)** — decklists de tournoi, pour les trois jeux.
 - **[MTGJSON](https://mtgjson.com)** — decks préconstruits officiels, sous licence MIT.
 - **[Riftcodex](https://riftcodex.com)** — catalogue des cartes Riftbound. Base communautaire
@@ -101,7 +103,9 @@ DeckHand n'existe que grâce à ces services, qui ouvrent leurs données.
 - **[YGOPRODeck](https://ygoprodeck.com)** — catalogue des cartes Yu-Gi-Oh, noms français et
   illustrations. Base communautaire qui ne publie pas de CGU : son
   [guide d'API](https://ygoprodeck.com/api-guide/) fait foi, il demande le stockage local des
-  données, et DeckHand lui applique pour le reste les mêmes égards qu'à Scryfall.
+  données et des images, et DeckHand lui applique pour le reste les mêmes égards qu'à
+  Scryfall. Le dos de carte Yu-Gi-Oh, © Konami, est servi depuis l'hébergement du projet
+  pour le calque de direct, comme ce guide le demande.
 - **[Konami](https://www.konami.com)** — Yu-Gi-Oh!, ses cartes et leurs illustrations.
   DeckHand n'est ni approuvé ni sponsorisé par Konami.
 
