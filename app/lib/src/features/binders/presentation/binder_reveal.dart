@@ -39,12 +39,19 @@
 /// coûté 20 964 cartes Pokémon dont aucune ne s'affichait, faute d'un suffixe
 /// que la source exige.
 ///
-/// **Les pages qui défilent montrent le dos des cartes**, et leur verso les
-/// pochettes vides — le vocabulaire du classeur de l'application, repris tel
-/// quel. Cela évite la question du contenu : neuf dos génériques ne prétendent
-/// être aucune page en particulier. Le dos est **dessiné**, non chargé : la
-/// face cachée d'une carte Magic est une œuvre de l'éditeur, et le projet ne
-/// réhéberge rien (§IV.3).
+/// **Les pages qui défilent montrent le dos des cartes, de leurs deux côtés.**
+/// Cela évite la question du contenu : neuf dos génériques ne prétendent être
+/// aucune page en particulier. Le verso portait des pochettes vides, ce qui
+/// distinguait les faces d'un coup d'œil — mais un classeur rempli d'un seul
+/// côté montre le dos des cartes par-derrière, à travers le plastique, et c'est
+/// ce qu'on voit en tournant une feuille pour de vrai.
+///
+/// **Ce que ce choix déplace, et qu'il faut regarder :** les deux faces d'une
+/// feuille se ressemblent désormais, si bien que le retournement se lit par la
+/// courbure, l'ombre portée et le mouvement — non plus par un changement de
+/// contenu. À cent quatre-vingts millisecondes la feuille, c'est déjà ce que
+/// l'œil suivait. Mesuré : la bascule ne coûte rien, 534 widgets en vol de part
+/// et d'autre et des temps qui se recouvrent (`bench_montre_test.dart`).
 ///
 /// **La reliure est ce qui fait lire « classeur ».** Une première version n'avait
 /// qu'un panneau sombre et une grille : regardée à l'écran, elle ne ressemblait
@@ -461,7 +468,7 @@ class BinderReveal extends StatelessWidget {
       colors: couleurs,
       padding: RevealMetrics.pagePad,
       gap: RevealMetrics.gap,
-      pockets: true,
+      back: sheetBack,
     );
     final ouverture = Curves.easeOutCubic.transform(t.openAt(elapsed));
     final eject = t.ejectAt(elapsed);

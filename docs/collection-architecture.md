@@ -839,11 +839,14 @@ jamais la chercher.
 qui borde, un panneau plus clair, un médaillon cerclé avec son losange, deux
 barres : le tout sans imiter le dos d'aucun jeu — la face cachée d'une carte
 Magic est une œuvre de l'éditeur, et le projet ne réhéberge aucune illustration
-(§IV.3). Le verso d'une feuille **du calque** montre les **pochettes** et leur
-échancrure à pouce — ses faces sont génériques de bout en bout, là où le
-classeur de l'application, qui montre de vraies cartes au recto, montre leur dos
-au verso. Les deux sortent du même peintre : les séparer aurait fait deux
-géométries de grille à garder d'accord.
+(§IV.3). Les feuilles du calque montrent le **dos des cartes de leurs deux
+côtés**, comme celles de l'application : le verso portait des pochettes vides,
+mais un classeur rempli d'un seul côté laisse voir le dos par-derrière, à
+travers le plastique. Le peintre sait toujours dessiner les pochettes et leur
+échancrure à pouce — `patron-verso.png` les capture —, plus aucune vue ne les
+demande. Contrepartie à surveiller : les deux faces d'une feuille se
+ressemblant, le retournement se lit par la courbure et l'ombre plutôt que par
+le contenu.
 
 **Une version du motif ne se voyait pas**, et c'est une leçon sur ce
 qu'un dos de carte est. Elle était faite de traits gris à 45 % sur un carton

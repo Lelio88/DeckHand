@@ -58,6 +58,21 @@ const _carte = SpotlightCard(
   pages: 51,
 );
 
+/// Le dos pointé par `DECKHAND_CARD_BACK`, ou `null` si la variable est absente.
+///
+/// Un fichier hors dépôt ne peut pas être une condition de la suite : sans lui,
+/// les captures montrent le motif dessiné, et le disent.
+Future<ui.Image?> _dosEventuel(WidgetTester tester) async {
+  final chemin = Platform.environment['DECKHAND_CARD_BACK'];
+  if (chemin == null) return null;
+  ui.Image? image;
+  await tester.runAsync(() async {
+    final octets = await File(chemin).readAsBytes();
+    image = (await (await ui.instantiateImageCodec(octets)).getNextFrame()).image;
+  });
+  return image;
+}
+
 void main() {
   setUpAll(chargerRoboto);
 
@@ -69,6 +84,14 @@ void main() {
       addTearDown(tester.view.reset);
 
       const t = RevealTiming(48);
+
+      // **Le vrai dos quand on le donne**, par la même variable que la capture
+      // du patron plus bas. Sans elle, les feuilles portent le motif dessiné —
+      // le repli — et la capture ne montre alors pas ce que le calque affiche
+      // en vrai, les huit jeux ayant leur dos.
+      final dos = await _dosEventuel(tester);
+      addTearDown(() => dos?.dispose());
+
       // Six instants : l'ouverture, quatre prises dans le feuilletage, la page
       // posée. C'est entre la deuxième et la cinquième que tout se joue.
       final instants = <String, double>{
@@ -111,6 +134,7 @@ void main() {
                     request: _carte,
                     cells: _cases,
                     elapsed: entry.value,
+                    sheetBack: dos,
                   ),
                 ),
               ),
