@@ -19,6 +19,7 @@
 library;
 
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:deckhand/src/features/binders/domain/binder.dart';
 import 'package:deckhand/src/features/binders/domain/spotlight_request.dart';
@@ -60,6 +61,22 @@ void main() {
 
       const t = RevealTiming(48);
 
+      // **Le dos est fourni, parce qu'il l'est en vrai.** Les huit jeux ont le
+      // leur dans le bucket : mesurer sans lui chronométrerait le motif
+      // dessiné, un repli qu'on ne voit plus, et sous-estimerait ce que le
+      // calque peint à chaque image. Décodée pour de vrai — un faux
+      // `ui.Image` ne dirait rien de ce que coûte `drawImageRect`.
+      late final ui.Image dos;
+      await tester.runAsync(() async {
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawRect(
+          const Rect.fromLTWH(0, 0, 488, 680),
+          Paint()..color = const Color(0xFF1B2A4A),
+        );
+        dos = await recorder.endRecording().toImage(488, 680);
+      });
+      addTearDown(dos.dispose);
+
       Future<void> poser(double elapsed) => tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -68,6 +85,7 @@ void main() {
                 request: _carte,
                 cells: _cases,
                 elapsed: elapsed,
+                sheetBack: dos,
               ),
             ),
           ),
