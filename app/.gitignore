@@ -48,3 +48,8 @@ app.*.map.json
 # une fois puis jetés. Les commiter figerait un rendu qui depend de la police
 # locale et du SDK.
 /test/apercu/
+
+# Ce que flutter_test depose quand un golden ne correspond pas : l'attendu, le
+# rendu, et deux images de difference. Utile le temps de comprendre, jamais
+# au-dela — et le depot est public.
+/test/failures/
