@@ -91,6 +91,10 @@ void main() {
       // en vrai, les huit jeux ayant leur dos.
       final dos = await _dosEventuel(tester);
       addTearDown(() => dos?.dispose());
+      // Les deux jeux d'images coexistent au lieu de se contredire : sans la
+      // variable, relancer la capture après l'avoir jouée avec un dos ferait
+      // échouer un aperçu sur une différence voulue.
+      final suffixe = dos == null ? '' : '-dos';
 
       // Six instants : l'ouverture, quatre prises dans le feuilletage, la page
       // posée. C'est entre la deuxième et la cinquième que tout se joue.
@@ -144,7 +148,7 @@ void main() {
         await tester.pump();
         await expectLater(
           find.byType(BinderReveal),
-          matchesGoldenFile('apercu/montre-${entry.key}.png'),
+          matchesGoldenFile('apercu/montre-${entry.key}$suffixe.png'),
         );
       }
 
@@ -243,6 +247,10 @@ void main() {
   testWidgets('capture le patron des pages qui défilent', (tester) async {
     // **Le motif se juge à l'arrêt et de près**, sinon on ne sait pas si ce
     // qu'on ne voit pas en mouvement est absent ou seulement trop discret.
+    //
+    // Une seule face depuis que le verso montre la même chose que le recto :
+    // `patron-verso.png` capturait des pochettes que plus aucune vue ne
+    // demande.
     tester.view.devicePixelRatio = 3;
     tester.view.physicalSize = const Size(2000, 1600);
     addTearDown(tester.view.reset);
@@ -255,34 +263,31 @@ void main() {
       useMaterial3: true,
     );
 
-    for (final (nom, pochettes) in [('recto', false), ('verso', true)]) {
-      await tester.pumpWidget(
-        MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: theme,
-          home: Scaffold(
-            backgroundColor: const Color(0xFF1B1B22),
-            body: Center(
-              child: SizedBox(
-                width: RevealMetrics.pageWidth,
-                height: RevealMetrics.pageHeight,
-                child: SheetFace(
-                  colors: theme.colorScheme,
-                  padding: RevealMetrics.pagePad,
-                  gap: RevealMetrics.gap,
-                  pockets: pochettes,
-                ),
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: theme,
+        home: Scaffold(
+          backgroundColor: const Color(0xFF1B1B22),
+          body: Center(
+            child: SizedBox(
+              width: RevealMetrics.pageWidth,
+              height: RevealMetrics.pageHeight,
+              child: SheetFace(
+                colors: theme.colorScheme,
+                padding: RevealMetrics.pagePad,
+                gap: RevealMetrics.gap,
               ),
             ),
           ),
         ),
-      );
-      await tester.pump();
-      await expectLater(
-        find.byType(SheetFace),
-        matchesGoldenFile('apercu/patron-$nom.png'),
-      );
-    }
+      ),
+    );
+    await tester.pump();
+    await expectLater(
+      find.byType(SheetFace),
+      matchesGoldenFile('apercu/patron-recto.png'),
+    );
     // **Sauté comme ses voisins, et il ne l'était pas.** Ce test compare contre
     // une image de `test/apercu/`, dossier tenu hors dépôt — ce sont des
     // captures à regarder, pas des références de non-régression. Sur une

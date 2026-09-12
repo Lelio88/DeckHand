@@ -1,5 +1,4 @@
-/// La face d'une feuille de classeur en vol : neuf dos de cartes, ou neuf
-/// pochettes vides.
+/// La face d'une feuille de classeur en vol : neuf dos de cartes.
 ///
 /// **Un peintre, et non des widgets — c'est une mesure, pas un goût.** La
 /// feuille qui tourne est découpée en dix lamelles, et chacune **reconstruit la
@@ -31,12 +30,10 @@
 /// couleur d'accent du thème — c'est la seule teinte franche de la planche, et
 /// la seule qui survive à la vitesse.
 ///
-/// **Deux faces, un seul peintre.** Le recto d'une feuille montre le dos des
-/// cartes ; son verso montre les **pochettes**, vides par nature — c'est ce
-/// qu'on voit en tournant une page de classeur, le plastique et ses logements,
-/// pas les cartes qui y sont glissées de l'autre côté. Les deux partagent la
-/// page, sa marge et sa grille : les séparer en deux peintres aurait fait deux
-/// géométries à garder d'accord.
+/// **Les deux faces d'une feuille sortent du même peintre.** Elles montrent la
+/// même chose — un classeur rempli d'un seul côté laisse voir le dos des cartes
+/// par-derrière, à travers le plastique. Le verso a porté des pochettes vides ;
+/// ce mode a été retiré le jour où plus aucune vue ne le demandait.
 ///
 /// **La grille se déduit de la taille reçue.** Rien n'est écrit en dur : neuf
 /// cases dans ce qui reste de la page une fois la marge retirée. À la taille
@@ -55,12 +52,11 @@
 /// ```
 library;
 
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-/// Une page de feuille, recto (dos de cartes) ou verso (pochettes).
+/// Une page de feuille : neuf dos de cartes.
 class SheetFace extends StatelessWidget {
   const SheetFace({
     super.key,
@@ -68,7 +64,6 @@ class SheetFace extends StatelessWidget {
     required this.padding,
     required this.gap,
     this.back,
-    this.pockets = false,
   });
 
   final ColorScheme colors;
@@ -82,9 +77,6 @@ class SheetFace extends StatelessWidget {
   /// Espace entre deux cases.
   final double gap;
 
-  /// Vrai pour le verso : les pochettes vides, sans motif.
-  final bool pockets;
-
   @override
   Widget build(BuildContext context) => CustomPaint(
     painter: SheetFacePainter(
@@ -92,7 +84,6 @@ class SheetFace extends StatelessWidget {
       padding: padding,
       gap: gap,
       back: back,
-      pockets: pockets,
     ),
     // **La taille vient du parent.** La lamelle impose déjà celle de la page
     // entière ; un `size` par défaut ferait dessiner dans le vide le jour où
@@ -112,14 +103,12 @@ class SheetFacePainter extends CustomPainter {
     required this.colors,
     required this.padding,
     required this.gap,
-    required this.pockets,
     this.back,
   });
 
   final ColorScheme colors;
   final double padding;
   final double gap;
-  final bool pockets;
 
   /// Le vrai dos du jeu, ou `null` pour le motif dessiné.
   final ui.Image? back;
@@ -175,16 +164,6 @@ class SheetFacePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
       ..color = colors.primary.withValues(alpha: _accentAlpha);
-    final bord = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = colors.outlineVariant;
-    final plastique = Paint()
-      ..color = colors.surfaceContainerHighest.withValues(alpha: 0.5);
-    final encoche = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = colors.outline.withValues(alpha: 0.4);
     final dos = back;
     final photo = Paint()..filterQuality = FilterQuality.medium;
 
@@ -196,9 +175,7 @@ class SheetFacePainter extends CustomPainter {
           cellWidth,
           cellHeight,
         );
-        if (pockets) {
-          _paintPocket(canvas, cell, plastique, bord, encoche);
-        } else if (dos != null) {
+        if (dos != null) {
           _paintDos(canvas, cell, dos, photo);
         } else {
           _paintCardBack(canvas, cell, tranche, carton, creux, filet);
@@ -310,34 +287,6 @@ class SheetFacePainter extends CustomPainter {
     }
   }
 
-  /// Une pochette vide : le plastique, son logement, et l'échancrure par
-  /// laquelle le pouce sort la carte.
-  void _paintPocket(
-    Canvas canvas,
-    Rect cell,
-    Paint plastique,
-    Paint bord,
-    Paint encoche,
-  ) {
-    final box = RRect.fromRectAndRadius(
-      cell,
-      const Radius.circular(_cellRadius),
-    );
-    canvas.drawRRect(box, plastique);
-    canvas.drawRRect(box.deflate(0.5), bord);
-    canvas.drawArc(
-      Rect.fromCenter(
-        center: Offset(cell.center.dx, cell.top),
-        width: cell.width * 0.42,
-        height: cell.height * 0.14,
-      ),
-      0,
-      math.pi,
-      false,
-      encoche,
-    );
-  }
-
   Path _losange(Rect box) => Path()
     ..moveTo(box.center.dx, box.top)
     ..lineTo(box.right, box.center.dy)
@@ -350,6 +299,5 @@ class SheetFacePainter extends CustomPainter {
       old.colors != colors ||
       old.padding != padding ||
       old.gap != gap ||
-      old.pockets != pockets ||
       old.back != back;
 }

@@ -55,7 +55,6 @@ void main() {
       colors: const ColorScheme.dark(),
       padding: 14,
       gap: 8,
-      pockets: false,
       back: back,
     );
 
