@@ -244,8 +244,14 @@ la page découverte, arête sombre à la reliure — et d'une courbure en **lame
 composées de proche en proche**, chacune repartant du bord où la précédente
 s'achève.
 
-Le **dos d'une feuille montre des pochettes vides**, non la page suivante :
-celle-ci est déjà visible dessous, et on croyait voir les cartes par-derrière.
+Le **dos d'une feuille montre le dos des cartes du jeu ouvert**, jamais la page
+suivante : celle-ci est déjà visible dessous, et on croyait voir les cartes par
+transparence. Le premier remède fut d'y mettre des pochettes vides ; il allait
+trop loin, puisqu'un classeur rempli d'un seul côté laisse justement voir le dos
+des cartes à travers le plastique. L'image vient de `cardBackProvider`, et les
+pochettes restent le repli tant qu'elle n'est pas décodée. `page_turn.dart` ne
+connaît pour autant ni Riverpod ni le domaine : il reçoit une `ui.Image`, comme
+il recevait déjà un rapport de carte — une donnée graphique entre, un jeu non.
 
 Reliure à gauche, retour calculé en miroir, le doigt pilote l'avancement et lui
 seul. Les pages sont **maintenues en vie trois minutes** : Riverpod les disposait
@@ -833,8 +839,10 @@ jamais la chercher.
 qui borde, un panneau plus clair, un médaillon cerclé avec son losange, deux
 barres : le tout sans imiter le dos d'aucun jeu — la face cachée d'une carte
 Magic est une œuvre de l'éditeur, et le projet ne réhéberge aucune illustration
-(§IV.3). Le verso d'une feuille montre les **pochettes** et leur échancrure à
-pouce. Les deux sortent du même peintre : les séparer aurait fait deux
+(§IV.3). Le verso d'une feuille **du calque** montre les **pochettes** et leur
+échancrure à pouce — ses faces sont génériques de bout en bout, là où le
+classeur de l'application, qui montre de vraies cartes au recto, montre leur dos
+au verso. Les deux sortent du même peintre : les séparer aurait fait deux
 géométries de grille à garder d'accord.
 
 **Une version du motif ne se voyait pas**, et c'est une leçon sur ce

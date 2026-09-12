@@ -33,6 +33,7 @@ import '../../printings/presentation/printing_picker.dart';
 import '../data/binder_repository.dart';
 import '../domain/binder.dart';
 import '../domain/binder_family.dart';
+import 'card_back.dart';
 import 'page_turn.dart';
 import 'shelf_tile.dart';
 
@@ -880,6 +881,11 @@ class _Binder extends ConsumerWidget {
                     page: spread ? (left + 1) ~/ 2 : page,
                     pageCount: spread ? (pages + 1) ~/ 2 : pages,
                     cardAspect: ref.watch(selectedGameProvider).aspect,
+                    // Le verso des feuilles montre le dos des cartes du jeu
+                    // ouvert. `null` tant qu'il n'est pas décodé — la première
+                    // feuille tournée peut donc partir sur les pochettes, et
+                    // se repeindre dès que l'image arrive.
+                    back: ref.watch(cardBackProvider).asData?.value,
                     onTurned: (p) => ref
                         .read(binderPageNumberProvider.notifier)
                         .set(spread ? (p * 2 - 1).clamp(1, pages) : p),

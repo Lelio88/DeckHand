@@ -39,6 +39,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../common/card_image.dart';
 import '../../../config/selected_game.dart';
@@ -82,10 +83,20 @@ String? cardBackUrl(Game game) => hostedCardBacks.contains(game)
 /// une réponse qui ne changera pas.
 final Map<String, Future<ui.Image?>> _decoded = {};
 
+/// Le dos du jeu ouvert dans l'application.
+///
+/// **Pour le classeur, qui suit le jeu choisi ; le calque ne s'en sert pas.**
+/// Lui tient son jeu de son adresse (`?jeu=`) et non d'une préférence locale,
+/// et le charge dans son état. Le décodage, lui, est partagé : les deux passent
+/// par [loadCardBack], qui n'en fait qu'un par URL et par session.
+final cardBackProvider = FutureProvider<ui.Image?>(
+  (ref) => loadCardBack(ref.watch(selectedGameProvider)),
+);
+
 /// Charge et décode le dos d'un jeu.
 ///
-/// Rend `null` si le jeu n'en a pas ou si le chargement échoue : le calque
-/// retombe alors sur le motif dessiné, sans rien afficher d'une erreur.
+/// Rend `null` si le jeu n'en a pas ou si le chargement échoue : l'affichage
+/// retombe alors sur le motif dessiné, sans rien montrer d'une erreur.
 Future<ui.Image?> loadCardBack(Game game) {
   final url = cardBackUrl(game);
   if (url == null) return Future<ui.Image?>.value();

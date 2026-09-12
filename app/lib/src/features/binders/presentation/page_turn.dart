@@ -29,12 +29,14 @@
 /// mi-retournement présente son recto d'un côté de la pliure et son verso de
 /// l'autre : c'est ce qui distingue une feuille souple d'un panneau.
 ///
-/// **Le verso montre le dos des pochettes, pas des cartes.** Il portait d'abord
-/// la page suivante — celle-là même qui apparaît dessous —, si bien qu'on la
+/// **Le verso montre le dos des cartes — jamais la page suivante.** Il portait
+/// d'abord celle-ci, celle-là même qui apparaît dessous, si bien qu'on la
 /// voyait deux fois et que la feuille semblait transparente : on croyait
-/// regarder les cartes par-derrière. Dans un classeur, tourner une feuille
-/// découvre le dos de ses pochettes ; ce qu'il y a dedans ne se voit que de
-/// l'autre côté.
+/// regarder les cartes par-derrière. Le remède fut d'y mettre des pochettes
+/// vides ; il allait trop loin. Dans un classeur rempli d'un seul côté, tourner
+/// une feuille découvre le **dos des cartes** à travers le plastique — c'est ce
+/// qu'on voit, et c'est ce que [PageTurner.back] fournit. Les pochettes vides
+/// restent le repli, le temps que l'image arrive.
 ///
 /// **La reliure est à gauche**, comme un classeur à anneaux ouvert à plat :
 /// glisser vers la gauche avance, vers la droite on revient et tout est miroité.
@@ -57,6 +59,7 @@
 library;
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -170,6 +173,7 @@ class PageTurner extends StatefulWidget {
     required this.builder,
     required this.onTurned,
     required this.cardAspect,
+    this.back,
     this.facingBuilder,
   });
 
@@ -188,6 +192,15 @@ class PageTurner extends StatefulWidget {
   /// neuvième écriture du format d'une carte Magic, exactement ce que ce
   /// chantier a supprimé partout ailleurs.
   final double cardAspect;
+
+  /// Le dos des cartes, montré au verso des feuilles — `null` tant qu'il n'est
+  /// pas décodé, et le verso retombe alors sur ses pochettes vides.
+  ///
+  /// **Une image entre, un jeu non**, pour la même raison que [cardAspect] :
+  /// ce fichier ne connaît ni Riverpod ni le domaine. Qui l'appelle sait quel
+  /// jeu est ouvert et fournit l'image ; `card_back.dart` la décode une fois
+  /// par session et la sert à tout le monde.
+  final ui.Image? back;
 
   /// La face qui se rabat quand on avance — la page de droite.
   final PageBuilder builder;
@@ -348,7 +361,10 @@ class _PageTurnerState extends State<PageTurner>
                           mirrored: !forward,
                           child: turning(context, widget.page),
                         ),
-                        back: _SheetBack(cardAspect: widget.cardAspect),
+                        back: _SheetBack(
+                          cardAspect: widget.cardAspect,
+                          back: widget.back,
+                        ),
                       ),
                     ],
                   ),
@@ -417,13 +433,17 @@ class _Mirrored extends StatelessWidget {
 /// n'y est chargée : le verso ne coûte donc rien, alors qu'y remettre une page
 /// entière doublerait les neuf cartes d'une feuille en mouvement.
 class _SheetBack extends StatelessWidget {
-  const _SheetBack({required this.cardAspect});
+  const _SheetBack({required this.cardAspect, this.back});
 
   final double cardAspect;
+
+  /// Le dos des cartes, ou `null` — voir [PageTurner.back].
+  final ui.Image? back;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final dos = back;
 
     return DecoratedBox(
       decoration: BoxDecoration(color: theme.colorScheme.surfaceContainerHigh),
@@ -437,14 +457,28 @@ class _SheetBack extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           children: [
             for (var i = 0; i < 9; i++)
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.5,
-                  ),
-                  border: Border.all(color: theme.colorScheme.outlineVariant),
-                ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                // **La même `ui.Image` dans les neuf cases, et dans les dix
+                // lamelles.** `RawImage` ne décode rien : il pose une texture
+                // déjà en mémoire, celle que `card_back.dart` garde pour la
+                // session. Le compte de widgets ne bouge pas d'un cran par
+                // rapport aux pochettes qu'il remplace.
+                child: dos == null
+                    ? DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.5),
+                          border: Border.all(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                      )
+                    : RawImage(
+                        image: dos,
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.medium,
+                      ),
               ),
           ],
         ),

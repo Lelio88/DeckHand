@@ -15,6 +15,7 @@
 library;
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:deckhand/src/features/binders/presentation/page_turn.dart';
 import 'package:deckhand/src/features/scan/domain/card_geometry.dart';
@@ -25,6 +26,7 @@ Future<List<int>> pumpTurner(
   WidgetTester tester, {
   int page = 5,
   int pageCount = 10,
+  ui.Image? back,
 }) async {
   final turned = <int>[];
   await tester.pumpWidget(
@@ -34,6 +36,7 @@ Future<List<int>> pumpTurner(
           page: page,
           pageCount: pageCount,
           cardAspect: cardAspectFor('magic'),
+          back: back,
           onTurned: turned.add,
           builder: (context, p) => ColoredBox(
             color: Colors.white,
@@ -44,6 +47,21 @@ Future<List<int>> pumpTurner(
     ),
   );
   return turned;
+}
+
+/// Une image minuscule, décodée pour de vrai : `ui.Image` n'a pas de
+/// constructeur, et un faux ne prouverait rien de ce que le verso affiche.
+Future<ui.Image> uneImage(WidgetTester tester) async {
+  late final ui.Image image;
+  await tester.runAsync(() async {
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawRect(
+      const Rect.fromLTWH(0, 0, 4, 4),
+      Paint()..color = const Color(0xFF204080),
+    );
+    image = await recorder.endRecording().toImage(4, 4);
+  });
+  return image;
 }
 
 /// Bord droit d'une lamelle, déduit de sa pose et de sa longueur.
@@ -120,6 +138,50 @@ void main() {
     // face est donc construite plusieurs fois, une par tranche.
     expect(find.text('page 5'), findsWidgets);
     expect(find.text('page 6'), findsWidgets);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('le verso montre le dos des cartes quand on le donne', (
+    tester,
+  ) async {
+    // **Ce qu'on voit en tournant doucement une feuille.** Le verso portait des
+    // pochettes vides ; dans un classeur rempli d'un seul côté, c'est le dos
+    // des cartes qui apparaît à travers le plastique.
+    final image = await uneImage(tester);
+    await pumpTurner(tester, back: image);
+
+    // **Le verso n'existe qu'au-delà du quart de tour** : chaque lamelle
+    // choisit sa face, et tant qu'aucune n'a dépassé π/2 c'est le recto que
+    // l'on voit. Le geste est donc maintenu plutôt que relâché — la feuille
+    // suit alors le doigt, au lieu d'un instant de l'animation qu'il faudrait
+    // deviner.
+    final centre = tester.getCenter(find.byType(PageTurner));
+    final gesture = await tester.startGesture(centre);
+    await gesture.moveBy(const Offset(-700, 0));
+    await tester.pump();
+
+    // Neuf cases, et autant de lamelles qui reconstruisent la face : le compte
+    // exact dépend de la courbure, sa présence non.
+    expect(find.byType(RawImage), findsWidgets);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    image.dispose();
+  });
+
+  testWidgets('sans dos, le verso retombe sur ses pochettes', (tester) async {
+    // Le repli tient le temps que l'image arrive — une feuille tournée dans la
+    // première seconde ne doit pas montrer un trou.
+    await pumpTurner(tester);
+
+    final centre = tester.getCenter(find.byType(PageTurner));
+    final gesture = await tester.startGesture(centre);
+    await gesture.moveBy(const Offset(-700, 0));
+    await tester.pump();
+
+    expect(find.byType(RawImage), findsNothing);
 
     await gesture.up();
     await tester.pumpAndSettle();
