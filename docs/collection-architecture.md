@@ -769,28 +769,26 @@ que de dépendre du CDN de chacun — et de sa disponibilité au milieu d'un dir
 adresse de `SupabaseConfig.url` ; `back_url`, côté Python, calcule la même, et
 un test de chaque côté tient les deux d'accord sans qu'ils se consultent.
 
-**Chaque copie repose sur ce que sa source écrit** (§IV.10) : YGOPRODeck
-*demande* de réhéberger ses images, Scryfall n'interdit que le paywall, le
-*repackaging* et la déformation. La table de `app.ingestion.card_back_upload`
-cite l'accord de chaque jeu, et le module **refuse** un jeu qui n'y est pas ; il
-verse le fichier tel quel, puis le relit avec l'`Origin` du calque avant de se
-dire réussi. Côté Dart, `hostedCardBacks` dit lesquels sont là — une liste, non
-un appel pour voir : six 404 par session à notre propre infrastructure pour une
-réponse connue d'avance.
+**Deux provenances, et le module les distingue.** Magic et Yu-Gi-Oh viennent de
+leur source, sur ce qu'elle écrit (§IV.10) : YGOPRODeck *demande* de réhéberger
+ses images, Scryfall n'interdit que le paywall, le *repackaging* et la
+déformation. La table de `app.ingestion.card_back_upload` cite cet accord et
+**refuse** un jeu qui n'y est pas.
 
-**Deux jeux sur huit en ont un, et c'est une constatation.** Les six autres sont
-absents parce qu'**aucune source utilisée par le projet ne publie leur dos** —
-vérifié source par source (API, docs, et jusqu'aux bundles de leurs sites) :
-TCGdex, Riftcodex, optcgapi, Lorcast et SWU-DB n'exposent que des images par
-carte, et les pages publiques de Riot n'en montrent pas non plus. Deux cas se
-distinguent parmi eux : **Wankul** a le droit — son accord couvre la copie — et
-pas le fichier, il est donc inscrit dans la table en attendant qu'on le lui
-demande ; **Riftbound** a l'inverse, la *Legal Jibber Jabber* de Riot refusant
-son IP « in a game or app ». **Deviner une URL sur le CDN d'un éditeur**
-serait au mieux un 404, au pire une ressource qu'on n'a pas le droit de servir :
-un jeu sans dos publié garde le motif dessiné, repli assumé. Pour en ajouter
-un : obtenir le fichier et l'accord écrit, les inscrire dans la table du module,
-verser avec `--file`, puis l'ajouter à `hostedCardBacks`.
+Les six autres passent par `--scan` : le fichier est **fourni sur le disque**
+plutôt que tiré d'une source. Aucune n'est alors interrogée ni réhébergée —
+aucune ne publie de dos, vérifié source par source, API, docs et jusqu'aux
+bundles de leurs sites — et la provenance du fichier relève de qui le fournit.
+Le contrôle, lui, ne change pas : JPEG debout, rapport du carton du jeu, puis
+relecture avec l'`Origin` du calque. C'est ce contrôle qui a rattrapé les coins
+transparents du dos Pokémon et le liseré blanc de Riftbound et Wankul, qu'un
+rognage de quelques pour cent a fait disparaître avant versement.
+
+Côté Dart, `hostedCardBacks` dit lesquels sont là — une liste, non un appel
+pour voir. Elle vaut aujourd'hui les huit jeux, mais reste énumérée : un
+neuvième jeu n'aurait pas son dos par le fait d'exister, et le test compare à
+`Game.values` pour que son ajout se signale au lieu de rendre une adresse qui
+répondrait 404 au calque.
 
 **Le calque sait enfin quel jeu il regarde** (#36). Le bot vise un jeu depuis
 toujours — `python -m app.twitch --game riftbound` — mais ses quatre lectures

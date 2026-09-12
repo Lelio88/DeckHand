@@ -18,10 +18,10 @@ cité : un jeu qui n'y figure pas est **refusé**, même avec un fichier sous la
 main. Le jour où un éditeur donne un dos, on l'inscrit d'abord ici, avec ce
 qu'il a écrit — puis on le verse avec `--file`.
 
-**`--scan` est l'autre porte, et elle ne copie personne** : le fichier vient
-d'une carte possédée, pas d'une source. Rien n'est alors réhébergé, donc la
-table n'a pas à donner son accord — mais le contrôle du fichier, lui, reste
-entier.
+**`--scan` est l'autre porte** : le fichier est **fourni sur le disque** au lieu
+d'être tiré d'une source. Le module ne réhéberge alors aucune source et n'a
+donc rien à lui demander — la provenance du fichier est celle que lui donne
+l'appelant, et elle relève de lui. Le contrôle du fichier, lui, reste entier.
 
 **Et il n'y a rien à inventer.** Six jeux sur huit n'ont pas de dos publié par
 une source que le projet utilise (vérifié source par source, API, docs et
@@ -183,10 +183,11 @@ def run(
 ) -> int:
     """Verse le dos des jeux demandés. Rend 1 si l'un d'eux a échoué.
 
-    `scan` déclare que le fichier vient d'une **carte possédée**, et non d'une
-    source : rien n'est alors copié à personne, et la table n'a pas à donner son
-    accord. Le fichier reste contrôlé comme les autres — un scan de travers ou
-    le dos d'un autre jeu se refuse ici plutôt qu'à l'écran.
+    `scan` déclare que le fichier est **fourni sur le disque** plutôt que tiré
+    d'une source : rien n'est réhébergé, la table n'a donc pas à donner son
+    accord, et la provenance du fichier relève de l'appelant. Le fichier reste
+    contrôlé comme les autres — un cliché de travers ou le dos d'un autre jeu
+    se refuse ici plutôt qu'à l'écran.
 
     `config` et `client` sont injectables pour le test.
     """

@@ -20,13 +20,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('les dos versés', () {
-    test('deux jeux en ont un, et ce sont ceux-là', () {
-      // **Une constatation, pas un abandon.** Les six autres sources ne
-      // publient pas de dos ; en inventer une URL serait au mieux un 404, au
-      // pire une ressource qu'on n'a pas le droit de servir.
-      expect(hostedCardBacks, {Game.magic, Game.yugioh});
-      expect(cardBackUrl(Game.pokemon), isNull);
-      expect(cardBackUrl(Game.wankul), isNull);
+    test('les huit jeux en ont un, et aucun n_est supposé', () {
+      // **Le code énumère, le test compare — et c'est le point.**
+      // `hostedCardBacks` liste les jeux un par un plutôt que de valoir
+      // `Game.values` : un jeu n'a pas son dos par le fait d'exister, il faut
+      // l'avoir versé. Ce test, lui, compare à `Game.values` pour qu'un
+      // neuvième jeu le fasse échouer — sans quoi son dos manquerait en
+      // silence, ou son adresse répondrait 404 au calque.
+      expect(hostedCardBacks, Game.values.toSet());
     });
 
     test('l_adresse est celle du bucket, calculée comme le versement', () {
@@ -46,11 +47,6 @@ void main() {
         // que sur ce segment, et elle n'existe pas.
         expect(url, isNot(contains('/normal/')));
       }
-    });
-
-    test('un jeu sans dos ne fait pas d_appel', () async {
-      // Le repli est le motif dessiné, et il ne coûte pas un aller-retour.
-      expect(await loadCardBack(Game.pokemon), isNull);
     });
   });
 

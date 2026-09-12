@@ -17,36 +17,17 @@
 /// `card-art`, en `<jeu>/back.jpg`, qui les sert avec CORS à tous — et cette
 /// adresse se dérive de `SupabaseConfig.url`, sans rien retenir de tiers.
 ///
-/// **Chaque copie repose sur ce que sa source écrit, et rien d'autre**
-/// (§IV.10) : YGOPRODeck *demande* de réhéberger ses images, Scryfall
-/// n'interdit que le paywall, le *repackaging* et la déformation. C'est
-/// `app.ingestion.card_back_upload` qui verse, et qui **refuse** un jeu dont
-/// l'accord n'est pas cité dans sa table — le Dart, lui, ne fait que dire
+/// **Deux provenances, et `app.ingestion.card_back_upload` les distingue.**
+/// Magic et Yu-Gi-Oh viennent de leur source, qui écrit ce qui autorise la
+/// copie — Scryfall n'interdit que le paywall, le *repackaging* et la
+/// déformation ; YGOPRODeck *demande* le re-hosting. Les six autres sont des
+/// fichiers **fournis sur le disque** : aucune source ne publie leur dos, et
+/// le module ne va donc en interroger aucune. Le Dart, lui, ne fait que dire
 /// lesquels sont là.
 ///
-/// **Deux jeux sur huit, et c'est une constatation, pas un abandon.** Les six
-/// autres sont absents parce qu'**aucune des sources que le projet utilise ne
-/// publie leur dos** — vérifié le 2026-09-11, source par source, API, docs et
-/// bundles de leurs sites :
-///
-/// | Jeu | Source | Dos publié |
-/// |---|---|---|
-/// | Magic | Scryfall | **oui** — `backs.scryfall.io`, 488 × 680 |
-/// | Yu-Gi-Oh | YGOPRODeck | **oui** — `images/cards/back.jpg`, 428 × 614 |
-/// | Pokémon | TCGdex | non — son schéma d'images est par carte, sans dos commun |
-/// | Riftbound | Riftcodex | non — `media.image_url` est par carte ; rien sur les pages publiques de Riot |
-/// | One Piece | optcgapi | non — `card_image` est par carte |
-/// | Lorcana | Lorcast | non — `image_uris` est par carte |
-/// | Star Wars Unlimited | SWU-DB | non — `FrontArt`/`BackArt` sont par carte, le verso des leaders |
-/// | Wankul | Wankuldex | non — le droit est acquis, le fichier manque |
-///
-/// **Deviner une URL serait la faute exacte que ce projet a déjà payée** :
-/// aller chercher un fichier au jugé sur le CDN d'un éditeur, c'est au mieux un
-/// 404, au pire une ressource qu'on n'a pas le droit de servir. Un jeu dont le
-/// dos n'est pas publié garde donc le motif dessiné de `sheet_face.dart` — un
-/// repli assumé, pas une panne, et il ne coûte pas un appel. Pour en ajouter
-/// un : obtenir le fichier et l'accord écrit de sa source, les inscrire dans la
-/// table du module de versement, verser, puis l'ajouter à [hostedCardBacks].
+/// **Le motif dessiné de `sheet_face.dart` reste le repli**, et il sert encore :
+/// le dos peut ne pas être arrivé quand la première feuille vole, et un
+/// neuvième jeu n'en aurait pas tant qu'on ne l'a pas versé.
 ///
 /// **L'image est décodée une fois par session.** Une feuille de classeur en
 /// montre neuf, trois feuilles volent, dix lamelles les découpent : la même
@@ -63,14 +44,24 @@ import '../../../common/card_image.dart';
 import '../../../config/selected_game.dart';
 import '../../../config/supabase_config.dart';
 
-/// Les jeux dont le dos est dans le bucket — versés et relus avec CORS le
-/// 2026-09-11 par `app.ingestion.card_back_upload`.
+/// Les jeux dont le dos est dans le bucket — versés et relus avec CORS par
+/// `app.ingestion.card_back_upload`.
 ///
-/// **Une liste, et non un appel pour voir.** Demander `<jeu>/back.jpg` pour
-/// les huit et laisser le 404 décider coûterait six requêtes par session à
-/// notre propre infrastructure pour une réponse connue d'avance ; et la liste
-/// dit, à la lecture, ce qui est là.
-const Set<Game> hostedCardBacks = {Game.magic, Game.yugioh};
+/// **Une liste, et non un appel pour voir.** Demander `<jeu>/back.jpg` et
+/// laisser le 404 décider coûterait une requête par jeu absent à notre propre
+/// infrastructure, pour une réponse connue d'avance ; et la liste dit, à la
+/// lecture, ce qui est là. Un jeu qu'on ajoute au projet n'y entre pas seul :
+/// il faut avoir versé son dos.
+const Set<Game> hostedCardBacks = {
+  Game.magic,
+  Game.yugioh,
+  Game.pokemon,
+  Game.riftbound,
+  Game.onepiece,
+  Game.lorcana,
+  Game.swu,
+  Game.wankul,
+};
 
 /// Le chemin d'un dos dans le bucket. Jumeau de `back_url`, côté Python :
 /// les deux dérivent la même adresse de l'URL du projet, sans se consulter.
