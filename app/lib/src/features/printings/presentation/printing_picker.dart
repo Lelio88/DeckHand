@@ -466,12 +466,20 @@ class _Empty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // **Le filtre qui vide la liste doit être nommé, finition comprise.**
+    // Annoncer « aucune édition brillante » quand c'est la recherche ou la
+    // période qui écarte tout laisserait croire que la carte n'existe pas en
+    // brillant.
+    final brillante = foil ? 'brillante ' : '';
     final message = switch (true) {
-      _ when foil => 'Aucune édition brillante connue pour cette carte.',
-      _ when query.isNotEmpty => 'Aucune extension ne correspond à « $query ».',
+      _ when query.isNotEmpty =>
+        foil
+            ? 'Aucune édition brillante ne correspond à « $query ».'
+            : 'Aucune extension ne correspond à « $query ».',
       _ when era != PrintingEra.all =>
-        'Aucune édition connue pour cette carte sur cette période '
+        'Aucune édition ${brillante}connue pour cette carte sur cette période '
             '(${era.label}).',
+      _ when foil => 'Aucune édition brillante connue pour cette carte.',
       _ => 'Aucune édition connue pour cette carte.',
     };
     return Center(

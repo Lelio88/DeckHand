@@ -19,6 +19,8 @@ import 'package:deckhand/src/features/card_search/presentation/card_search_scree
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/finders.dart';
+
 const _types = [
   CardType('Creature', 'Créature'),
   CardType('Instant', 'Éphémère'),
@@ -46,7 +48,7 @@ Future<Set<String>?> pumpFilter(
 
   await tester.tap(find.byType(TypeFilter));
   await tester.pumpAndSettle();
-  await tester.tap(find.text(tap).last);
+  await tester.tap(menuItem(tap));
   await tester.pumpAndSettle();
   return received;
 }

@@ -25,6 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/fakes.dart';
+import '../../helpers/finders.dart';
 
 CardPrinting printing(
   String setCode,
@@ -326,7 +327,7 @@ void main() {
 
       await tester.tap(find.text('Année'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Avant 2000'));
+      await tester.tap(menuItem('Avant 2000'));
       await tester.pumpAndSettle();
 
       expect(repository.lastEra, PrintingEra.before2000);
@@ -344,7 +345,7 @@ void main() {
 
       await tester.tap(find.text('Année'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('2020+'));
+      await tester.tap(menuItem('2020+'));
       await tester.pumpAndSettle();
 
       expect(
@@ -355,6 +356,30 @@ void main() {
             'générique',
       );
       expect(find.text('2020+'), findsOneWidget);
+    });
+
+    testWidgets('brillante et période : le message nomme la période', (
+      tester,
+    ) async {
+      // Aucune de ces éditions n'existe en brillant. Dire seulement « aucune
+      // édition brillante » laisserait croire que la carte n'en a nulle part,
+      // alors que c'est la période choisie qui vide aussi la liste.
+      await pumpPickerOpen(tester);
+
+      await tester.tap(find.text('Brillante'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Année'));
+      await tester.pumpAndSettle();
+      await tester.tap(menuItem('Avant 2000'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Aucune édition brillante connue pour cette carte sur cette période '
+          '(Avant 2000).',
+        ),
+        findsOneWidget,
+      );
     });
   });
 
