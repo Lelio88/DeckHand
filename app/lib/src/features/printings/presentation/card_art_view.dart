@@ -48,6 +48,7 @@ import '../../../common/card_image.dart';
 import '../../../config/selected_game.dart';
 
 import '../data/printing_repository.dart';
+import '../domain/printing_era.dart';
 import '../domain/scryfall_image.dart';
 import 'foil_decoration.dart';
 
@@ -130,7 +131,12 @@ class _CardArtDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final printings = ref.watch(
-      printingsProvider((oracleId: oracleId, query: '', lang: lang)),
+      printingsProvider((
+        oracleId: oracleId,
+        query: '',
+        lang: lang,
+        era: PrintingEra.all,
+      )),
     );
 
     return printings.when(

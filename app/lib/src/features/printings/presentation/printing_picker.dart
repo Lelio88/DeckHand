@@ -29,6 +29,7 @@ import '../../../common/card_image.dart';
 
 import '../data/printing_repository.dart';
 import '../domain/card_printing.dart';
+import '../domain/printing_era.dart';
 import 'card_art_view.dart';
 
 /// Ce que le sélecteur rend : une édition et sa finition.
@@ -110,6 +111,7 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
   Timer? _debounce;
   String _query = '';
   late bool _foil = widget.currentIsFoil;
+  PrintingEra _era = PrintingEra.all;
 
   /// Vrai dès que le code lu a désigné l'édition à notre place.
   ///
@@ -157,6 +159,7 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
         oracleId: widget.oracleId,
         query: _query,
         lang: widget.lang,
+        era: _era,
       )),
     );
 
@@ -201,6 +204,11 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                       value: _foil,
                       onChanged: (v) => setState(() => _foil = v),
                     ),
+                    const SizedBox(width: 10),
+                    _YearFilter(
+                      value: _era,
+                      onChanged: (era) => setState(() => _era = era),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -242,7 +250,9 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                     .where((p) => _foil ? p.hasFoil : p.hasNonfoil)
                     .toList(growable: false);
 
-                if (matching.isEmpty) return _Empty(query: _query, foil: _foil);
+                if (matching.isEmpty) {
+                  return _Empty(query: _query, foil: _foil, era: _era);
+                }
 
                 // L'extension lue sur la photo remonte en tête. C'est tout ce
                 // qu'on en fait : elle n'est ni cochée ni ajoutée d'office,
@@ -272,7 +282,8 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                 if (!_autoChose &&
                     readCount == 1 &&
                     widget.currentPrintId == null &&
-                    _query.isEmpty) {
+                    _query.isEmpty &&
+                    _era == PrintingEra.all) {
                   _acceptSoleReading(shown.first);
                 }
 
@@ -354,27 +365,81 @@ class _FoilToggle extends StatelessWidget {
 }
 
 class _Empty extends StatelessWidget {
-  const _Empty({required this.query, required this.foil});
+  const _Empty({required this.query, required this.foil, required this.era});
 
   final String query;
   final bool foil;
+  final PrintingEra era;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final message = switch (true) {
+      _ when foil => 'Aucune édition brillante connue pour cette carte.',
+      _ when query.isNotEmpty => 'Aucune extension ne correspond à « $query ».',
+      _ when era != PrintingEra.all =>
+        'Aucune édition connue pour cette carte sur cette période '
+            '(${era.label}).',
+      _ => 'Aucune édition connue pour cette carte.',
+    };
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Text(
-          foil
-              ? 'Aucune édition brillante connue pour cette carte.'
-              : query.isEmpty
-              ? 'Aucune édition connue pour cette carte.'
-              : 'Aucune extension ne correspond à « $query ».',
+          message,
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Sélecteur de tranche d'années, pour sortir une vieille édition du lot.
+///
+/// **Compact, pour tenir à côté de la recherche et de Brillante.** Le
+/// libellé du bouton reste « Année » tant que rien n'est choisi, et se réduit
+/// à la tranche retenue une fois qu'elle l'est — jamais plus qu'un mot, pour
+/// ne pas resserrer le champ de recherche sur un petit écran.
+class _YearFilter extends StatelessWidget {
+  const _YearFilter({required this.value, required this.onChanged});
+
+  final PrintingEra value;
+  final ValueChanged<PrintingEra> onChanged;
+
+  String get _label => value == PrintingEra.all ? 'Année' : value.label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final active = value != PrintingEra.all;
+
+    return PopupMenuButton<PrintingEra>(
+      tooltip: 'Filtrer par époque de sortie',
+      onSelected: onChanged,
+      itemBuilder: (context) => [
+        for (final era in PrintingEra.values)
+          CheckedPopupMenuItem(
+            value: era,
+            checked: era == value,
+            child: Text(era.label),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+          color: active ? theme.colorScheme.secondaryContainer : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_label, style: theme.textTheme.bodyMedium),
+            const Icon(Icons.arrow_drop_down, size: 20),
+          ],
         ),
       ),
     );

@@ -23,6 +23,7 @@ import 'package:deckhand/src/features/account/data/profile_repository.dart';
 import 'package:deckhand/src/config/selected_game.dart';
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/printings/domain/card_printing.dart';
+import 'package:deckhand/src/features/printings/domain/printing_era.dart';
 import 'package:deckhand/src/features/collection/domain/collection_entry.dart';
 import 'package:deckhand/src/features/collection/domain/collection_movement.dart';
 import 'package:deckhand/src/features/decks/data/deck_repository.dart';
@@ -478,25 +479,46 @@ class FakePrintingRepository implements PrintingRepository {
   String? lastOracleId;
   String? lastLang;
 
+  /// Tranche d'années demandée en dernier, pour vérifier qu'un changement de
+  /// filtre atteint bien le dépôt.
+  PrintingEra? lastEra;
+
   @override
   Future<List<CardPrinting>> forCard(
     String oracleId, {
     String? query,
     int limit = 60,
     String? lang,
+    PrintingEra era = PrintingEra.all,
   }) async {
     lastQuery = query;
     lastOracleId = oracleId;
     lastLang = lang;
-    if (query == null || query.isEmpty) return printings;
-    final needle = query.toLowerCase();
-    return printings
-        .where(
-          (p) =>
-              (p.setName ?? '').toLowerCase().contains(needle) ||
-              p.setCode.toLowerCase().startsWith(needle),
-        )
-        .toList(growable: false);
+    lastEra = era;
+
+    var result = printings;
+    if (query != null && query.isNotEmpty) {
+      final needle = query.toLowerCase();
+      result = result
+          .where(
+            (p) =>
+                (p.setName ?? '').toLowerCase().contains(needle) ||
+                p.setCode.toLowerCase().startsWith(needle),
+          )
+          .toList(growable: false);
+    }
+    if (era != PrintingEra.all) {
+      result = result
+          .where((p) {
+            final year = p.releasedAt?.year;
+            if (year == null) return false;
+            if (era.fromYear != null && year < era.fromYear!) return false;
+            if (era.toYear != null && year > era.toYear!) return false;
+            return true;
+          })
+          .toList(growable: false);
+    }
+    return result;
   }
 
   /// Editions uniques, par oracle. Ce que le catalogue repondrait pour les

@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/request_timeout.dart';
 import '../domain/card_printing.dart';
+import '../domain/printing_era.dart';
 
 class PrintingRepository {
   const PrintingRepository(this._client);
@@ -25,11 +26,18 @@ class PrintingRepository {
   /// elle ne fait jamais disparaître une édition. Scryfall ne catalogue pas
   /// toutes les impressions dans toutes les langues : exclure les autres
   /// langues cachait à un joueur l'édition qu'il avait en main.
+  ///
+  /// [era] restreint à une tranche d'années de sortie — un repli pour l'édition
+  /// dont on connaît l'époque mais pas le nom exact d'extension, le cas des
+  /// terrains de base et autres cartes mille fois réimprimées : sans lui,
+  /// l'ordre par sortie la plus récente enterre toujours les plus anciennes
+  /// derrière le plafond de [limit].
   Future<List<CardPrinting>> forCard(
     String oracleId, {
     String? query,
     int limit = 60,
     String? lang,
+    PrintingEra era = PrintingEra.all,
   }) async {
     final rows = await _client
         .rpc<List<dynamic>>(
@@ -39,6 +47,8 @@ class PrintingRepository {
             'p_query': (query ?? '').trim().isEmpty ? null : query!.trim(),
             'p_limit': limit,
             'p_lang': lang,
+            'p_from_year': era.fromYear,
+            'p_to_year': era.toYear,
           },
         )
         .timedOut();
@@ -80,16 +90,22 @@ final printingRepositoryProvider = Provider<PrintingRepository>(
   (ref) => PrintingRepository(Supabase.instance.client),
 );
 
-/// Éditions d'une carte pour une recherche donnée.
+/// Éditions d'une carte pour une recherche et une tranche d'années données.
 ///
-/// `family` sur le couple (carte, recherche) : deux cartes distinctes ne partagent
-/// pas de résultat, et frapper au clavier doit relancer la requête.
+/// `family` sur (carte, recherche, tranche) : deux cartes distinctes ne
+/// partagent pas de résultat, et frapper au clavier ou changer de tranche doit
+/// relancer la requête.
 final printingsProvider =
     FutureProvider.family<
       List<CardPrinting>,
-      ({String oracleId, String query, String? lang})
+      ({String oracleId, String query, String? lang, PrintingEra era})
     >(
       (ref, args) => ref
           .watch(printingRepositoryProvider)
-          .forCard(args.oracleId, query: args.query, lang: args.lang),
+          .forCard(
+            args.oracleId,
+            query: args.query,
+            lang: args.lang,
+            era: args.era,
+          ),
     );

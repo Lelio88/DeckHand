@@ -18,6 +18,7 @@ library;
 
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/printings/domain/card_printing.dart';
+import 'package:deckhand/src/features/printings/domain/printing_era.dart';
 import 'package:deckhand/src/features/printings/presentation/printing_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,16 +26,21 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/fakes.dart';
 
-CardPrinting printing(String setCode, String number, {String? setName}) =>
-    CardPrinting(
-      printId: '$setCode-$number',
-      setCode: setCode,
-      setName: setName ?? setCode.toUpperCase(),
-      collectorNumber: number,
-      lang: 'fr',
-      priceEur: 1.0,
-      hasNonfoil: true,
-    );
+CardPrinting printing(
+  String setCode,
+  String number, {
+  String? setName,
+  DateTime? releasedAt,
+}) => CardPrinting(
+  printId: '$setCode-$number',
+  setCode: setCode,
+  setName: setName ?? setCode.toUpperCase(),
+  collectorNumber: number,
+  lang: 'fr',
+  priceEur: 1.0,
+  hasNonfoil: true,
+  releasedAt: releasedAt,
+);
 
 /// Ouvre le sélecteur et rend l'ordre des extensions tel qu'il est affiché.
 Future<List<String>> pumpPicker(
@@ -257,5 +263,98 @@ void main() {
 
     expect(chosen, isNull);
     expect(find.byType(ListTile), findsWidgets);
+  });
+
+  group('le filtre par époque', () {
+    // Trois éditions largement espacées dans le temps : c'est le cas d'un
+    // terrain de base, où le tri par sortie la plus récente enterre les plus
+    // anciennes derrière des centaines de réimpressions.
+    final byYear = [
+      printing('lea', '1', setName: 'Alpha', releasedAt: DateTime(1993, 8, 5)),
+      printing(
+        'm10',
+        '1',
+        setName: 'Magic 2010',
+        releasedAt: DateTime(2009, 7, 17),
+      ),
+      printing(
+        'm21',
+        '1',
+        setName: 'Magic 2021',
+        releasedAt: DateTime(2020, 7, 3),
+      ),
+    ];
+
+    Future<FakePrintingRepository> pumpPickerOpen(WidgetTester tester) async {
+      final repository = FakePrintingRepository()..printings = byYear;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [printingRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () => showPrintingPicker(
+                    context,
+                    oracleId: 'oracle-1',
+                    cardName: 'Agent Phil Coulson',
+                  ),
+                  child: const Text('ouvrir'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('ouvrir'));
+      await tester.pumpAndSettle();
+      return repository;
+    }
+
+    testWidgets('sans choix, toutes les époques sont visibles', (tester) async {
+      await pumpPickerOpen(tester);
+
+      expect(find.text('Alpha'), findsOneWidget);
+      expect(find.text('Magic 2010'), findsOneWidget);
+      expect(find.text('Magic 2021'), findsOneWidget);
+    });
+
+    testWidgets('choisir une tranche ne garde que les éditions qui y tombent', (
+      tester,
+    ) async {
+      final repository = await pumpPickerOpen(tester);
+
+      await tester.tap(find.text('Année'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Avant 2000'));
+      await tester.pumpAndSettle();
+
+      expect(repository.lastEra, PrintingEra.before2000);
+      expect(find.text('Alpha'), findsOneWidget);
+      expect(
+        find.text('Magic 2010'),
+        findsNothing,
+        reason: '2009 tombe hors de la tranche « avant 2000 »',
+      );
+      expect(find.text('Magic 2021'), findsNothing);
+    });
+
+    testWidgets('le bouton affiche la tranche choisie', (tester) async {
+      await pumpPickerOpen(tester);
+
+      await tester.tap(find.text('Année'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2020+'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Année'),
+        findsNothing,
+        reason:
+            'le bouton porte maintenant la tranche choisie, pas son nom '
+            'générique',
+      );
+      expect(find.text('2020+'), findsOneWidget);
+    });
   });
 }
