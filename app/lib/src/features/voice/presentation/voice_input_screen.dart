@@ -19,6 +19,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../binders/data/binder_repository.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
@@ -329,6 +330,7 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
         added += item.quantity;
       }
       ref.invalidate(collectionProvider);
+      ref.invalidate(binderShelfProvider);
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
