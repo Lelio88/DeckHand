@@ -34,6 +34,12 @@
 /// **L'illustration se charge à la demande, jamais d'avance.** Une liste de
 /// vingt cartes dictées déclencherait vingt requêtes vers Scryfall pour des
 /// images que l'on ne regardera pas.
+///
+/// **Un repli se dit, il ne se cache pas.** Quand l'édition reconnue n'a pas
+/// d'illustration au catalogue, l'aperçu en montre une autre plutôt qu'un
+/// cadre vide — mais [_FallbackNotice] le signale : sans ce bandeau, la carte
+/// affichée semblait être celle qu'on tient, alors que ce n'est parfois
+/// qu'un décor de la même famille.
 library;
 
 import 'package:flutter/material.dart';
@@ -133,15 +139,26 @@ class _CardArtDialog extends ConsumerWidget {
         // plus anciennes impressions n'ont pas toujours d'image, et une
         // liste sans illustration ne doit pas se solder par un cadre vide
         // sans explication.
+        final requested = printId == null
+            ? null
+            : list
+                  .where((p) => p.printId == printId)
+                  .map((p) => p.artCropUrl)
+                  .firstOrNull;
         final url =
-            list
-                .where((p) => p.printId == printId)
-                .map((p) => p.artCropUrl)
-                .where((u) => u != null)
-                .firstOrNull ??
+            requested ??
             list.map((p) => p.artCropUrl).where((u) => u != null).firstOrNull;
 
-        return _Preview(url: fullCardImage(url), title: title, foil: foil);
+        // Le bandeau ne parle que du cas où une édition précise était
+        // demandée et n'avait pas d'illustration : sans édition connue
+        // (`printId` nul), montrer la première venue est le comportement
+        // normal, pas un repli à expliquer.
+        return _Preview(
+          url: fullCardImage(url),
+          title: title,
+          foil: foil,
+          isFallback: printId != null && requested == null && url != null,
+        );
       },
       loading: () => const _Shell(
         child: Center(
@@ -162,11 +179,23 @@ class _CardArtDialog extends ConsumerWidget {
 /// carte du jeu affiché, et elles étaient écrites en dur ici. Une carte n'a pas
 /// le même format d'un jeu à l'autre — voir `card_geometry.dart`.
 class _Preview extends ConsumerWidget {
-  const _Preview({required this.url, required this.title, required this.foil});
+  const _Preview({
+    required this.url,
+    required this.title,
+    required this.foil,
+    this.isFallback = false,
+  });
 
   final String? url;
   final String title;
   final bool foil;
+
+  /// Vrai quand [url] vient d'une autre édition que celle demandée, faute
+  /// d'illustration connue pour la sienne. Ne dit rien de la langue : la
+  /// substitution retenue est la première édition illustrée trouvée, quelle
+  /// qu'elle soit — il ne faut donc pas promettre « la version anglaise »,
+  /// seulement prévenir que ce n'est pas la bonne édition.
+  final bool isFallback;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -203,11 +232,49 @@ class _Preview extends ConsumerWidget {
               ),
             ),
           ),
+          if (isFallback) ...[
+            const SizedBox(height: 8),
+            const _FallbackNotice(),
+          ],
           const SizedBox(height: 10),
           Text(
             title,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Prévient que l'illustration montrée n'est pas celle de l'édition tenue.
+///
+/// **Sans quoi le repli se lit comme une erreur de reconnaissance.** L'édition
+/// demandée n'a simplement pas d'image connue au catalogue ; celle affichée à
+/// sa place vient d'une autre édition, choisie pour ne pas laisser un cadre
+/// vide, pas parce qu'elle correspond à la carte tenue en main.
+class _FallbackNotice extends StatelessWidget {
+  const _FallbackNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.info_outline, size: 14, color: Colors.white70),
+          const SizedBox(width: 6),
+          Text(
+            "Illustration d'une autre édition — celle-ci n'en a pas",
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: Colors.white70),
           ),
         ],
       ),
