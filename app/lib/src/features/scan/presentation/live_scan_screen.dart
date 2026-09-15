@@ -32,10 +32,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../config/selected_game.dart';
 import '../../../diagnostics/diagnostics.dart';
-import '../../binders/data/binder_repository.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../collection/data/collection_views.dart';
 import '../../printings/data/printing_repository.dart';
 import '../../printings/domain/scryfall_image.dart';
 import '../../printings/presentation/card_art_view.dart';
@@ -621,8 +621,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
         );
         added += line.quantity;
       }
-      ref.invalidate(collectionProvider);
-      ref.invalidate(binderShelfProvider);
+      refreshCollectionViews(ref.invalidate);
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(

@@ -19,10 +19,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../binders/data/binder_repository.dart';
 import '../../card_search/data/card_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../collection/data/collection_views.dart';
 import '../../printings/data/printing_repository.dart';
 import '../../printings/domain/card_printing.dart';
 import '../../printings/presentation/card_art_view.dart';
@@ -329,8 +329,7 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
         );
         added += item.quantity;
       }
-      ref.invalidate(collectionProvider);
-      ref.invalidate(binderShelfProvider);
+      refreshCollectionViews(ref.invalidate);
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(

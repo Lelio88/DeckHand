@@ -26,6 +26,7 @@ import '../../../config/selected_game.dart';
 import '../../../common/card_image.dart';
 import '../../../common/state_message.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../collection/data/collection_views.dart';
 import '../../collection/domain/collection_entry.dart' show FinishFilter;
 import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/foil_decoration.dart';
@@ -592,11 +593,8 @@ class _UnsortedCardTile extends ConsumerWidget {
   }
 
   /// La carte change de place : la pile, l'étagère et les totaux changent avec.
-  void _refreshPile(ProviderContainer container) {
-    container.invalidate(unsortedPileProvider);
-    container.invalidate(binderShelfProvider);
-    container.invalidate(collectionProvider);
-  }
+  void _refreshPile(ProviderContainer container) =>
+      refreshCollectionViews(container.invalidate);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1759,12 +1757,8 @@ class _CellActionsState extends ConsumerState<_CellActions> {
     }
   }
 
-  static void _refresh(ProviderContainer container) {
-    container.invalidate(binderPageProvider);
-    container.invalidate(binderShelfProvider);
-    container.invalidate(collectionProvider);
-    container.invalidate(binderFindProvider);
-  }
+  static void _refresh(ProviderContainer container) =>
+      refreshCollectionViews(container.invalidate);
 
   /// Retire un exemplaire de la case, sur la bonne impression.
   Future<void> _remove(BuildContext context, String oracleId) async {

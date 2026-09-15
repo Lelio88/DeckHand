@@ -12,8 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../config/selected_game.dart';
-import '../../binders/data/binder_repository.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../collection/data/collection_views.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/card_repository.dart';
@@ -321,8 +321,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
             toFoil: chosen.isFoil,
             quantity: quantity,
           );
-      ref.invalidate(collectionProvider);
-      ref.invalidate(binderShelfProvider);
+      refreshCollectionViews(ref.invalidate);
       if (!mounted) return;
       setState(() => _printing = chosen);
       messenger.hideCurrentSnackBar();
@@ -355,8 +354,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
             printId: printing?.printing.printId,
             isFoil: printing?.isFoil ?? false,
           );
-      ref.invalidate(collectionProvider);
-      ref.invalidate(binderShelfProvider);
+      refreshCollectionViews(ref.invalidate);
       if (!mounted) return;
       setState(() => _owned = total);
       // Sans cela les messages s'empilent et l'utilisateur lit un retour périmé :
@@ -401,8 +399,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
                           printId: printing.printing.printId,
                           isFoil: printing.isFoil,
                         );
-                    ref.invalidate(collectionProvider);
-                    ref.invalidate(binderShelfProvider);
+                    refreshCollectionViews(ref.invalidate);
                     if (mounted) {
                       setState(
                         () =>

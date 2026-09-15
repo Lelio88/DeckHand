@@ -17,11 +17,11 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../config/selected_game.dart';
 import '../../../diagnostics/diagnostics.dart';
-import '../../binders/data/binder_repository.dart';
 import '../../card_search/domain/card_hit.dart';
 import '../../card_search/presentation/card_picker.dart';
 import '../../card_search/presentation/owned_badge.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../collection/data/collection_views.dart';
 import '../../printings/data/printing_repository.dart';
 import '../../printings/domain/card_printing.dart';
 import '../../printings/presentation/card_art_view.dart';
@@ -306,8 +306,7 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         );
         added += item.quantity;
       }
-      ref.invalidate(collectionProvider);
-      ref.invalidate(binderShelfProvider);
+      refreshCollectionViews(ref.invalidate);
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(

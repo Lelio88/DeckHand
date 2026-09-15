@@ -315,6 +315,14 @@ retirer, corriger l'édition, ranger depuis la pile. Ajouter s'en passe, son
 inverse étant le bouton juste en dessous. L'annulation s'exécute sur le
 `ProviderContainer` et non sur `ref`, mort avec la feuille refermée.
 
+**Toute écriture relit les mêmes vues** (`refreshCollectionViews`) : totaux,
+journal, étagère, pages, recherche du classeur et pile « à trier ». Recherche,
+scan, étalement, dictée et classeur l'appellent tous, plutôt que de tenir chacun
+sa liste : un oubli ne lève aucune erreur, il laisse un écran faux — un nouveau
+classeur absent de l'étagère jusqu'au redémarrage. Une vue que personne ne
+regarde est seulement marquée et ne se relit qu'au prochain regard, si bien
+qu'une invalidation de trop ne coûte rien.
+
 ---
 
 ## 3. Le journal des mouvements
