@@ -483,18 +483,28 @@ class FakePrintingRepository implements PrintingRepository {
   /// filtre atteint bien le dépôt.
   PrintingEra? lastEra;
 
+  /// Rang de la première édition demandée en dernier : la page réclamée.
+  int? lastOffset;
+
+  /// Finition demandée en dernier — `null` quand elle ne filtre rien.
+  bool? lastFoil;
+
   @override
   Future<List<CardPrinting>> forCard(
     String oracleId, {
     String? query,
-    int limit = 60,
+    int limit = printingsPageSize,
+    int offset = 0,
     String? lang,
     PrintingEra era = PrintingEra.all,
+    bool? foil,
   }) async {
     lastQuery = query;
     lastOracleId = oracleId;
     lastLang = lang;
     lastEra = era;
+    lastOffset = offset;
+    lastFoil = foil;
 
     var result = printings;
     if (query != null && query.isNotEmpty) {
@@ -518,7 +528,14 @@ class FakePrintingRepository implements PrintingRepository {
           })
           .toList(growable: false);
     }
-    return result;
+    if (foil != null) {
+      result = result
+          .where((p) => foil ? p.hasFoil : p.hasNonfoil)
+          .toList(growable: false);
+    }
+    // Comme le serveur : le filtre avant la coupe, sinon une page ne compterait
+    // plus ce qu'elle promet.
+    return result.skip(offset).take(limit).toList(growable: false);
   }
 
   /// Editions uniques, par oracle. Ce que le catalogue repondrait pour les

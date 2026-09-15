@@ -357,4 +357,93 @@ void main() {
       expect(find.text('2020+'), findsOneWidget);
     });
   });
+
+  group('la suite des éditions', () {
+    // Dix éditions de plus qu'une page : le cas des cartes réimprimées plus de
+    // soixante fois, terrains de base en tête.
+    final many = [
+      for (var i = 0; i < printingsPageSize + 10; i++)
+        printing('s${i.toString().padLeft(3, '0')}', '1'),
+    ];
+
+    Future<FakePrintingRepository> open(
+      WidgetTester tester,
+      List<CardPrinting> printings,
+    ) async {
+      final repository = FakePrintingRepository()..printings = printings;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [printingRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () => showPrintingPicker(
+                    context,
+                    oracleId: 'oracle-1',
+                    cardName: 'Forêt',
+                  ),
+                  child: const Text('ouvrir'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('ouvrir'));
+      await tester.pumpAndSettle();
+      return repository;
+    }
+
+    testWidgets('une page pleine propose la suite, qui s\'ajoute à la liste', (
+      tester,
+    ) async {
+      final repository = await open(tester, many);
+      final more = find.text('Charger la suite');
+      final list = find.byType(Scrollable).last;
+
+      await tester.scrollUntilVisible(more, 400, scrollable: list);
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+
+      expect(repository.lastOffset, printingsPageSize);
+      await tester.scrollUntilVisible(find.text('S069'), 400, scrollable: list);
+      expect(find.text('S069'), findsOneWidget);
+      expect(
+        find.text('Charger la suite'),
+        findsNothing,
+        reason: 'la seconde page est incomplète : il ne reste rien à charger',
+      );
+    });
+
+    testWidgets('une page incomplète ne propose aucune suite', (tester) async {
+      await open(tester, many.take(3).toList());
+
+      expect(find.text('Charger la suite'), findsNothing);
+    });
+
+    testWidgets('la finition part au serveur et ramène à la première page', (
+      tester,
+    ) async {
+      final repository = await open(tester, many);
+      final list = find.byType(Scrollable).last;
+      await tester.scrollUntilVisible(
+        find.text('Charger la suite'),
+        400,
+        scrollable: list,
+      );
+      await tester.tap(find.text('Charger la suite'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Brillante'));
+      await tester.pumpAndSettle();
+
+      expect(repository.lastFoil, isTrue);
+      expect(
+        repository.lastOffset,
+        0,
+        reason: 'la suite d\'une autre finition ne dit rien de celle-ci',
+      );
+    });
+  });
 }

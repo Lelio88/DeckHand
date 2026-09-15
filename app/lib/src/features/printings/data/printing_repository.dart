@@ -1,9 +1,10 @@
 /// Accès aux éditions d'une carte.
 ///
-/// La liste est **toujours bornée et cherchable** : certaines cartes dépassent le
-/// millier d'impressions, et tout rapatrier pour laisser l'utilisateur faire défiler
-/// serait aussi lent qu'inutilisable. Le serveur remonte les éditions déjà possédées
-/// en tête, puis les plus récentes.
+/// La liste arrive **par pages, et reste cherchable** : certaines cartes dépassent
+/// le millier d'impressions, et tout rapatrier d'un coup serait aussi lent
+/// qu'inutilisable. Le serveur remonte les éditions déjà possédées en tête, puis
+/// les plus récentes ; l'application charge la suite quand on la demande, par
+/// [printingsPageSize] éditions.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,14 +31,20 @@ class PrintingRepository {
   /// [era] restreint à une tranche d'années de sortie — un repli pour l'édition
   /// dont on connaît l'époque mais pas le nom exact d'extension, le cas des
   /// terrains de base et autres cartes mille fois réimprimées : sans lui,
-  /// l'ordre par sortie la plus récente enterre toujours les plus anciennes
-  /// derrière le plafond de [limit].
+  /// l'ordre par sortie la plus récente place les plus anciennes derrière des
+  /// pages entières de réimpressions.
+  ///
+  /// [offset] saute les éditions des pages déjà chargées. [foil] filtre la
+  /// finition côté serveur, `null` rendant tout : filtrée après la coupe, une
+  /// page ne compterait plus ce qu'elle promet, et la pagination se perdrait.
   Future<List<CardPrinting>> forCard(
     String oracleId, {
     String? query,
-    int limit = 60,
+    int limit = printingsPageSize,
+    int offset = 0,
     String? lang,
     PrintingEra era = PrintingEra.all,
+    bool? foil,
   }) async {
     final rows = await _client
         .rpc<List<dynamic>>(
@@ -49,6 +56,12 @@ class PrintingRepository {
             'p_lang': lang,
             'p_from_year': era.fromYear,
             'p_to_year': era.toYear,
+            'p_offset': offset,
+            'p_finish': switch (foil) {
+              null => null,
+              true => 'foil',
+              false => 'nonfoil',
+            },
           },
         )
         .timedOut();
@@ -90,16 +103,31 @@ final printingRepositoryProvider = Provider<PrintingRepository>(
   (ref) => PrintingRepository(Supabase.instance.client),
 );
 
-/// Éditions d'une carte pour une recherche et une tranche d'années données.
+/// Nombre d'éditions par page.
 ///
-/// `family` sur (carte, recherche, tranche) : deux cartes distinctes ne
-/// partagent pas de résultat, et frapper au clavier ou changer de tranche doit
-/// relancer la requête.
+/// Soixante couvre en une page toutes les cartes Magic sauf dix-neuf — les cinq
+/// terrains de base, près de 900 éditions chacun, puis Sol Ring (135) et
+/// quelques autres. Le temps serveur ne dépend pas de ce nombre (mesuré :
+/// 0,7 s pour la Forêt à 60 comme à 200 lignes), seul le volume rapatrié.
+const int printingsPageSize = 60;
+
+/// Une page d'éditions : la carte, ses filtres, et le rang de la page.
+typedef PrintingsPage = ({
+  String oracleId,
+  String query,
+  String? lang,
+  PrintingEra era,
+  bool? foil,
+  int page,
+});
+
+/// Une page d'éditions d'une carte.
+///
+/// `family` sur la page entière : deux cartes distinctes ne partagent pas de
+/// résultat, changer un filtre relance la requête, et les pages déjà chargées
+/// restent en cache pendant qu'arrive la suivante.
 final printingsProvider =
-    FutureProvider.family<
-      List<CardPrinting>,
-      ({String oracleId, String query, String? lang, PrintingEra era})
-    >(
+    FutureProvider.family<List<CardPrinting>, PrintingsPage>(
       (ref, args) => ref
           .watch(printingRepositoryProvider)
           .forCard(
@@ -107,5 +135,7 @@ final printingsProvider =
             query: args.query,
             lang: args.lang,
             era: args.era,
+            foil: args.foil,
+            offset: args.page * printingsPageSize,
           ),
     );

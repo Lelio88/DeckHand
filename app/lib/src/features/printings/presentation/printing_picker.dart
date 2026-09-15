@@ -113,6 +113,10 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
   late bool _foil = widget.currentIsFoil;
   PrintingEra _era = PrintingEra.all;
 
+  /// Pages chargées. Revient à une dès qu'un filtre change : la suite d'une
+  /// autre recherche ne dit rien de celle-ci.
+  int _pages = 1;
+
   /// Vrai dès que le code lu a désigné l'édition à notre place.
   ///
   /// Le choix se referme sur la feuille, donc au cours d'une construction :
@@ -147,21 +151,30 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
   void _onChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 250), () {
-      if (mounted) setState(() => _query = value);
+      if (!mounted) return;
+      setState(() {
+        _query = value;
+        _pages = 1;
+      });
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final printings = ref.watch(
-      printingsProvider((
-        oracleId: widget.oracleId,
-        query: _query,
-        lang: widget.lang,
-        era: _era,
-      )),
+    PrintingsPage request(int page) => (
+      oracleId: widget.oracleId,
+      query: _query,
+      lang: widget.lang,
+      era: _era,
+      foil: _foil,
+      page: page,
     );
+    final printings = ref.watch(printingsProvider(request(0)));
+    final later = [
+      for (var page = 1; page < _pages; page++)
+        ref.watch(printingsProvider(request(page))),
+    ];
 
     return DraggableScrollableSheet(
       initialChildSize: 0.8,
@@ -202,12 +215,18 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                     const SizedBox(width: 10),
                     _FoilToggle(
                       value: _foil,
-                      onChanged: (v) => setState(() => _foil = v),
+                      onChanged: (v) => setState(() {
+                        _foil = v;
+                        _pages = 1;
+                      }),
                     ),
                     const SizedBox(width: 10),
                     _YearFilter(
                       value: _era,
-                      onChanged: (era) => setState(() => _era = era),
+                      onChanged: (era) => setState(() {
+                        _era = era;
+                        _pages = 1;
+                      }),
                     ),
                   ],
                 ),
@@ -242,13 +261,28 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                   child: Text('Éditions illisibles : $error'),
                 ),
               ),
-              data: (list) {
+              data: (first) {
                 // Une finition jamais imprimée n'a pas à figurer : proposer
                 // « brillant » sur une carte qui n'existe qu'en normal ferait
-                // enregistrer un exemplaire impossible.
-                final matching = list
-                    .where((p) => _foil ? p.hasFoil : p.hasNonfoil)
-                    .toList(growable: false);
+                // enregistrer un exemplaire impossible. Le serveur l'écarte
+                // avant de découper les pages.
+                final matching = [...first];
+                var lastPage = first;
+                AsyncValue<List<CardPrinting>>? pending;
+                for (final next in later) {
+                  final loaded = next.asData?.value;
+                  if (loaded == null) {
+                    pending = next;
+                    break;
+                  }
+                  matching.addAll(loaded);
+                  lastPage = loaded;
+                }
+                // Une page pleine laisse supposer une suite ; une page
+                // incomplète dit qu'il n'y en a pas.
+                final hasMore =
+                    pending == null && lastPage.length == printingsPageSize;
+                final hasFooter = pending != null || hasMore;
 
                 if (matching.isEmpty) {
                   return _Empty(query: _query, foil: _foil, era: _era);
@@ -289,11 +323,24 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
 
                 return ListView.builder(
                   controller: scrollController,
-                  itemCount: shown.length + (read == null ? 0 : 1),
+                  itemCount:
+                      shown.length +
+                      (read == null ? 0 : 1) +
+                      (hasFooter ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (read != null) {
                       if (index == 0) return _ReadOnCard(setCode: read);
                       index -= 1;
+                    }
+                    if (index == shown.length) {
+                      return _MoreEditions(
+                        loading: pending != null && !pending.hasError,
+                        failed: pending?.hasError ?? false,
+                        onLoad: () => setState(() => _pages++),
+                        onRetry: () => ref.invalidate(
+                          printingsProvider(request(_pages - 1)),
+                        ),
+                      );
                     }
                     return _PrintingTile(
                       printing: shown[index],
@@ -312,6 +359,51 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Bas de liste : charger la suite, la voir arriver, ou réessayer.
+///
+/// **Un geste plutôt qu'un défilement infini.** Ce qui n'est pas demandé ne se
+/// paie pas : chaque page coûte au serveur le calcul de toutes les éditions de
+/// la carte — 0,7 s pour la Forêt —, et l'édition cherchée est le plus souvent
+/// dans la première.
+class _MoreEditions extends StatelessWidget {
+  const _MoreEditions({
+    required this.loading,
+    required this.failed,
+    required this.onLoad,
+    required this.onRetry,
+  });
+
+  final bool loading;
+  final bool failed;
+  final VoidCallback onLoad;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: switch ((loading, failed)) {
+          (true, _) => const SizedBox.square(
+            dimension: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          (_, true) => TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Suite illisible — réessayer'),
+          ),
+          _ => TextButton.icon(
+            onPressed: onLoad,
+            icon: const Icon(Icons.expand_more),
+            label: const Text('Charger la suite'),
+          ),
+        },
       ),
     );
   }

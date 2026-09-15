@@ -136,6 +136,8 @@ class _CardArtDialog extends ConsumerWidget {
         query: '',
         lang: lang,
         era: PrintingEra.all,
+        foil: null,
+        page: 0,
       )),
     );
 

@@ -1,9 +1,10 @@
 /// Tranches d'années pour retrouver une édition sans connaître son extension.
 ///
 /// **Le sélecteur trie par sortie la plus récente**, et sur une carte
-/// réimprimée un millier de fois — les terrains de base —, cela enterre
-/// systématiquement les plus anciennes éditions derrière les 200 plus
-/// récentes (le plafond du serveur). La recherche textuelle ne répare rien :
+/// réimprimée un millier de fois — les terrains de base —, les plus anciennes
+/// éditions n'arrivent qu'après des pages entières de réimpressions. Charger
+/// la suite finit par les montrer ; la tranche y mène directement. La
+/// recherche textuelle ne répare rien :
 /// elle suppose de connaître le nom de l'extension, alors que ce qu'on connaît
 /// souvent d'une vieille carte, c'est son époque, pas son nom exact.
 ///
