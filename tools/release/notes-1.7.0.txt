@@ -1,0 +1,8 @@
+Retrouver et ranger ses cartes, plus facilement.
+
+- Le choix d'édition charge la suite : plus aucune édition cachée, même
+  parmi les centaines de terrains de base. Un filtre par époque y mène vite.
+- Le classeur retire ou corrige le bon exemplaire quand une case réunit
+  français et anglais, et demande lequel si les deux y sont.
+- Un nouveau classeur apparaît dès l'ajout, sans relancer l'app.
+- Cartes bannies, humoristiques ou illustrées se rangent aussi.
