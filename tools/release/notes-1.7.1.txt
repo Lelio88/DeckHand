@@ -1,0 +1,7 @@
+Des écrans toujours à jour.
+
+- Après un ajout, un retrait ou une correction d'édition, le classeur, la
+  pile « à trier », le journal et les totaux se mettent à jour partout, sans
+  relancer l'app.
+- Dans le choix d'édition, une liste vide dit ce qui la vide — la période ou
+  la recherche — au lieu d'annoncer qu'aucune édition brillante n'existe.
