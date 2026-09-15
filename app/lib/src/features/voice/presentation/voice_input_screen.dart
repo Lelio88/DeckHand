@@ -586,6 +586,10 @@ class _HeardTile extends StatelessWidget {
         oracleId: match.oracleId,
         title: match.matchedName,
         lang: match.matchedLang,
+        // L'édition choisie, pour montrer son illustration et non celle de la
+        // première venue — et signaler le repli quand elle n'en a pas.
+        printId: item.printing?.printing.printId,
+        foil: item.printing?.isFoil ?? false,
       ),
       child: tile,
     );

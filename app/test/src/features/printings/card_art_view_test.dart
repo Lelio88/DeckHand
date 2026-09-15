@@ -117,6 +117,36 @@ void main() {
   );
 
   testWidgets(
+    "une édition hors de la première page garde sa propre illustration",
+    (tester) async {
+      // **Le bandeau l'affirmait à tort.** L'aperçu cherchait l'édition dans
+      // la première page des éditions ; une vieille Forêt, derrière des
+      // centaines de réimpressions, y passait pour « sans image ».
+      await pumpArt(
+        tester,
+        printId: 'print-ancienne',
+        printings: [
+          for (var i = 0; i < printingsPageSize; i++)
+            printing(
+              printId: 'print-$i',
+              artCropUrl: 'https://exemple/recente.jpg',
+            ),
+          printing(
+            printId: 'print-ancienne',
+            artCropUrl: 'https://exemple/ancienne.jpg',
+          ),
+        ],
+      );
+
+      expect(find.text(_bandeau), findsNothing);
+      expect(
+        tester.widget<CardImage>(find.byType(CardImage)).url,
+        'https://exemple/ancienne.jpg',
+      );
+    },
+  );
+
+  testWidgets(
     "sans édition connue, montrer la première illustration n'est pas un "
     'repli à signaler',
     (tester) async {

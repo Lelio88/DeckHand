@@ -538,6 +538,14 @@ class FakePrintingRepository implements PrintingRepository {
     return result.skip(offset).take(limit).toList(growable: false);
   }
 
+  /// Illustration de l'édition, comme la rendrait `edition_art` : cherchée
+  /// dans toutes les éditions connues, sans égard aux pages.
+  @override
+  Future<String?> editionArt(String printId) async => printings
+      .where((p) => p.printId == printId)
+      .map((p) => p.artCropUrl)
+      .firstOrNull;
+
   /// Editions uniques, par oracle. Ce que le catalogue repondrait pour les
   /// cartes qui n'en ont qu'une ; les autres sont simplement absentes.
   Map<String, CardPrinting> sole = const {};

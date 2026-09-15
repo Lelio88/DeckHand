@@ -71,6 +71,17 @@ class PrintingRepository {
         .toList(growable: false);
   }
 
+  /// Illustration de l'édition de [printId], ou `null` si elle n'en a aucune.
+  ///
+  /// **Demandée, pas cherchée dans une page d'éditions** : absente de la page,
+  /// une édition passait pour sans image. Le serveur regarde toute la case et
+  /// retombe sur une autre langue de la même édition avant de rendre `null`.
+  Future<String?> editionArt(String printId) {
+    return _client
+        .rpc<String?>('edition_art', params: {'p_print_id': printId})
+        .timedOut();
+  }
+
   /// Pour chaque carte du lot n'ayant qu'une seule édition, cette édition.
   ///
   /// Les cartes qui en comptent plusieurs sont absentes du résultat : il n'y a
@@ -101,6 +112,11 @@ class PrintingRepository {
 
 final printingRepositoryProvider = Provider<PrintingRepository>(
   (ref) => PrintingRepository(Supabase.instance.client),
+);
+
+/// Illustration d'une édition, par impression.
+final editionArtProvider = FutureProvider.family<String?, String>(
+  (ref, printId) => ref.watch(printingRepositoryProvider).editionArt(printId),
 );
 
 /// Nombre d'éditions par page.

@@ -39,7 +39,10 @@
 /// d'illustration au catalogue, l'aperçu en montre une autre plutôt qu'un
 /// cadre vide — mais [_FallbackNotice] le signale : sans ce bandeau, la carte
 /// affichée semblait être celle qu'on tient, alors que ce n'est parfois
-/// qu'un décor de la même famille.
+/// qu'un décor de la même famille. Et il ne se proclame qu'à coup sûr :
+/// l'illustration d'une édition se demande au serveur (`edition_art`) au lieu
+/// de se chercher dans une page d'éditions, où une édition absente de la page
+/// passait pour sans image.
 library;
 
 import 'package:flutter/material.dart';
@@ -128,8 +131,45 @@ class _CardArtDialog extends ConsumerWidget {
   final String? lang;
   final String? printId;
 
+  static const _loading = _Shell(
+    child: Center(
+      child: Padding(
+        padding: EdgeInsets.all(40),
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Une édition « non précisée » porte un identifiant vide : elle ne désigne
+    // aucune édition, et n'a donc pas de repli à signaler.
+    final id = printId;
+    if (id == null || id.isEmpty) return _anyEdition(ref, isFallback: false);
+
+    // **L'illustration de l'édition se demande, elle ne se cherche pas.** La
+    // chercher dans la première page des éditions concluait « sans image »
+    // pour toute édition hors de cette page — une vieille Forêt parmi près de
+    // neuf cents —, et le bandeau l'affirmait à tort.
+    return ref
+        .watch(editionArtProvider(id))
+        .when(
+          data: (url) => url == null
+              ? _anyEdition(ref, isFallback: true)
+              : _Preview(url: fullCardImage(url), title: title, foil: foil),
+          loading: () => _loading,
+          error: (_, _) => const _Shell(child: _Absent('Carte indisponible.')),
+        );
+  }
+
+  /// La première illustration connue de la carte, toutes éditions confondues.
+  ///
+  /// Les plus anciennes impressions n'ont pas toujours d'image, et une liste
+  /// sans illustration ne doit pas se solder par un cadre vide. [isFallback]
+  /// vaut vrai quand une édition précise était demandée et n'a aucune image :
+  /// le bandeau le dit. Sans édition connue, montrer la première venue est le
+  /// comportement normal, pas un repli à expliquer.
+  Widget _anyEdition(WidgetRef ref, {required bool isFallback}) {
     final printings = ref.watch(
       printingsProvider((
         oracleId: oracleId,
@@ -143,39 +183,18 @@ class _CardArtDialog extends ConsumerWidget {
 
     return printings.when(
       data: (list) {
-        // L'édition possédée d'abord, la première illustrée ensuite : les
-        // plus anciennes impressions n'ont pas toujours d'image, et une
-        // liste sans illustration ne doit pas se solder par un cadre vide
-        // sans explication.
-        final requested = printId == null
-            ? null
-            : list
-                  .where((p) => p.printId == printId)
-                  .map((p) => p.artCropUrl)
-                  .firstOrNull;
-        final url =
-            requested ??
-            list.map((p) => p.artCropUrl).where((u) => u != null).firstOrNull;
-
-        // Le bandeau ne parle que du cas où une édition précise était
-        // demandée et n'avait pas d'illustration : sans édition connue
-        // (`printId` nul), montrer la première venue est le comportement
-        // normal, pas un repli à expliquer.
+        final url = list
+            .map((p) => p.artCropUrl)
+            .where((u) => u != null)
+            .firstOrNull;
         return _Preview(
           url: fullCardImage(url),
           title: title,
           foil: foil,
-          isFallback: printId != null && requested == null && url != null,
+          isFallback: isFallback && url != null,
         );
       },
-      loading: () => const _Shell(
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(40),
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      ),
+      loading: () => _loading,
       error: (_, _) => const _Shell(child: _Absent('Carte indisponible.')),
     );
   }

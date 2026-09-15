@@ -477,6 +477,10 @@ class _SpottedTile extends StatelessWidget {
         oracleId: card.oracleId,
         title: card.matchedName,
         lang: card.matchedLang,
+        // L'édition choisie, pour montrer son illustration et non celle de la
+        // première venue — et signaler le repli quand elle n'en a pas.
+        printId: item.printing?.printing.printId,
+        foil: item.printing?.isFoil ?? false,
       ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
