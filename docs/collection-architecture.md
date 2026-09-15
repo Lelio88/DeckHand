@@ -183,13 +183,14 @@ l'annulation revient sur celle-là. Viser la représentante répondait « aucun
 exemplaire ici » sur une case affichant ×2 : deux ajouts sous l'impression
 anglaise, dans une case dont la représentante était la française.
 
-**Ces quantités viennent de la collection que visent les écritures.** Rien
-n'interdit à une personne d'en avoir deux — `ensure_my_collection` cherche puis
-crée, sans contrainte d'unicité, et deux premiers ajouts simultanés passeraient
-tous deux la recherche. Les écritures prennent alors la plus ancienne ;
-`readable_collection()` sans argument fait de même, et c'est par elle que lisent
-le classeur et `my_binder_case_editions`. Lire ailleurs qu'on n'écrit ferait
-proposer de retirer un exemplaire que le retrait ne trouverait pas.
+**Une personne a une collection, et une seule** : `collections.owner_id` est
+unique. `ensure_my_collection` crée la sienne au premier ajout, et c'est la
+contrainte qui l'y oblige — chercher puis créer ne suffisait pas, deux premiers
+ajouts simultanés passant tous deux la recherche. L'insertion se fait donc
+`ON CONFLICT (owner_id) DO NOTHING`, puis relit. Les écritures, le classeur
+(`readable_collection()` sans argument) et `my_binder_case_editions` désignent
+ainsi forcément la même collection : lire ailleurs qu'on n'écrit ferait proposer
+de retirer un exemplaire que le retrait ne trouverait pas.
 
 **Ce qu'un classeur montre et qu'une liste ne montre pas, ce sont les cases
 vides** : la page part du catalogue, pas de la collection. Une case vide **dit
