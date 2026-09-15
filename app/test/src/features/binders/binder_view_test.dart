@@ -988,7 +988,18 @@ void main() {
     Future<void> openActions(WidgetTester tester) async {
       await tester.tap(find.text('Marvel Super Heroes'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(Image).first);
+      // **La case reçoit l'appui, pas son image.** Dans un test, l'image ne se
+      // charge jamais et le cadre d'attente de `CardImage` la recouvre : viser
+      // l'image atteignait bien la case, mais faisait avertir l'outil de test
+      // à chaque ouverture. L'`InkWell` le plus proche est celui de la case.
+      await tester.tap(
+        find
+            .ancestor(
+              of: find.byType(CardImage).first,
+              matching: find.byType(InkWell),
+            )
+            .first,
+      );
       await tester.pumpAndSettle();
     }
 
