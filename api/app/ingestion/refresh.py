@@ -26,6 +26,7 @@ import time
 import psycopg
 
 from app.config import SupabaseConfig
+from app.db import Session
 from app.ingestion import mtgjson_ingest, scryfall_ingest, scryfall_sets, topdeck_ingest
 from app.ingestion.scryfall_client import BULK_ALL, fetch_bulk_catalog
 from app.ingestion.state import last_version, record
@@ -71,15 +72,30 @@ def refresh_catalogue(conn: psycopg.Connection, *, force: bool = False) -> bool:
     return True
 
 
-def refresh_art_hashes(conn: psycopg.Connection) -> int:
-    """Calcule les empreintes manquantes — celles des impressions nouvellement
-    ingérées. Ne recalcule jamais l'existant."""
-    report = index_builder.build(conn)
-    if report.hashed:
-        with conn.cursor() as cur:
-            total = cur.execute("SELECT count(*) FROM public.art_hashes").fetchone()[0]
-        record(conn, SOURCE_ART_HASHES, version=None, items=total)
-    return report.hashed
+def refresh_art_hashes(db_url: str) -> int:
+    """Calcule les empreintes manquantes et propage celles des illustrations
+    partagées entre plusieurs cartes. Ne recalcule jamais l'existant.
+
+    Ouvre sa propre `Session` plutôt que de réutiliser la connexion des deux
+    autres étapes : le téléchargement des illustrations peut courir plusieurs
+    minutes sur le réseau de Scryfall, exactement le genre de travail long
+    qu'une connexion nue ne survit pas à une coupure côté serveur (voir
+    `app/db.py` — incident du 14 août).
+    """
+    with Session(db_url) as session:
+        report = index_builder.build(session)
+        session.run(index_builder.propagate_shared_art)
+        if report.hashed:
+
+            def _record(conn: psycopg.Connection) -> None:
+                with conn.cursor() as cur:
+                    total = cur.execute(
+                        "SELECT count(*) FROM public.art_hashes"
+                    ).fetchone()[0]
+                record(conn, SOURCE_ART_HASHES, version=None, items=total)
+
+            session.run(_record)
+        return report.hashed
 
 
 def refresh_decks(conn: psycopg.Connection, *, days: int = 30) -> None:
@@ -122,7 +138,7 @@ def run(*, force: bool = False, skip_decks: bool = False) -> None:
         changed = refresh_catalogue(conn, force=force)
 
         print("2/3 — empreintes manquantes")
-        hashed = refresh_art_hashes(conn)
+        hashed = refresh_art_hashes(config.db_url)
         print(f"  {hashed} nouvelles empreintes")
 
         if skip_decks:
