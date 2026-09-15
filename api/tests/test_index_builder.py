@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.vision.index_builder import image_url, pending_prints
+from app.vision.index_builder import image_url, pending_prints, propagate_shared_art
 
 
 def test_une_url_tcgdex_est_completee_par_sa_qualite():
@@ -45,6 +45,12 @@ class ConnexionQuiRetientLaRequete:
     def fetchall(self):
         return []
 
+    # Ce que `propagate_shared_art` consulte après son écriture.
+    rowcount = 0
+
+    def commit(self):
+        pass
+
 
 def test_les_energies_de_base_sont_ecartees_de_la_selection():
     """**Le garde-fou chiffré.** 97,1 % ont une jumelle sous le seuil de
@@ -54,6 +60,27 @@ def test_les_energies_de_base_sont_ecartees_de_la_selection():
     pending_prints(conn)
 
     assert "layout IS DISTINCT FROM 'energy'" in conn.query
+
+
+def test_les_cartes_art_series_sont_ecartees_de_la_selection():
+    """Elles reprennent l'illustration de la vraie carte, donc son empreinte :
+    2 140 sur 2 487 lui étaient identiques, et l'écart entre les deux
+    candidates tombait à zéro."""
+    conn = ConnexionQuiRetientLaRequete()
+    pending_prints(conn)
+
+    assert "layout IS DISTINCT FROM 'art_series'" in conn.query
+
+
+def test_la_propagation_respecte_les_memes_exclusions():
+    """Recopier une empreinte vers une carte qu'on refuse de hacher la ferait
+    entrer par la porte de côté — c'est par là que les art series l'avaient
+    reçue."""
+    conn = ConnexionQuiRetientLaRequete()
+    propagate_shared_art(conn)
+
+    assert "layout IS DISTINCT FROM 'energy'" in conn.query
+    assert "layout IS DISTINCT FROM 'art_series'" in conn.query
 
 
 def test_la_selection_ecarte_les_impressions_sans_illustration_id():

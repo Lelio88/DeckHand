@@ -2,9 +2,8 @@
 
 Deux passes, dans cet ordre imposé par les clés étrangères :
 
-1. `oracle_cards` → table `cards`. Seules les cartes ayant existé en carton sont
-   retenues (`should_ingest`) — la légalité en tournoi n'entre pas en jeu, une
-   collection physique n'a pas à s'excuser de posséder une carte bannie.
+1. `oracle_cards` → table `cards`, filtrée par `should_ingest` : légale dans un
+   format couvert, imprimée en carton, ou jeton.
 2. `all_cards` → tables `card_prints` et `card_search_names`.
 
 **Quelles impressions sont conservées.** Le catalogue complet compte 538 794 objets,

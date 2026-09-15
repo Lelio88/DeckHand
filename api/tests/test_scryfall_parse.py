@@ -6,7 +6,9 @@ Aucun appel réseau : les payloads sont des extraits figés de réponses réelle
 import pytest
 
 from app.ingestion.scryfall_parse import (
+    RELEVANT_FORMATS,
     is_paper,
+    is_relevant,
     normalize_name,
     parse_card,
     parse_print,
@@ -32,6 +34,23 @@ def test_normalize_name_unifies_curly_and_straight_apostrophes():
 
 def test_normalize_name_collapses_surrounding_whitespace():
     assert normalize_name("  Sol   Ring  ") == "sol ring"
+
+
+# --- is_relevant -------------------------------------------------------------
+
+
+def test_relevant_formats_are_the_three_covered_ones():
+    assert RELEVANT_FORMATS == ("pauper", "modern", "commander")
+
+
+def test_is_relevant_when_legal_in_at_least_one_covered_format():
+    assert is_relevant({"pauper": "not_legal", "modern": "legal", "commander": "legal"})
+    assert is_relevant({"pauper": "legal"})
+
+
+def test_banned_is_not_legal():
+    assert not is_relevant({"modern": "banned", "commander": "banned", "pauper": "banned"})
+    assert not is_relevant({})
 
 
 # --- is_paper ----------------------------------------------------------------
@@ -88,9 +107,34 @@ def test_a_token_enters_the_catalogue_although_it_is_not_paper():
         assert should_ingest({"layout": layout, "games": [], "legalities": {}})
 
 
+def test_a_paper_card_represented_by_a_digital_reprint_still_enters():
+    # **Le cas qui a coûté 1 046 cartes.** L'export oracle représente Tundra par
+    # sa réédition MTGO (`vma`) : `games` n'y porte que "mtgo", alors que la
+    # carte existe en carton depuis 1993. Sa légalité la fait entrer.
+    assert should_ingest(
+        {
+            "layout": "normal",
+            "games": ["mtgo"],
+            "legalities": {"pauper": "not_legal", "modern": "not_legal", "commander": "legal"},
+        }
+    )
+
+
+def test_an_art_series_card_enters_the_catalogue():
+    # Elle ne se joue nulle part, mais se tient en main et se range : c'est le
+    # carton qui la fait entrer.
+    assert should_ingest({"layout": "art_series", "games": ["paper"], "legalities": {}})
+
+
 def test_a_digital_only_card_that_is_not_a_token_stays_out():
-    assert not should_ingest({"layout": "normal", "games": ["arena"], "legalities": {}})
-    assert not should_ingest({"layout": "art_series", "games": [], "legalities": {}})
+    # Une carte Alchemy : légale à l'écran, jamais imprimée.
+    assert not should_ingest(
+        {
+            "layout": "normal",
+            "games": ["arena"],
+            "legalities": {"alchemy": "legal", "historic": "legal", "commander": "not_legal"},
+        }
+    )
 
 
 # --- payloads de référence --------------------------------------------------

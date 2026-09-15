@@ -1248,7 +1248,7 @@ L'étiquetage n'est pas cosmétique : il conditionne la crédibilité de la prom
 
 Les précons font exactement 100 cartes, commandant inclus — MTGJSON le livre dans un champ séparé, mais il compte dans le total du deck et doit donc être réintégré au calcul de complétion.
 
-**Qualité de résolution** : MTGJSON fournit l'`oracleId` Scryfall, la résolution est donc directe ; seules deux cartes sur l'ensemble des précons sont absentes du catalogue, parce qu'elles ne sont légales dans aucun format couvert. TopDeck.gg impose au contraire une résolution par nom, d'où le comptage des échecs et le seuil de rejet décrits plus bas.
+**Qualité de résolution** : MTGJSON fournit l'`oracleId` Scryfall, la résolution est donc directe, sans rapprochement de noms ; seules les cartes absentes du catalogue lui échappent, et l'ingestion les compte (`unresolved_names`). TopDeck.gg impose au contraire une résolution par nom, d'où le comptage des échecs et le seuil de rejet décrits plus bas.
 
 ---
 
@@ -2352,6 +2352,8 @@ Le départage privilégie l'anglais puis la sortie la plus ancienne, jamais le p
 
 Restent 147 cartes sans aucune empreinte, toutes des jetons : 110 n'ont pas d'`illustration_id` chez Scryfall — encarts, biographies, jetons recto-verso — et les autres n'ont pas d'illustration exploitable.
 
+**Les cartes de la série illustrée sont au catalogue, pas dans l'index.** Elles reprennent l'illustration de la vraie carte, donc son empreinte : 2 140 de leurs 2 487 empreintes étaient identiques à celle d'une carte ordinaire. L'écart entre les deux candidates tombait à zéro, sous `minConfidenceMargin`, et l'illustration seule ne suffisait plus à reconnaître la vraie carte sans réserve. `pending_prints` ne les hache pas, `propagate_shared_art` ne leur recopie rien — c'est par la propagation qu'elles l'avaient reçue. Une carte art series s'ajoute par la recherche.
+
 ---
 
 ## 5. Recherche de cartes
@@ -2393,15 +2395,20 @@ Le critère est `type_line LIKE 'Basic Land%'`, qui couvre les versions enneigé
 
 **Les suggestions se filtrent par couleur** (`deck_suggestions.p_colors`). L'identité couleur d'un deck est l'union de celle de ses cartes — la règle du Commander, qui vaut comme description ailleurs. La sélection est un **tamis** : seuls les decks dont l'identité tient dans les couleurs choisies sont proposés. Demander « rouge » et recevoir un deck à cinq couleurs n'aiderait pas qui voulait justement du mono-rouge. Les decks incolores restent proposés quoi qu'on demande, l'ensemble vide étant contenu dans tout autre — et ils se jouent effectivement partout.
 
-**Une carte entre au catalogue pour deux motifs, et deux seulement** (`should_ingest`) :
-parce qu'elle se joue dans un format couvert, ou parce qu'elle se range dans une boîte.
-Les jetons relèvent du second — ils ne sont légaux nulle part, mais occupent une case de
-classeur comme les autres, et les exclure rendait une collection physique impossible à
-saisir en entier. Leur absence de légalité les tient d'elle-même à l'écart des
-suggestions : le moteur travaille sur `legal_pauper`, `legal_modern` et
-`legal_commander`, toutes fausses pour eux, si bien qu'aucun garde-fou supplémentaire
-n'est nécessaire. Le type se lit dans `layout` (`token`, `double_faced_token`, `emblem`)
-et non dans `type_line`, dont la convention « Token Creature » n'est pas garantie.
+**Une carte entre au catalogue pour trois motifs, dont aucun ne suffit seul**
+(`should_ingest`) : parce qu'elle se joue dans un format couvert, parce que l'impression
+qui la représente existe en carton, ou parce que c'est un jeton. La légalité seule
+refusait des cartes qu'on tient en main — bannies partout, *Unhinged*, série illustrée
+(`art_series`), plans de Planechase. Le support seul en perdait de plus précieuses :
+`games` décrit l'impression que l'export `oracle_cards` a retenue, pas la carte, et
+Tundra ou Palinchron n'y sont représentées que par leur réédition MTGO — 1 046 cartes
+sortaient du catalogue à ce seul critère, mesuré sur l'export du 15 septembre 2026. Les
+jetons, légaux nulle part, occupent une case de classeur comme les autres. Rien de cela
+ne gagne les suggestions : le constructeur choisit ses cartes par `legal_pauper`,
+`legal_modern` et `legal_commander`, fausses pour tout ce qui n'entre que par le carton
+ou comme jeton. Le type de jeton se lit dans `layout` (`token`, `double_faced_token`,
+`emblem`) et non dans `type_line`, dont la convention « Token Creature » n'est pas
+garantie.
 
 **Les jetons n'existent qu'en anglais.** Scryfall ne publie aucune impression localisée pour eux : 3 209 impressions, toutes anglaises, aucune avec un nom imprimé. Un jeton se saisit donc au clavier sous son nom anglais (« Soldier », « Treasure »), et la recherche par nom français ne le trouve pas. La reconnaissance par photo prend le relais — les 1 618 illustrations de jetons sont entrées à l'index d'empreintes, qui joue ici son rôle de recours quand la lecture du nom ne mène à rien.
 

@@ -86,6 +86,14 @@ def pending_prints(
     aucune carte ordinaire n'en a une sous le seuil, six seulement en ont une
     assez proche pour leur manger leur marge.
 
+    **Les cartes de la série illustrée (`art_series`) sont écartées aussi**, et
+    pour une raison voisine : elles reprennent l'illustration de la vraie carte,
+    donc son empreinte. Mesuré le 15 septembre 2026, 2 140 de leurs 2 487
+    empreintes étaient identiques à celle d'une carte ordinaire — l'écart entre
+    les deux candidates tombait à zéro, sous `minConfidenceMargin`, et
+    l'illustration seule ne suffisait plus à reconnaître la vraie carte sans
+    réserve. Elles restent au catalogue : elles s'ajoutent par la recherche.
+
     [game] restreint la liste à un jeu. Il sert au constructeur d'index **local**
     (`local_index`), qui ne peut travailler que sur les jeux dont les images sont
     déjà sur le disque : sans ce filtre, il réclamerait des fichiers absents pour
@@ -100,6 +108,7 @@ def pending_prints(
         WHERE p.art_crop_url IS NOT NULL
           AND p.illustration_id IS NOT NULL
           AND c.layout IS DISTINCT FROM 'energy'
+          AND c.layout IS DISTINCT FROM 'art_series'
           AND NOT EXISTS (
               SELECT 1
               FROM public.art_hashes h
@@ -283,6 +292,11 @@ def propagate_shared_art(conn: psycopg.Connection) -> int:
     distinction que l'image ne porte pas serait pire.
 
     Aucune image n'est retéléchargée : on recopie une empreinte déjà calculée.
+
+    **La propagation respecte les exclusions de `pending_prints`.** Recopier une
+    empreinte vers une carte qu'on refuse de hacher la ferait entrer par la
+    porte de côté : c'est par là que les cartes `art_series` avaient reçu
+    l'empreinte, au bit près, de la carte dont elles reprennent l'illustration.
     """
     statement = """
         INSERT INTO public.art_hashes (scryfall_id, oracle_id, dhash)
@@ -291,7 +305,10 @@ def propagate_shared_art(conn: psycopg.Connection) -> int:
         FROM public.card_prints p
         JOIN public.card_prints hp ON hp.illustration_id = p.illustration_id
         JOIN public.art_hashes h ON h.scryfall_id = hp.scryfall_id
+        JOIN public.cards c ON c.oracle_id = p.oracle_id
         WHERE p.illustration_id IS NOT NULL
+          AND c.layout IS DISTINCT FROM 'energy'
+          AND c.layout IS DISTINCT FROM 'art_series'
           AND NOT EXISTS (
               SELECT 1 FROM public.art_hashes h2
               JOIN public.card_prints p2 ON p2.scryfall_id = h2.scryfall_id

@@ -25,6 +25,10 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
+# Les trois formats couverts par DeckHand. Une carte légale dans l'un d'eux entre
+# au catalogue, quel que soit le support de l'impression qui la représente.
+RELEVANT_FORMATS: tuple[str, ...] = ("pauper", "modern", "commander")
+
 # Mises en page qui désignent un objet imprimé mais injouable en deck : jetons,
 # jetons recto-verso, emblèmes. Ils sortent des mêmes boosters et se rangent dans
 # les mêmes classeurs.
@@ -99,13 +103,23 @@ def normalize_name(name: str) -> str:
     return " ".join(without_accents.lower().split())
 
 
-def is_paper(payload: dict[str, Any]) -> bool:
-    """Vrai si la carte a existé sous forme physique.
+def is_relevant(legalities: dict[str, str]) -> bool:
+    """Vrai si la carte est légale dans au moins un format couvert.
 
-    Le catalogue décrit une collection **physique** (§I) : une carte qui n'a
-    jamais existé qu'à l'écran — Arena, Alchemy — n'a rien à y faire, même
-    légale en tournoi. `games` est le champ que Scryfall réserve à cette
-    question ; il ne dit rien du format, seulement du support.
+    « banned » et « restricted » ne comptent pas : seule la valeur « legal » ouvre
+    la porte.
+    """
+    return any(legalities.get(fmt) == "legal" for fmt in RELEVANT_FORMATS)
+
+
+def is_paper(payload: dict[str, Any]) -> bool:
+    """Vrai si l'impression décrite par [payload] existe en carton.
+
+    **C'est une propriété de l'impression, pas de la carte.** Sur l'export
+    `oracle_cards`, le payload est celui d'une impression que Scryfall a
+    retenue pour représenter la carte — parfois une réédition MTGO. Un `False`
+    ne prouve donc pas que la carte n'a jamais été imprimée : voir
+    `should_ingest`, qui ne s'y fie jamais seul.
     """
     return "paper" in (payload.get("games") or [])
 
@@ -122,28 +136,33 @@ def is_token(payload: dict[str, Any]) -> bool:
 def should_ingest(payload: dict[str, Any]) -> bool:
     """Vrai si la carte a sa place au catalogue.
 
-    **Un seul critère : a-t-elle existé en carton ?** La légalité en tournoi
-    n'en est pas un — DeckHand valorise une collection physique, pas un pool
-    de deckbuilding, et une carte qu'on tient en main reste une carte même
-    bannie partout ou tirée d'un set humoristique. Exclure « Pradesh
-    Gypsies » (bannie) ou une carte *Unhinged* revenait à refuser de ranger
-    une carte réellement possédée sous prétexte qu'elle ne se joue pas — or
-    c'est précisément ce que le classeur est censé accepter (§I).
+    **Trois motifs, dont aucun ne suffit seul.** Une carte y entre parce
+    qu'elle se joue dans un format couvert, parce que l'impression qui la
+    représente existe en carton, ou parce que c'est un jeton.
 
-    Rien ne fuite vers le moteur de suggestion de decks pour autant : celui-ci
-    pioche exclusivement dans les decklists réellement ingérées
-    (`deck_cards`), jamais dans un balayage de `cards` par légalité — une
-    carte absente de toute decklist n'y apparaîtra donc jamais, quelle que
-    soit sa présence au catalogue. `legal_pauper`, `legal_modern` et
-    `legal_commander` restent par ailleurs disponibles (colonnes générées
-    depuis `legalities`) pour tout ce qui doit encore distinguer les deux
-    questions à l'affichage.
+    **La légalité seule refusait des cartes qu'on tient en main** : une carte
+    bannie partout (« Pradesh Gypsies »), une carte *Unhinged*, une carte de la
+    série illustrée (`art_series`), un plan de Planechase. Le catalogue range
+    une collection physique (§I), il ne sert pas qu'à construire des decks.
 
-    Les jetons (`is_token`) restent un cas à part : Scryfall ne leur garantit
-    pas toujours `games: ["paper"]`, alors qu'ils sortent bien des mêmes
-    boosters et se rangent dans les mêmes classeurs.
+    **Le support seul en perdait de plus précieuses.** `games` décrit
+    l'impression que l'export `oracle_cards` a retenue, et c'est parfois une
+    réédition MTGO : Tundra, Palinchron ou Illusionary Mask n'y portent que
+    `["mtgo"]`. Mesuré sur l'export du 15 septembre 2026, ce critère seul
+    sortait 1 046 cartes du catalogue — et comme l'ingestion n'efface rien,
+    elles y restaient figées, prix et impressions compris.
+
+    Rien ne fuite vers les decks pour autant. Les suggestions partent des
+    decklists ingérées, et le constructeur (`buildable_collection`) choisit
+    ses cartes par `legal_pauper`, `legal_modern` et `legal_commander` :
+    colonnes générées depuis `legalities`, fausses pour tout ce qui n'entre
+    que par le carton ou comme jeton.
     """
-    return is_paper(payload) or is_token(payload)
+    return (
+        is_relevant(payload.get("legalities") or {})
+        or is_paper(payload)
+        or is_token(payload)
+    )
 
 
 def _as_float(value: Any) -> float | None:
