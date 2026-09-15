@@ -171,6 +171,26 @@ tout de `card_prints`. Une case n'est pas une impression — le catalogue porte
 l'anglais et le français, et le #412 anglais partage sa case avec le #412
 français. La langue est une propriété de ce qu'on range, pas de la case.
 
+**Une case montre une impression, mais peut en ranger deux.** `my_binder_page`
+retient pour chaque case une impression représentative — le français d'abord,
+l'anglais sinon — qui lui donne son illustration et son prix, alors que son
+compte additionne toutes les langues. Retirer un exemplaire ou corriger son
+édition ne vise donc jamais cette représentante d'office :
+`my_binder_case_editions` rend, par finition, les impressions de la case qu'on
+possède réellement. Une seule en porte, le geste la vise sans rien demander ;
+deux en portent, l'utilisateur choisit la langue (§IV.8 de `CLAUDE.md`), et
+l'annulation revient sur celle-là. Viser la représentante répondait « aucun
+exemplaire ici » sur une case affichant ×2 : deux ajouts sous l'impression
+anglaise, dans une case dont la représentante était la française.
+
+**Ces quantités viennent de la collection que visent les écritures.** Rien
+n'interdit à une personne d'en avoir deux — `ensure_my_collection` cherche puis
+crée, sans contrainte d'unicité, et deux premiers ajouts simultanés passeraient
+tous deux la recherche. Les écritures prennent alors la plus ancienne ;
+`readable_collection()` sans argument fait de même, et c'est par elle que lisent
+le classeur et `my_binder_case_editions`. Lire ailleurs qu'on n'écrit ferait
+proposer de retirer un exemplaire que le retrait ne trouverait pas.
+
 **Ce qu'un classeur montre et qu'une liste ne montre pas, ce sont les cases
 vides** : la page part du catalogue, pas de la collection. Une case vide **dit
 laquelle** — l'illustration manquante s'y affiche en fantôme à 24 %, sans requête
