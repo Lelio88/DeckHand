@@ -68,6 +68,10 @@ cd api && .venv/Scripts/python -m app.vision.local_index wankul <dossier>
 # Six commandes ; trois atteignent l'écran (*) : !card* <nom> · !page* <ext> <n>
 # · !montre* <nom> · !dernieres · !classeur · !deckhand
 cd api && .venv/Scripts/python -m app.twitch                       # --game riftbound
+# Le même bot, lié à Streamlabs : démarre avec lui, s'arrête quand on le ferme,
+# relancé trois fois au plus s'il tombe. -Verifier contrôle sans rien lancer ;
+# -Raccourci pose « Direct DeckHand » sur le bureau.
+pwsh -File tools/direct/lancer-direct.ps1                          # -Verifier · -Raccourci
 
 # Le dos des cartes que feuillette le calque, versé dans le bucket card-art et
 # relu avec l'Origin du calque (CORS). Seuls les jeux dont la table du module

@@ -80,6 +80,12 @@ Le bot Twitch tourne le temps d'un direct, sur le poste qui diffuse — rien à 
 cd api && .venv/Scripts/python -m app.twitch
 ```
 
+Ou lié à Streamlabs, qui le démarre et l'arrête avec lui :
+
+```powershell
+pwsh -File tools/direct/lancer-direct.ps1 -Raccourci   # une fois : « Direct DeckHand » sur le bureau
+```
+
 ## Crédits et sources de données
 
 DeckHand n'existe que grâce à ces services, qui ouvrent leurs données.
