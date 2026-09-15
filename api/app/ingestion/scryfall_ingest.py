@@ -2,8 +2,9 @@
 
 Deux passes, dans cet ordre imposé par les clés étrangères :
 
-1. `oracle_cards` → table `cards`. Seules les cartes légales dans au moins un des
-   trois formats couverts sont retenues.
+1. `oracle_cards` → table `cards`. Seules les cartes ayant existé en carton sont
+   retenues (`should_ingest`) — la légalité en tournoi n'entre pas en jeu, une
+   collection physique n'a pas à s'excuser de posséder une carte bannie.
 2. `all_cards` → tables `card_prints` et `card_search_names`.
 
 **Quelles impressions sont conservées.** Le catalogue complet compte 538 794 objets,
@@ -42,11 +43,11 @@ from app.config import SupabaseConfig
 from app.ingestion.scryfall_client import BULK_ALL, BULK_ORACLE, stream_bulk
 from app.ingestion.scryfall_parse import (
     CardPrint,
-    should_ingest,
     normalize_name,
     parse_card,
     parse_print,
     search_names_for,
+    should_ingest,
 )
 
 BATCH_SIZE = 1000

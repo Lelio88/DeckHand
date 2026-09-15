@@ -6,15 +6,13 @@ Aucun appel réseau : les payloads sont des extraits figés de réponses réelle
 import pytest
 
 from app.ingestion.scryfall_parse import (
-    RELEVANT_FORMATS,
-    is_relevant,
-    should_ingest,
+    is_paper,
     normalize_name,
     parse_card,
     parse_print,
     search_names_for,
+    should_ingest,
 )
-
 
 # --- normalize_name ---------------------------------------------------------
 
@@ -36,52 +34,63 @@ def test_normalize_name_collapses_surrounding_whitespace():
     assert normalize_name("  Sol   Ring  ") == "sol ring"
 
 
-# --- is_relevant ------------------------------------------------------------
+# --- is_paper ----------------------------------------------------------------
 
 
-def test_relevant_formats_are_the_three_covered_ones():
-    assert RELEVANT_FORMATS == ("pauper", "modern", "commander")
+def test_is_paper_true_when_games_lists_paper():
+    assert is_paper({"games": ["paper", "mtgo"]})
+    assert is_paper({"games": ["paper"]})
 
 
-def test_is_relevant_when_legal_in_at_least_one_covered_format():
-    assert is_relevant({"pauper": "not_legal", "modern": "legal", "commander": "legal"})
-    assert is_relevant({"pauper": "legal"})
-
-
-def test_is_relevant_false_when_legal_in_no_covered_format():
-    assert not is_relevant({"standard": "legal", "modern": "banned", "commander": "banned"})
-    assert not is_relevant({})
-
-
-def test_banned_is_not_legal():
-    assert not is_relevant({"modern": "banned", "commander": "banned", "pauper": "banned"})
+def test_is_paper_false_for_digital_only_cards():
+    # Une carte Arena ou Alchemy n'a jamais existé en carton : aucune
+    # collection physique ne peut jamais la contenir.
+    assert not is_paper({"games": ["arena"]})
+    assert not is_paper({"games": []})
+    assert not is_paper({})
 
 
 # --- should_ingest ----------------------------------------------------------
 
 
-def test_a_playable_card_enters_the_catalogue():
-    assert should_ingest({"layout": "normal", "legalities": {"pauper": "legal"}})
+def test_a_paper_card_enters_the_catalogue_whatever_its_legality():
+    assert should_ingest({"layout": "normal", "games": ["paper"], "legalities": {}})
 
 
-def test_a_token_enters_the_catalogue_although_it_is_legal_nowhere():
+def test_a_card_banned_everywhere_still_enters_if_printed_on_paper():
+    # C'est le cas réel qui a révélé le problème : « Pradesh Gypsies » est
+    # bannie en Pauper comme en Commander, mais reste une carte qu'on peut
+    # tenir en main et vouloir ranger dans un classeur. La légalité en
+    # tournoi n'a jamais été le bon critère pour un catalogue de collection.
+    assert should_ingest(
+        {
+            "layout": "normal",
+            "games": ["paper"],
+            "legalities": {"pauper": "banned", "modern": "not_legal", "commander": "banned"},
+        }
+    )
+
+
+def test_a_joke_set_card_still_enters_if_printed_on_paper():
+    # « Mother of Goons » (Unhinged) n'est légale nulle part par construction
+    # — les cartes à bordure argentée sont bannies partout — mais c'est un
+    # vrai produit Wizards, vendu et rangé comme n'importe quelle carte.
+    assert should_ingest(
+        {"layout": "normal", "games": ["paper"], "legalities": {}}
+    )
+
+
+def test_a_token_enters_the_catalogue_although_it_is_not_paper():
     # Un jeton ne se joue dans aucun format, mais il occupe une case de
     # classeur : l'exclure rendait une collection physique impossible à saisir
-    # en entier.
+    # en entier. Admis même si Scryfall ne lui garantit pas `games: paper`.
     for layout in ("token", "double_faced_token", "emblem"):
-        assert should_ingest({"layout": layout, "legalities": {}})
+        assert should_ingest({"layout": layout, "games": [], "legalities": {}})
 
 
-def test_an_unplayable_card_that_is_not_a_token_stays_out():
-    assert not should_ingest({"layout": "normal", "legalities": {"standard": "legal"}})
-    assert not should_ingest({"layout": "art_series", "legalities": {}})
-
-
-def test_a_token_keeps_no_legality():
-    # C'est ce qui le tient à l'écart des suggestions de decks sans qu'aucun
-    # garde-fou supplémentaire soit nécessaire : le moteur travaille sur les
-    # colonnes de légalité, toutes fausses ici.
-    assert not is_relevant({})
+def test_a_digital_only_card_that_is_not_a_token_stays_out():
+    assert not should_ingest({"layout": "normal", "games": ["arena"], "legalities": {}})
+    assert not should_ingest({"layout": "art_series", "games": [], "legalities": {}})
 
 
 # --- payloads de référence --------------------------------------------------

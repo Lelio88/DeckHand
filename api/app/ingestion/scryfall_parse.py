@@ -25,10 +25,6 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
-# Les trois formats couverts par DeckHand. Une carte légale dans aucun d'eux
-# n'a pas à entrer dans le catalogue.
-RELEVANT_FORMATS: tuple[str, ...] = ("pauper", "modern", "commander")
-
 # Mises en page qui désignent un objet imprimé mais injouable en deck : jetons,
 # jetons recto-verso, emblèmes. Ils sortent des mêmes boosters et se rangent dans
 # les mêmes classeurs.
@@ -103,13 +99,15 @@ def normalize_name(name: str) -> str:
     return " ".join(without_accents.lower().split())
 
 
-def is_relevant(legalities: dict[str, str]) -> bool:
-    """Vrai si la carte est légale dans au moins un format couvert.
+def is_paper(payload: dict[str, Any]) -> bool:
+    """Vrai si la carte a existé sous forme physique.
 
-    « banned » et « restricted » ne comptent pas : seule la valeur « legal » ouvre
-    la porte.
+    Le catalogue décrit une collection **physique** (§I) : une carte qui n'a
+    jamais existé qu'à l'écran — Arena, Alchemy — n'a rien à y faire, même
+    légale en tournoi. `games` est le champ que Scryfall réserve à cette
+    question ; il ne dit rien du format, seulement du support.
     """
-    return any(legalities.get(fmt) == "legal" for fmt in RELEVANT_FORMATS)
+    return "paper" in (payload.get("games") or [])
 
 
 def is_token(payload: dict[str, Any]) -> bool:
@@ -124,18 +122,28 @@ def is_token(payload: dict[str, Any]) -> bool:
 def should_ingest(payload: dict[str, Any]) -> bool:
     """Vrai si la carte a sa place au catalogue.
 
-    **Deux motifs, et deux seulement.** Une carte y entre parce qu'elle se joue
-    dans un format couvert, ou parce qu'elle se range dans une boîte. Les jetons
-    relèvent du second : ils ne sont légaux nulle part — ce ne sont pas des
-    cartes de deck — mais ils occupent une case de classeur comme les autres, et
-    les exclure rendait une collection physique impossible à saisir en entier.
+    **Un seul critère : a-t-elle existé en carton ?** La légalité en tournoi
+    n'en est pas un — DeckHand valorise une collection physique, pas un pool
+    de deckbuilding, et une carte qu'on tient en main reste une carte même
+    bannie partout ou tirée d'un set humoristique. Exclure « Pradesh
+    Gypsies » (bannie) ou une carte *Unhinged* revenait à refuser de ranger
+    une carte réellement possédée sous prétexte qu'elle ne se joue pas — or
+    c'est précisément ce que le classeur est censé accepter (§I).
 
-    Leur absence de légalité les tient d'elle-même à l'écart des suggestions de
-    decks : `legal_pauper`, `legal_modern` et `legal_commander` restent faux, et
-    c'est sur ces colonnes que le moteur travaille. Aucun garde-fou
-    supplémentaire n'est nécessaire.
+    Rien ne fuite vers le moteur de suggestion de decks pour autant : celui-ci
+    pioche exclusivement dans les decklists réellement ingérées
+    (`deck_cards`), jamais dans un balayage de `cards` par légalité — une
+    carte absente de toute decklist n'y apparaîtra donc jamais, quelle que
+    soit sa présence au catalogue. `legal_pauper`, `legal_modern` et
+    `legal_commander` restent par ailleurs disponibles (colonnes générées
+    depuis `legalities`) pour tout ce qui doit encore distinguer les deux
+    questions à l'affichage.
+
+    Les jetons (`is_token`) restent un cas à part : Scryfall ne leur garantit
+    pas toujours `games: ["paper"]`, alors qu'ils sortent bien des mêmes
+    boosters et se rangent dans les mêmes classeurs.
     """
-    return is_relevant(payload.get("legalities") or {}) or is_token(payload)
+    return is_paper(payload) or is_token(payload)
 
 
 def _as_float(value: Any) -> float | None:
