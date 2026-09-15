@@ -344,3 +344,54 @@ class BinderCell {
     hasFoil: (json['has_foil'] as bool?) ?? false,
   );
 }
+
+/// Une des impressions qui partagent une case, avec ce qu'on en possède.
+///
+/// **Pourquoi cela existe alors que [BinderCell] connaît déjà une impression.**
+/// Celle de [BinderCell] est une représentante choisie faute de mieux — le
+/// français en priorité, l'anglais sinon — pour donner à la case une
+/// illustration et un prix. Elle ne dit pas laquelle des deux langues porte
+/// réellement les exemplaires possédés : une carte ajoutée sous l'impression
+/// anglaise tombe dans une case dont la représentante est française, et un
+/// retrait qui ne viserait que cette dernière échouerait à tort. Cette classe
+/// porte les deux impressions séparément, chacune avec ses propres quantités,
+/// pour que le retrait vise la bonne — ou que l'utilisateur choisisse quand
+/// les deux en portent.
+class BinderCaseEdition {
+  const BinderCaseEdition({
+    required this.printId,
+    required this.lang,
+    required this.qtyNormal,
+    required this.qtyFoil,
+    this.printedName,
+  });
+
+  final String printId;
+  final String lang;
+  final String? printedName;
+
+  /// Exemplaires normaux possédés de **cette** impression précise.
+  final int qtyNormal;
+
+  /// Exemplaires brillants possédés de **cette** impression précise.
+  final int qtyFoil;
+
+  /// Ce qu'on possède de cette impression dans la finition demandée.
+  int quantityFor({required bool foil}) => foil ? qtyFoil : qtyNormal;
+
+  /// « Française », « Anglaise »… pour nommer un choix sans jargon de code.
+  String get languageLabel => switch (lang) {
+    'fr' => 'Française',
+    'en' => 'Anglaise',
+    _ => lang.toUpperCase(),
+  };
+
+  factory BinderCaseEdition.fromJson(Map<String, dynamic> json) =>
+      BinderCaseEdition(
+        printId: json['print_id'] as String,
+        lang: json['lang'] as String? ?? 'en',
+        printedName: json['printed_name'] as String?,
+        qtyNormal: (json['qty_normal'] as num?)?.toInt() ?? 0,
+        qtyFoil: (json['qty_foil'] as num?)?.toInt() ?? 0,
+      );
+}

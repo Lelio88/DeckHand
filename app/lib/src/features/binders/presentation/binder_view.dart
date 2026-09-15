@@ -1766,6 +1766,202 @@ class _CellActionsState extends ConsumerState<_CellActions> {
     container.invalidate(binderFindProvider);
   }
 
+  /// Retire un exemplaire de la case, sur la bonne impression.
+  Future<void> _remove(BuildContext context, String oracleId) async {
+    final targetPrintId = await _resolveOwnedPrintId(
+      context,
+      sheetTitle: 'Laquelle retirer ?',
+      failed: 'Retrait impossible',
+    );
+    if (targetPrintId == null || !context.mounted) return;
+
+    await _write(
+      context,
+      ref,
+      action: () => ref
+          .read(collectionRepositoryProvider)
+          .remove(oracleId, printId: targetPrintId, isFoil: _foil),
+      done: _foil ? 'Un exemplaire brillant retiré' : 'Un exemplaire retiré',
+      // Une case range ensemble le normal et le brillant : demander à
+      // retirer une finition qu'elle ne contient pas est un cas ordinaire,
+      // et il ne doit pas s'annoncer comme un retrait.
+      nothing: _foil
+          ? 'Aucun exemplaire brillant à retirer ici'
+          : 'Aucun exemplaire normal à retirer ici',
+      failed: 'Retrait impossible',
+      // L'inverse d'un retrait est un ajout sur la même ligne, et il est
+      // exact : la ligne a perdu ce nombre d'exemplaires, elle les retrouve.
+      // Si elle avait disparu, elle renaît avec eux — sur la même impression
+      // que celle qui vient de perdre les siens, jamais sur la représentante
+      // par défaut si ce n'est pas elle qui a été touchée.
+      undo: (container, count) => container
+          .read(collectionRepositoryProvider)
+          .add(
+            oracleId,
+            quantity: count,
+            printId: targetPrintId,
+            isFoil: _foil,
+          ),
+    );
+  }
+
+  /// Corrige l'édition d'un exemplaire, à partir de la bonne impression.
+  ///
+  /// **Même défaut que le retrait, même cause.** Viser systématiquement
+  /// `cell.printId` — sa représentante par défaut — pour dire *d'où* vient
+  /// l'exemplaire corrigé échouerait à tort quand celui-ci vit sous l'autre
+  /// langue : `setPrinting` ne trouverait rien à déplacer, et l'annoncerait
+  /// comme « déjà cette édition » plutôt que comme une impression mal visée.
+  Future<void> _correctPrinting(BuildContext context, String oracleId) async {
+    final sourcePrintId = await _resolveOwnedPrintId(
+      context,
+      sheetTitle: 'Laquelle corriger ?',
+      failed: 'Édition non enregistrée',
+    );
+    if (sourcePrintId == null || !context.mounted) return;
+
+    final navigator = Navigator.of(context);
+    final chosen = await showPrintingPicker(
+      context,
+      oracleId: oracleId,
+      cardName: cell.shownName,
+      currentPrintId: sourcePrintId,
+      currentIsFoil: _foil,
+    );
+    if (chosen == null || chosen.isUnspecified) {
+      navigator.pop();
+      return;
+    }
+    if (!context.mounted) return;
+    await _write(
+      context,
+      ref,
+      action: () => ref
+          .read(collectionRepositoryProvider)
+          .setPrinting(
+            oracleId,
+            fromPrintId: sourcePrintId,
+            toPrintId: chosen.printing.printId,
+            fromFoil: _foil,
+            toFoil: chosen.isFoil,
+          ),
+      done: 'Édition enregistrée : ${chosen.printing.label}',
+      nothing: 'Cette édition était déjà celle enregistrée',
+      failed: 'Édition non enregistrée',
+      // **L'inverse n'est exact qu'avec la quantité.** La destination peut
+      // porter d'autres exemplaires que ceux qui viennent d'arriver — ils y
+      // ont fusionné —, et un mouvement de retour sans quantité les
+      // emporterait tous.
+      undo: (container, count) => container
+          .read(collectionRepositoryProvider)
+          .setPrinting(
+            oracleId,
+            fromPrintId: chosen.printing.printId,
+            toPrintId: sourcePrintId,
+            quantity: count,
+            fromFoil: chosen.isFoil,
+            toFoil: _foil,
+          ),
+    );
+  }
+
+  /// L'impression qui porte réellement les exemplaires de cette finition,
+  /// dans la case — pas nécessairement `cell.printId`, sa représentante
+  /// choisie faute de mieux (le français en priorité, l'anglais sinon) pour
+  /// illustrer la case. Une carte ajoutée sous l'autre langue tombe dans la
+  /// même case à l'écran, mais vit sous un `print_id` différent en base :
+  /// viser systématiquement la représentante répondrait « aucun exemplaire
+  /// ici » alors que la case affiche pourtant un compte.
+  ///
+  /// Propose un choix quand plus d'une langue en porte réellement (§IV.8) ;
+  /// déduit sans geste quand une seule le peut ; laisse `cell.printId`
+  /// inchangé quand aucune n'en porte — l'appelant le constatera lui-même.
+  /// Rend `null` quand le choix se referme sans réponse, ou que la
+  /// vérification échoue : dans les deux cas, il n'y a rien à tenter.
+  Future<String?> _resolveOwnedPrintId(
+    BuildContext context, {
+    required String sheetTitle,
+    required String failed,
+  }) async {
+    final printId = cell.printId;
+    if (printId == null) return null;
+
+    try {
+      final editions = await ref
+          .read(binderRepositoryProvider)
+          .caseEditions(printId);
+      final candidates = editions
+          .where((e) => e.quantityFor(foil: _foil) > 0)
+          .toList(growable: false);
+
+      if (candidates.length > 1) {
+        // **Deux langues en portent : l'utilisateur choisit**, comme partout
+        // ailleurs dès que deux candidats restent en lice (§IV.8). Deviner
+        // referait exactement l'erreur d'origine — une préférence arbitraire
+        // à la place d'une réponse vérifiée.
+        if (!context.mounted) return null;
+        return await _pickCaseLanguage(context, candidates, title: sheetTitle);
+      }
+      if (candidates.length == 1) {
+        // **Une seule langue en porte : rien à demander.** Désigner l'unique
+        // candidate n'apporterait aucune information que la case ne porte
+        // déjà — c'est le même principe que pour une carte reconnue sans
+        // ambiguïté.
+        return candidates.first.printId;
+      }
+      // Aucune langue n'en porte : la représentante reste la meilleure
+      // réponse disponible, et c'est très bien ainsi — l'appelant le dira
+      // lui-même, sans qu'il y ait de choix à proposer.
+      return printId;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$failed : $e')));
+      }
+      return null;
+    }
+  }
+
+  /// Demande laquelle des impressions viser, quand plus d'une le peut.
+  ///
+  /// Rend l'impression choisie, ou `null` si la feuille se referme sans
+  /// choix — un geste qui ne sait pas laquelle viser ne doit rien tenter.
+  Future<String?> _pickCaseLanguage(
+    BuildContext context,
+    List<BinderCaseEdition> candidates, {
+    required String title,
+  }) {
+    final theme = Theme.of(context);
+    return showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: Text(title, style: theme.textTheme.titleMedium),
+            ),
+            const Divider(height: 16),
+            for (final edition in candidates)
+              ListTile(
+                leading: const Icon(Icons.language),
+                title: Text(edition.languageLabel),
+                subtitle: Text(
+                  '${edition.quantityFor(foil: _foil)} exemplaire'
+                  '${edition.quantityFor(foil: _foil) > 1 ? 's' : ''}',
+                ),
+                onTap: () => Navigator.of(context).pop(edition.printId),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1871,84 +2067,13 @@ class _CellActionsState extends ConsumerState<_CellActions> {
                     ? 'Retirer un exemplaire brillant'
                     : 'Retirer un exemplaire normal',
               ),
-              onTap: () => _write(
-                context,
-                ref,
-                action: () => ref
-                    .read(collectionRepositoryProvider)
-                    .remove(oracleId, printId: cell.printId, isFoil: _foil),
-                done: _foil
-                    ? 'Un exemplaire brillant retiré'
-                    : 'Un exemplaire retiré',
-                // Une case range ensemble le normal et le brillant : demander
-                // à retirer une finition qu'elle ne contient pas est un cas
-                // ordinaire, et il ne doit pas s'annoncer comme un retrait.
-                nothing: _foil
-                    ? 'Aucun exemplaire brillant à retirer ici'
-                    : 'Aucun exemplaire normal à retirer ici',
-                failed: 'Retrait impossible',
-                // L'inverse d'un retrait est un ajout sur la même ligne, et il
-                // est exact : la ligne a perdu ce nombre d'exemplaires, elle
-                // les retrouve. Si elle avait disparu, elle renaît avec eux.
-                undo: (container, count) => container
-                    .read(collectionRepositoryProvider)
-                    .add(
-                      oracleId,
-                      quantity: count,
-                      printId: cell.printId,
-                      isFoil: _foil,
-                    ),
-              ),
+              onTap: () => _remove(context, oracleId),
             ),
             ListTile(
               leading: const Icon(Icons.layers_outlined),
               title: const Text('Corriger l\'édition'),
               subtitle: const Text('Si ce n\'est pas celle que vous tenez'),
-              onTap: () async {
-                final navigator = Navigator.of(context);
-                final chosen = await showPrintingPicker(
-                  context,
-                  oracleId: oracleId,
-                  cardName: cell.shownName,
-                  currentPrintId: cell.printId,
-                  currentIsFoil: _foil,
-                );
-                if (chosen == null || chosen.isUnspecified) {
-                  navigator.pop();
-                  return;
-                }
-                if (!context.mounted) return;
-                await _write(
-                  context,
-                  ref,
-                  action: () => ref
-                      .read(collectionRepositoryProvider)
-                      .setPrinting(
-                        oracleId,
-                        fromPrintId: cell.printId,
-                        toPrintId: chosen.printing.printId,
-                        fromFoil: _foil,
-                        toFoil: chosen.isFoil,
-                      ),
-                  done: 'Édition enregistrée : ${chosen.printing.label}',
-                  nothing: 'Cette édition était déjà celle enregistrée',
-                  failed: 'Édition non enregistrée',
-                  // **L'inverse n'est exact qu'avec la quantité.** La
-                  // destination peut porter d'autres exemplaires que ceux qui
-                  // viennent d'arriver — ils y ont fusionné —, et un
-                  // mouvement de retour sans quantité les emporterait tous.
-                  undo: (container, count) => container
-                      .read(collectionRepositoryProvider)
-                      .setPrinting(
-                        oracleId,
-                        fromPrintId: chosen.printing.printId,
-                        toPrintId: cell.printId,
-                        quantity: count,
-                        fromFoil: chosen.isFoil,
-                        toFoil: _foil,
-                      ),
-                );
-              },
+              onTap: () => _correctPrinting(context, oracleId),
             ),
           ],
         ],

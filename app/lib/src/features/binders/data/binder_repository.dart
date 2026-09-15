@@ -133,6 +133,25 @@ class BinderRepository {
         .toList(growable: false);
   }
 
+  /// Les impressions d'une case, avec ce qu'on possède de chacune.
+  ///
+  /// [printId] est celle que la case affiche par défaut — sa représentante,
+  /// pas forcément celle qui porte les exemplaires. La case se déduit d'elle
+  /// côté serveur (même extension, même numéro) : l'appelant n'a pas à
+  /// connaître l'extension pour poser la question.
+  Future<List<BinderCaseEdition>> caseEditions(String printId) async {
+    final rows = await _client
+        .rpc<List<dynamic>>(
+          'my_binder_case_editions',
+          params: {'p_print_id': printId},
+        )
+        .timedOut();
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map(BinderCaseEdition.fromJson)
+        .toList(growable: false);
+  }
+
   /// La première feuille portant au moins une carte possédée.
   ///
   /// Un classeur de 97 feuilles dont on ne possède que douze cartes s'ouvrirait

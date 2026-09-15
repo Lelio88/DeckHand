@@ -220,6 +220,23 @@ class FakeBinderRepository implements BinderRepository {
     searches.add(query);
     return found;
   }
+
+  /// Ce que la case interrogée porte réellement, impression par impression.
+  ///
+  /// Vide par défaut : c'est le cas courant d'une case qui n'existe qu'en une
+  /// seule langue, où [BinderRepository.caseEditions] n'a rien à ajouter à ce
+  /// que [cells] dit déjà.
+  List<BinderCaseEdition> caseEditionsResult = const [];
+
+  /// Impressions demandées, dans l'ordre — pour vérifier que le retrait
+  /// consulte bien la bonne case avant d'agir.
+  final caseEditionsRequests = <String>[];
+
+  @override
+  Future<List<BinderCaseEdition>> caseEditions(String printId) async {
+    caseEditionsRequests.add(printId);
+    return caseEditionsResult;
+  }
 }
 
 Future<FakeBinderRepository> pumpBinder(
@@ -1026,6 +1043,110 @@ void main() {
       );
     });
 
+    testWidgets('une seule impression en porte : le retrait la vise sans rien '
+        'demander', (tester) async {
+      // **La représentante de la case n'est pas forcément celle qui porte
+      // les exemplaires.** Une carte ajoutée sous une autre langue vit
+      // sous un `print_id` différent, bien que la même case l'affiche —
+      // c'est l'incident réel qui a motivé ce garde-fou : « Retirer »
+      // répondait « aucun exemplaire ici » sur une case qui affichait
+      // pourtant un compte.
+      final collection = FakeCollectionRepository();
+      collection.quantities[('oracle-1', 'print-en')] = 1;
+
+      final repository = await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '1', owned: 1, art: _art)],
+        collection: collection,
+      );
+      repository.caseEditionsResult = const [
+        BinderCaseEdition(
+          printId: 'print-en',
+          lang: 'en',
+          qtyNormal: 1,
+          qtyFoil: 0,
+        ),
+      ];
+      await openActions(tester);
+
+      await tester.tap(find.text('Retirer un exemplaire normal'));
+      await tester.pumpAndSettle();
+
+      expect(
+        collection.quantities[('oracle-1', 'print-en')],
+        isNull,
+        reason:
+            'le seul exemplaire réellement possédé doit avoir été '
+            'retiré, même si ce n\'est pas l\'impression que la case '
+            'affiche par défaut',
+      );
+      expect(find.text('Un exemplaire retiré'), findsOneWidget);
+      expect(
+        find.text('Laquelle retirer ?'),
+        findsNothing,
+        reason:
+            'une seule impression en porte : rien à choisir '
+            '(§IV.8)',
+      );
+    });
+
+    testWidgets('deux impressions en portent : l\'utilisateur choisit laquelle '
+        'retirer', (tester) async {
+      final collection = FakeCollectionRepository();
+      collection.quantities[('oracle-1', 'print-en')] = 1;
+      collection.quantities[('oracle-1', 'print-fr')] = 1;
+
+      final repository = await pumpBinder(
+        tester,
+        entries: [shelfEntry()],
+        cells: [cell(number: '1', owned: 2, art: _art)],
+        collection: collection,
+      );
+      repository.caseEditionsResult = const [
+        BinderCaseEdition(
+          printId: 'print-en',
+          lang: 'en',
+          qtyNormal: 1,
+          qtyFoil: 0,
+        ),
+        BinderCaseEdition(
+          printId: 'print-fr',
+          lang: 'fr',
+          qtyNormal: 1,
+          qtyFoil: 0,
+        ),
+      ];
+      await openActions(tester);
+
+      await tester.tap(find.text('Retirer un exemplaire normal'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Laquelle retirer ?'), findsOneWidget);
+      expect(find.text('Anglaise'), findsOneWidget);
+      expect(find.text('Française'), findsOneWidget);
+      // Rien n'a encore bougé : la feuille attend un choix, elle ne
+      // devine pas.
+      expect(collection.quantities[('oracle-1', 'print-en')], 1);
+      expect(collection.quantities[('oracle-1', 'print-fr')], 1);
+
+      await tester.tap(find.text('Française'));
+      await tester.pumpAndSettle();
+
+      expect(
+        collection.quantities[('oracle-1', 'print-fr')],
+        isNull,
+        reason:
+            'seule l\'impression choisie doit avoir perdu son '
+            'exemplaire',
+      );
+      expect(
+        collection.quantities[('oracle-1', 'print-en')],
+        1,
+        reason: 'l\'autre langue ne doit pas être touchée',
+      );
+    });
+
     testWidgets('retirer une finition absente ne s\'annonce pas comme un '
         'retrait', (tester) async {
       // Une case range ensemble le normal et le brillant : demander à retirer
@@ -1055,6 +1176,86 @@ void main() {
         reason: 'il n\'y a rien à annuler quand rien n\'a été retiré',
       );
     });
+
+    testWidgets(
+      'deux impressions en portent : corriger l\'édition demande laquelle '
+      'd\'abord',
+      (tester) async {
+        // **Même cause que le retrait.** Viser la représentante de la case
+        // pour dire *d'où* vient l'exemplaire corrigé échouerait à tort si
+        // celui-ci vit sous l'autre langue : `setPrinting` ne trouverait
+        // rien à déplacer et l'annoncerait comme « déjà cette édition ».
+        final collection = FakeCollectionRepository();
+        collection.quantities[('oracle-1', 'print-en')] = 1;
+        collection.quantities[('oracle-1', 'print-fr')] = 1;
+
+        final printings = FakePrintingRepository()
+          ..printings = const [
+            CardPrinting(
+              printId: 'print-mh2',
+              setCode: 'mh2',
+              setName: 'Modern Horizons 2',
+              lang: 'fr',
+            ),
+          ];
+
+        final repository = await pumpBinder(
+          tester,
+          entries: [shelfEntry()],
+          cells: [cell(number: '1', owned: 2, art: _art)],
+          collection: collection,
+          printings: printings,
+        );
+        repository.caseEditionsResult = const [
+          BinderCaseEdition(
+            printId: 'print-en',
+            lang: 'en',
+            qtyNormal: 1,
+            qtyFoil: 0,
+          ),
+          BinderCaseEdition(
+            printId: 'print-fr',
+            lang: 'fr',
+            qtyNormal: 1,
+            qtyFoil: 0,
+          ),
+        ];
+        await openActions(tester);
+
+        await tester.tap(find.text('Corriger l\'édition'));
+        await tester.pumpAndSettle();
+
+        // La feuille de langue précède le sélecteur d'édition : rien à
+        // corriger tant qu'on ne sait pas laquelle des deux on tient.
+        expect(find.text('Laquelle corriger ?'), findsOneWidget);
+        expect(find.text('Anglaise'), findsOneWidget);
+        expect(find.text('Française'), findsOneWidget);
+        expect(find.text('Modern Horizons 2'), findsNothing);
+
+        await tester.tap(find.text('Anglaise'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.textContaining('Modern Horizons 2').last);
+        await tester.pumpAndSettle();
+
+        expect(
+          collection.lastPrintingMove?.from,
+          'print-en',
+          reason:
+              'la correction doit partir de l\'impression choisie, pas '
+              'de la représentante de la case',
+        );
+        expect(
+          collection.quantities[('oracle-1', 'print-en')],
+          isNull,
+          reason: 'l\'exemplaire anglais a bien été déplacé',
+        );
+        expect(
+          collection.quantities[('oracle-1', 'print-fr')],
+          1,
+          reason: 'l\'exemplaire français ne devait pas être touché',
+        );
+      },
+    );
 
     testWidgets('annuler une correction ne ramène que les exemplaires '
         'déplacés', (tester) async {
