@@ -36,6 +36,7 @@ import 'card_art_url.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/request_timeout.dart';
+import '../config/user_agent.dart';
 import '../features/printings/domain/scryfall_image.dart';
 import 'image_store.dart';
 
@@ -266,6 +267,15 @@ class _UprightInCellState extends State<UprightInCell> {
       : widget.child;
 }
 
+/// Client HTTP des illustrations, ou `null` pour celui de production.
+///
+/// **Une couture de test, et rien d'autre.** Un `User-Agent` qui cesserait
+/// d'être envoyé ne lèverait aucune erreur et ne se verrait qu'au jour où la
+/// source se met à refuser — le maillon qui cède en silence. Sans point
+/// d'injection il n'y a pas moyen de l'affirmer par un test ; avec, cela tient
+/// en trois lignes.
+http.Client? cardImageClient;
+
 /// Fournisseur d'image qui regarde le disque avant le réseau.
 ///
 /// Une sous-classe d'`ImageProvider` plutôt qu'un `FutureBuilder` : c'est ce
@@ -321,7 +331,13 @@ class CardImageProvider extends ImageProvider<CardImageProvider> {
     // Le même délai que les appels au serveur : une connexion morte ne rend ni
     // réponse ni erreur, et sans plafond la carte resterait grise pour
     // toujours. Voir `request_timeout.dart`.
-    final response = await http.get(Uri.parse(url)).timeout(requestTimeout);
+    //
+    // **L'en-tête n'est pas décoratif** : sans lui, Scryfall rend `HTTP 400
+    // generic_user_agent` à un client qui ne s'annonce pas. L'application
+    // passait grâce au défaut de Dart, non par conformité — `user_agent.dart`.
+    final response = await (cardImageClient ?? http.Client())
+        .get(Uri.parse(url), headers: userAgentHeader)
+        .timeout(requestTimeout);
     if (response.statusCode != 200) {
       throw NetworkImageLoadException(
         statusCode: response.statusCode,

@@ -11,6 +11,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../common/loading_view.dart';
 import '../../../config/selected_game.dart';
 import '../../builder/presentation/deck_builder_view.dart';
 import '../../printings/presentation/card_art_view.dart';
@@ -85,9 +86,8 @@ class DeckSuggestionsScreen extends ConsumerWidget {
       if (format == DeckFormat.commander) const _CommanderSearch(),
       const _FilterBar(),
       Expanded(
-        child: suggestions.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        child: suggestions.settled(
+          loading: () => const LoadingView(skeleton: DeckListSkeleton()),
           error: (error, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(32),

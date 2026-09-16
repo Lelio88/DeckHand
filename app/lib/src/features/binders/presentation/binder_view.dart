@@ -24,6 +24,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../config/selected_game.dart';
 import '../../../common/card_image.dart';
+import '../../../common/loading_view.dart';
 import '../../../common/state_message.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../collection/data/collection_views.dart';
@@ -203,9 +204,8 @@ class _FindResults extends ConsumerWidget {
     final theme = Theme.of(context);
     final found = ref.watch(binderFindProvider);
 
-    return found.when(
-      loading: () =>
-          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+    return found.settled(
+      loading: () => const LoadingView(skeleton: ShelfSkeleton()),
       error: (error, _) => StateMessage(
         icon: Icons.cloud_off,
         title: 'Recherche impossible',
@@ -271,9 +271,8 @@ class _Shelf extends ConsumerWidget {
       );
     }
 
-    return shelf.when(
-      loading: () =>
-          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+    return shelf.settled(
+      loading: () => const LoadingView(skeleton: ShelfSkeleton()),
       error: (error, _) => StateMessage(
         icon: Icons.cloud_off,
         title: 'Étagère illisible',
@@ -469,9 +468,8 @@ class _UnsortedPile extends ConsumerWidget {
           ),
         ),
         Expanded(
-          child: cards.when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          child: cards.settled(
+            loading: () => const LoadingView(skeleton: ShelfSkeleton()),
             error: (error, _) => StateMessage(
               icon: Icons.cloud_off,
               title: 'Pile illisible',
@@ -858,9 +856,8 @@ class _Binder extends ConsumerWidget {
         // l'appareil.
         if (!spread) _ReadingSelector(setCode: setCode),
         Expanded(
-          child: cells.when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          child: cells.settled(
+            loading: () => const LoadingView(skeleton: BinderGridSkeleton()),
             error: (error, _) => StateMessage(
               icon: Icons.cloud_off,
               title: 'Page illisible',
