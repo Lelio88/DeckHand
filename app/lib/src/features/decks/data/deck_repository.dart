@@ -11,7 +11,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/request_timeout.dart';
 import '../../../config/selected_game.dart';
 import '../../auth/data/auth_repository.dart';
-import '../../collection/data/collection_repository.dart';
 import '../domain/deck_suggestion.dart';
 import '../domain/mana_color.dart';
 
@@ -247,14 +246,23 @@ final selectedFormatProvider = NotifierProvider<SelectedFormat, DeckFormat>(
 
 /// Suggestions pour le format sélectionné.
 ///
-/// Dépend de `collectionProvider` : ajouter une carte doit refaire remonter les
-/// decks concernés sans que l'utilisateur ait à rafraîchir quoi que ce soit.
+/// **Rafraîchi par `refreshCollectionViews`, et non en observant le résumé.**
+/// Ce provider observait `collectionProvider` pour que l'ajout d'une carte
+/// fasse remonter les decks concernés. Mais observer un `FutureProvider`, c'est
+/// observer son `AsyncValue` : au démarrage il vaut d'abord « en cours », puis
+/// « voici les totaux », et cette transition-là est un changement comme un
+/// autre. La requête partait donc **deux fois à chaque lancement** — mesuré à
+/// une seconde en Pauper, quatre en Commander, jetées avant même que la
+/// première réponse n'arrive.
+///
+/// L'invalidation explicite obtient le même rafraîchissement sans la seconde
+/// requête, et elle le met là où toutes les autres vivent déjà : une écriture
+/// dans la collection rejoue ce qui en dépend, decks compris.
 final deckSuggestionsProvider =
     FutureProvider.autoDispose<List<DeckSuggestion>>((ref) async {
       final session = ref.watch(sessionProvider).asData?.value;
       if (session == null) return const [];
 
-      ref.watch(collectionProvider);
       final format = ref.watch(selectedFormatProvider);
       final filters = ref.watch(deckFiltersProvider);
       return ref

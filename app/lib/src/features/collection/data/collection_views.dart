@@ -25,6 +25,7 @@ library;
 import 'package:flutter_riverpod/misc.dart';
 
 import '../../binders/data/binder_repository.dart';
+import '../../decks/data/deck_repository.dart';
 import 'collection_repository.dart';
 
 /// Invalide chaque vue de la collection. À appeler après toute écriture.
@@ -35,4 +36,11 @@ void refreshCollectionViews(void Function(ProviderOrFamily) invalidate) {
   invalidate(binderPageProvider);
   invalidate(binderFindProvider);
   invalidate(unsortedPileProvider);
+  // **Les decks sont une vue de la collection, eux aussi.** Ils ne figuraient
+  // pas ici parce qu'ils se rafraîchissaient tout seuls, en observant le
+  // résumé — au prix d'une requête de trop à chaque lancement. Les inscrire
+  // dans la liste commune rend l'ajout d'une carte aussi visible qu'avant, et
+  // place les decks sous la même règle que le reste : ce qui montre la
+  // collection est relu quand elle change.
+  invalidate(deckSuggestionsProvider);
 }

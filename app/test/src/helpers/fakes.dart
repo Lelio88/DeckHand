@@ -85,6 +85,14 @@ class FakeDeckRepository implements DeckRepository {
   List<DeckSuggestion> results = const [];
   List<MissingCard> missing = const [];
 
+  /// Nombre d'interrogations reçues.
+  ///
+  /// **Une requête de trop ne se voit nulle part ailleurs.** L'écran affiche le
+  /// résultat de la dernière, donc il a l'air juste ; seul le compte révèle
+  /// qu'on a payé la réponse deux fois. C'est mesuré à une seconde en Pauper et
+  /// quatre en Commander, à chaque lancement.
+  int calls = 0;
+
   @override
   Future<List<DeckSuggestion>> suggestions(
     DeckFormat format, {
@@ -92,6 +100,7 @@ class FakeDeckRepository implements DeckRepository {
     int maxResults = 30,
     Game game = Game.magic,
   }) async {
+    calls++;
     lastFormat = format;
     lastFilters = filters;
     lastGame = game;

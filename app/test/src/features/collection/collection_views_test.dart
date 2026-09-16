@@ -8,12 +8,12 @@ library;
 import 'package:deckhand/src/features/binders/data/binder_repository.dart';
 import 'package:deckhand/src/features/collection/data/collection_repository.dart';
 import 'package:deckhand/src/features/collection/data/collection_views.dart';
+import 'package:deckhand/src/features/decks/data/deck_repository.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('une écriture relit les totaux, le journal et tout ce que montre le '
-      'classeur', () {
+  test('une écriture relit les totaux, le journal, le classeur et les decks', () {
     final invalidated = <ProviderOrFamily>[];
 
     refreshCollectionViews(invalidated.add);
@@ -27,6 +27,10 @@ void main() {
         binderPageProvider,
         binderFindProvider,
         unsortedPileProvider,
+        // **Les decks aussi.** Ils se rafraîchissaient seuls en observant le
+        // résumé, ce qui coûtait une requête de trop à chaque lancement ; leur
+        // place est ici, avec les autres vues de la collection.
+        deckSuggestionsProvider,
       ]),
     );
   });

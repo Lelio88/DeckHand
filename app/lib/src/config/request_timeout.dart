@@ -11,11 +11,19 @@
 /// propre délai depuis. Il vaut pour **tout** appel réseau, et c'est ici qu'il
 /// est écrit une fois pour toutes.
 ///
-/// **Ce n'est pas une limite de performance.** Le serveur répond à toutes les
-/// fonctions de l'application en moins d'une seconde, les quatre du démarrage
-/// lancées ensemble comprises. Vingt secondes laissent donc vingt fois la marge
-/// mesurée sur un réseau lent, tout en rendant une panne visible en vingt
-/// secondes plutôt que jamais.
+/// **Ce n'est pas une limite de performance**, et il faut vingt secondes parce
+/// que toutes les réponses ne sont pas rapides. Les fonctions de lecture de la
+/// collection tiennent en quelques dizaines de millisecondes de travail réel —
+/// `my_collection_summary` en touche 881 blocs, `my_binder_shelf` 163 — et leur
+/// tiers de seconde à l'écran est du réseau. Mais le **premier** appel d'une
+/// session froide a été mesuré jusqu'à 7,63 s, le serveur n'ayant que 224 Mio
+/// de cache pour une base de 554 Mio ; et `deck_suggestions` traverse près de
+/// deux gigaoctets de blocs pour rendre trente lignes. Vingt secondes couvrent
+/// donc le pire cas connu avec de la marge, tout en rendant une panne visible
+/// en vingt secondes plutôt que jamais.
+///
+/// Le plafond qui compte en face n'est pas celui-ci : le rôle `authenticated`
+/// coupe à huit secondes, et rend alors une erreur 57014 plutôt qu'une attente.
 ///
 /// Usage : `await client.rpc<T>(...).timedOut()`.
 library;

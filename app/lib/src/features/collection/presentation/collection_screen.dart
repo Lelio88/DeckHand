@@ -21,78 +21,31 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../common/state_message.dart';
 import '../../binders/presentation/binder_view.dart';
-import '../data/collection_repository.dart';
 
-class CollectionScreen extends ConsumerWidget {
+class CollectionScreen extends StatelessWidget {
   const CollectionScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final summary = ref.watch(collectionProvider);
-
-    return summary.when(
-      loading: () =>
-          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      // **La porte de l'onglet doit se rouvrir.** Ce chargement commande tout
-      // le reste : s'il échoue, l'onglet entier se réduit à cette ligne, et
-      // changer d'onglet ne rejoue rien — la coque les empile plutôt que de
-      // les reconstruire. Le classeur, lui, portait déjà un bouton
-      // « Réessayer » sur quatre écrans : c'était sa porte d'entrée qui était
-      // un cul-de-sac.
-      error: (error, _) => StateMessage(
-        icon: Icons.cloud_off,
-        title: 'Collection illisible',
-        detail: '$error',
-        onRetry: () => ref.invalidate(collectionProvider),
-      ),
-      data: (totals) {
-        if (totals.isEmpty) return const _EmptyCollection();
-        // Le poids de la collection est annoncé par la barre du haut ; le
-        // répéter ici volait une bande de hauteur aux cartes pour redire la
-        // même chose.
-        return const BinderView();
-      },
-    );
-  }
-}
-
-class _EmptyCollection extends StatelessWidget {
-  const _EmptyCollection();
-
-  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.style_outlined,
-              size: 44,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'Votre collection est vide',
-              style: theme.textTheme.titleSmall,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Cherchez une carte ou photographiez-la pour l\'ajouter.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    // **L'onglet n'attend plus le résumé pour montrer l'étagère.** Il le
+    // demandait d'abord, et n'ouvrait le classeur qu'ensuite : deux allers-
+    // retours en file là où deux suffisaient côte à côte, et le second ne
+    // partait qu'une fois le premier revenu. Mesuré sous le rôle réel,
+    // `my_collection_summary` puis `my_binder_shelf` coûtaient 0,82 s + 0,34 s
+    // en série ; lancés ensemble, l'attente est celle du plus lent.
+    //
+    // **Ce qu'on perd en chemin, l'étagère le disait déjà mieux.** Le résumé ne
+    // servait ici qu'à décider « collection vide », pour afficher un message
+    // sans issue. `_Shelf` répond à la même question en offrant la pile « à
+    // trier » et en distinguant les deux vides — des cartes qui attendent leur
+    // édition, ou pas de cartes du tout. De même pour la panne : « Étagère
+    // illisible » porte son bouton « Réessayer » et vise ce qui a réellement
+    // échoué, là où « Collection illisible » rejouait le résumé.
+    //
+    // Le poids de la collection reste annoncé par la barre du haut, qui lit le
+    // résumé de son côté et s'efface tant qu'il n'est pas là.
+    return const BinderView();
   }
 }
