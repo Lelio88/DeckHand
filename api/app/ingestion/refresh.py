@@ -15,7 +15,9 @@ Rythmes réels des sources, qui dictent la fréquence utile :
   par an.
 
 Ordre imposé par les dépendances : le catalogue d'abord, puis les empreintes
-(qui référencent les impressions), puis les decks (qui référencent les cartes).
+(qui référencent les impressions), puis les decks (qui référencent les cartes),
+et enfin les profils de decks — qui dérivent des deux, et sans lesquels l'onglet
+Decks resterait sur l'état de la veille (`app.ingestion.deck_profile`).
 
 **Aucune connexion n'attend d'une étape à l'autre.** Les travaux longs —
 ingestion du catalogue, téléchargement des illustrations, import des tournois —
@@ -38,7 +40,13 @@ import psycopg
 
 from app.config import SupabaseConfig
 from app.db import Session
-from app.ingestion import mtgjson_ingest, scryfall_ingest, scryfall_sets, topdeck_ingest
+from app.ingestion import (
+    deck_profile,
+    mtgjson_ingest,
+    scryfall_ingest,
+    scryfall_sets,
+    topdeck_ingest,
+)
 from app.ingestion.scryfall_client import BULK_ALL, fetch_bulk_catalog
 from app.ingestion.state import last_version, record
 from app.vision import index_builder
@@ -193,19 +201,28 @@ def run(*, force: bool = False, skip_decks: bool = False) -> None:
     config = SupabaseConfig.load()
     db = short_units(config.db_url)
 
-    print("1/3 — catalogue Scryfall")
+    print("1/4 — catalogue Scryfall")
     changed = refresh_catalogue(db, force=force)
 
-    print("2/3 — empreintes manquantes")
+    print("2/4 — empreintes manquantes")
     with Session(config.db_url) as session:
         hashed = refresh_art_hashes(session)
     print(f"  {hashed} nouvelles empreintes")
 
     if skip_decks:
-        print("3/3 — decks ignorés")
+        print("3/4 — decks ignorés")
     else:
-        print("3/3 — corpus de decks")
+        print("3/4 — corpus de decks")
         refresh_decks(db)
+
+    # **En dernier, et sans condition.** Ces tables dérivent des decks *et* des
+    # prix : un catalogue rafraîchi sans decks nouveaux change quand même le
+    # coût de complétion de tout le corpus. Les sauter parce que `--skip-decks`
+    # a été demandé laisserait l'onglet Decks sur les prix de la veille, sans
+    # que rien ne le dise.
+    print("4/4 — profils de decks")
+    needs, profiles = deck_profile.run()
+    print(f"  {needs} besoins, {profiles} profils")
 
     print()
     _print_summary(db)

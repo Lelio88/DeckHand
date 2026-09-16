@@ -1270,6 +1270,7 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 | `profiles` | Préférences du compte — jeux joués dans leur ordre, taille et prix de booster |
 | `collections` / `collection_items` | Possessions, par utilisateur |
 | `decks` / `deck_cards` | Corpus normalisé, toutes sources confondues |
+| `deck_needs` / `deck_profile` | **Dérivées de `deck_cards`**, reconstruites par l'ingestion : ce qu'un deck demande et ce qu'il vaut, indépendamment de toute collection |
 | `deck_sources` | Provenance et mentions d'attribution |
 
 **`deck_sources` porte l'attribution.** TopDeck.gg impose un crédit visible ; l'exigence doit voyager avec la donnée pour que l'interface ne puisse pas l'oublier.
@@ -2431,7 +2432,15 @@ Pour chaque deck du corpus, dans le format demandé :
 3. Valorisation du reste manquant au prix de l'impression la moins chère.
 4. Classement : constructibles immédiatement, puis par coût de complétion croissant.
 
-À l'échelle visée (2 000 cartes × quelques milliers de decks), ce calcul est trivial. **Aucune contrainte de performance ne pèse sur la conception.**
+**Ce calcul n'est pas trivial, et l'avoir cru a coûté trois jeux.** Mené naïvement — confronter chaque deck du format à la collection, puis n'en garder que trente — il traverse près de deux gigaoctets de blocs pour rendre trente lignes. `deck_suggestions` répondait `57014 statement timeout` sur Pokémon, SWU et Yu-Gi-Oh, dont les corpus vont jusqu'à 595 239 lignes de decklist : le coût suivait le volume du format, pas celui du résultat. Magic passait parce que Pauper est le plus petit corpus du lot.
+
+Or trois des quatre grandeurs en jeu ne dépendent d'aucune collection : le total d'un deck, ses terrains de base, son identité couleur, et le prix de ses cartes. Elles vivent donc dans deux tables dérivées — `deck_needs` et `deck_profile` — reconstruites par `app.ingestion.deck_profile` à la fin de chaque rafraîchissement. La fonction n'a plus qu'à retrancher ce qu'on possède :
+
+> `coût_manquant = coût_total_du_deck − coût_de_ce_qu'on_possède_dedans`
+
+exact et non approché, `Σ(besoin−possédé)×prix` valant `Σ besoin×prix − Σ possédé×prix`. Cette écriture **renverse le sens de la jointure** : au lieu de parcourir le corpus pour y chercher la collection, on part des quelques centaines de cartes possédées et on remonte vers les decks par un index couvrant. Les dix formats répondent désormais sous la demi-seconde, contre trois en panne et deux au bord.
+
+**L'invariant que cela introduit** : un deck n'entre dans les suggestions qu'après reconstruction. Les decks n'arrivant que par `app.ingestion.refresh`, qui reconstruit dans la même passe, l'écart est nul en pratique — mais une insertion faite à la main resterait invisible jusqu'au rafraîchissement suivant. Coût de l'échange : 188 Mo de tables et d'index sur une base qui en faisait 554.
 
 ### Justesse du décompte — vérifiée par recalcul
 
@@ -2448,6 +2457,8 @@ possédées, ni sur les manquantes, ni sur le coût. La collection est volontair
 *partielle* — 60 % des exemplaires de chaque carte — parce que posséder tout ou
 rien court-circuiterait le calcul `needed - owned`, précisément là où un moteur
 de complétion se trompe.
+
+**Ce banc voit ce qu'un banc de durée ne voit pas, et il l'a prouvé.** Mesurer `deck_suggestions` sous le compte du propriétaire est trompeur : sa collection ne contient que du Magic, si bien que pour Pokémon ou SWU la jointure entre collection et corpus ne rend aucune ligne et que le chemin coûteux n'est jamais exercé. Le banc de durée annonçait 0,33 s sur Pokémon quand `deck_math`, qui *construit* une collection dans le jeu mesuré, rendait `HTTP 500`. **Une mesure de performance doit posséder des cartes du jeu qu'elle mesure**, faute de quoi elle chronomètre un travail qui n'a pas lieu.
 
 Deux garanties tiennent ce script : il ne supprime que les lignes qu'il a
 lui-même créées (le compte de test porte de vraies cartes), et sa capacité à

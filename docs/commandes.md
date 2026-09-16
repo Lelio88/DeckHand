@@ -22,6 +22,11 @@ Idempotente : une course saute ce qui n'a pas changé. `--force` reverse tout.
 # Magic — catalogue, prix et decks
 cd api && .venv/Scripts/python -m app.ingestion.refresh            # --force, --skip-decks
 
+# Profils de decks — indispensable après toute écriture de decks OU de prix.
+# `refresh` le fait en dernière étape ; à lancer seul après une ingestion d'un
+# autre jeu, sinon l'onglet Decks reste sur l'état précédent (~2 min).
+cd api && .venv/Scripts/python -m app.ingestion.deck_profile
+
 # Riftbound
 cd api && .venv/Scripts/python -m app.ingestion.riftcodex_ingest   # catalogue
 cd api && .venv/Scripts/python -m app.ingestion.tcgcsv_prices      # prix (--force)
@@ -182,6 +187,8 @@ cd api && .venv/Scripts/python -m app.measure.nom_trait_union --game yugioh
 # Pourquoi le scan rendait « statement timeout » : le prix, joint catalogue entier
 cd api && .venv/Scripts/python -m app.measure.price_join            # --noms 10 50 150
 cd api && .venv/Scripts/python -m app.measure.price_join --cartes 1 8 16 24
+# L'onglet Decks tient-il dans les 8 s du rôle ? — un format par jeu, sort 1 si non
+cd api && .venv/Scripts/python -m app.measure.deck_suggestions      # --game magic
 # Regarder une tuile plutôt que la deviner — une capture par chiffre, hors dépôt
 cd app && DECKHAND_FONTS=<flutter>/bin/cache/artifacts/material_fonts \
     flutter test test/apercu_tuiles_test.dart --update-goldens
