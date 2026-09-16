@@ -527,6 +527,42 @@ demande des cartes physiques, pas du code.
 
 ---
 
+## 0bis. Les langues que connaît chaque catalogue
+
+Relevé sur `card_search_names` le 16 septembre 2026 — c'est un **fait de
+données**, pas une préférence, et l'application le lit désormais dans
+`Game.catalogueLanguages` plutôt que de coder un jeu en dur.
+
+| jeu | langues | noms |
+|---|---|---|
+| magic | en, fr | 39 323 + 30 106 |
+| pokemon | en, fr | 20 964 + 16 438 |
+| yugioh | en, fr | 13 866 + 11 504 |
+| wankul | en, fr | 958 + 958 |
+| lorcana, onepiece, riftbound, swu | en seul | 4 508 / 2 541 / 954 / 3 069 |
+
+**Ce que la limite coûte, et où elle se voit.** Une carte photographiée dans une
+langue absente d'ici voit son nom parfaitement lu, puis ne rencontrer aucune
+entrée : la reconnaissance échoue sans que rien ne soit en panne. L'écran
+d'étalement le disait mal — il renvoyait « vérifiez le jeu sélectionné », ce qui
+envoie corriger ce qui n'est pas en cause. Il nomme maintenant la langue, et
+laisse la saisie à la main ouverte dans tous les cas d'échec.
+
+**La voie de l'illustration, elle, ignore la langue.** L'empreinte porte sur
+l'art seul, jamais sur le cadre de texte : une carte allemande et sa jumelle
+anglaise partagent la même image, donc la même empreinte. C'est le recours
+naturel pour ces cartes — à condition que le cadrage soit juste.
+
+**Une langue de plus coûte des noms, pas des impressions.** `card_search_names`
+retient un nom par carte et par langue, non un par impression : ajouter
+l'allemand aux 37 682 cartes Magic pèse de l'ordre de 30 000 lignes. Les
+`card_prints` d'une langue, elles, en pèsent ~100 000 — et ne servent qu'à
+désigner l'exemplaire exact et sa cote. Les deux décisions sont donc séparables,
+et c'est ce qui rend la reconnaissance multilingue abordable sans ouvrir le
+catalogue d'impressions.
+
+---
+
 ## 1. Ce que le second jeu change au produit
 
 **La promesse de DeckHand n'est pas la même pour les deux jeux.** Pour Magic,

@@ -132,6 +132,13 @@ pumpSpreadScan(
   /// Cartes presentes au catalogue sans avoir ete lues sur la photo — celles
   /// qu'une correction ou un ajout a la main peut aller chercher.
   List<CardHit> alsoInCatalogue = const [],
+  /// Ce que la lecture rend, quand ce n'est pas ce que le catalogue retrouve.
+  ///
+  /// Sans lui, les lignes lues se déduisent de [found] : lire et retrouver
+  /// sont alors le même événement, et l'écart entre les deux est intestable.
+  /// Or c'est précisément cet écart qui décrit une carte dans une langue
+  /// absente du catalogue — le nom se lit très bien, il ne rencontre rien.
+  List<String>? readNames,
   Map<String, CardPrinting> sole = const {},
   Object? soleError,
 }) async {
@@ -150,10 +157,10 @@ pumpSpreadScan(
   final cards = _FakeCatalogue([...found, ...alsoInCatalogue]);
   // Une ligne par carte, assez grande pour passer le filtre de taille : ce
   // n'est pas lui qu'on éprouve ici.
+  final lus = readNames ?? [for (final hit in found) hit.matchedName];
   final reader = FakeCardTextReader()
     ..lines = [
-      for (var i = 0; i < found.length; i++)
-        ReadLine(found[i].matchedName, i / 10, 0.05),
+      for (var i = 0; i < lus.length; i++) ReadLine(lus[i], i / 10, 0.05),
     ];
 
   await tester.pumpWidget(
@@ -787,6 +794,62 @@ void main() {
             'le bouton décompte la sélection, lui, et doit donc inclure ce '
             "qu'on vient d'ajouter",
       );
+    });
+  });
+
+  group("quand la photo ne donne rien, la sortie reste ouverte", () {
+    // **Le cul-de-sac que ces tests ferment.** « Saisir une carte oubliée » ne
+    // vivait que dans la liste des résultats ; une photo qui ne reconnaît rien
+    // ne construit pas cette liste, et l'écran n'offrait alors plus aucun
+    // geste. C'est le cas d'une carte dans une langue que le catalogue ignore,
+    // signalé sur l'appareil : la lecture est parfaite, l'écran est sans issue.
+
+    testWidgets('un nom lu qu\'aucune carte ne porte nomme la langue', (
+      tester,
+    ) async {
+      await pumpSpreadScan(
+        tester,
+        found: const [],
+        alsoInCatalogue: [_hit('id-2', 'Ancêtre Vénérable')],
+        readNames: const ['Blitzschlag'],
+      );
+
+      expect(
+        find.textContaining("ne connaît que l'anglais et le français"),
+        findsOneWidget,
+        reason:
+            'la vraie cause est la langue ; renvoyer vérifier le jeu '
+            "sélectionné envoie corriger ce qui n'est pas en cause",
+      );
+      expect(find.text('Saisir une carte oubliée'), findsOneWidget);
+    });
+
+    testWidgets('aucun nom lu laisse aussi la saisie à la main', (
+      tester,
+    ) async {
+      await pumpSpreadScan(tester, found: const []);
+
+      expect(find.textContaining("Aucun nom n'a pu être lu"), findsOneWidget);
+      expect(find.text('Saisir une carte oubliée'), findsOneWidget);
+    });
+
+    testWidgets('la carte saisie depuis l\'impasse atteint la collection', (
+      tester,
+    ) async {
+      // L'assertion porte sur le dépôt, pas sur l'affichage : un bouton
+      // présent mais sans effet aurait l'air d'une correction.
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: const [],
+        alsoInCatalogue: [_hit('id-2', 'Ancêtre Vénérable')],
+        readNames: const ['Blitzschlag'],
+      );
+
+      await _pickCard(tester, query: 'Ancêtre', pick: 'Ancêtre Vénérable');
+      await tester.tap(find.textContaining('Ajouter ('));
+      await tester.pumpAndSettle();
+
+      expect(fakes.collection.quantities.keys.map((k) => k.$1), ['id-2']);
     });
   });
 }

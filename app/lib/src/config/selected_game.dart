@@ -21,19 +21,45 @@ import '../features/scan/domain/card_geometry.dart';
 /// L'identifiant est celui de la colonne `cards.game` : il part tel quel dans
 /// les appels au serveur, sans table de correspondance à maintenir.
 enum Game {
-  magic('magic', 'Magic: The Gathering'),
-  riftbound('riftbound', 'Riftbound'),
-  yugioh('yugioh', 'Yu-Gi-Oh!'),
-  pokemon('pokemon', 'Pokémon'),
-  wankul('wankul', 'Wankul'),
-  swu('swu', 'Star Wars Unlimited'),
-  onepiece('onepiece', 'One Piece Card Game'),
-  lorcana('lorcana', 'Disney Lorcana');
+  magic('magic', 'Magic: The Gathering', bilingue),
+  riftbound('riftbound', 'Riftbound', anglaisSeul),
+  yugioh('yugioh', 'Yu-Gi-Oh!', bilingue),
+  pokemon('pokemon', 'Pokémon', bilingue),
+  wankul('wankul', 'Wankul', bilingue),
+  swu('swu', 'Star Wars Unlimited', anglaisSeul),
+  onepiece('onepiece', 'One Piece Card Game', anglaisSeul),
+  lorcana('lorcana', 'Disney Lorcana', anglaisSeul);
 
-  const Game(this.id, this.label);
+  const Game(this.id, this.label, this.catalogueLanguages);
+
+  /// Les deux jeux de langues que portent les catalogues, nommés une fois.
+  static const anglaisSeul = <String>['en'];
+  static const bilingue = <String>['en', 'fr'];
 
   final String id;
   final String label;
+
+  /// Langues dans lesquelles le catalogue connaît le **nom** des cartes.
+  ///
+  /// **Ce n'est pas une préférence, c'est un fait mesuré** sur
+  /// `card_search_names` : quatre jeux y sont bilingues (magic, pokemon,
+  /// yugioh, wankul), quatre n'ont que l'anglais (riftbound, swu, onepiece,
+  /// lorcana). Les connecteurs le décident — `KEEP_LANGS` chez Scryfall — et
+  /// rien ne le disait côté application.
+  ///
+  /// **Pourquoi l'écran en a besoin.** Une carte photographiée dans une langue
+  /// absente d'ici voit son nom lu correctement, puis ne rencontrer aucune
+  /// entrée. L'écran annonçait alors « vérifiez le jeu sélectionné », ce qui
+  /// envoie corriger ce qui n'est pas en cause. La liste permet de nommer la
+  /// vraie raison, et de ne pas coder Riftbound en dur pour les quatre jeux
+  /// qui sont dans son cas.
+  final List<String> catalogueLanguages;
+
+  /// Ces langues, dites à un humain : « l'anglais » ou « l'anglais et le
+  /// français ».
+  String get catalogueLanguagesLabel => catalogueLanguages.length == 1
+      ? 'l\'anglais'
+      : 'l\'anglais et le français';
 
   /// Rapport largeur sur hauteur d'une carte de ce jeu.
   ///

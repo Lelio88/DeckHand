@@ -387,26 +387,39 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       );
     }
     if (_spotted.isEmpty) {
+      // **Le geste de secours est le même dans les deux cas**, et il n'était
+      // offert dans aucun : quelle que soit la raison de l'échec, la carte est
+      // là, dans la main, et se saisit en trois frappes.
+      final rattrapage = _AddByHand(onTap: _saving ? null : _addManually);
+
       // **Deux causes opposées, deux gestes opposés.** Confondre les deux
       // envoyait nettoyer des protège-cartes quand la lecture était parfaite.
       if (_readButUnmatched) {
         final game = ref.watch(selectedGameProvider);
         return _Note(
           icon: Icons.translate,
-          text: game == Game.riftbound
-              ? 'Des noms ont bien été lus, mais aucun ne figure au catalogue '
-                    'Riftbound — qui n\'existe qu\'en anglais. Une carte '
-                    'française ne peut pas être reconnue par son nom : '
-                    'photographiez-la seule, son illustration la trahira.'
-              : 'Des noms ont bien été lus, mais aucun ne correspond au '
-                    'catalogue ${game.label}. Vérifiez le jeu sélectionné.',
+          // **Nommer la vraie cause.** Le message renvoyait vérifier le jeu
+          // sélectionné — ce qui est juste quand on a photographié une carte
+          // Pokémon en mode Magic, et trompeur dans le cas le plus fréquent :
+          // le jeu est bon, c'est la langue qui manque au catalogue. Les deux
+          // possibilités sont donc dites, dans cet ordre, la langue d'abord
+          // parce qu'elle est la seule que l'utilisateur ne peut pas deviner.
+          text:
+              'Des noms ont bien été lus, mais aucun ne figure au catalogue '
+              '${game.label}, qui ne connaît que '
+              '${game.catalogueLanguagesLabel}. Si votre carte est dans une '
+              'autre langue, son illustration peut encore la trahir — '
+              'photographiez-la seule, bien à plat. Sinon, vérifiez le jeu '
+              'sélectionné.',
+          action: rattrapage,
         );
       }
-      return const _Note(
+      return _Note(
         icon: Icons.search_off,
         text:
             'Aucun nom n\'a pu être lu. Rapprochez-vous, '
             'ou évitez les reflets sur les protège-cartes.',
+        action: rattrapage,
       );
     }
 
@@ -914,10 +927,19 @@ class _SaveError extends StatelessWidget {
 }
 
 class _Note extends StatelessWidget {
-  const _Note({required this.icon, required this.text});
+  const _Note({required this.icon, required this.text, this.action});
 
   final IconData icon;
   final String text;
+
+  /// Le geste qui sort de l'impasse, quand il y en a un.
+  ///
+  /// **Ce qui manquait.** La porte de sortie — « saisir une carte oubliée » —
+  /// ne vivait que dans la liste des résultats, donc jamais quand la liste est
+  /// vide. Elle disparaissait exactement là où elle sert : une carte qu'on n'a
+  /// pas su reconnaître est précisément celle qu'il faut pouvoir saisir à la
+  /// main. Un écran qui constate un échec sans offrir de suite est un cul-de-sac.
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -937,6 +959,7 @@ class _Note extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            if (action != null) ...[const SizedBox(height: 8), action!],
           ],
         ),
       ),
