@@ -16,10 +16,12 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.8.2+16
+version: 1.8.3+17
 
 environment:
-  sdk: ^3.11.5
+  # **Relevée pour ML Kit 0.17**, qui exige Dart ^3.12.0. Dart 3.13.2 et
+  # Flutter 3.47.2 sont installés — aucune montée d'outillage impliquée.
+  sdk: ^3.12.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -45,20 +47,18 @@ dependencies:
   shared_preferences: ^2.5.5
   image_cropper: ^12.2.1
   speech_to_text: ^7.4.0
-  # **Tenu en 0.16, et ce n'est pas un oubli.** La 0.17 a été essayée pour
-  # sortir ce greffon de l'avertissement Kotlin de Gradle ; son changelog ne
-  # promettait qu'un changement de build. Publiée en 1.8.1+15, la lecture des
-  # noms a paru se dégrader sur l'appareil — le seul endroit où ML Kit existe,
-  # donc le seul où cela pouvait se voir. Tout le lot de dépendances de cette
-  # version est revenu en arrière, faute de savoir lequel des trois suspects
-  # est en cause : cet OCR, le pont `InputImage` de `google_mlkit_commons`,
-  # ou l'image que `image_picker_android` lui remet.
+  # **Remontée en 0.17 après avoir trouvé la vraie cause.** La 0.17 avait été
+  # publiée en 1.8.1+15 et l'OCR n'y lisait plus aucun nom ; tout le lot était
+  # revenu en arrière faute de savoir lequel des trois suspects accusait.
+  # `adb logcat` a tranché : ce n'était aucun des trois, mais R8 qui
+  # supprimait les registrars de ML Kit — instanciés par réflexion, donc
+  # invisibles pour lui. Les `-keep` sont dans
+  # `android/app/proguard-rules.pro`, avec le journal qui les motive.
   #
-  # Ne pas remonter sans passer `integration_test/plafond_reel_test.dart`
-  # avant ET après : il appelle le vrai `recognisePhoto` sur les photos du
-  # banc et dit par quelle voie chacune a conclu. L'avertissement Gradle,
-  # lui, n'a aucune échéance.
-  google_mlkit_text_recognition: ^0.16.0
+  # **Ne pas remonter plus haut sans vérifier sur l'appareil.** ML Kit
+  # n'existe nulle part ailleurs, et sa panne est muette : le pipeline
+  # retombe sur l'illustration au lieu d'échouer.
+  google_mlkit_text_recognition: ^0.17.1
   flutter_svg: ^2.3.0
   http: ^1.6.0
 

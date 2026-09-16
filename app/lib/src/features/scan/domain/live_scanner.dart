@@ -189,6 +189,12 @@ class LiveScanner {
     this.region = ScanRegion.whole,
     QuadTracker? quads,
     CardTracker? cards,
+    // **`prefer_initializing_formals` ne s'applique pas ici**, et la règle ne
+    // le voit pas : `_index` est privé, et Dart interdit un paramètre nommé
+    // qui commence par un souligné — `required this._index` ne compilerait
+    // pas. Le signalement n'apparaît qu'avec la contrainte `sdk: ^3.12.0`,
+    // relevée pour ML Kit 0.17, qui ouvre un jeu de règles plus récent.
+    // ignore: prefer_initializing_formals
   }) : _index = index,
        _quads = quads ?? QuadTracker(),
        _cards = cards ?? CardTracker();
