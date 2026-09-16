@@ -17,7 +17,7 @@ Usage privé (le propriétaire et quelques amis) sur un dépôt public. Ni produ
 **Détails complets** : [`docs/architecture.md`](./docs/architecture.md), qui sert d'index aux annexes.
 
 Topologie rapide :
-- `app/lib/src/features/` — par domaine : `card_search`, `collection`, `binders`, `decks`, `builder`, `scan`, `voice`, `printings`, `account`, `about`, `auth`
+- `app/lib/src/features/` — par domaine : `card_search`, `collection`, `binders`, `decks`, `builder`, `scan`, `voice`, `printings`, `account`, `about`, `auth`, `intro`
 - `app/lib/src/common/` et `config/` — images en cache, délais de requête, jeu sélectionné ; `app/tool/` — bancs de mesure Dart
 - `api/app/ingestion/` — un connecteur isolé par source ; `api/app/vision/` — empreintes ; `api/app/measure/` — bancs de mesure ; `api/app/twitch/` — bot de chat en lecture, lancé le temps d'un direct
 - `supabase/migrations/` — fichiers horodatés, joués par `api/apply_migration.py`
