@@ -16,14 +16,10 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.8.1+15
+version: 1.8.2+16
 
 environment:
-  # **Relevée pour ML Kit 0.17**, qui exige Dart ^3.12.0 — et c'est tout ce
-  # qu'il exige de neuf : sa 0.17.0 ne fait que passer son build Android au
-  # Kotlin intégré d'AGP, la migration Java→Kotlin datant de la 0.16.0 déjà
-  # en place. Dart 3.13.2 et Flutter 3.47.2 sont installés.
-  sdk: ^3.12.0
+  sdk: ^3.11.5
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -49,11 +45,20 @@ dependencies:
   shared_preferences: ^2.5.5
   image_cropper: ^12.2.1
   speech_to_text: ^7.4.0
-  # 0.17 sort ce greffon et son `commons` de l'avertissement Kotlin de Gradle :
-  # « Migrate Android plugin build to AGP built-in Kotlin support ». Changement
-  # de build seulement — la lecture des noms n'est pas touchée, et le vérifier
-  # demande l'appareil, seul endroit où ML Kit existe.
-  google_mlkit_text_recognition: ^0.17.1
+  # **Tenu en 0.16, et ce n'est pas un oubli.** La 0.17 a été essayée pour
+  # sortir ce greffon de l'avertissement Kotlin de Gradle ; son changelog ne
+  # promettait qu'un changement de build. Publiée en 1.8.1+15, la lecture des
+  # noms a paru se dégrader sur l'appareil — le seul endroit où ML Kit existe,
+  # donc le seul où cela pouvait se voir. Tout le lot de dépendances de cette
+  # version est revenu en arrière, faute de savoir lequel des trois suspects
+  # est en cause : cet OCR, le pont `InputImage` de `google_mlkit_commons`,
+  # ou l'image que `image_picker_android` lui remet.
+  #
+  # Ne pas remonter sans passer `integration_test/plafond_reel_test.dart`
+  # avant ET après : il appelle le vrai `recognisePhoto` sur les photos du
+  # banc et dit par quelle voie chacune a conclu. L'avertissement Gradle,
+  # lui, n'a aucune échéance.
+  google_mlkit_text_recognition: ^0.16.0
   flutter_svg: ^2.3.0
   http: ^1.6.0
 
