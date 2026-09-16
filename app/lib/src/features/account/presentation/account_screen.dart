@@ -26,6 +26,7 @@ import 'game_tile.dart';
 import 'pick_games_screen.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../collection/data/collection_repository.dart';
+import '../../../common/settled_async.dart';
 import '../../collection/domain/booster_size.dart';
 import '../domain/collection_figures.dart';
 import 'booster_dialog.dart';
@@ -42,7 +43,7 @@ class AccountScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       children: [
-        summary.when(
+        summary.settled(
           loading: () => const Center(
             child: Padding(
               padding: EdgeInsets.all(24),
@@ -548,7 +549,7 @@ class _PublicationTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final state = ref.watch(publicationProvider);
 
-    final subtitle = state.when(
+    final subtitle = state.settled(
       loading: () => 'Chargement…',
       error: (error, _) => 'État indisponible',
       data: (publication) {

@@ -28,6 +28,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../common/card_image.dart';
 
 import '../data/printing_repository.dart';
+import '../../../common/settled_async.dart';
 import '../domain/card_printing.dart';
 import '../domain/printing_era.dart';
 import 'card_art_view.dart';
@@ -251,7 +252,7 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
             ),
           const Divider(height: 1),
           Expanded(
-            child: printings.when(
+            child: printings.settled(
               loading: () => const Center(
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),

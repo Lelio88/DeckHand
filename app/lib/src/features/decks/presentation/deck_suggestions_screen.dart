@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../common/loading_view.dart';
+import '../../../common/settled_async.dart';
 import '../../../config/selected_game.dart';
 import '../../builder/presentation/deck_builder_view.dart';
 import '../../printings/presentation/card_art_view.dart';
@@ -556,7 +557,7 @@ class _MissingSheet extends ConsumerWidget {
             ),
           ),
           Expanded(
-            child: missing.when(
+            child: missing.settled(
               loading: () => const Center(
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),

@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../decks/domain/deck_suggestion.dart';
+import '../../../common/settled_async.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../data/buildable_repository.dart';
 import '../domain/buildable_card.dart';
@@ -151,7 +152,7 @@ class _DeckBuilderViewState extends ConsumerState<DeckBuilderView> {
 
     final collection = ref.watch(buildableCollectionProvider(widget.format));
 
-    return collection.when(
+    return collection.settled(
       loading: () =>
           const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       error: (error, _) => _Note('Collection illisible : $error'),

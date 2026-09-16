@@ -25,6 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../config/selected_game.dart';
 import '../../../common/card_image.dart';
 import '../../../common/loading_view.dart';
+import '../../../common/settled_async.dart';
 import '../../../common/state_message.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../collection/data/collection_views.dart';

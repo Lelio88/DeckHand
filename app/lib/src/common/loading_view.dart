@@ -30,7 +30,7 @@
 /// Usage canonique :
 ///
 /// ```dart
-/// cells.when(
+/// cells.settled(   // et non `when` — voir `settled_async.dart`
 ///   loading: () => const LoadingView(skeleton: BinderGridSkeleton()),
 ///   error: (e, _) => StateMessage(...),
 ///   data: (cells) => ...,
@@ -44,7 +44,6 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Avant ce délai, l'écran ne montre rien.
 ///
@@ -248,34 +247,5 @@ class DeckListSkeleton extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-/// Lire un `AsyncValue` sans se laisser piéger par une reprise.
-///
-/// **Riverpod 3 réessaie tout seul un provider qui a échoué**, avec un délai
-/// croissant. Pendant chaque reprise, l'état repasse « en cours » *tout en
-/// gardant l'erreur* — mesuré : `isLoading: true` et `hasError: true` en même
-/// temps, et cinq tentatives en trois secondes. `when()` rend alors sa branche
-/// `loading`, si bien qu'un réseau coupé donne un écran qui tourne sans fin, au
-/// lieu du message et du bouton « Réessayer ».
-///
-/// C'est exactement la panne que `request_timeout.dart` avait été écrite pour
-/// supprimer, revenue par un autre chemin — et invisible, parce qu'un
-/// indicateur qui tourne a l'air de travailler.
-///
-/// [settled] donne la priorité à l'erreur : dès qu'il y en a une, elle
-/// s'affiche, reprises ou non. La reprise continue en arrière-plan et l'écran
-/// se corrige tout seul si elle aboutit ; entre-temps, l'utilisateur sait où il
-/// en est et dispose d'un recours.
-extension SettledAsyncValue<T> on AsyncValue<T> {
-  R settled<R>({
-    required R Function(T value) data,
-    required R Function(Object error, StackTrace? stack) error,
-    required R Function() loading,
-  }) {
-    final echec = this.error;
-    if (hasError && echec != null) return error(echec, stackTrace);
-    return when(data: data, error: error, loading: loading);
   }
 }

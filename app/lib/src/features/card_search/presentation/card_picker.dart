@@ -24,6 +24,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../printings/presentation/card_art_view.dart';
 import '../data/card_repository.dart';
+import '../../../common/settled_async.dart';
 import '../domain/card_hit.dart';
 import 'owned_badge.dart';
 
@@ -140,7 +141,7 @@ class _CardPickerState extends ConsumerState<_CardPicker> {
                     icon: Icons.keyboard_alt_outlined,
                     text: 'Tapez le nom lu sur la carte.',
                   )
-                : results.when(
+                : results.settled(
                     loading: () => const Center(
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),

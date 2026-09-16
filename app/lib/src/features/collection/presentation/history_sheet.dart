@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/collection_repository.dart';
+import '../../../common/settled_async.dart';
 import '../domain/collection_movement.dart';
 
 /// Ouvre le journal, pour toute la collection ou pour une seule carte.
@@ -65,7 +66,7 @@ class _HistorySheet extends ConsumerWidget {
             ),
           ),
           Expanded(
-            child: history.when(
+            child: history.settled(
               loading: () =>
                   const Center(child: CircularProgressIndicator(strokeWidth: 2)),
               error: (error, _) => Center(

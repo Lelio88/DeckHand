@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../common/settled_async.dart';
 import '../../binders/data/binder_repository.dart';
 import '../../collection/data/collection_repository.dart';
 
@@ -42,7 +43,7 @@ class SharingScreen extends ConsumerWidget {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 620),
-            child: state.when(
+            child: state.settled(
               loading: () => const Center(
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
@@ -262,7 +263,7 @@ class _Scope extends ConsumerWidget {
     final theme = Theme.of(context);
     final shelf = ref.watch(binderShelfProvider);
 
-    return shelf.when(
+    return shelf.settled(
       loading: () => const Padding(
         padding: EdgeInsets.all(16),
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),

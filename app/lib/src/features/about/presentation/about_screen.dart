@@ -14,6 +14,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../common/settled_async.dart';
 import '../data/data_freshness_repository.dart';
 
 /// Sources de données, avec ce qu'on leur doit.
@@ -220,7 +221,7 @@ class AboutScreen extends ConsumerWidget {
 
                 const SizedBox(height: 24),
                 _SectionTitle('Fraîcheur des données'),
-                freshness.when(
+                freshness.settled(
                   loading: () => const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: LinearProgressIndicator(minHeight: 2),

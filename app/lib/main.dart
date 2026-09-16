@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/app/home_shell.dart';
 import 'src/config/supabase_config.dart';
+import 'src/common/settled_async.dart';
 import 'src/features/account/data/profile_repository.dart';
 import 'src/features/account/presentation/pick_games_screen.dart';
 import 'src/features/auth/data/auth_repository.dart';
@@ -119,7 +120,7 @@ class _AuthGate extends ConsumerWidget {
 
     final session = ref.watch(sessionProvider);
 
-    return session.when(
+    return session.settled(
       loading: () => const Scaffold(
         body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
