@@ -19,7 +19,11 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.8.0+14
 
 environment:
-  sdk: ^3.11.5
+  # **Relevée pour ML Kit 0.17**, qui exige Dart ^3.12.0 — et c'est tout ce
+  # qu'il exige de neuf : sa 0.17.0 ne fait que passer son build Android au
+  # Kotlin intégré d'AGP, la migration Java→Kotlin datant de la 0.16.0 déjà
+  # en place. Dart 3.13.2 et Flutter 3.47.2 sont installés.
+  sdk: ^3.12.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -45,7 +49,11 @@ dependencies:
   shared_preferences: ^2.5.5
   image_cropper: ^12.2.1
   speech_to_text: ^7.4.0
-  google_mlkit_text_recognition: ^0.16.0
+  # 0.17 sort ce greffon et son `commons` de l'avertissement Kotlin de Gradle :
+  # « Migrate Android plugin build to AGP built-in Kotlin support ». Changement
+  # de build seulement — la lecture des noms n'est pas touchée, et le vérifier
+  # demande l'appareil, seul endroit où ML Kit existe.
+  google_mlkit_text_recognition: ^0.17.1
   flutter_svg: ^2.3.0
   http: ^1.6.0
 
