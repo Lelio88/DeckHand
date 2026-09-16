@@ -16,6 +16,7 @@ import 'src/features/account/presentation/pick_games_screen.dart';
 import 'src/features/auth/data/auth_repository.dart';
 import 'src/features/binders/presentation/overlay_screen.dart';
 import 'src/features/binders/presentation/public_binder_screen.dart';
+import 'src/features/intro/presentation/intro_gate.dart';
 import 'src/features/auth/presentation/reset_password_screen.dart';
 import 'src/features/auth/presentation/sign_in_screen.dart';
 import 'src/features/scan/presentation/frame_bench_screen.dart';
@@ -154,7 +155,18 @@ class _Landing extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final declared = ref.watch(playedGamesProvider);
     final answered = !declared.hasValue || declared.value != null;
-    return answered ? const HomeShell() : const PickGamesScreen();
+    // **L'intro recouvre l'accueil, elle ne le précède pas.** `IntroGate`
+    // empile : l'accueil est monté dès le premier frame et ses requêtes partent
+    // pendant l'animation. C'est ce qui fait de ses 2,2 s du temps retranché à
+    // l'attente plutôt qu'ajouté — le premier appel d'une session froide a été
+    // mesuré jusqu'à 7,4 s.
+    //
+    // **Le choix des jeux n'est pas recouvert.** C'est une question posée une
+    // fois dans la vie du compte, à l'inscription : la masquer deux secondes
+    // derrière une animation ferait rater son ouverture, et il n'y a là aucune
+    // requête à couvrir.
+    if (!answered) return const PickGamesScreen();
+    return const IntroGate(child: HomeShell());
   }
 }
 

@@ -53,6 +53,12 @@ dependencies:
   # obtenir les plans d'une image ; la reconnaissance reste celle du mode photo,
   # au bit près — c'est la condition pour que l'index embarqué reste valide.
   camera: ^0.11.0
+  # Le jingle de l'écran d'introduction, et lui seul. Le froissement des pages
+  # du calque garde sa synthèse Web Audio : il n'existe que sur le web, où
+  # `page_sound_wave.dart` le fabrique échantillon par échantillon sans rien
+  # charger. L'intro, elle, doit sonner sur le téléphone — où ce moteur est
+  # muet par conception — d'où un greffon natif pour un unique fichier.
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
@@ -85,10 +91,12 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  # **Le seul asset du projet, et il est de nous.** Les illustrations de cartes
+  # ne peuvent pas être commitées (§IV.11, le dépôt est public) ; ce jingle
+  # est généré par `tools/sounds/gen_intro_jingle.py`, qui le refait à
+  # l'identique. 49 Kio.
+  assets:
+    - assets/audio/deckhand_intro.mp3
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -97,6 +97,11 @@ cd app && DECKHAND_FONTS=<flutter>/bin/cache/artifacts/material_fonts \
 cd app && DECKHAND_BENCH=1 flutter test test/bench_montre_test.dart
 # Le froissement des pages, en .wav — trois voix, la seule façon d'en juger
 cd app && DECKHAND_BENCH=1 flutter test test/ecoute_son_test.dart
+# L'intro : cinq images de la distribution, pour la regarder au lieu de la deviner
+cd app && DECKHAND_FONTS=<flutter>/bin/cache/artifacts/material_fonts \
+    flutter test test/apercu_intro_test.dart --update-goldens
+# Le jingle, régénéré à l'identique (six notes, sol mixolydien)
+cd api && .venv/Scripts/python ../tools/sounds/gen_intro_jingle.py
 ```
 
 ## 4. Reconnaissance — cadrage et détection
