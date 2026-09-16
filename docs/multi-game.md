@@ -553,13 +553,29 @@ l'art seul, jamais sur le cadre de texte : une carte allemande et sa jumelle
 anglaise partagent la même image, donc la même empreinte. C'est le recours
 naturel pour ces cartes — à condition que le cadrage soit juste.
 
-**Une langue de plus coûte des noms, pas des impressions.** `card_search_names`
-retient un nom par carte et par langue, non un par impression : ajouter
-l'allemand aux 37 682 cartes Magic pèse de l'ordre de 30 000 lignes. Les
-`card_prints` d'une langue, elles, en pèsent ~100 000 — et ne servent qu'à
-désigner l'exemplaire exact et sa cote. Les deux décisions sont donc séparables,
-et c'est ce qui rend la reconnaissance multilingue abordable sans ouvrir le
-catalogue d'impressions.
+**Les noms et les impressions sont réglés séparément, et c'est délibéré.**
+`card_search_names` retient un nom par carte et par langue, non un par
+impression : une langue y pèse ~30 000 lignes à 288 octets, soit **8 Mo**. Une
+langue de `card_prints` en pèse ~100 000 à 623 octets, soit **62 Mo** — *une*
+langue d'impressions vaut neuf langues de noms. `scryfall_ingest` récolte donc
+le nom imprimé de **toutes** les langues, puis `KEEP_LANGS` ne laisse entrer que
+les impressions anglaises et françaises.
+
+Coût mesuré du multilingue : ~61 Mo et une vingtaine de secondes. Le parcours du
+*bulk* ne change pas — il était déjà intégral, le filtre se contentait de jeter
+au vol.
+
+**Ce qu'on sait et ce qu'on ne sait pas.** La carte est identifiée quelle que
+soit la langue du carton ; l'**exemplaire** ne l'est pas. Une carte allemande
+s'enregistre contre une impression anglaise ou française, et sa cote propre
+reste hors de portée tant que `card_prints` n'ouvre pas. C'est le bon partage :
+reconnaître est ce qui bloque l'utilisateur, valoriser au centime près ne
+l'est pas.
+
+Reste un point ouvert : `search_cards` prend le nom d'affichage en français
+(`s.lang = 'fr'`). Avec douze langues au catalogue, « quel nom montrer » devient
+un choix — c'est là qu'un réglage de langues côté utilisateur trouverait sa
+place.
 
 ---
 

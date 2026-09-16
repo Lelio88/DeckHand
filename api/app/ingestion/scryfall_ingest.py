@@ -12,8 +12,19 @@ cartes du périmètre, soit 161 304 lignes (103 239 en, 58 065 fr) pour ~33 Mo d
 mesuré, pas estimé. C'est ce qui permet à l'utilisateur de désigner l'édition qu'il
 possède réellement, et donc de valoriser sa collection au bon prix.
 
-Les autres langues sont écartées : elles tripleraient le volume sans servir une
-collection franco-anglaise.
+Les autres langues n'entrent pas dans `card_prints` : elles tripleraient le
+volume sans servir une collection franco-anglaise.
+
+**Leurs noms, en revanche, entrent tous.** Une carte photographiée en allemand
+voyait son nom lu sans faute puis ne rencontrer aucune entrée — panne muette,
+rien à annoncer d'exact à l'utilisateur. Les deux tables ne coûtent pas le même
+prix : 288 octets la ligne pour un nom contre 623 pour une impression, et
+~30 000 lignes par langue contre ~100 000. **Une langue d'impressions vaut neuf
+langues de noms** — 62 Mo contre 8. Récolter tous les noms coûte donc ~61 Mo et
+une vingtaine de secondes, mesuré, et rend la reconnaissance indifférente à la
+langue du carton. Ce qu'on perd en s'arrêtant là est net et assumé : on sait
+*quelle carte* c'est, pas *quel exemplaire*, et la cote reste celle d'une
+impression anglaise ou française.
 
 **Pourquoi aucun plafond par carte.** Ne garder que les N impressions les moins chères
 ferait disparaître exactement l'édition qu'on cherche quand elle est ancienne et cotée —
@@ -51,8 +62,16 @@ from app.ingestion.scryfall_parse import (
 
 BATCH_SIZE = 1000
 
-# Langues conservées. Une collection franco-anglaise n'a que faire du japonais, et
-# chaque langue supplémentaire alourdit la table d'environ 100 000 lignes.
+# Langues dont on garde les **impressions**. Une collection franco-anglaise n'a
+# que faire de l'exemplaire japonais, et chaque langue supplémentaire alourdit
+# `card_prints` d'environ 100 000 lignes — 62 Mo, mesuré à 623 octets la ligne.
+#
+# **Ce filtre ne gouverne plus les noms**, et c'est le point de la manœuvre. Une
+# carte photographiée en allemand voyait son nom parfaitement lu, puis ne
+# rencontrer aucune entrée : la reconnaissance échouait sans que rien ne soit en
+# panne, et l'écran n'avait rien de juste à en dire. Les noms coûtent 288 octets
+# la ligne et ~30 000 lignes par langue, soit 8 Mo — *une* langue d'impressions
+# en vaut neuf de noms. Les deux décisions n'avaient donc rien à faire ensemble.
 KEEP_LANGS = frozenset({"en", "fr"})
 
 # `DO UPDATE` sur les seuls prix : le reste d'une impression (édition, numéro de
@@ -166,15 +185,29 @@ def ingest_cards(conn: psycopg.Connection) -> set[str]:
 
 def ingest_prints_and_names(
     conn: psycopg.Connection, known: set[str]
-) -> tuple[int, dict[str, tuple[str, str]]]:
-    """Écrit les impressions du périmètre et renvoie un nom français par carte.
+) -> tuple[int, dict[tuple[str, str], tuple[str, str]]]:
+    """Écrit les impressions du périmètre et récolte les noms **de toutes les langues**.
 
     L'écriture se fait **au fil du parcours**, par lots : accumuler les 161 000
     impressions avant d'écrire coûterait une centaine de mégaoctets de mémoire sans
-    rien apporter. Seuls les noms français sont retenus en mémoire — un par carte,
-    donc quelques dizaines de milliers d'entrées légères.
+    rien apporter.
+
+    **Les deux filtres sont désormais distincts**, et l'ordre des gestes le dit :
+    chaque impression est analysée, son nom imprimé récolté, et c'est seulement
+    ensuite que `KEEP_LANGS` décide si elle rejoint `card_prints`. Le japonais
+    donne donc un nom sans donner une impression — ce qui est exactement ce dont
+    la reconnaissance a besoin et ce dont la valorisation n'a que faire.
+
+    La récolte est indexée par `(oracle_id, lang)` : les traductions ne varient
+    pas d'une édition à l'autre, un nom par carte et par langue suffit. Compter
+    ~250 000 entrées, soit quelques dizaines de mégaoctets — le prix du
+    découplage, payé une fois par ingestion et jamais sur l'appareil.
+
+    Analyser tout ce qui passe plutôt que les seules impressions retenues coûte
+    **1,8 s** au total (4,8 µs par payload, mesuré) : le parcours du *bulk*
+    domine tout le reste, et il était déjà intégral.
     """
-    french: dict[str, tuple[str, str]] = {}
+    printed_names: dict[tuple[str, str], tuple[str, str]] = {}
     seen = 0
     written = 0
 
@@ -188,19 +221,22 @@ def ingest_prints_and_names(
             oracle_id = payload.get("oracle_id")
             if not oracle_id or oracle_id not in known:
                 continue
-            if payload.get("lang") not in KEEP_LANGS:
-                continue
-
             try:
                 printing = parse_print(payload)
             except KeyError:
                 continue
 
-            if printing.lang == "fr" and printing.printed_name and oracle_id not in french:
-                french[oracle_id] = (
+            # Récolte d'abord, tri ensuite : le nom d'une langue qu'on
+            # n'entrepose pas reste utile à la reconnaissance.
+            key = (oracle_id, printing.lang)
+            if printing.printed_name and key not in printed_names:
+                printed_names[key] = (
                     printing.printed_name,
                     normalize_name(printing.printed_name),
                 )
+
+            if printing.lang not in KEEP_LANGS:
+                continue
             yield printing
 
     with conn.cursor() as cur:
@@ -210,15 +246,24 @@ def ingest_prints_and_names(
             conn.commit()
 
     print(f"  parcourues : {seen} — écrites : {written}      ")
-    return written, french
+    return written, printed_names
 
 
 def write_search_names(
     conn: psycopg.Connection,
     cards: dict[str, str],
-    french: dict[str, tuple[str, str]],
+    printed_names: dict[tuple[str, str], tuple[str, str]],
 ) -> int:
-    """Écrit l'index de saisie : le nom oracle anglais, plus le nom français connu."""
+    """Écrit l'index de saisie : le nom oracle anglais, plus chaque nom traduit.
+
+    **Toutes les langues du catalogue Scryfall y entrent**, et pas seulement
+    celles dont on garde les impressions. C'est ce qui permet à une carte
+    allemande, italienne ou japonaise d'être reconnue par son nom ; l'exemplaire
+    exact, lui, reste à désigner parmi les impressions anglaises et françaises.
+
+    L'anglais est pris sur `cards` et non sur la récolte : le nom oracle existe
+    pour toute carte, y compris celles qui n'ont jamais été imprimées en anglais.
+    """
     statement = """
         INSERT INTO public.card_search_names (oracle_id, name, normalized, lang)
         VALUES (%s, %s, %s, %s)
@@ -228,9 +273,10 @@ def write_search_names(
     def rows() -> Iterator[tuple[str, str, str, str]]:
         for oracle_id, name in cards.items():
             yield (oracle_id, name, normalize_name(name), "en")
-            fr = french.get(oracle_id)
-            if fr:
-                yield (oracle_id, fr[0], fr[1], "fr")
+        for (oracle_id, lang), (display, normalized) in printed_names.items():
+            if lang == "en" or oracle_id not in cards:
+                continue
+            yield (oracle_id, display, normalized, lang)
 
     written = 0
     with conn.cursor() as cur:
@@ -286,18 +332,20 @@ def run() -> None:
         kept = ingest_cards(conn)
 
         print("2/3 — impressions et noms localisés (export volumineux, patience)")
-        printed, french = ingest_prints_and_names(conn, kept)
+        printed, printed_names = ingest_prints_and_names(conn, kept)
 
         print("3/3 — index de saisie")
         with conn.cursor() as cur:
             names = dict(
                 cur.execute("SELECT oracle_id::text, name FROM public.cards").fetchall()
             )
-        indexed = write_search_names(conn, names, french)
+        indexed = write_search_names(conn, names, printed_names)
 
+        langues = sorted({lang for _, lang in printed_names})
         print(
             f"\nterminé — {len(kept)} cartes, {printed} impressions, "
-            f"{indexed} entrées de recherche ({len(french)} noms français)"
+            f"{indexed} entrées de recherche en {len(langues)} langues "
+            f"({', '.join(langues)})"
         )
 
 

@@ -2331,7 +2331,9 @@ au lieu de laisser la dictée redevenir muette en silence.
 
 ### Éditions
 
-`card_prints` conserve **toutes les impressions anglaises et françaises** des cartes du périmètre : 162 000 lignes, ~55 Mo, mesurés en parcourant l'export `all_cards` avant d'ingérer. Les autres langues tripleraient le volume sans servir une collection franco-anglaise.
+`card_prints` conserve **toutes les impressions anglaises et françaises** des cartes du périmètre : 253 468 lignes, ~151 Mo, soit 623 octets la ligne. Les autres langues tripleraient le volume sans servir une collection franco-anglaise — 62 Mo par langue, pour désigner un exemplaire qu'on ne possède pas.
+
+**Les noms, eux, sont conservés dans toutes les langues**, et le filtre de `card_prints` ne les gouverne pas. Une ligne de `card_search_names` pèse 288 octets et une langue ~30 000 lignes : *une* langue d'impressions en vaut neuf de noms. Sans cela une carte allemande voyait son nom parfaitement lu par l'OCR puis ne rencontrer aucune entrée — une panne muette, que rien ne distinguait d'une photo ratée. On sait donc *quelle carte* c'est quelle que soit la langue du carton, et *quel exemplaire* seulement en anglais et en français. Détail et chiffres : [`docs/multi-game.md`](./multi-game.md) §0bis.
 
 Aucun plafond par carte, bien que la médiane soit de 3 impressions et le maximum de 1 269 (les terrains de base). Ne garder que les N moins chères ferait disparaître exactement l'édition qu'on cherche quand elle est ancienne et cotée — or c'est précisément celle-là qu'on veut désigner. C'est au sélecteur de rendre mille éditions navigables (recherche par extension, possédées en tête), pas à l'ingestion de les amputer.
 
