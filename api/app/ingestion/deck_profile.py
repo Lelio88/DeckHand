@@ -126,13 +126,19 @@ GROUP BY dc.deck_id, dc.oracle_id
 #: totaux, eux, excluent les terrains de base — ils ne s'achètent pas.
 PROFILE = """
 INSERT INTO public.deck_profile
-    (deck_id, game, format, total_cards, basic_lands, total_cost_eur, colors)
+    (deck_id, game, format, total_cards, basic_lands, total_cost_eur, unpriced_cards, colors)
 SELECT d.id,
        d.game,
        d.format,
        COALESCE(SUM(n.needed) FILTER (WHERE NOT n.is_basic), 0)::integer,
        COALESCE(SUM(n.needed) FILTER (WHERE n.is_basic), 0)::integer,
        COALESCE(SUM(n.needed * n.unit_price_eur) FILTER (WHERE NOT n.is_basic), 0),
+       -- **Zéro euro veut dire « sans cote », et c'est vérifié** : aucune des
+       -- 253 468 impressions n'est cotée exactement 0,00, la plus basse cote
+       -- positive étant 0,01 €. Ce compte dit si `total_cost_eur` est entier —
+       -- seule condition pour que `deck_suggestions` classe le deck au coût.
+       COALESCE(SUM(n.needed) FILTER (WHERE NOT n.is_basic
+                                        AND n.unit_price_eur = 0), 0)::integer,
        co.colors
 FROM public.decks d
 JOIN public.deck_needs n ON n.deck_id = d.id

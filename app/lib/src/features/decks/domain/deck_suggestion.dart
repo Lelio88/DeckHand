@@ -138,6 +138,7 @@ class DeckSuggestion {
     this.commanderName,
     this.commanderOwned = false,
     this.basicLands = 0,
+    this.unpricedCards = 0,
   });
 
   final String deckId;
@@ -197,6 +198,22 @@ class DeckSuggestion {
   /// soixante-seize se justifie d'elle-même.
   final int basicLands;
 
+  /// Cartes hors terrains dont **aucune impression n'est cotée**.
+  ///
+  /// **Au-dessus de zéro, [missingCostEur] est un plancher, pas un prix.** Une
+  /// carte sans cote compte zéro euro : un deck Pokémon dont trente-six cartes
+  /// sur cinquante-sept sont inconnues s'annonce à 4,25 €. Ce n'est pas une
+  /// approximation, c'est un total qui ignore la majeure partie du deck.
+  ///
+  /// Ce n'est pas un cas marginal — mesuré, **100 % des decks Pokémon, One
+  /// Piece et Riftbound** sont dans ce cas, contre 1,2 % en Pauper. C'est aussi
+  /// pourquoi `deck_suggestions` ne classe au coût que les decks dont le prix
+  /// est entier : ailleurs, trier au prix serait trier sur du bruit.
+  final int unpricedCards;
+
+  /// Vrai quand le coût annoncé ignore des cartes faute de cote.
+  bool get priceIsPartial => unpricedCards > 0;
+
   bool get hasCommander => commanderOracleId != null && commanderName != null;
 
   bool get isBuildable => missingCards == 0;
@@ -224,6 +241,7 @@ class DeckSuggestion {
       commanderName: json['commander_name'] as String?,
       commanderOwned: json['commander_owned'] as bool? ?? false,
       basicLands: (json['basic_lands'] as num?)?.toInt() ?? 0,
+      unpricedCards: (json['unpriced_cards'] as num?)?.toInt() ?? 0,
     );
   }
 }

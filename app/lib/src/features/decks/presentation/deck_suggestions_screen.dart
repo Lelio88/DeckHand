@@ -419,9 +419,11 @@ class _DeckTile extends StatelessWidget {
       button: true,
       label: deck.isBuildable
           ? '${deck.deckName}, constructible, ${deck.totalCards} cartes'
-          : '${deck.deckName}, ${(deck.completion * 100).round()} pour cent, '
-                'il manque ${deck.missingCards} cartes pour '
-                '${deck.missingCostEur.toStringAsFixed(2)} euros',
+          : '${deck.deckName}, il manque ${deck.missingCards} cartes pour '
+                '${deck.priceIsPartial ? 'au moins ' : ''}'
+                '${deck.missingCostEur.toStringAsFixed(2)} euros'
+                '${deck.priceIsPartial ? ', ${deck.unpricedCards} cartes sans cote' : ''}'
+                ', ${(deck.completion * 100).round()} pour cent',
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () => showModalBottomSheet<void>(
@@ -461,10 +463,38 @@ class _DeckTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    '${(deck.completion * 100).round()} %',
-                    style: theme.textTheme.titleMedium,
-                  ),
+                  // **La valeur de tête est celle du tri.** L'écran annonçait
+                  // la complétion en gros alors que la liste est ordonnée par
+                  // coût : l'œil lisait des pourcentages en désordre et
+                  // concluait, à raison, que le classement était cassé.
+                  if (deck.isBuildable)
+                    Text(
+                      'Constructible',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    )
+                  else
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          // **Un plancher se dit comme un plancher.** Sans
+                          // cote pour une partie des cartes, le total n'est
+                          // pas le prix du deck — et sur Pokémon, One Piece et
+                          // Riftbound, aucun deck n'échappe au cas.
+                          '${deck.priceIsPartial ? 'dès ' : ''}'
+                          '${deck.missingCostEur.toStringAsFixed(2)} €',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        if (deck.priceIsPartial)
+                          Text(
+                            '${deck.unpricedCards} sans cote',
+                            style: muted,
+                          ),
+                      ],
+                    ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -493,7 +523,7 @@ class _DeckTile extends StatelessWidget {
                   ),
                   if (!deck.isBuildable)
                     Text(
-                      '${deck.missingCostEur.toStringAsFixed(2)} €',
+                      '${(deck.completion * 100).round()} %',
                       style: theme.textTheme.titleSmall,
                     ),
                 ],
