@@ -221,8 +221,13 @@ def run(*, force: bool = False, skip_decks: bool = False) -> None:
     # a été demandé laisserait l'onglet Decks sur les prix de la veille, sans
     # que rien ne le dise.
     print("4/4 — profils de decks")
-    needs, profiles = deck_profile.run()
-    print(f"  {needs} besoins, {profiles} profils")
+    # Rend `None` quand rien n'a bougé : le contrôle coûte trente millisecondes,
+    # la reconstruction deux minutes.
+    bilan = deck_profile.run()
+    if bilan is None:
+        print("  déjà à jour")
+    else:
+        print(f"  {bilan[0]} besoins, {bilan[1]} profils")
 
     print()
     _print_summary(db)

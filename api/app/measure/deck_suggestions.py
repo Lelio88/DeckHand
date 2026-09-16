@@ -47,7 +47,10 @@ import time
 
 import httpx
 
+import psycopg
+
 from app.config import SupabaseConfig, load_env_file
+from app.ingestion.deck_profile import perime
 from app.measure.collection_summary import any_token
 
 REST = "/rest/v1/rpc/deck_suggestions"
@@ -116,6 +119,23 @@ def main(argv: list[str]) -> int:
     if not cas:
         print(f"Aucun format connu pour le jeu {args.game!r}.", file=sys.stderr)
         return 64
+
+    # **Des profils perimes rendent la mesure fausse ET l'ecran faux.** La
+    # fonction repondrait vite, sur l'etat de la veille. Il n'existe aucun point
+    # de passage ou accrocher la reconstruction — `deck_ingest.store_deck`
+    # s'appelle par deck, les prix n'ont pas d'ecrivain commun, dix connecteurs
+    # n'inscrivent rien — alors faute de garantir qu'elle sera lancee, on
+    # garantit qu'on saura qu'elle manque.
+    with psycopg.connect(config.db_url) as conn:
+        raisons = perime(conn)
+    if raisons:
+        for raison in raisons:
+            print(f"PROFILS PERIMES : {raison}", file=sys.stderr)
+        print(
+            "Relancez `python -m app.ingestion.deck_profile` avant de mesurer.",
+            file=sys.stderr,
+        )
+        return 65
 
     print(f"Mesure menee sous {email}.")
     print(f"{'jeu':<11}{'format':<14}{'temps':>9}  reponse")

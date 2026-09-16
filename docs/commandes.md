@@ -22,10 +22,11 @@ Idempotente : une course saute ce qui n'a pas changé. `--force` reverse tout.
 # Magic — catalogue, prix et decks
 cd api && .venv/Scripts/python -m app.ingestion.refresh            # --force, --skip-decks
 
-# Profils de decks — indispensable après toute écriture de decks OU de prix.
-# `refresh` le fait en dernière étape ; à lancer seul après une ingestion d'un
-# autre jeu, sinon l'onglet Decks reste sur l'état précédent (~2 min).
-cd api && .venv/Scripts/python -m app.ingestion.deck_profile
+# Profils de decks — à relancer après toute écriture de decks OU de prix.
+# Sans danger à lancer partout : il contrôle d'abord (30 ms) et ne reconstruit
+# que s'il le faut (~2 min). `refresh` le fait en dernière étape ; pour un autre
+# jeu, le lancer soi-même. Le banc §7 refuse de mesurer sur des profils périmés.
+cd api && .venv/Scripts/python -m app.ingestion.deck_profile      # --force
 
 # Riftbound
 cd api && .venv/Scripts/python -m app.ingestion.riftcodex_ingest   # catalogue
