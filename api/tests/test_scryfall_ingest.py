@@ -26,7 +26,18 @@ ORACLE = str(uuid4())
 AUTRE = str(uuid4())
 
 
-def payload(lang: str, printed: str | None, oracle: str = ORACLE) -> dict:
+#: Une seule œuvre pour toutes ces impressions — le cas courant, et celui qui
+#: rend le filtre de langue inoffensif : l'art ne dépend pas de la langue, donc
+#: l'empreinte de l'anglaise reconnaît aussi la japonaise.
+ILLUSTRATION = "3f7a1c88-0000-4000-8000-000000000001"
+
+
+def payload(
+    lang: str,
+    printed: str | None,
+    oracle: str = ORACLE,
+    illustration: str = ILLUSTRATION,
+) -> dict:
     """Une impression telle que le *bulk* la publie, réduite à l'utile."""
     return {
         "id": str(uuid4()),
@@ -40,7 +51,7 @@ def payload(lang: str, printed: str | None, oracle: str = ORACLE) -> dict:
         "rarity": "common",
         "prices": {"eur": "1.23", "eur_foil": "4.56"},
         "image_uris": {"art_crop": "https://example.invalid/a.jpg"},
-        "illustration_id": str(uuid4()),
+        "illustration_id": illustration,
         "finishes": ["nonfoil", "foil"],
         "released_at": "2009-07-17",
     }
@@ -106,7 +117,14 @@ def test_une_langue_non_entreposee_donne_quand_meme_son_nom(monkeypatch):
 
 def test_les_impressions_restent_bornees_aux_langues_gardees(monkeypatch):
     """Le pendant du test précédent : récolter un nom ne doit **pas** faire
-    entrer l'impression. C'est ce qui sépare 8 Mo de 62."""
+    entrer l'impression. C'est ce qui sépare 8 Mo de 62.
+
+    **Une seule exception, et elle est bornée à l'illustration.** Une œuvre
+    qu'aucune impression gardée ne porte serait invisible au scan ; une
+    impression est alors retenue pour elle seule. Ici les deux langues partagent
+    la même œuvre, donc **une** entre, pas deux — et les noms des deux restent
+    récoltés. Voir `test_scryfall_illustrations_orphelines`.
+    """
     monkeypatch.setattr(
         scryfall_ingest,
         "stream_bulk",
@@ -116,8 +134,8 @@ def test_les_impressions_restent_bornees_aux_langues_gardees(monkeypatch):
 
     written, noms = ingest_prints_and_names(conn, {ORACLE})
 
-    assert written == 0
-    assert noms, "les noms sont là, eux"
+    assert written == 1, "une impression par œuvre orpheline, pas une par langue"
+    assert len(noms) == 2, "les noms des deux langues sont là, eux"
     assert "de" not in KEEP_LANGS and "ja" not in KEEP_LANGS
 
 

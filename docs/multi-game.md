@@ -551,7 +551,19 @@ laisse la saisie à la main ouverte dans tous les cas d'échec.
 **La voie de l'illustration, elle, ignore la langue.** L'empreinte porte sur
 l'art seul, jamais sur le cadre de texte : une carte allemande et sa jumelle
 anglaise partagent la même image, donc la même empreinte. C'est le recours
-naturel pour ces cartes — à condition que le cadrage soit juste.
+naturel pour ces cartes — à condition que le cadrage soit juste, **et qu'une
+jumelle existe**.
+
+**Les œuvres sans jumelle gardée sont rattrapées une à une.** Mesuré sur
+l'export complet : 309 illustrations sur 50 547 (0,61 %) n'ont aucune impression
+anglaise ni française — 233 japonaises, 46 en chinois simplifié, concentrées sur
+`sta`, `soa`, `pwcs`, `por`, et les terrains *ukiyo-e* de Kamigawa par lesquels
+le cas s'est découvert. Là, le filtre de langue ne coupe pas un doublon : il
+efface l'œuvre de l'index, et le scan échoue sans recours qu'aucun gabarit ne
+rattrape. `scryfall_ingest` retient donc **une** impression par illustration
+orpheline — une, pas une par langue — pour environ 190 Ko, sans commune mesure
+avec les 62 Mo qu'ouvrirait une langue entière. Rejouable par
+`app.measure.illustrations_exclusives`.
 
 **Les noms et les impressions sont réglés séparément, et c'est délibéré.**
 `card_search_names` retient un nom par carte et par langue, non un par
@@ -572,10 +584,10 @@ reste hors de portée tant que `card_prints` n'ouvre pas. C'est le bon partage :
 reconnaître est ce qui bloque l'utilisateur, valoriser au centime près ne
 l'est pas.
 
-Reste un point ouvert : `search_cards` prend le nom d'affichage en français
-(`s.lang = 'fr'`). Avec douze langues au catalogue, « quel nom montrer » devient
-un choix — c'est là qu'un réglage de langues côté utilisateur trouverait sa
-place.
+**Quel nom montrer est un réglage du compte.** `profiles.display_lang` porte la
+langue d'affichage, et toute fonction qui rend un nom traduit lit
+`my_display_lang()` plutôt qu'un `'fr'` en dur — voir
+[`architecture.md`](./architecture.md) §4.
 
 ---
 

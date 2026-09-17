@@ -208,6 +208,12 @@ def ingest_prints_and_names(
     domine tout le reste, et il était déjà intégral.
     """
     printed_names: dict[tuple[str, str], tuple[str, str]] = {}
+    #: Illustrations portées par une impression gardée : elles n'ont besoin de
+    #: rien de plus, l'art ne dépendant pas de la langue.
+    couvertes: set[str] = set()
+    #: Une impression par illustration qu'aucune langue gardée ne porte —
+    #: retenue le temps de savoir si une version anglaise suivra.
+    orphelines: dict[str, CardPrint] = {}
     seen = 0
     written = 0
 
@@ -236,7 +242,23 @@ def ingest_prints_and_names(
                 )
 
             if printing.lang not in KEEP_LANGS:
+                # **Une œuvre qu'aucune impression gardée ne porte serait
+                # invisible.** L'art est le même d'une langue à l'autre : une
+                # carte japonaise se reconnaît sur l'empreinte de sa jumelle
+                # anglaise, et c'est ce qui rend le filtre inoffensif — sauf
+                # quand il n'y a pas de jumelle. Les terrains ukiyo-e de
+                # Kamigawa, les Mystical Archive japonaises, les Portal chinois
+                # n'existent que là, et le scan échouait sans recours possible.
+                #
+                # On retient donc **une** impression par illustration orpheline,
+                # et on tranchera à la fin : d'ici là, on ne sait pas encore si
+                # une version anglaise suivra dans le flux.
+                if printing.illustration_id:
+                    orphelines.setdefault(printing.illustration_id, printing)
                 continue
+
+            if printing.illustration_id:
+                couvertes.add(printing.illustration_id)
             yield printing
 
     with conn.cursor() as cur:
@@ -245,7 +267,21 @@ def ingest_prints_and_names(
             written += len(batch)
             conn.commit()
 
+        # **Le tri se fait ici, le flux étant épuisé.** Mesuré le 2026-09-17 :
+        # 309 illustrations sur 50 547 (0,61 %) n'ont aucune impression anglaise
+        # ni française — 233 japonaises, 46 en chinois simplifié. Le surcoût est
+        # d'autant de lignes et d'autant d'empreintes, soit environ 190 Ko :
+        # sans commune mesure avec les 62 Mo qu'ouvrirait une langue entière.
+        #
+        # Rejouable par `app.measure.illustrations_exclusives`.
+        seules = [p for i, p in orphelines.items() if i not in couvertes]
+        for batch in _batched(iter(seules), BATCH_SIZE):
+            cur.executemany(PRINT_UPSERT, [_print_row(item) for item in batch])
+            written += len(batch)
+            conn.commit()
+
     print(f"  parcourues : {seen} — écrites : {written}      ")
+    print(f"  dont {len(seules)} illustrations sans version anglaise ni française")
     return written, printed_names
 
 

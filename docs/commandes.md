@@ -160,6 +160,8 @@ cd api && .venv/Scripts/python -m app.measure.plafond_reel <journal.log>
 cd api && .venv/Scripts/python -m app.measure.art_collisions        # --game <jeu> --sample N
 # Où tombe, dans l'index réel, une empreinte relevée sur le terrain (`art_hash` du journal)
 cd api && .venv/Scripts/python -m app.measure.art_probe <hex> --game riftbound --expect "<carte>"
+# Les illustrations qu'aucune impression anglaise ni française ne porte (Magic)
+cd api && .venv/Scripts/python -m app.measure.illustrations_exclusives
 ```
 
 ## 6. Bancs par jeu
