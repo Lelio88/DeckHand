@@ -25,28 +25,53 @@ library;
 
 import 'dart:ui' show Locale;
 
-/// Langues d'affichage proposées, avec leur couverture au catalogue Magic.
+/// Langues d'affichage proposées, de la mieux couverte à la moins bien.
+///
+/// **L'ordre est l'information** : il descend du nombre de catalogues servis,
+/// si bien que les premières lignes du menu sont celles qui tiennent leur
+/// promesse partout. Trier par alphabet mettrait l'allemand devant l'anglais.
 ///
 /// Le code est celui de `card_search_names.lang` et part tel quel en base ; le
 /// changer invaliderait les préférences déjà enregistrées, qui retomberaient
 /// silencieusement sur le repli.
 enum CardLang {
-  english('en', 'Anglais'),
-  french('fr', 'Français'),
-  german('de', 'Allemand'),
-  japanese('ja', 'Japonais'),
-  italian('it', 'Italien'),
-  spanish('es', 'Espagnol'),
-  portuguese('pt', 'Portugais'),
-  chineseSimplified('zhs', 'Chinois simplifié'),
-  russian('ru', 'Russe'),
-  chineseTraditional('zht', 'Chinois traditionnel'),
-  korean('ko', 'Coréen');
+  english('en', 'Anglais', 'tous les jeux'),
+  french('fr', 'Français', 'Magic, Pokémon, Yu-Gi-Oh, Wankul'),
+  german('de', 'Allemand', 'Magic, Pokémon, Yu-Gi-Oh'),
+  italian('it', 'Italien', 'Magic, Pokémon, Yu-Gi-Oh'),
+  portuguese('pt', 'Portugais', 'Magic, Pokémon, Yu-Gi-Oh'),
+  spanish('es', 'Espagnol', 'Magic, Pokémon'),
+  japanese('ja', 'Japonais', 'Magic'),
+  chineseSimplified('zhs', 'Chinois simplifié', 'Magic'),
+  chineseTraditional('zht', 'Chinois traditionnel', 'Magic'),
+  russian('ru', 'Russe', 'Magic'),
+  korean('ko', 'Coréen', 'Magic');
 
-  const CardLang(this.code, this.label);
+  const CardLang(this.code, this.label, this.coverage);
 
   final String code;
   final String label;
+
+  /// Les jeux dont le catalogue porte des noms dans cette langue.
+  ///
+  /// **Dit plutôt que masqué.** L'autre option était de n'offrir que les
+  /// langues du jeu affiché ; elle rendait le réglage mouvant — changer de jeu
+  /// aurait pu retirer l'option qu'on venait de choisir. La préférence est une
+  /// propriété du lecteur, pas du jeu affiché : on montre donc tout, en disant
+  /// ce que chaque ligne couvre.
+  ///
+  /// **Relevé sur `card_search_names` le 2026-09-17**, et non déduit :
+  ///
+  ///     magic     18 langues     pokemon   6 (en fr de it es pt)
+  ///     yugioh     5 langues     wankul    2 (en fr)
+  ///     riftbound, onepiece, lorcana, swu : anglais seul
+  ///
+  /// Une langue absente d'un catalogue n'est pas une panne : le nom oracle
+  /// anglais existe pour toute carte, et c'est lui qui s'affiche.
+  ///
+  /// Cette table est le jumeau d'un fait de base ; l'ajout d'une langue à un
+  /// connecteur doit la mettre à jour — voir `CLAUDE.md` §VII.
+  final String coverage;
 
   /// La langue portant ce code, ou `null` s'il n'en existe aucune.
   ///

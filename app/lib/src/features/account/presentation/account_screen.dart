@@ -713,6 +713,10 @@ class _DisplayLangTile extends ConsumerWidget {
                   RadioListTile<CardLang>(
                     value: lang,
                     title: Text(lang.label),
+                    // Ce que la ligne couvre vraiment : sans lui, choisir
+                    // « Japonais » promet un affichage que seuls les catalogues
+                    // Magic tiennent.
+                    subtitle: Text(lang.coverage),
                   ),
               ],
             ),

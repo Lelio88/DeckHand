@@ -87,7 +87,7 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 | Évolution du pipeline de reconnaissance | `docs/architecture.md` §2 |
 | Modèle de données, politique RLS, comptes ou connexion | `docs/architecture.md` §4 — et toute fonction qui montre un nom traduit lit `my_display_lang()`, jamais `'fr'` en dur |
 | Évolution du classeur, du journal ou du partage | [`docs/collection-architecture.md`](./docs/collection-architecture.md) |
-| Accueil d'un jeu, ou ce qui dépend du jeu | [`docs/multi-game.md`](./docs/multi-game.md) |
+| Accueil d'un jeu, langue ajoutée à un connecteur, ou ce qui dépend du jeu | [`docs/multi-game.md`](./docs/multi-game.md) + `CardLang.coverage`, qui annonce à l'écran ce que chaque langue couvre |
 | Nouveau gabarit d'illustration, ou nouvelle maquette | `api/app/vision/art_box.py` **et** `app/lib/src/features/scan/domain/art_box.dart` (jumeaux, un test lit le Dart) |
 | Écriture d'OCR ajoutée (japonais, chinois…) | `app/lib/src/config/ocr_script.dart` **et** `app/android/app/build.gradle.kts` (le greffon les déclare `compileOnly`) |
 | Nouvelle impasse mesurée | Section « impasses » de l'annexe concernée |

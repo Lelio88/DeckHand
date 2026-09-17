@@ -64,6 +64,35 @@ void main() {
       expect(codes.contains('qya'), isFalse, reason: 'quenya');
     });
 
+    test('chaque langue annonce ce qu\'elle couvre', () {
+      // **Le menu dit, il ne masque pas.** L'autre option etait de n'offrir que
+      // les langues du jeu affiche ; elle rendait le reglage mouvant. On montre
+      // tout, a condition que chaque ligne dise sa portee — sans quoi choisir
+      // « Japonais » promet un affichage que seul Magic tient.
+      for (final lang in CardLang.values) {
+        expect(lang.coverage, isNotEmpty, reason: lang.label);
+      }
+      expect(CardLang.english.coverage, contains('tous'));
+      expect(CardLang.japanese.coverage, 'Magic');
+    });
+
+    test('les langues vont de la mieux couverte a la moins bien', () {
+      // **L'ordre est l'information**, et il est écrit ici plutôt que déduit.
+      // Une première version le dérivait du nombre de virgules dans `coverage`
+      // et comptait « tous les jeux » pour une seule couverture : un indicateur
+      // qui se trompe sur le cas le plus large ne mesure rien.
+      //
+      // Trier par alphabet mettrait l'allemand devant l'anglais, donc une
+      // langue partielle devant la seule qui couvre tout.
+      expect(CardLang.values.map((l) => l.code).toList(), [
+        'en', // tous les jeux
+        'fr', // quatre catalogues
+        'de', 'it', 'pt', // trois
+        'es', // deux
+        'ja', 'zhs', 'zht', 'ru', 'ko', // Magic seul
+      ]);
+    });
+
     test('un code inconnu se distingue d\'un choix absent', () {
       // `fromCode` rend `null` plutôt que l'anglais : seul l'appelant sait si
       // « jamais renseigné » doit déclencher une écriture.
