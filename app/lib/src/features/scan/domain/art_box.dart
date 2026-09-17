@@ -41,6 +41,32 @@ enum CardFrame {
   /// Loin d'être anecdotique : le Pauper puise dans toute l'histoire du jeu.
   legacy((left: 0.114, top: 0.100, right: 0.890, bottom: 0.538), 'magic'),
 
+  /// Carte **pleine page** : l'illustration descend jusqu'au bas du carton.
+  ///
+  /// Mêmes bords et même haut que [modern] — seul le bas change, 0,83 au lieu
+  /// de 0,55. C'est bien une maquette à part et non un réglage de [modern] :
+  /// appliquer 0,55 à une pleine page découpe la moitié de l'illustration, et
+  /// l'empreinte obtenue ne rencontre rien.
+  ///
+  /// **Mesuré sur seize terrains de base pleine page** par
+  /// `api/app/measure/magic_art_window.py --famille terrains`, qui cherche où
+  /// l'`art_crop` publié par Scryfall s'inscrit dans le rendu complet :
+  /// left 0,083 ± 0,004, top 0,114 ± 0,004, right 0,917 ± 0,005,
+  /// bottom 0,829. Une seconde mesure indépendante, sur les terrains *ukiyo-e*
+  /// de Kamigawa et par comparaison d'empreintes, retombe à 0,003 près.
+  ///
+  /// **`is:fullart` ne suffit pas à désigner cette famille.** Le drapeau de
+  /// Scryfall recouvre large : sur seize impressions `is:fullart t:land`,
+  /// quatorze étaient des *Command Tower* ou *Blood Crypt* dont la maquette
+  /// reste ordinaire. Ce sont les terrains **de base** qui portent la vraie
+  /// pleine page, d'où `t:basic` au banc.
+  ///
+  /// **Rien ne désigne cette maquette au moment du scan**, et il n'y a pas à
+  /// la deviner : on ignore alors quelle carte on tient. Le gabarit entre comme
+  /// une hypothèse de plus, et la distance tranche — comme entre [modern] et
+  /// [legacy] depuis toujours.
+  fullArt((left: 0.080, top: 0.114, right: 0.918, bottom: 0.830), 'magic'),
+
   /// Riftbound, cartes verticales — l'immense majorité.
   ///
   /// **Mesuré par la luminosité de l'image moyenne**, deux méthodes fondées sur

@@ -150,6 +150,10 @@ cd api && .venv/Scripts/python -m app.measure.plafond_empreinte --depuis .cache/
 cd app && dart run tool/plafond.dart <dossier> --rupture 0.20 --support 0.74
 
 # Ce que l'app reconnaît VRAIMENT — sur l'appareil, OCR compris (seule mesure entière)
+# **À repousser avant CHAQUE banc** : `flutter test` désinstalle l'application en
+# sortant, et le dossier part avec elle. Les photos doivent être réduites comme
+# `image_picker` le ferait — largeur 1600, qualité 92 — sans quoi on mesure une
+# chaîne que l'application ne voit jamais.
 cd app && adb push <photos>/. /sdcard/Android/data/app.deckhand.debug/files/
 cd app && flutter test integration_test/plafond_reel_test.dart -d <appareil> \
     --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=... \

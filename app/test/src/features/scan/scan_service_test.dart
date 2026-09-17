@@ -23,12 +23,41 @@ import 'package:image/image.dart' as img;
 import '../../helpers/fakes.dart';
 
 /// Fausse carte : fond uni, illustration texturée dans la zone du gabarit.
-img.Image fakeCard(CardFrame frame, {int seed = 0, int width = 400}) {
+img.Image fakeCard(
+  CardFrame frame, {
+  int seed = 0,
+  int width = 400,
+  bool fondTexture = false,
+}) {
   // La fausse carte prend les proportions du jeu de son cadre : composer au
   // format d'un autre jeu déplacerait la zone d'illustration sans le dire.
   final height = (width / cardAspectFor(frame.game)).round();
   final card = img.Image(width: width, height: height);
   img.fill(card, color: img.ColorRgb8(28, 28, 34));
+
+  // **Un fond uni rend deux cartes identiques hors de leur illustration**, et
+  // c'est un artefact dont il faut pouvoir sortir. Tout gabarit qui déborde la
+  // fenêtre — `fullArt` découpe jusqu'à 0,83 là où `modern` s'arrête à 0,55 —
+  // compare alors des empreintes à moitié figées, et deux cartes étrangères
+  // passent sous le seuil de confiance par pure construction du test. Une
+  // carte réelle n'est unie nulle part : sa boîte de texte porte du texte, qui
+  // diffère d'une carte à l'autre.
+  //
+  // Le fond n'est texturé que sur demande : le poser partout déplacerait les
+  // empreintes de tous les tests qui mesurent autre chose.
+  if (fondTexture) {
+    for (var x = 0; x < width; x++) {
+      for (var y = 0; y < height; y++) {
+        card.setPixelRgb(
+          x,
+          y,
+          (x * 7 + seed * 97 + 11) % 256,
+          (y * 5 + seed * 89 + 29) % 256,
+          (x + y + seed * 83 + 47) % 256,
+        );
+      }
+    }
+  }
 
   final box = frame.box;
   final x0 = (box.left * width).round();
@@ -783,10 +812,13 @@ void main() {
     test('une reconnaissance incertaine propose sans affirmer', () async {
       // « Affirmer à tort coûte plus cher que suggérer » : l'écran présentera
       // ces candidats sans les cocher.
-      final inconnue = fakeCard(CardFrame.modern, seed: 77);
+      // `fondTexture` : sans lui, les deux cartes ne diffèrent que dans leur
+      // fenêtre d'illustration, et le gabarit `fullArt` — qui déborde jusqu'à
+      // 0,83 — les rapprocherait artificiellement sous le seuil.
+      final inconnue = fakeCard(CardFrame.modern, seed: 77, fondTexture: true);
       final service = ScanService(
         indexOf({
-          'autre': fakeCard(CardFrame.modern, seed: 44),
+          'autre': fakeCard(CardFrame.modern, seed: 44, fondTexture: true),
         }, CardFrame.modern),
         FakeCardTextReader(),
         FakeCardRepository()..results = [_spreadHit('autre', 'Autre')],

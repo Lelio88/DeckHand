@@ -24,6 +24,7 @@ légèrement. Comparer des luminances ferait glisser l'optimum ; comparer où
 Usage :
     .venv/Scripts/python -m app.measure.magic_art_window
     .venv/Scripts/python -m app.measure.magic_art_window --set msh --size 24
+    .venv/Scripts/python -m app.measure.magic_art_window --famille terrains
 """
 
 from __future__ import annotations
@@ -260,9 +261,38 @@ def sur_photo(chemin: str, carte: str) -> None:
             )
 
 
+#: Les maquettes qu'on sait viser, et la requête Scryfall qui les isole.
+#:
+#: **`borderless` et `fullart` ne sont pas la même chose**, et les confondre
+#: fait mesurer une moyenne qui ne convient à personne. Une *borderless* perd sa
+#: bordure noire mais garde sa boîte de texte, donc son illustration s'arrête au
+#: milieu du carton ; une *full art* la couvre jusqu'en bas. Relevé sur seize
+#: impressions `full_art` tirées au hasard : dix avaient `bottom` ≈ 0,56 — la
+#: maquette ordinaire — et quatre seulement ≈ 0,83, toutes des terrains.
+#:
+#: `is:fullart` est le drapeau de Scryfall, plus fiable que la colonne
+#: `card_prints.full_art` pour isoler la famille : celle-ci recouvre les deux.
+#: **`t:land` ne suffit pas, il faut `t:basic`.** Mesuré : sur seize impressions
+#: `is:fullart t:land`, quatorze étaient des *Command Tower*, *Blood Crypt* ou
+#: *Breeding Pool* — des terrains non-base dont la maquette reste ordinaire
+#: (`bottom` ≈ 0,554, soit `modern`). Les cartes réellement pleine page du lot
+#: étaient deux. Le drapeau `is:fullart` de Scryfall recouvre donc large.
+FAMILLES = {
+    "borderless": ("sans bordure", "border:borderless"),
+    "fullart": ("pleine page", "is:fullart"),
+    "terrains": ("terrain de base pleine page", "is:fullart t:basic"),
+}
+
+
 def main() -> None:
     parseur = argparse.ArgumentParser(description=__doc__)
     parseur.add_argument("--set", default=None, help="restreindre à une extension")
+    parseur.add_argument(
+        "--famille",
+        default="borderless",
+        choices=sorted(FAMILLES),
+        help="la maquette à mesurer (défaut : borderless)",
+    )
     parseur.add_argument("--size", type=int, default=16)
     parseur.add_argument("--photo", default=None, help="situer l'illustration dedans")
     parseur.add_argument("--carte", default="Take Up the Shield")
@@ -273,12 +303,13 @@ def main() -> None:
         return
 
     portee = f" set:{arguments.set}" if arguments.set else ""
+    titre, filtre = FAMILLES[arguments.famille]
     sans_bord = mesurer(
-        f"border:borderless -is:token lang:en{portee}",
+        f"{filtre} -is:token lang:en{portee}",
         arguments.size,
-        "sans bordure",
+        titre,
     )
-    med_sans = resumer("sans bordure", sans_bord)
+    med_sans = resumer(titre, sans_bord)
 
     # **Le témoin compte autant que la mesure.** Une fenêtre mesurée sur les
     # cartes ordinaires doit retomber sur le gabarit `modern` déjà en place

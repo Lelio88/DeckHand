@@ -1189,7 +1189,7 @@ L'illustration est **identique en français et en anglais** ; seul le cadre de t
 | Limite | Nature | Conséquence |
 |---|---|---|
 | Rééditions partageant la même illustration | Indiscernables par empreinte seule | L'édition se choisit à la main dans le sélecteur, la reconnaissance n'ayant pas à trancher. Valorisation par défaut tant qu'elle n'est pas précisée : impression la moins chère. |
-| Cartes full-art, borderless, showcase | Géométrie non standard | Le découpage à position fixe échoue. Nécessite une détection de gabarit ou une empreinte de secours sur la carte entière. |
+| Cartes borderless, showcase, *split* | Géométrie non standard | Le découpage à position fixe échoue. La **pleine page** est traitée depuis qu'un troisième gabarit Magic existe (`CardFrame.fullArt`, 0,080 / 0,114 / 0,918 / 0,830, mesuré sur seize terrains de base) ; les autres maquettes restent à mesurer, et le *split* porte deux illustrations tournées à 90° dont la fenêtre varie selon l'époque. |
 | Cartes empilées | Optique, non algorithmique | Seule la carte du dessus est visible. D'où les deux modes retenus : étalement et feuilletage. |
 | Catalogue Riftbound anglais seulement | Contractuelle, non algorithmique | Une carte française n'est pas retrouvable par son nom, quel que soit le soin de la lecture. L'empreinte est la voie principale de ce jeu, et le mode étalement — qui ne lit que les noms — ne peut pas le servir. |
 | Carte absente de l'index interrogé | Structurelle : tout point a un plus proche voisin | Environ **1 %** des cartes étrangères passent les deux garde-fous et sont annoncées avec assurance (mesuré, `art_collisions.py`). Le cloisonnement par jeu écarte le mélange des catalogues, pas le choix du mauvais jeu par l'utilisateur. |
