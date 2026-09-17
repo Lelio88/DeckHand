@@ -196,6 +196,11 @@ def compacter(conn: psycopg.Connection, journal=None) -> None:
     seulement** : un `VACUUM FULL` ne se découpe pas en lots, il finit ou il
     échoue.
     """
+    # **Sortir de la transaction avant de basculer.** `Session.run` confie une
+    # connexion déjà `INTRANS` — la lecture de taille qui précède en a ouvert une
+    # — et psycopg refuse de changer `autocommit` dans cet état. Rien n'est
+    # perdu : on n'a fait que lire.
+    conn.rollback()
     conn.autocommit = True  # VACUUM refuse de tourner dans une transaction
     try:
         with conn.cursor() as cur:
