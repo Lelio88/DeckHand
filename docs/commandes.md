@@ -156,6 +156,10 @@ cd app && flutter test integration_test/plafond_reel_test.dart -d <appareil> \
     --dart-define=DECKHAND_TEST_EMAIL=... --dart-define=DECKHAND_TEST_PASSWORD=...
 cd api && .venv/Scripts/python -m app.measure.plafond_reel <journal.log>
 
+# POURQUOI le nom n'a pas abouti : toutes les lignes lues, leur position, et ce
+# que la sélection garde — dans les quatre écritures de la cascade
+cd app && flutter test integration_test/lecture_reelle_test.dart -d <appareil>     --dart-define=DECKHAND_PHOTOS=<filtre sur le nom de fichier>
+
 # Ce que l'index annonce quand il ne devrait rien dire — à rejouer à chaque jeu
 cd api && .venv/Scripts/python -m app.measure.art_collisions        # --game <jeu> --sample N
 # Où tombe, dans l'index réel, une empreinte relevée sur le terrain (`art_hash` du journal)
