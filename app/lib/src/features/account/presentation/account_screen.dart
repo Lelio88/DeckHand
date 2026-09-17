@@ -15,6 +15,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../config/display_lang.dart';
 import '../../../config/ocr_script.dart';
 import '../../../config/selected_game.dart';
 
@@ -103,6 +104,11 @@ class AccountScreen extends ConsumerWidget {
         Text('Jeu', style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
         const _GamePicker(),
+
+        const SizedBox(height: 28),
+        Text('Affichage', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        const _DisplayLangTile(),
 
         const SizedBox(height: 28),
         Text('Scan', style: theme.textTheme.titleSmall),
@@ -649,5 +655,75 @@ class _OcrScriptTile extends ConsumerWidget {
     // défaut à quelqu'un qui a seulement changé d'avis sur l'ouverture.
     if (choisi == null) return;
     await ref.read(selectedOcrScriptProvider.notifier).select(choisi);
+  }
+}
+
+/// La langue dans laquelle le nom des cartes s'affiche.
+///
+/// **Ce n'est pas la langue de l'interface**, et le titre le dit : le menu ne
+/// change que le nom des cartes. Confondre les deux ferait croire qu'on peut
+/// passer l'application en japonais, ce qui est faux.
+///
+/// La valeur vit en base et suit le compte d'un appareil a l'autre — d'ou
+/// l'`AsyncValue` plutot qu'une lecture immediate. Le premier lancement l'a
+/// deja renseignee depuis la langue de l'appareil ; ce menu sert a en changer.
+class _DisplayLangTile extends ConsumerWidget {
+  const _DisplayLangTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final courante = ref.watch(displayLangProvider);
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.badge_outlined),
+      title: const Text('Langue du nom des cartes'),
+      subtitle: Text(
+        courante.settled(
+          data: (lang) => lang.label,
+          // Une preference de confort ne doit ni bloquer l'ecran ni l'alarmer :
+          // le serveur a son propre repli, et l'affichage reste juste.
+          error: (_, _) => 'Indisponible',
+          loading: () => '…',
+        ),
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: courante.asData == null
+          ? null
+          : () => _choisir(context, ref, courante.asData!.value),
+    );
+  }
+
+  Future<void> _choisir(
+    BuildContext context,
+    WidgetRef ref,
+    CardLang courante,
+  ) async {
+    final choisie = await showDialog<CardLang>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Langue du nom des cartes'),
+        children: [
+          RadioGroup<CardLang>(
+            groupValue: courante,
+            onChanged: (valeur) => Navigator.of(context).pop(valeur),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final lang in CardLang.values)
+                  RadioListTile<CardLang>(
+                    value: lang,
+                    title: Text(lang.label),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (choisie == null || choisie == courante) return;
+    await ref.read(profileRepositoryProvider).saveDisplayLang(choisie);
+    // Le nom traduit est choisi par le serveur : tout ce qui l'affiche doit
+    // etre redemande, pas seulement cette tuile.
+    ref.invalidate(displayLangProvider);
   }
 }

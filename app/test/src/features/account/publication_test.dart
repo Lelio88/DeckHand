@@ -80,11 +80,16 @@ Future<FakeCollectionRepository> pump(
   // un widget hors champ d'une `ListView` n'est pas construit, donc `find.text`
   // ne le voit pas. Le défilement n'est pas une commodité : sans lui, le test
   // échouerait sur une mise en page parfaitement correcte.
-  // **Le montant suit ce qu'on ajoute au-dessus.** Il est passe de 900 a 1100
-  // quand la section « Scan » s'est intercalee avant « Partage » : un reglage de
-  // plus, et la cible ressort du champ. C'est le prix d'un defilement chiffre
-  // plutot que vise, et il se paie ici plutot qu'en cherchant un faux defaut.
-  await tester.drag(find.byType(ListView), const Offset(0, -1100));
+  // **On vise la cible, on ne compte pas les pixels.** Le montant a du passer
+  // de 900 a 1100 quand la section « Scan » s'est intercalee, puis aurait du
+  // bouger encore a l'arrivee de « Affichage » : chaque reglage ajoute cassait
+  // ce test sur une mise en page parfaitement correcte. `scrollUntilVisible`
+  // s'arrete quand l'en-tete est la, quoi qu'on empile au-dessus.
+  await tester.scrollUntilVisible(
+    find.text('Partage'),
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
   await tester.pumpAndSettle();
   return collection;
 }

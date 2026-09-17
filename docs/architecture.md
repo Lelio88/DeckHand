@@ -1324,7 +1324,7 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 | `card_prints` | Impressions : édition, langue, prix, illustration — 162 000 lignes |
 | `art_hashes` | Index d'empreintes, servi à l'app |
 | `users` | Comptes Supabase Auth |
-| `profiles` | Préférences du compte — jeux joués dans leur ordre, taille et prix de booster |
+| `profiles` | Préférences du compte — jeux joués dans leur ordre, taille et prix de booster, langue d'affichage du nom des cartes |
 | `collections` / `collection_items` | Possessions, par utilisateur |
 | `decks` / `deck_cards` | Corpus normalisé, toutes sources confondues |
 | `deck_needs` / `deck_profile` | **Dérivées de `deck_cards`**, reconstruites par l'ingestion : ce qu'un deck demande et ce qu'il vaut, indépendamment de toute collection |
@@ -1416,6 +1416,44 @@ collection inaccessible. La contrepartie — un bref passage par l'accueil avant
 que l'étape ne s'ouvre — ne concerne que les comptes qui n'ont jamais répondu.
 
 La politique se vérifie sous le rôle qui la subit :
+### La langue du nom des cartes
+
+`profiles.display_lang` porte la langue dans laquelle le nom des cartes
+s'affiche — **et non la langue de l'interface**, qui reste le français. Les deux
+sont indépendants : on lit une interface française et on collectionne des cartes
+japonaises.
+
+**Cinq fonctions la lisent** — `my_collection`, `cards_by_oracle_ids`,
+`deck_suggestions`, `deck_missing_cards`, `my_buildable_cards` — au travers de
+`public.my_display_lang()`, qui rend la préférence du lecteur courant ou `fr` à
+défaut. Elles cherchaient auparavant `s.lang = 'fr'` en dur, ce qui est juste
+pour une application privée et francophone, et imposé dès qu'elle s'ouvre.
+
+**Cinq autres fonctions portent `lang = 'fr'` et n'ont rien à voir** :
+`my_binder_page`, `my_binder_find`, `my_unsorted_pile`, `public_binder_page` et
+`public_spotlight` trient `card_prints` par `ORDER BY (p.lang = 'fr') DESC` pour
+choisir **quelle impression** montrer. Les deux motifs se ressemblent ; les
+confondre changerait l'édition affichée dans un classeur.
+
+**L'appel s'écrit `(SELECT public.my_display_lang())`.** Dans une latérale,
+l'appel direct serait évalué par ligne ; le sous-select sans corrélation en fait
+un InitPlan, évalué une fois par requête.
+
+**La préférence plutôt qu'un paramètre** : ajouter `p_lang` aux cinq signatures
+aurait obligé PostgREST et l'application à suivre, pour une valeur qui ne change
+pas d'un appel à l'autre. La colonne laisse les signatures intactes et suit le
+compte d'un appareil à l'autre.
+
+L'application la renseigne **au premier lancement**, depuis la langue de
+l'appareil, et l'expose ensuite dans les réglages. Le repli y est l'**anglais**
+et non le français : un téléphone dont la langue n'a pas de catalogue n'a rien
+demandé, et le nom oracle anglais existe pour toute carte. Le repli SQL, lui,
+reste `fr` — il ne sert que les comptes créés avant cette colonne.
+
+**Limite connue** : seul le catalogue Magic porte des noms au-delà de l'anglais
+et du français. Un compte qui choisit le japonais voit ses cartes Magic en
+japonais et celles des autres jeux dans la langue que leur source publie.
+
 `api/app/measure/profiles_rls.py` joue les deux sens — écrire et relire son
 profil, ses prix et ses tailles de booster ; se voir refuser celui d'autrui, la
 suppression du sien, et un booster à zéro carte — puis restaure l'état initial.

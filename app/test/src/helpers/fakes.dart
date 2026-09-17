@@ -12,6 +12,7 @@ import 'dart:async';
 
 import 'package:deckhand/src/features/auth/data/auth_repository.dart';
 import 'package:deckhand/src/features/card_search/data/card_repository.dart';
+import 'package:deckhand/src/config/display_lang.dart';
 import 'package:deckhand/src/config/ocr_script.dart';
 import 'package:deckhand/src/features/scan/data/card_text_reader.dart';
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
@@ -607,6 +608,28 @@ class FakeProfileRepository implements ProfileRepository {
 
   /// Chaque enregistrement reçu, dans l'ordre.
   final List<List<Game>> saved = [];
+
+  /// La langue d'affichage en base : `null` tant que rien n'a été choisi, ce
+  /// que le premier lancement doit pouvoir distinguer d'un choix explicite.
+  String? lang;
+
+  /// Chaque langue enregistrée, dans l'ordre. Le premier lancement ne doit
+  /// écrire qu'**une** fois : l'affirmer demande de compter, pas de regarder.
+  final List<CardLang> langsSaved = [];
+
+  /// Posé pour éprouver le hors-ligne : l'affichage doit survivre à un
+  /// enregistrement qui échoue.
+  Object? saveLangError;
+
+  @override
+  Future<String?> displayLang() async => lang;
+
+  @override
+  Future<void> saveDisplayLang(CardLang value) async {
+    if (saveLangError != null) throw saveLangError!;
+    langsSaved.add(value);
+    lang = value.code;
+  }
 
   /// Ce que la base rend pour les prix de booster déclarés.
   Map<String, double> prices = const {};

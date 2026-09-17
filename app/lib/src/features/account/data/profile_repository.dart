@@ -28,6 +28,9 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'dart:ui' show Locale, PlatformDispatcher;
+
+import '../../../config/display_lang.dart';
 import '../../../config/selected_game.dart';
 import '../../auth/data/auth_repository.dart';
 
@@ -60,6 +63,34 @@ class ProfileRepository {
     await _client.from('profiles').upsert({
       'user_id': userId,
       'games': [for (final game in games) game.id],
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  /// La langue d'affichage enregistrée, ou `null` si le compte n'a rien choisi.
+  ///
+  /// **`null` n'est pas « français ».** Le repli vit côté serveur, dans
+  /// `my_display_lang()` ; ici, `null` veut dire « jamais renseigné », ce qui
+  /// est exactement ce que le premier lancement a besoin de distinguer pour
+  /// savoir s'il doit écrire la langue de l'appareil.
+  Future<String?> displayLang() async {
+    final rows = await _client.from('profiles').select('display_lang').limit(1);
+    if (rows.isEmpty) return null;
+
+    return rows.first['display_lang'] as String?;
+  }
+
+  /// Enregistre la langue d'affichage du compte.
+  ///
+  /// L'`upsert` porte `user_id` : la RLS `profiles_owner` exige que la ligne
+  /// écrite soit la sienne, dans les deux sens.
+  Future<void> saveDisplayLang(CardLang lang) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    await _client.from('profiles').upsert({
+      'user_id': userId,
+      'display_lang': lang.code,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     });
   }
@@ -238,4 +269,48 @@ final boosterSizesProvider = FutureProvider<Map<String, int>>((ref) async {
   final session = ref.watch(sessionProvider).asData?.value;
   if (session == null) return const {};
   return ref.watch(profileRepositoryProvider).boosterSizes();
+});
+
+/// Décide la langue d'affichage, et la renseigne au premier lancement.
+///
+/// **Extraite du provider parce que c'est elle qui décide.** Le provider n'est
+/// que du câblage — session, dépôt, locale — et éprouver la règle à travers lui
+/// obligerait à simuler un flux de session, ce qui mesure Riverpod plutôt que
+/// la décision. Ici, trois entrées et une sortie.
+///
+/// - **Pas de session** : rien à renseigner, on rend la langue de l'appareil.
+/// - **Un choix déjà en base** : il gagne, et rien n'est réécrit.
+/// - **Rien en base** : la langue de l'appareil est écrite, une fois.
+///
+/// **L'écriture ne peut pas faire échouer la lecture.** Hors ligne au premier
+/// lancement, la langue déduite sert quand même la session en cours et la
+/// prochaine réessaiera. Propager l'erreur priverait tous les écrans de leur
+/// nom traduit pour une préférence de confort.
+Future<CardLang> resolveDisplayLang(
+  ProfileRepository depot, {
+  required bool connecte,
+  required Locale appareil,
+}) async {
+  final deduite = CardLang.fromLocale(appareil);
+  if (!connecte) return deduite;
+
+  final enregistree = CardLang.fromCode(await depot.displayLang());
+  if (enregistree != null) return enregistree;
+
+  try {
+    await depot.saveDisplayLang(deduite);
+  } on Object {
+    // Voir ci-dessus : l'affichage prime sur l'enregistrement.
+  }
+  return deduite;
+}
+
+/// La langue d'affichage du compte, câblée sur la session et l'appareil.
+final displayLangProvider = FutureProvider<CardLang>((ref) async {
+  final session = await ref.watch(sessionProvider.future);
+  return resolveDisplayLang(
+    ref.watch(profileRepositoryProvider),
+    connecte: session != null,
+    appareil: PlatformDispatcher.instance.locale,
+  );
 });
