@@ -555,10 +555,10 @@ naturel pour ces cartes — à condition que le cadrage soit juste, **et qu'une
 jumelle existe**.
 
 **Les œuvres sans jumelle gardée sont rattrapées une à une.** Mesuré sur
-l'export complet : 309 illustrations sur 50 547 (0,61 %) n'ont aucune impression
-anglaise ni française — 233 japonaises, 46 en chinois simplifié, concentrées sur
-`sta`, `soa`, `pwcs`, `por`, et les terrains *ukiyo-e* de Kamigawa par lesquels
-le cas s'est découvert. Là, le filtre de langue ne coupe pas un doublon : il
+l'export complet : **299 illustrations**, 0,6 % du périmètre, n'ont aucune
+impression anglaise ni française — 223 japonaises, 46 en chinois simplifié,
+concentrées sur `sta`, `soa`, `pwcs`, `por`, et les terrains *ukiyo-e* de
+Kamigawa par lesquels le cas s'est découvert. Là, le filtre de langue ne coupe pas un doublon : il
 efface l'œuvre de l'index, et le scan échoue sans recours qu'aucun gabarit ne
 rattrape. `scryfall_ingest` retient donc **une** impression par illustration
 orpheline — une, pas une par langue — pour environ 190 Ko, sans commune mesure

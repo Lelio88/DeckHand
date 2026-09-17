@@ -189,12 +189,19 @@ def _art_crop_url(payload: dict[str, Any]) -> str | None:
     return None
 
 
-def _illustration_id(payload: dict[str, Any]) -> str | None:
+def illustration_id_of(payload: dict[str, Any]) -> str | None:
     """Identifiant de l'œuvre, à la racine ou sur la première face qui en porte un.
 
     Commun à toutes les impressions réutilisant la même illustration : c'est ce
     qui permet de ne calculer qu'une empreinte par image, au lieu d'une par
     impression.
+
+    **Publique parce qu'un banc doit compter comme l'ingestion compte.**
+    `app.measure.illustrations_exclusives` lisait `illustration_id` à la
+    racine et annonçait 309 œuvres sans impression anglaise ni française là
+    où il y en a 299 : les dix autres sont portées par une carte recto-verso,
+    dont la racine est vide et dont seule la face porte l'identifiant.
+    Mesurer autrement que le code mesuré, c'est mesurer autre chose.
     """
     if payload.get("illustration_id"):
         return payload["illustration_id"]
@@ -258,7 +265,7 @@ def parse_print(payload: dict[str, Any]) -> CardPrint:
         price_usd_foil=_as_float(prices.get("usd_foil")),
         finishes=payload.get("finishes") or [],
         full_art=bool(payload.get("full_art")),
-        illustration_id=_illustration_id(payload),
+        illustration_id=illustration_id_of(payload),
         released_at=payload.get("released_at"),
     )
 

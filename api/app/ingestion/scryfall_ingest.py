@@ -268,10 +268,11 @@ def ingest_prints_and_names(
             conn.commit()
 
         # **Le tri se fait ici, le flux étant épuisé.** Mesuré le 2026-09-17 :
-        # 309 illustrations sur 50 547 (0,61 %) n'ont aucune impression anglaise
-        # ni française — 233 japonaises, 46 en chinois simplifié. Le surcoût est
-        # d'autant de lignes et d'autant d'empreintes, soit environ 190 Ko :
-        # sans commune mesure avec les 62 Mo qu'ouvrirait une langue entière.
+        # 299 œuvres n'ont aucune impression anglaise ni française — 223
+        # japonaises, 46 en chinois simplifié, groupées sur `sta`, `soa`, `pwcs`
+        # et `por`. Le surcoût est d'autant de lignes et d'autant d'empreintes,
+        # soit environ 190 Ko : sans commune mesure avec les 62 Mo qu'ouvrirait
+        # une langue entière.
         #
         # Rejouable par `app.measure.illustrations_exclusives`.
         seules = [p for i, p in orphelines.items() if i not in couvertes]

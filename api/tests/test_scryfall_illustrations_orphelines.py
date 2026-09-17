@@ -10,7 +10,8 @@ propriétaire — les terrains ukiyo-e de Kamigawa, que Scryfall ne publie qu'en
 `ja` : aucune impression, donc aucun `illustration_id`, donc aucune empreinte.
 Le scan échouait sans recours, et aucun gabarit n'y pouvait rien.
 
-Mesuré sur l'export complet : 309 illustrations sur 50 547 (0,61 %).
+Mesuré sur l'export complet : 299 œuvres, soit 0,6 % du périmètre — 223
+japonaises, 46 en chinois simplifié.
 
 Les deux erreurs que ces tests ferment sont symétriques — ne rien rattraper, et
 rattraper une œuvre déjà couverte, ce qui rouvrirait le catalogue d'impressions

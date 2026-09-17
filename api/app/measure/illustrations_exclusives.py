@@ -17,6 +17,13 @@ absente de l'index.
 écarte ses terrains japonais. Elle répondait 3 là où le vrai compte se lit par
 `illustration_id`, ce que seul l'export complet permet.
 
+**Et l'identifiant se lit comme l'ingestion le lit.** Une première version de ce
+banc prenait `illustration_id` à la racine du payload et annonçait 309 : dix de
+ces œuvres sont portées par une carte recto-verso, dont la racine est vide et
+dont seule la face porte l'identifiant — une impression anglaise les couvre
+donc, et elles ne sont pas orphelines. D'où `illustration_id_of`, partagé avec
+`scryfall_parse` : un banc qui compte autrement que le code mesure autre chose.
+
 Usage :
     cd api && .venv/Scripts/python -m app.measure.illustrations_exclusives
 """
@@ -26,7 +33,7 @@ from __future__ import annotations
 import sys
 
 from app.ingestion.scryfall_client import BULK_ALL, stream_bulk
-from app.ingestion.scryfall_parse import should_ingest
+from app.ingestion.scryfall_parse import illustration_id_of, should_ingest
 
 sys.stdout.reconfigure(encoding="utf-8") if hasattr(sys.stdout, "reconfigure") else None
 
@@ -44,7 +51,7 @@ def main() -> int:
         if vues % 50_000 == 0:
             print(f"  parcourues : {vues}", end="\r", flush=True)
 
-        illus = payload.get("illustration_id")
+        illus = illustration_id_of(payload)
         if not illus or not should_ingest(payload):
             continue
         lang = payload.get("lang") or "en"
