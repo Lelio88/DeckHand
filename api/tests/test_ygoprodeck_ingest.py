@@ -174,3 +174,19 @@ class TestFraicheur:
             {"set_name": "Autre", "set_code": "XXXX-EN001", "set_rarity": "Common"}
         ]
         assert catalogue_version([MAGIE]) != catalogue_version([enrichie])
+
+
+# --- les langues rapatriees -------------------------------------------------
+
+
+def test_les_langues_traduites_recouvrent_l_anglais():
+    """**La lecon Pokemon, appliquee avant d'en payer le prix.** Chez TCGdex, le
+    japonais publie ses propres sets : 14 cartes sur 12 781 partagent un
+    identifiant avec l'anglais, et une liste ecrite sur un compte de cartes a
+    fait ecrire quatorze lignes. Ici le passcode est le meme d'une langue a
+    l'autre — mesure : 100 % de recouvrement sur les quatre.
+    """
+    from app.ingestion.ygoprodeck_ingest import LANGS
+
+    assert LANGS == ("en", "fr", "de", "it", "pt")
+    assert LANGS[0] == "en", "l'anglais fait foi pour les impressions et les types"

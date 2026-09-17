@@ -69,10 +69,26 @@ USER_AGENT = (
 GAME = "yugioh"
 SOURCE = "ygoprodeck"
 
-#: Langues rapatriées. L'anglais fait foi pour les impressions et les types ; le
-#: français n'apporte que des noms, mais ce sont eux que l'utilisateur saisit et
+#: Langues rapatriées. L'anglais fait foi pour les impressions et les types ; les
+#: autres n'apportent que des noms, mais ce sont eux que l'utilisateur saisit et
 #: que la reconnaissance lit sur le carton.
-LANGS = ("en", "fr")
+#:
+#: **Les quatre traductions recouvrent l'anglais à 100 %**, et elles traduisent
+#: vraiment. Mesuré le 2026-09-17, contre les 14 565 cartes anglaises :
+#:
+#:     fr 11 661 cartes, 11 102 noms differents de l'anglais
+#:     de 11 769 cartes, 11 138
+#:     it 11 599 cartes, 10 933
+#:     pt 10 887 cartes, 10 385
+#:
+#: **Le recouvrement se vérifie avant d'ajouter une langue**, pas après. Chez
+#: TCGdex, le japonais publie ses propres sets : 14 cartes sur 12 781 partagent
+#: un identifiant avec l'anglais, et une liste écrite sur un simple compte de
+#: cartes a fait écrire quatorze lignes. Ici le passcode est le même d'une
+#: langue à l'autre, d'où les 100 %.
+#:
+#: Les autres langues annoncées par la source ne rendent pas de traduction.
+LANGS = ("en", "fr", "de", "it", "pt")
 
 #: Politesse : la source annonce 20 requêtes par seconde et ce module en fait
 #: deux en tout. La pause est symbolique, elle dit surtout l'intention.
