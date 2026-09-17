@@ -114,35 +114,103 @@ def ask(query: str, lang: str = "en") -> dict[str, Any]:
     raise RuntimeError(f"TCGdex injoignable : {last}")
 
 
-def french_names() -> dict[str, str]:
-    """Les noms français, par identifiant de carte.
+def fetch_names(lang: str) -> dict[str, str]:
+    """Les noms d'une langue, par identifiant de carte.
 
     **La langue passe par le chemin, pas par un en-tête.** `Accept-Language` est
     sans effet sur le point GraphQL : la première version l'a essayé et a écrit
     zéro nom français sans lever la moindre erreur — le pire mode de défaillance,
     puisqu'un catalogue amputé de sa moitié française se lit comme un catalogue
-    complet. La route REST `/v2/fr/cards`, elle, rend 21 554 noms en une requête.
+    complet. La route REST `/v2/<lang>/cards`, elle, rend tout le catalogue
+    traduit en une requête.
 
-    Que le français compte n'est pas un agrément : la reconnaissance lit du
-    carton français, et un nom qu'on ne peut pas chercher est une carte qu'on ne
-    peut pas saisir au clavier.
+    **Un catalogue vide est refusé, pas rendu.** Trois langues annoncées par la
+    source — `nl`, `pl`, `ru` — répondent `200` avec zéro carte. Les rendre
+    telles quelles réintroduirait exactement la panne muette ci-dessus, une
+    strate plus loin : `card_search_names` gagnerait une langue qui n'existe pas,
+    et le réglage d'affichage la proposerait.
+
+    Que les traductions comptent n'est pas un agrément : la reconnaissance lit du
+    carton, et un nom qu'on ne peut pas chercher est une carte qu'on ne peut pas
+    saisir au clavier.
     """
     delay = 1.0
     last: Exception | None = None
     for _ in range(ATTEMPTS):
         request = urllib.request.Request(
-            "https://api.tcgdex.net/v2/fr/cards",
+            f"https://api.tcgdex.net/v2/{lang}/cards",
             headers={"User-Agent": USER_AGENT},
         )
         try:
             with urllib.request.urlopen(request, timeout=180) as response:
                 rows = json.loads(response.read().decode("utf-8"))
-            return {r["id"]: r["name"] for r in rows if r.get("name")}
+            noms = {r["id"]: r["name"] for r in rows if r.get("name")}
+            if not noms:
+                raise RuntimeError(f"catalogue {lang} vide")
+            return noms
         except Exception as exc:  # noqa: BLE001
             last = exc
             time.sleep(delay)
             delay *= 2
-    raise RuntimeError(f"noms français injoignables : {last}")
+    raise RuntimeError(f"noms « {lang} » injoignables : {last}")
+
+
+#: Langues dont TCGdex publie un catalogue réellement traduit, et le code sous
+#: lequel `card_search_names` les range.
+#:
+#: **Relevé, pas lu dans la documentation.** `/v2/<lang>/cards` répond `200` avec
+#: **zéro carte** pour `nl`, `pl` et `ru` — le mode de défaillance que
+#: `french_names` documente déjà pour `Accept-Language` : un catalogue vide se
+#: lit comme un catalogue complet. Mesuré le 2026-09-17 :
+#:
+#:     en 23 736   fr 22 170   de 20 498   it 15 741   es 15 510
+#:     pt 13 907   ja 12 781   zh-tw 7 436   th 2 921   id 2 788
+#:     zh-cn 877   ko 239      nl/pl/ru 0
+#:
+#: Sont écartées celles que l'application ne propose pas (`th`, `id`) et celles
+#: dont la couverture est anecdotique — `ko` et `zh-cn` couvrent moins de 4 % du
+#: catalogue, et les offrir ferait miroiter un affichage qui resterait anglais.
+#:
+#: **Le japonais et le chinois traditionnel sont écartés pour une autre raison,
+#: et elle ne se voit pas dans un compte de cartes.** Ils publient leurs propres
+#: sets, sous leurs propres identifiants : le rapprochement se fait par
+#: `card["id"]`, et il ne trouve rien. Mesuré le 2026-09-17 — sur 12 781 cartes
+#: japonaises, **14** partagent un identifiant avec le catalogue anglais ; sur
+#: 7 436 chinoises, **zéro**. Les garder écrirait une langue que le réglage
+#: d'affichage proposerait pour rendre 14 cartes sur 21 000.
+#:
+#: Les cinq retenues recouvrent l'anglais à 100 %. Leur apport réel n'est pas
+#: leur taille : `es`, `it` et `pt` gardent massivement le nom anglais — 15 510
+#: cartes espagnoles pour 3 767 noms qui diffèrent. C'est attendu, les noms de
+#: Pokémon étant largement universels en écriture latine.
+TRANSLATED_LANGS = {
+    "fr": "fr",
+    "de": "de",
+    "es": "es",
+    "it": "it",
+    "pt": "pt",
+}
+
+
+def names_by_lang() -> dict[str, dict[str, str]]:
+    """Les noms traduits, par code de langue puis par identifiant de carte.
+
+    Une requête par langue, chacune rendant le catalogue entier — c'est la forme
+    que la source impose et elle est bon marché. Le débit reste celui du §IV.9 :
+    une seconde entre deux appels.
+
+    **L'échec d'une langue n'emporte pas les autres.** Une langue absente laisse
+    simplement ses noms de côté ; faire échouer l'ingestion entière pour un
+    catalogue d'agrément priverait la collection de sa mise à jour.
+    """
+    out: dict[str, dict[str, str]] = {}
+    for source_code, column_code in TRANSLATED_LANGS.items():
+        try:
+            out[column_code] = fetch_names(source_code)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  langue {source_code} ignorée : {exc}")
+        time.sleep(1.0)
+    return out
 
 
 def oracle_uuid(card_id: str) -> uuid.UUID:
@@ -330,7 +398,9 @@ def write_prints(
 
 
 def write_search_names(
-    conn: psycopg.Connection, cards: list[dict[str, Any]], french: dict[str, str]
+    conn: psycopg.Connection,
+    cards: list[dict[str, Any]],
+    translations: dict[str, dict[str, str]],
 ) -> int:
     """Alimente l'index de saisie. Sans lui, aucune carte n'est trouvable.
 
@@ -338,6 +408,17 @@ def write_search_names(
     voulu : la recherche par nom doit toutes les rendre, à charge pour
     l'utilisateur de choisir. C'est l'inverse de Magic, où un nom désigne une
     carte et une seule.
+
+    **Toutes les langues traduites y entrent, les impressions non.** Le même
+    partage que sur Magic : un nom coûte quelques centaines de milliers d'octets
+    par langue et rend la carte trouvable ; une impression en coûte sept fois
+    plus et ne sert qu'à désigner l'exemplaire exact, que la source ne distingue
+    pas par langue ici. `write_prints` reste donc sur l'anglais et le français.
+
+    **Un nom identique à l'anglais n'est pas écrit.** Beaucoup de cartes gardent
+    leur nom d'une langue à l'autre — noms propres, sigles — et l'entrée
+    ferait doublon sous un autre code de langue, au prix d'une ligne et d'une
+    ambiguïté à l'affichage.
     """
     statement = """
         INSERT INTO public.card_search_names (oracle_id, name, normalized, lang)
@@ -349,9 +430,10 @@ def write_search_names(
         for card in cards:
             identity = str(oracle_uuid(card["id"]))
             yield (identity, card["name"], normalize_name(card["name"]), "en")
-            translated = french.get(card["id"])
-            if translated and translated != card["name"]:
-                yield (identity, translated, normalize_name(translated), "fr")
+            for lang, noms in translations.items():
+                translated = noms.get(card["id"])
+                if translated and translated != card["name"]:
+                    yield (identity, translated, normalize_name(translated), lang)
 
     batch = list(rows())
     with conn.cursor() as cur:
@@ -371,13 +453,15 @@ def run(force: bool) -> int:
     print(f"  {len(everything)} cartes, dont {len(cards)} sur carton")
 
     version = catalogue_version(cards)
-    french = french_names()
-    translated = sum(
-        1
-        for c in cards
-        if french.get(c["id"]) and french[c["id"]] != c["name"]
-    )
-    print(f"  {translated} noms français")
+    translations = names_by_lang()
+    # Le français garde un rôle à part : c'est la seule traduction qui décide
+    # aussi de la langue d'une **impression** (voir `write_prints`).
+    french = translations.get("fr", {})
+    for lang, noms in sorted(translations.items()):
+        combien = sum(
+            1 for c in cards if noms.get(c["id"]) and noms[c["id"]] != c["name"]
+        )
+        print(f"  {combien} noms « {lang} »")
 
     config = SupabaseConfig.load()
     with psycopg.connect(config.db_url, connect_timeout=60) as conn:
@@ -388,7 +472,7 @@ def run(force: bool) -> int:
         print(f"  {written} cartes écrites")
         prints = write_prints(conn, cards, french)
         print(f"  {prints} impressions écrites")
-        names = write_search_names(conn, cards, french)
+        names = write_search_names(conn, cards, translations)
         print(f"  {names} noms indexés")
         record(conn, SOURCE, version=version, items=written)
 
