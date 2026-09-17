@@ -278,6 +278,15 @@ Trois règles en découlent, et l'arbitrage vit dans `ArtHashIndex.searchAny` :
 Sur la photo qui a servi de mesure, la bonne carte passe de **quatrième et
 invisible** à **première des candidats proposés**.
 
+**La pochette est le premier levier, très loin devant l'algorithme.** La même
+carte, photographiée deux fois de suite dans les mêmes conditions, tombe à
+**14 bits sous pochette et 6 bits sans** — la marge au second candidat passant
+de 1 à 9. Le seuil de confiance étant à 12, la pochette seule sépare « reconnue
+sans réserve » de « voici trois cartes à départager ». C'est une mesure sur une
+carte, non une statistique ; mais huit bits dépassent de loin tout ce que
+l'arbitrage des gabarits peut récupérer, et l'écran le dit désormais à
+l'utilisateur quand l'illustration ne tranche pas.
+
 Les mises en page spéciales — `saga` (illustration verticale), `transform`,
 cartes pleine page — échappent aux deux gabarits. Elles relèveront de l'OCR du
 nom, prévu en appoint.

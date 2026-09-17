@@ -433,9 +433,18 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         if (_fromArtwork)
           _Note(
             icon: _uncertain ? Icons.help_outline : Icons.image_search,
+            // **Le conseil qui manquait, et qui vaut plus que tout le reste.**
+            // Mesuré sur la même carte photographiée deux fois : 14 bits sous
+            // pochette, 6 sans. Le seuil de confiance est à 12 — la pochette
+            // seule faisait donc la différence entre « reconnue sans réserve »
+            // et « voici trois cartes, débrouillez-vous ». Aucun réglage de
+            // l'algorithme ne rattrape huit bits ; un geste de l'utilisateur,
+            // si. Encore fallait-il le lui dire.
             text: _uncertain
-                ? 'Aucun nom n\'a pu être lu. Voici les cartes dont '
-                      'l\'illustration ressemble le plus — cochez la vôtre.'
+                ? 'Aucun nom n\'a pu être lu, et l\'illustration ne tranche '
+                      'pas. Cochez la vôtre — ou, si elle est sous pochette, '
+                      'retirez-la et reprenez la photo : les reflets coûtent '
+                      'plus de précision que tout le reste.'
                 : 'Aucun nom n\'a pu être lu : cette carte a été reconnue à '
                       'son illustration.',
           ),
