@@ -18,7 +18,7 @@ Usage privé (le propriétaire et quelques amis) sur un dépôt public. Ni produ
 
 Topologie rapide :
 - `app/lib/src/features/` — par domaine : `card_search`, `collection`, `binders`, `decks`, `builder`, `scan`, `voice`, `printings`, `account`, `about`, `auth`, `intro`
-- `app/lib/src/common/` et `config/` — images en cache, délais de requête, jeu sélectionné ; `app/tool/` — bancs de mesure Dart
+- `app/lib/src/common/` et `config/` — images en cache, délais de requête, jeu sélectionné, écriture lue par l'OCR, langue du nom des cartes ; `app/tool/` — bancs de mesure Dart
 - `api/app/ingestion/` — un connecteur isolé par source ; `api/app/vision/` — empreintes ; `api/app/measure/` — bancs de mesure ; `api/app/twitch/` — bot de chat en lecture, lancé le temps d'un direct
 - `supabase/migrations/` — fichiers horodatés, joués par `api/apply_migration.py`
 
@@ -85,16 +85,16 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 |---|---|
 | Nouvelle source, ou changement de ses conditions | `CLAUDE.md` §IV + `docs/architecture.md` §3 |
 | Évolution du pipeline de reconnaissance | `docs/architecture.md` §2 |
-| Changement du modèle de données ou d'une politique RLS | `docs/architecture.md` §4 |
+| Modèle de données, politique RLS, comptes ou connexion | `docs/architecture.md` §4 — et toute fonction qui montre un nom traduit lit `my_display_lang()`, jamais `'fr'` en dur |
 | Évolution du classeur, du journal ou du partage | [`docs/collection-architecture.md`](./docs/collection-architecture.md) |
-| Évolution des comptes, de la connexion ou du mot de passe | `docs/architecture.md` §4 |
 | Accueil d'un jeu, ou ce qui dépend du jeu | [`docs/multi-game.md`](./docs/multi-game.md) |
 | Nouveau gabarit d'illustration, ou nouvelle maquette | `api/app/vision/art_box.py` **et** `app/lib/src/features/scan/domain/art_box.dart` (jumeaux, un test lit le Dart) |
+| Écriture d'OCR ajoutée (japonais, chinois…) | `app/lib/src/config/ocr_script.dart` **et** `app/android/app/build.gradle.kts` (le greffon les déclare `compileOnly`) |
 | Nouvelle impasse mesurée | Section « impasses » de l'annexe concernée |
 | Nouveau secret / clé d'API | `../.deckhand-secrets/` (jamais dans le dépôt) |
 | Nouvelle commande, ou banc de mesure ajouté | [`docs/commandes.md`](./docs/commandes.md) |
 
 ## VIII. Contexte de Session
 
-- **Dernier focus** : les dos de cartes du calque servis par le bucket `card-art` (Magic, Yu-Gi-Oh), les six autres jeux constatés sans dos publié (#37).
-- **Focus immédiat** : —
+- **Dernier focus** : la reconnaissance ouverte aux autres langues — noms multilingues au catalogue Magic, modèle d'OCR réglable, nom affiché suivant une préférence de compte.
+- **Focus immédiat** : porter les langues aux catalogues Pokémon et Yu-Gi-Oh, puis publier le lot en attente.
