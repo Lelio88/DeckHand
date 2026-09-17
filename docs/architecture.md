@@ -970,6 +970,13 @@ qu'aucune carte n'occupe, et chaque hypothèse est un tirage de plus dans l'inde
 
 **Le choix se lit dans les trois lignes ci-dessous**, mesurées sur le même banc :
 
+> Les chiffres de cette section — comme les « 36 photos » qui reviennent plus
+> bas — datent d'avant l'entrée de la paire japonaise au banc, qui porte
+> `carte-seule/` à 41 photos dont 38 à carte unique. Ils comparent un avant et
+> un après sur une base figée ; les rejouer sur la base élargie changerait les
+> deux colonnes sans rien apprendre sur le choix qu'ils justifient. Le seul taux
+> qui décrit l'**état courant** est celui du banc sur appareil, plus haut.
+
 | | cartes justes (36 photos) | inventées sur carte réelle | inventées sur décor (12) |
 |---|---|---|---|
 | un seul sens (avant) | 3 | 2 | **0** |
@@ -1132,20 +1139,36 @@ sur le recours.
 | | photos | justes |
 |---|---|---|
 | conclu par le **nom** | 31 | **31** |
-| conclu par l'**illustration** (recours) | 5 | 1 |
-| **total** | **36** | **32** |
+| conclu par l'**illustration** (recours) | 7 | 3 |
+| **total** | **38** | **34** |
 
 **La lecture du nom porte la reconnaissance**, et elle ne se trompe jamais sur ce
-banc : trente-et-une photos sur trente-six concluent par elle, toutes justes, en
-une seconde environ. Le recours par l'illustration n'intervient que cinq fois et
-n'aboutit qu'une, pour deux à trois secondes.
+banc : trente-et-une photos sur trente-huit concluent par elle, toutes justes, en
+une seconde environ. Le recours par l'illustration intervient sept fois et
+aboutit trois, pour une à trois secondes.
 
-**Les cinq photos qui tombent au recours ont toutes la même cause** — le nom est
+**Cinq des sept photos qui tombent au recours ont la même cause** — le nom est
 illisible : un doigt le masque (trois fois), ou la carte est trop petite dans le
 champ (une fois) ; la cinquième est une carte couchée dont l'OCR n'a lu que deux
-lignes. Le partage des rôles fonctionne donc exactement comme prévu, et la valeur
-d'un chantier sur l'empreinte se chiffre : **au plus quatre photos sur
-trente-six**.
+lignes. Le partage des rôles fonctionne donc exactement comme prévu.
+
+**Les deux autres sont la paire japonaise**, et elles mesurent autre chose : la
+même carte — Nantuko Tracer, Judgment #125, premium — photographiée sous pochette
+puis sans. Son nom ne peut être lu dans aucun des deux cas, l'application
+n'embarquant que le modèle latin de ML Kit ; l'illustration est donc sa seule
+voie, et elle la trouve les deux fois. Mais pas de la même façon :
+
+| | rang | verdict |
+|---|---|---|
+| sous pochette | 3 sur 3 | à départager |
+| sans pochette | **1 sur 3** | **sûre** |
+
+C'est l'écart de huit bits mesuré en §gabarits, vu du bout de la chaîne. Ces deux
+photos tiennent aussi lieu de témoin pour un éventuel modèle japonais : le jour
+où il entre, elles doivent basculer en `voie=nom`.
+
+La valeur d'un chantier sur l'empreinte se chiffre donc : **au plus quatre photos
+sur trente-huit**.
 
 **Ce que cela relativise.** Les taux de la voie de l'empreinte — « 3 justes »,
 puis « 8 » après l'ouverture des orientations — décrivent un chemin que
