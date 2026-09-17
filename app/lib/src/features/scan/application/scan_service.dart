@@ -308,14 +308,19 @@ class ScanService {
     String? photoPath,
     int limit = 3,
   }) async {
-    // L'empreinte est calculée d'abord : elle ne dépend d'aucun service externe
-    // et sert de recours quel que soit le sort de la lecture du texte.
-    final art = _byArt(photoBytes, limit: limit);
+    // **Le texte passe devant, et il ne peut rien emporter avec lui.** L'ordre
+    // était inverse, au motif que l'empreinte ne dépend d'aucun service
+    // externe — vrai, mais le texte lui apprend quelque chose qu'elle ne peut
+    // pas deviner : de quel côté est le haut. `readLines` avale toute
+    // exception et rend une liste vide, si bien que l'empreinte reste calculée
+    // quoi qu'il arrive à la reconnaissance de texte.
+    //
     // Les lignes brutes sont gardées : le nom en sort, mais aussi la ligne
     // d'extension dont l'écran a besoin pour préciser l'édition.
     final lines = photoPath == null
         ? const <ReadLine>[]
         : await _reader.readLines(photoPath);
+    final art = _byArt(photoBytes, limit: limit, lines: lines);
     final names = cardNameCandidates(lines);
 
     // Même quand le nom n'a rien donné, le texte lu garde sa valeur : la carte
@@ -707,7 +712,13 @@ class ScanService {
   }
 
   /// Reconnaissance par l'illustration seule.
-  ScanOutcome _byArt(Uint8List photoBytes, {required int limit}) {
+  /// [lines] sert à écarter les hypothèses retournées, pas à chercher : voir
+  /// [_hypothesesPlausibles].
+  ScanOutcome _byArt(
+    Uint8List photoBytes, {
+    required int limit,
+    List<ReadLine> lines = const [],
+  }) {
     // `decodeImage` renvoie null sur un format inconnu, mais **lève** sur des
     // octets tronqués ou corrompus — les deux arrivent avec une photo
     // interrompue en cours d'écriture.
@@ -763,7 +774,11 @@ class ScanService {
             game: game.id,
           )
         : artHashCandidatesInQuad(decoded, quad, game: game.id);
-    final outcome = _index.searchAny(candidates, limit: limit);
+    final outcome = _index.searchAny(
+      candidates,
+      limit: limit,
+      eligibles: _hypothesesPlausibles(candidates.keys, lines: lines),
+    );
     _diagnoseArt(outcome, framed: quad != null, candidates: candidates);
 
     return ScanOutcome(
@@ -773,9 +788,38 @@ class ScanService {
       printIds: outcome.result.candidates
           .map((c) => c.printId)
           .toList(growable: false),
-      isConfident: outcome.result.isConfident,
+      isConfident: outcome.isConfident,
       frame: outcome.source?.frame,
     );
+  }
+
+  /// Les hypothèses qui peuvent l'emporter, le texte lu faisant foi.
+  ///
+  /// **Une carte dont on vient de lire le texte n'est pas à l'envers.** Les
+  /// gabarits sont essayés dans les deux sens parce qu'une photo peut l'être ;
+  /// mais la reconnaissance de texte ne déchiffre pas du latin retourné, si
+  /// bien qu'une seule ligne lue tranche la question. Sans cette borne, un
+  /// découpage absurde peut gagner par hasard : mesuré sur une carte japonaise
+  /// de 2002, le cadre **moderne lu à l'envers** tombait à 11 bits d'une carte
+  /// sans rapport, battant le bon gabarit qui plaçait la bonne carte à 14.
+  ///
+  /// **Écarter de l'élection n'est pas écarter tout court.** Les hypothèses
+  /// retournées restent cherchées et leurs candidats restent fusionnés ; elles
+  /// ne peuvent simplement plus emporter la confiance ni nommer le gabarit. Si
+  /// ce jugement se révélait faux — une lecture qui aboutirait malgré un
+  /// retournement — on perdrait la mention « sans réserve », jamais la carte.
+  ///
+  /// Rend `null` quand rien n'a été lu : on ne sait alors rien de
+  /// l'orientation, et les quatre hypothèses se valent comme avant.
+  Set<ArtHypothesis>? _hypothesesPlausibles(
+    Iterable<ArtHypothesis> toutes, {
+    required List<ReadLine> lines,
+  }) {
+    if (lines.isEmpty) return null;
+    final endroit = toutes
+        .where((h) => h.quarterTurns == 0)
+        .toSet();
+    return endroit.isEmpty ? null : endroit;
   }
 
   /// Consigne ce que l'illustration a donné, et pourquoi.
@@ -796,7 +840,8 @@ class ScanService {
   /// cherche dans le catalogue de l'autre jeu, ce qu'aucune des autres valeurs
   /// ne révélerait.
   void _diagnoseArt(
-    ({HashSearchResult result, ArtHypothesis? source}) outcome, {
+    ({HashSearchResult result, ArtHypothesis? source, bool isConfident})
+    outcome, {
     required bool framed,
     required Map<ArtHypothesis, ArtHash> candidates,
   }) {
@@ -812,7 +857,7 @@ class ScanService {
       'oracle_id': best?.oracleId,
       'distance': best?.distance,
       'margin': outcome.result.margin,
-      'confident': outcome.result.isConfident,
+      'confident': outcome.isConfident,
       'index': _index.length,
     });
     // **L'empreinte elle-même, en clair.** Sans elle, un échec ne se rejoue

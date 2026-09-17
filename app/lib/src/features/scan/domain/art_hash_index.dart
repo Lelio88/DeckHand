@@ -299,15 +299,25 @@ final Uint8List _popcount = Uint8List.fromList([
 /// l'emporte — un mauvais gabarit découpe l'illustration de travers et produit
 /// une empreinte éloignée de tout, il ne peut pas gagner par hasard.
 extension MultiQuerySearch on ArtHashIndex {
-  ({HashSearchResult result, K? source}) searchAny<K>(
+  ({HashSearchResult result, K? source, bool isConfident}) searchAny<K>(
     Map<K, ArtHash> queries, {
     int limit = 5,
+    Set<K>? eligibles,
   }) {
     HashSearchResult? best;
     K? source;
+    final parHypothese = <K, HashSearchResult>{};
 
     for (final entry in queries.entries) {
       final candidate = search(entry.value, limit: limit);
+      parHypothese[entry.key] = candidate;
+      // **Toutes les hypothèses sont cherchées, toutes ne peuvent pas régner.**
+      // [eligibles] écarte de l'élection celles que l'appelant sait
+      // invraisemblables — une carte lue à l'envers alors que son texte vient
+      // d'être déchiffré à l'endroit. Leurs candidats restent dans la fusion :
+      // si le jugement de l'appelant était faux, on perd la confiance, jamais
+      // la bonne réponse.
+      if (eligibles != null && !eligibles.contains(entry.key)) continue;
       final currentBest = best?.best?.distance;
       final candidateBest = candidate.best?.distance;
       if (candidateBest == null) continue;
@@ -317,6 +327,62 @@ extension MultiQuerySearch on ArtHashIndex {
       }
     }
 
-    return (result: best ?? const HashSearchResult([]), source: source);
+    // **La fusion se fait même sans vainqueur élu.** Quand aucune hypothèse
+    // éligible n'a rien trouvé, les autres ont peut-être quelque chose à
+    // proposer : rendre une liste vide priverait l'écran des candidats à
+    // départager, qui sont précisément ce qu'il sait faire d'un doute.
+    //
+    // **Les candidats des hypothèses perdantes ne sont plus jetés.** Seule la
+    // liste de l'hypothèse gagnante survivait, et c'est ce qui a fait échouer
+    // une reconnaissance pourtant correcte : sur une carte japonaise premium
+    // sous pochette, le bon gabarit plaçait la bonne carte **en première
+    // position** à 14 bits, quand un découpage absurde — cadre moderne lu à
+    // l'envers sur une carte de 2002 — tombait par hasard à 11 bits d'une
+    // autre. Le hasard gagnait, et la bonne réponse disparaissait de l'écran
+    // au lieu d'y figurer parmi les candidats à départager.
+    //
+    // La fusion garde le meilleur relevé de chaque carte, toutes hypothèses
+    // confondues : une carte ne peut plus être écartée parce qu'un *autre*
+    // découpage a mieux marché ailleurs.
+    // **Une hypothèse écartée de l'élection n'apporte pas non plus de
+    // candidats**, dès lors qu'une éligible a répondu. Mesuré sur la carte qui
+    // a motivé ce code : les trois candidats qui devançaient la bonne réponse
+    // venaient *tous* des découpages retournés. Les garder « au cas où »
+    // revenait à remplir la liste de bruit tiré au sort dans 51 000 empreintes,
+    // et à en chasser la seule entrée qui voulait dire quelque chose.
+    //
+    // Le repli reste entier : si aucune éligible n'a rien trouvé, on fusionne
+    // tout, car une liste de bruit vaut mieux qu'une liste vide.
+    final retenues = (best == null || eligibles == null)
+        ? parHypothese.entries
+        : parHypothese.entries.where((e) => eligibles.contains(e.key));
+
+    final meilleurParCarte = <String, HashMatch>{};
+    for (final resultat in retenues) {
+      for (final c in resultat.value.candidates) {
+        final vu = meilleurParCarte[c.oracleId];
+        if (vu == null || c.distance < vu.distance) {
+          meilleurParCarte[c.oracleId] = c;
+        }
+      }
+    }
+    final fusionnes = meilleurParCarte.values.toList()
+      ..sort((a, b) => a.distance.compareTo(b.distance));
+
+    return (
+      result: HashSearchResult(
+        fusionnes.take(limit).toList(growable: false),
+      ),
+      source: source,
+      // **La confiance reste celle de l'hypothèse gagnante, pas de la fusion.**
+      // La marge répond à « deux illustrations sont-elles trop proches pour
+      // qu'on les départage ? » — question qui n'a de sens qu'à découpage
+      // constant. Un concurrent né d'un autre gabarit ne dit rien de cette
+      // ambiguïté-là, et le compter ferait passer pour douteuses des
+      // reconnaissances franches : sans pochette, la même carte ressort à
+      // 6 bits avec 9 de marge, qu'un découpage absurde à 11 bits rabaisserait
+      // à 5 sans rien apporter.
+      isConfident: best?.isConfident ?? false,
+    );
   }
 }

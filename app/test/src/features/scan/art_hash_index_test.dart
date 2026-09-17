@@ -121,4 +121,103 @@ void main() {
       );
     });
   });
+
+  group('plusieurs hypothèses de découpage', () {
+    // **Le cas réel qui a motivé ces tests.** Une carte japonaise premium de
+    // 2002 : le bon gabarit plaçait la bonne carte en tête à 14 bits, un
+    // découpage absurde — cadre moderne lu à l'envers — tombait par hasard à
+    // 11 bits d'une carte sans rapport. Le hasard gagnait, et la liste du bon
+    // gabarit était jetée en entier : la bonne réponse disparaissait de
+    // l'écran au lieu d'y figurer parmi les candidats.
+    final index = ArtHashIndex.fromEntries([
+      (oracleId: 'cible', printId: 'cible', hash: h('0000000000000000')),
+      (oracleId: 'sosie', printId: 'sosie', hash: h('FFFFFFFFFFFFFFFF')),
+    ]);
+
+    /// À 14 bits de « cible », 50 de « sosie » — le bon gabarit, dégradé.
+    final bonGabarit = h('0000000000003FFF');
+
+    /// À 11 bits de « sosie », 53 de « cible » — le découpage absurde, chanceux.
+    final gabaritAbsurde = h('FFFFFFFFFFFFF800');
+
+    test('la carte du gabarit perdant reste dans les candidats', () {
+      final outcome = index.searchAny({
+        'legacy': bonGabarit,
+        'modern+2': gabaritAbsurde,
+      }, limit: 3);
+
+      expect(
+        outcome.result.candidates.map((c) => c.oracleId),
+        containsAll(<String>['sosie', 'cible']),
+        reason:
+            'une carte ne doit pas disparaître parce qu\'un autre découpage a '
+            'mieux marché ailleurs',
+      );
+    });
+
+    test('les candidats fusionnés restent classés par distance', () {
+      final outcome = index.searchAny({
+        'legacy': bonGabarit,
+        'modern+2': gabaritAbsurde,
+      }, limit: 3);
+
+      expect(outcome.result.candidates.first.oracleId, 'sosie');
+      expect(outcome.result.candidates.first.distance, 11);
+      expect(outcome.result.candidates[1].oracleId, 'cible');
+      expect(outcome.result.candidates[1].distance, 14);
+    });
+
+    test('la confiance est celle du gabarit vainqueur, pas de la fusion', () {
+      // Fusionnés, les deux premiers sont à 11 et 14 : 3 bits d'écart, sous
+      // `minConfidenceMargin`. Pris seul, le vainqueur a 42 bits de marge.
+      // Compter un concurrent né d'un *autre* découpage rendrait douteuses des
+      // reconnaissances franches.
+      final outcome = index.searchAny({
+        'legacy': bonGabarit,
+        'modern+2': gabaritAbsurde,
+      }, limit: 3);
+
+      expect(outcome.source, 'modern+2');
+      expect(outcome.isConfident, isTrue);
+    });
+
+    test('une hypothèse non éligible ne peut plus régner', () {
+      final outcome = index.searchAny(
+        {'legacy': bonGabarit, 'modern+2': gabaritAbsurde},
+        limit: 3,
+        eligibles: {'legacy'},
+      );
+
+      expect(outcome.source, 'legacy');
+      expect(
+        outcome.isConfident,
+        isFalse,
+        reason: '14 bits dépassent maxTrustedDistance',
+      );
+      expect(
+        outcome.result.candidates.first.oracleId,
+        'cible',
+        reason: 'la bonne carte reprend la tête dès que le bruit se tait',
+      );
+      // « sosie » reste présent, mais à la distance que lui donne le *bon*
+      // découpage — 50 bits — et non les 11 que lui valait le découpage
+      // absurde. C'est là toute la différence : le bruit ne la devance plus.
+      final sosie = outcome.result.candidates.firstWhere(
+        (c) => c.oracleId == 'sosie',
+      );
+      expect(sosie.distance, 50);
+    });
+
+    test('sans hypothèse éligible trouvée, les candidats survivent', () {
+      final outcome = index.searchAny(
+        {'modern+2': gabaritAbsurde},
+        limit: 3,
+        eligibles: const {'legacy'},
+      );
+
+      expect(outcome.source, isNull);
+      expect(outcome.isConfident, isFalse);
+      expect(outcome.result.candidates, isNotEmpty);
+    });
+  });
 }

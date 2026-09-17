@@ -250,8 +250,33 @@ un détail loin d'être anecdotique, le Pauper puisant dans toute l'histoire du
 jeu. Sur 50 cartes tirées au hasard, le gabarit moderne seul situe correctement
 l'illustration dans **42 cas**, contre **47** en essayant les deux et en retenant
 la meilleure correspondance. Le coût est négligeable : deux empreintes, deux
-recherches de quelques millisecondes. Un mauvais gabarit découpe de travers et
-produit une empreinte éloignée de tout : il ne peut pas l'emporter par hasard.
+recherches de quelques millisecondes.
+
+**Un mauvais gabarit peut l'emporter par hasard, et c'est mesuré.** Cette page
+affirmait le contraire — « une empreinte éloignée de tout ne peut pas gagner ».
+Sur une carte japonaise premium de 2002 photographiée sous pochette, le cadre
+**moderne lu à l'envers** — un découpage sans aucun sens sur cette carte — est
+tombé à **11 bits** d'une carte sans rapport, battant le bon gabarit qui plaçait
+la bonne carte en tête à 14. Dans un index de 51 000 empreintes, un rectangle
+arbitraire trouve toujours un voisin ; le raisonnement oubliait la taille de
+l'index.
+
+Trois règles en découlent, et l'arbitrage vit dans `ArtHashIndex.searchAny` :
+
+1. **Les candidats de toutes les hypothèses retenues sont fusionnés**, dédoublés
+   par carte en gardant la plus courte distance. Auparavant seule la liste de
+   l'hypothèse gagnante survivait, si bien qu'une bonne réponse première de sa
+   propre hypothèse disparaissait entièrement de l'écran.
+2. **Une hypothèse retournée ne peut ni régner ni proposer dès qu'un texte a été
+   lu** : la reconnaissance ne déchiffre pas du latin à l'envers, donc une seule
+   ligne lue prouve que la carte est à l'endroit. Le repli reste entier — sans
+   texte lu, les quatre hypothèses se valent comme avant.
+3. **La confiance reste celle de l'hypothèse gagnante**, jamais de la fusion. La
+   marge répond à « deux illustrations sont-elles trop proches pour qu'on les
+   départage ? », question qui n'a de sens qu'à découpage constant.
+
+Sur la photo qui a servi de mesure, la bonne carte passe de **quatrième et
+invisible** à **première des candidats proposés**.
 
 Les mises en page spéciales — `saga` (illustration verticale), `transform`,
 cartes pleine page — échappent aux deux gabarits. Elles relèveront de l'OCR du

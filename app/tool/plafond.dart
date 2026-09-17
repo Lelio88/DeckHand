@@ -241,7 +241,7 @@ Future<void> main(List<String> args) async {
               'printId': best.printId,
               'distance': best.distance,
               'margin': outcome.result.margin,
-              'confident': outcome.result.isConfident,
+              'confident': outcome.isConfident,
               'frame': outcome.source?.frame.name,
               'turns': outcome.source?.quarterTurns,
             },
@@ -265,7 +265,7 @@ Future<void> main(List<String> args) async {
                 'printId': meilleurAveugle.printId,
                 'distance': meilleurAveugle.distance,
                 'margin': aveugle.result.margin,
-                'confident': aveugle.result.isConfident,
+                'confident': aveugle.isConfident,
                 'frame': aveugle.source?.frame.name,
                 'turns': aveugle.source?.quarterTurns,
               },
@@ -290,7 +290,7 @@ Future<void> main(List<String> args) async {
                 'printId': meilleurGuide.printId,
                 'distance': meilleurGuide.distance,
                 'margin': guide.result.margin,
-                'confident': guide.result.isConfident,
+                'confident': guide.isConfident,
                 'frame': guide.source?.frame.name,
                 'turns': guide.source?.quarterTurns,
               },
@@ -300,7 +300,7 @@ Future<void> main(List<String> args) async {
     final verdict = best == null
         ? 'index muet'
         : '${best.distance} bits, marge ${outcome.result.margin}'
-              '${outcome.result.isConfident ? ', SANS RÉSERVE' : ''}';
+              '${outcome.isConfident ? ', SANS RÉSERVE' : ''}';
     print(
       '$nom : rapport ${quad.aspect.toStringAsFixed(3)}, '
       'couverture ${(100 * quad.area / (scene.width * scene.height)).round()} % '
