@@ -82,6 +82,46 @@ enum Game {
   /// mauvais dès qu'on lit une *liste* venue de la base — un identifiant inconnu
   /// y deviendrait silencieusement Magic, et le compte se retrouverait à
   /// déclarer un jeu qu'il n'a jamais coché. Là, il faut pouvoir l'écarter.
+  /// Jeux retirés du produit, **temporairement** (#48).
+  ///
+  /// **Ce n'est pas un choix de produit, c'est une contrainte d'hébergement.**
+  /// Supabase a signalé le 2026-09-17 que la base occupait 855 Mo pour 500
+  /// autorisés sur le plan gratuit, et annonce le passage en lecture seule
+  /// au-delà — ce qui arrêterait toute écriture, collection comprise. Le corpus
+  /// de decks pesait 53 % de la base, dont ~262 Mo pour les 23 574 decks
+  /// Pokémon, contre ~18 Mo pour les 1 395 decks Magic.
+  ///
+  /// **Les cinq retirés sont ceux dont personne n'a les cartes.** La promesse
+  /// « que puis-je construire ? » suppose une collection en face ; la collection
+  /// réelle est à 100 % Magic. Magic, Riftbound et Wankul restent — les deux
+  /// premiers portent la promesse du produit, le troisième est ingéré sous
+  /// autorisation nominative et pèse moins d'un mégaoctet.
+  ///
+  /// **Vider ce `Set` remet tout**, c'est la seule ligne à toucher côté
+  /// application ; les catalogues se réingèrent par leurs connecteurs, rien
+  /// n'est perdu. Son jumeau côté serveur est `JEUX_RETIRES`
+  /// (`api/app/ingestion/jeux_actifs.py`), qui empêche une ingestion de les
+  /// faire revenir sans qu'on l'ait décidé.
+  ///
+  /// [values] reste entier à dessein : une préférence enregistrée sur un jeu
+  /// retiré doit continuer à se lire, faute de quoi un compte qui avait coché
+  /// Pokémon verrait sa liste se corrompre en silence.
+  static const retires = <Game>{
+    Game.yugioh,
+    Game.pokemon,
+    Game.swu,
+    Game.onepiece,
+    Game.lorcana,
+  };
+
+  /// Les jeux qu'on propose à l'utilisateur, dans l'ordre de [values].
+  ///
+  /// C'est cette liste que lisent les écrans, jamais [values] : un jeu sans
+  /// catalogue en base n'a rien à faire dans un sélecteur, il n'y produirait
+  /// qu'une recherche vide sans expliquer pourquoi.
+  static List<Game> get actifs =>
+      values.where((g) => !retires.contains(g)).toList();
+
   static Game? tryFromId(String? id) {
     for (final game in Game.values) {
       if (game.id == id) return game;

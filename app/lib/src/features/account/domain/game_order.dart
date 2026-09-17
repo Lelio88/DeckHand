@@ -1,8 +1,8 @@
 /// L'ordre dans lequel le sélecteur présente les jeux.
 ///
-/// **Le sélecteur alignait les huit jeux dans l'ordre du code**, le même pour
-/// tout le monde. Quelqu'un qui ne joue qu'à Pokémon passait devant sept jeux
-/// qui ne le concernent pas, à chaque fois qu'il ouvrait la page. Les jeux
+/// **Le sélecteur alignait tous les jeux dans l'ordre du code**, le même pour
+/// tout le monde. Quelqu'un qui n'en joue qu'un passait devant tous les autres
+/// à chaque fois qu'il ouvrait la page. Les jeux
 /// déclarés à l'inscription remontent donc en tête, dans l'ordre où ils ont été
 /// cochés, et les autres restent atteignables sous un repli.
 ///
@@ -26,7 +26,7 @@ typedef GameOrder = ({List<Game> played, List<Game> others});
 ///
 /// [declared] vaut `null` quand la question n'a jamais été posée, et la liste
 /// vide quand elle l'a été et que l'utilisateur l'a passée. **Les deux rendent
-/// le même écran** — les huit jeux à plat — et c'est voulu : replier une section
+/// le même écran** — tous les jeux servis à plat — et c'est voulu : replier une section
 /// vide sous « Autres jeux » n'apprendrait rien à personne. La distinction sert
 /// ailleurs, pour décider si l'étape de choix doit s'ouvrir.
 ///
@@ -34,17 +34,30 @@ typedef GameOrder = ({List<Game> played, List<Game> others});
 /// déduplique pas la colonne — l'ordre y est l'information, pas l'ensemble —, et
 /// deux tuiles identiques seraient un défaut visible.
 ///
+/// **Un jeu retiré du produit n'apparaît dans aucune des deux moitiés** (#48).
+/// Il n'a plus de catalogue en base : le montrer ouvrirait sur une recherche
+/// vide sans dire pourquoi. Le filtre porte aussi sur [declared], car un compte
+/// qui avait coché Pokémon avant le retrait le verrait sinon remonter **en
+/// tête** de sa page — la place la plus visible pour le seul jeu qui ne
+/// répondrait pas.
+///
+/// **La préférence en base n'est pas réécrite pour autant** : elle garde les
+/// jeux déclarés tels quels, et le jour où ils reviennent, la page les retrouve
+/// dans l'ordre choisi. Filtrer à l'affichage plutôt qu'à l'enregistrement est
+/// ce qui rend le retrait réversible sans rien demander à l'utilisateur.
+///
 /// ```dart
-/// final ordre = orderedGames([Game.pokemon]);
-/// // ordre.played → [Game.pokemon]
-/// // ordre.others → les sept autres, dans l'ordre de l'application
+/// final ordre = orderedGames([Game.riftbound]);
+/// // ordre.played → [Game.riftbound]
+/// // ordre.others → les autres jeux servis, dans l'ordre de l'application
 /// ```
 GameOrder orderedGames(List<Game>? declared) {
   final played = <Game>[];
   for (final game in declared ?? const <Game>[]) {
+    if (Game.retires.contains(game)) continue;
     if (!played.contains(game)) played.add(game);
   }
 
-  final others = Game.values.where((g) => !played.contains(g)).toList();
+  final others = Game.actifs.where((g) => !played.contains(g)).toList();
   return (played: played, others: others);
 }

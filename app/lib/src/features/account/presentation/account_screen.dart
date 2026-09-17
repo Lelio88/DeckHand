@@ -466,14 +466,15 @@ class _GamePicker extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          // **Ce texte se périme à chaque jeu ajouté**, et il l'a fait : il
-          // annonçait « les deux jeux » quand il y en avait huit. Le nombre
-          // est donc calculé plutôt qu'écrit.
+          // **Ce texte se périme à chaque jeu ajouté ou retiré**, et il l'a
+          // fait deux fois : il annonçait « les deux jeux » quand il y en
+          // avait huit, puis « sept se valorisent » quand cinq venaient
+          // d'être déchargés (#48). Les deux nombres sont donc calculés.
           "Le catalogue, la reconnaissance et les suggestions ne sont propres "
-          "à aucun jeu : les ${Game.values.length} se saisissent et se rangent "
-          "de la même façon. Sept se valorisent et se confrontent à des decks "
-          "réels ; Wankul se construit sur son règlement, aucun index ne le "
-          "cotant ni ne publiant ses listes. Une réserve sur les prix — une "
+          "à aucun jeu : les ${Game.actifs.length} se saisissent et se rangent "
+          "de la même façon. ${Game.actifs.length - 1} se valorisent et se "
+          "confrontent à des decks réels ; Wankul se construit sur son "
+          "règlement, aucun index ne le cotant ni ne publiant ses listes. Une réserve sur les prix — une "
           "carte cotée seulement en brillante compte pour zéro si on la "
           "possède en ordinaire, faute de cote et non par oubli.",
           style: theme.textTheme.bodySmall?.copyWith(

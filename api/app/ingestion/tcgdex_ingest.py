@@ -57,6 +57,7 @@ import psycopg
 from app.config import SupabaseConfig
 from app.ingestion.scryfall_parse import normalize_name
 from app.ingestion.state import last_version, record
+from app.ingestion.jeux_actifs import exiger_actif
 
 ENDPOINT = "https://api.tcgdex.net/v2/graphql"
 USER_AGENT = (
@@ -485,6 +486,8 @@ def run(force: bool) -> int:
 
 
 def main() -> int:
+    # Le catalogue pokemon est déchargé le temps du quota (#48).
+    exiger_actif("pokemon")
     parser = argparse.ArgumentParser(description="Catalogue Pokémon (TCGdex)")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()

@@ -59,6 +59,7 @@ import psycopg
 from app.config import SupabaseConfig
 from app.ingestion.scryfall_parse import normalize_name
 from app.ingestion.state import last_version, record
+from app.ingestion.jeux_actifs import exiger_actif
 
 BASE = "https://db.ygoprodeck.com/api/v7/cardinfo.php"
 USER_AGENT = (
@@ -377,6 +378,8 @@ def write_search_names(
 
 
 def main() -> int:
+    # Le catalogue yugioh est déchargé le temps du quota (#48).
+    exiger_actif("yugioh")
     force = "--force" in sys.argv
 
     print("Rapatriement du catalogue Yu-Gi-Oh…")

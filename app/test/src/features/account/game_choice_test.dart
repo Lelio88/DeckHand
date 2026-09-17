@@ -1,7 +1,7 @@
 /// Le choix des jeux joués, et ce qu'il change au sélecteur.
 ///
-/// **Ce que ces tests protègent.** La promesse est « si je ne joue qu'à Pokémon,
-/// Pokémon est en premier », et elle se tient en deux endroits qui peuvent
+/// **Ce que ces tests protègent.** La promesse est « si je ne joue qu'à un jeu,
+/// ce jeu est en premier », et elle se tient en deux endroits qui peuvent
 /// mentir séparément : l'écran de choix, qui doit **enregistrer l'ordre coché**,
 /// et le sélecteur, qui doit **le rendre**. Un écran qui affiche le bon ordre en
 /// écrivant le mauvais serait invisible jusqu'au prochain lancement.
@@ -104,44 +104,47 @@ void main() {
     testWidgets('met les jeux déclarés devant et replie les autres', (
       tester,
     ) async {
-      await pumpPicker(tester, declared: const [Game.pokemon]);
+      await pumpPicker(tester, declared: const [Game.riftbound]);
 
       // Un repli fermé ne construit pas ses tuiles : ce qui est trouvé est
       // exactement ce que l'utilisateur voit.
-      expect(tileNames(tester), ['Pokémon']);
-      expect(find.text('Autres jeux (7)'), findsOneWidget);
+      expect(tileNames(tester), ['Riftbound']);
+      expect(
+        find.text('Autres jeux (${Game.actifs.length - 1})'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('l\'ordre déclaré est celui de la page', (tester) async {
       await pumpPicker(
         tester,
-        declared: const [Game.wankul, Game.magic, Game.lorcana],
+        declared: const [Game.wankul, Game.magic, Game.riftbound],
       );
 
       expect(tileNames(tester), [
         'Wankul',
         'Magic: The Gathering',
-        'Disney Lorcana',
+        'Riftbound',
       ]);
     });
 
     testWidgets('le repli rend les autres jeux atteignables', (tester) async {
       // **Relégués, jamais masqués.** Un jeu décoché garde une collection et
       // des classeurs ; le rendre introuvable enfermerait l'utilisateur.
-      await pumpPicker(tester, declared: const [Game.pokemon]);
-      await tester.tap(find.text('Autres jeux (7)'));
+      await pumpPicker(tester, declared: const [Game.riftbound]);
+      await tester.tap(find.text('Autres jeux (${Game.actifs.length - 1})'));
       await tester.pumpAndSettle();
 
-      expect(tileNames(tester).length, Game.values.length);
+      expect(tileNames(tester).length, Game.actifs.length);
       expect(tileNames(tester), contains('Magic: The Gathering'));
     });
 
-    testWidgets('sans préférence, les huit jeux restent à plat', (
+    testWidgets('sans préférence, les jeux servis restent à plat', (
       tester,
     ) async {
       await pumpPicker(tester, declared: null);
 
-      expect(tileNames(tester).length, Game.values.length);
+      expect(tileNames(tester).length, Game.actifs.length);
       expect(find.textContaining('Autres jeux'), findsNothing);
     });
   });
@@ -152,13 +155,13 @@ void main() {
     ) async {
       await pumpChoice(tester);
 
-      await tester.tap(find.text('Pokémon'));
+      await tester.tap(find.text('Riftbound'));
       await tester.pump();
       await tester.tap(find.text('Magic: The Gathering'));
       await tester.pump();
 
       final pokemon = find.ancestor(
-        of: find.text('Pokémon'),
+        of: find.text('Riftbound'),
         matching: find.byType(GameTile),
       );
       expect(
@@ -180,29 +183,29 @@ void main() {
     ) async {
       final profile = await pumpChoice(tester);
 
-      await tester.tap(find.text('Pokémon'));
+      await tester.tap(find.text('Riftbound'));
       await tester.pump();
       await tester.tap(find.text('Magic: The Gathering'));
       await tester.pump();
       await tester.tap(find.text('Continuer avec 2 jeux'));
       await tester.pumpAndSettle();
 
-      expect(profile.saved.single, [Game.pokemon, Game.magic]);
+      expect(profile.saved.single, [Game.riftbound, Game.magic]);
     });
 
     testWidgets('le premier jeu déclaré devient celui qu\'on ouvre', (
       tester,
     ) async {
       // Sans cela, on ouvrirait l'application sur Magic après avoir déclaré ne
-      // jouer qu'à Pokémon — la promesse tomberait au premier lancement.
+      // jouer qu'à un seul — la promesse tomberait au premier lancement.
       await pumpChoice(tester);
 
-      await tester.tap(find.text('Pokémon'));
+      await tester.tap(find.text('Riftbound'));
       await tester.pump();
-      await tester.tap(find.text('Continuer avec Pokémon'));
+      await tester.tap(find.text('Continuer avec Riftbound'));
       await tester.pumpAndSettle();
 
-      expect(currentGame(tester), Game.pokemon);
+      expect(currentGame(tester), Game.riftbound);
     });
 
     testWidgets('décocher puis recocher remet le jeu en dernier', (
@@ -210,18 +213,18 @@ void main() {
     ) async {
       final profile = await pumpChoice(tester);
 
-      await tester.tap(find.text('Pokémon'));
+      await tester.tap(find.text('Riftbound'));
       await tester.pump();
       await tester.tap(find.text('Magic: The Gathering'));
       await tester.pump();
-      await tester.tap(find.text('Pokémon')); // décoché
+      await tester.tap(find.text('Riftbound')); // décoché
       await tester.pump();
-      await tester.tap(find.text('Pokémon')); // recoché, donc second
+      await tester.tap(find.text('Riftbound')); // recoché, donc second
       await tester.pump();
       await tester.tap(find.text('Continuer avec 2 jeux'));
       await tester.pumpAndSettle();
 
-      expect(profile.saved.single, [Game.magic, Game.pokemon]);
+      expect(profile.saved.single, [Game.magic, Game.riftbound]);
     });
 
     testWidgets('« Plus tard » enregistre une réponse vide', (tester) async {
@@ -253,9 +256,9 @@ void main() {
       // tard » ouvert.
       await pumpChoice(tester, saveError: Exception('réseau'));
 
-      await tester.tap(find.text('Pokémon'));
+      await tester.tap(find.text('Riftbound'));
       await tester.pump();
-      await tester.tap(find.text('Continuer avec Pokémon'));
+      await tester.tap(find.text('Continuer avec Riftbound'));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Choix non enregistré'), findsOneWidget);
@@ -266,10 +269,10 @@ void main() {
     testWidgets('rouvert pour modifier, il repart du choix enregistré', (
       tester,
     ) async {
-      await pumpChoice(tester, initial: const [Game.lorcana]);
+      await pumpChoice(tester, initial: const [Game.wankul]);
 
       final lorcana = find.ancestor(
-        of: find.text('Disney Lorcana'),
+        of: find.text('Wankul'),
         matching: find.byType(GameTile),
       );
       expect(

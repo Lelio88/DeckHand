@@ -96,5 +96,5 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 
 ## VIII. Contexte de Session
 
-- **Dernier focus** : la reconnaissance ouverte aux autres langues — noms multilingues au catalogue Magic, modèle d'OCR réglable, nom affiché suivant une préférence de compte.
-- **Focus immédiat** : porter les langues aux catalogues Pokémon et Yu-Gi-Oh, puis publier le lot en attente.
+- **Dernier focus** : le scan relit dans une autre écriture quand le nom ne sort pas, les œuvres sans impression en/fr entrent à l'index, et le catalogue est réduit à Magic, Riftbound et Wankul pour tenir dans le quota Supabase (#48).
+- **Focus immédiat** : les gabarits manquants mesurés au banc — `full_art` (3 702 impressions Magic) et `split` (135 cartes), seules causes restantes d'échec du scan.

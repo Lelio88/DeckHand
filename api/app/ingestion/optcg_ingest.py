@@ -56,6 +56,7 @@ import psycopg
 
 from app.config import SupabaseConfig
 from app.ingestion.scryfall_parse import normalize_name
+from app.ingestion.jeux_actifs import exiger_actif
 
 GAME = "onepiece"
 
@@ -485,6 +486,8 @@ def run() -> None:
 
 
 def main() -> None:
+    # Le catalogue onepiece est déchargé le temps du quota (#48).
+    exiger_actif("onepiece")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.parse_args()
     run()

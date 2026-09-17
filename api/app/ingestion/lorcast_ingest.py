@@ -86,6 +86,7 @@ from app.ingestion.scryfall_parse import normalize_name
 from app.ingestion.state import record
 from app.ingestion.tcgcsv_prices import USER_AGENT, euro_rate, to_euros
 from app.measure.lorcast_probe import Probe
+from app.ingestion.jeux_actifs import exiger_actif
 
 GAME = "lorcana"
 SOURCE = "lorcast_ingest"
@@ -477,6 +478,8 @@ def run(*, refresh: bool = False) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Le catalogue lorcana est déchargé le temps du quota (#48).
+    exiger_actif("lorcana")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--refresh", action="store_true")
     args = parser.parse_args(argv)

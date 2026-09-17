@@ -118,7 +118,7 @@ class _PickGamesScreenState extends ConsumerState<PickGamesScreen> {
                   spacing: 10,
                   aspectRatio: 0.82,
                   children: [
-                    for (final game in Game.values)
+                    for (final game in Game.actifs)
                       GameTile(
                         name: game.label,
                         detail: gameDetail(game),

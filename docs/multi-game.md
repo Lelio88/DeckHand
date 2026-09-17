@@ -1,9 +1,25 @@
 # Multi-jeu — accueil des jeux qui ne sont pas Magic
 
-Annexe de [`architecture.md`](./architecture.md). Cinq jeux partagent
-aujourd'hui la base de DeckHand : **Magic**, **Riftbound** (le TCG League of
-Legends de Riot), **Yu-Gi-Oh**, **Pokémon** et **Wankul**. Ce document dit ce que
-chacun a demandé, et ce que le modèle a absorbé sans se déformer.
+Annexe de [`architecture.md`](./architecture.md). Le modèle porte huit jeux ;
+**trois sont servis aujourd'hui** — **Magic**, **Riftbound** (le TCG League of
+Legends de Riot) et **Wankul**. Ce document dit ce que chacun a demandé, et ce
+que le modèle a absorbé sans se déformer.
+
+> **Cinq catalogues sont déchargés, temporairement** — Pokémon, Yu-Gi-Oh, Star
+> Wars Unlimited, One Piece et Lorcana ([#48](https://github.com/Lelio88/DeckHand/issues/48)).
+> **C'est une contrainte d'hébergement, pas un choix de produit** : la base
+> occupait 855 Mo pour 500 autorisés sur le plan gratuit Supabase, qui annonce la
+> lecture seule au-delà — ce qui arrêterait l'ajout à la collection. Le corpus de
+> decks pesait 53 % de la base, dont ~262 Mo pour les 23 574 decks Pokémon contre
+> ~18 Mo pour les 1 395 decks Magic ; les cinq retirés sont ceux dont personne
+> n'a les cartes, la promesse « que puis-je construire ? » supposant une
+> collection en face.
+>
+> **Tout ce qui suit reste vrai d'eux** : les connecteurs, les gabarits et les
+> mesures sont intacts, seules les données sont sorties. Remettre un jeu tient à
+> deux lignes — `JEUX_RETIRES` (`api/app/ingestion/jeux_actifs.py`) et
+> `Game.retires` (`app/lib/src/config/selected_game.dart`) — puis à relancer son
+> connecteur.
 
 Quatre bouclent la promesse entière — collection, prix, decks constructibles.
 **Wankul n'en boucle qu'une partie, et c'est structurel** : ni marché secondaire

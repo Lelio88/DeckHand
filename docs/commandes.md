@@ -164,6 +164,44 @@ cd api && .venv/Scripts/python -m app.measure.art_probe <hex> --game riftbound -
 cd api && .venv/Scripts/python -m app.measure.illustrations_exclusives
 ```
 
+## Jeux servis, et jeux déchargés (#48)
+
+Cinq catalogues sont sortis de la base pour tenir dans le quota Supabase. Leurs
+connecteurs refusent de tourner tant qu'ils figurent dans `JEUX_RETIRES` — sans
+ce garde, une ingestion lancée par habitude ramènerait en quelques minutes les
+centaines de mégaoctets qu'on vient de rendre.
+
+```bash
+# Ce qui est servi, ce qui ne l'est pas — ne supprime rien
+cd api && .venv/Scripts/python -m app.ingestion.jeux_actifs
+
+# Décharger ce qui reste en base des jeux retirés — long, et reprenable
+cd api && .venv/Scripts/python -u -m app.ingestion.jeux_actifs --purger
+
+# Rendre la place au disque — SANS ÇA, LE QUOTA NE BOUGE PAS
+cd api && .venv/Scripts/python -u -m app.ingestion.jeux_actifs --compacter
+```
+
+**Supprimer ne rend rien au disque.** Postgres marque l'espace réutilisable mais
+garde la taille du fichier : `pg_database_size`, et donc le quota que Supabase
+mesure, ne bouge pas d'un octet avant un `VACUUM FULL`. Le compactage le joue
+table par table — il pose un verrou exclusif sur celle qu'il réécrit, ce qui est
+sans conséquence à quelques utilisateurs mais serait une coupure sur une base
+ouverte.
+
+**Par lots, et pour une raison mesurée.** Le rôle d'ingestion tourne avec
+`statement_timeout = 2min` : une première version tenait les deux millions de
+lignes dans une seule transaction, a couru trente minutes, puis le `DELETE` sur
+`cards` a dépassé le délai — et le *rollback* a tout repris. Chaque lot est donc
+commité, et relancer la commande continue là où elle s'est arrêtée. Le `-u` n'est
+pas décoratif : sans lui, la progression n'apparaît qu'à la fin.
+
+**Pour tout remettre** : vider `JEUX_RETIRES` (`api/app/ingestion/jeux_actifs.py`)
+et `Game.retires` (`app/lib/src/config/selected_game.dart`), puis relancer les
+connecteurs des jeux concernés (§ par jeu ci-dessous) et
+`app.vision.index_builder`. Vérifier le quota **avant** : les remettre tels quels
+relève la base au-delà de 800 Mo.
+
 ## 6. Bancs par jeu
 
 Un jeu accueilli se mesure avant d'être ingéré : périmètre, identité, gabarits d'illustration. Voir [`multi-game.md`](./multi-game.md).

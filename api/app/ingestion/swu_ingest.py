@@ -67,6 +67,7 @@ import psycopg
 
 from app.config import SupabaseConfig
 from app.ingestion.scryfall_parse import normalize_name
+from app.ingestion.jeux_actifs import exiger_actif
 
 GAME = "swu"
 
@@ -642,6 +643,8 @@ def run(force: bool) -> None:
 
 
 def main() -> None:
+    # Le catalogue swu est déchargé le temps du quota (#48).
+    exiger_actif("swu")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--force", action="store_true", help="réécrit sans condition")
     args = parser.parse_args()
