@@ -29,6 +29,19 @@ import '../domain/card_hit.dart';
 /// Mesuré par `api/app/measure` sous le rôle réel : la connexion
 /// d'ingestion est propriétaire et ne porte pas ce délai, elle aurait donc
 /// montré une fonction parfaitement saine.
+///
+/// **Ne pas remesurer juste après une ingestion.** `card_search_names` est
+/// passée de 145 189 à 348 518 lignes en accueillant dix-huit langues, et le
+/// relevé fait dans la foulée donnait 3,28 s pour 68 noms — de quoi conclure à
+/// une régression de la taille de la table. Repris le lendemain, base au repos :
+/// 1,44 s, la valeur d'avant. C'était le cache, pas les lignes.
+///
+/// Deux pièges dans ce banc, tous deux payés :
+/// - **réinterroger les mêmes noms** mesure un cache que la mesure précédente
+///   vient de remplir, et déclare toujours que tout va bien ;
+/// - **ne pas alterner l'ordre** de deux variantes comparées fait gagner celle
+///   qui passe en second, quelle qu'elle soit. Un protocole sans alternance a
+///   annoncé « -63 % » pour un filtre qui, alterné, en rend 4.
 const int _bulkBatch = 50;
 
 class CardRepository {
