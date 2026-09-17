@@ -186,6 +186,15 @@ cd api && .venv/Scripts/python -u -m app.ingestion.jeux_actifs --purger
 cd api && .venv/Scripts/python -u -m app.ingestion.jeux_actifs --compacter
 ```
 
+**Une ingestion regonfle la base d'une centaine de mégaoctets.** Mesuré le
+2026-09-17 : 243 Mo avant un passage Magic complet, **346 Mo après**, 243 Mo
+après compactage. Les *upserts* laissent autant de lignes mortes qu'ils
+réécrivent de lignes — `card_prints` à elle seule passe de 66 à 127 Mo. Cet
+espace est réutilisable par l'ingestion suivante, donc il ne s'additionne pas à
+chaque passage ; mais **la marge au quota se lit sur le pic, pas sur le creux**,
+et le plan gratuit plafonne à 500 Mo. Compacter après une ingestion est donc la
+règle, pas une option.
+
 **Supprimer ne rend rien au disque.** Postgres marque l'espace réutilisable mais
 garde la taille du fichier : `pg_database_size`, et donc le quota que Supabase
 mesure, ne bouge pas d'un octet avant un `VACUUM FULL`. Le compactage le joue
