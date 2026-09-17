@@ -50,7 +50,13 @@ enum OcrScript {
     'japanese',
     'Japonaise',
     'Japonais et kanji — lit aussi l\'écriture latine',
-  );
+  ),
+  chinese(
+    'chinese',
+    'Chinoise',
+    'Chinois simplifié et traditionnel — lit aussi le latin',
+  ),
+  korean('korean', 'Coréenne', 'Hangul — lit aussi l\'écriture latine');
 
   const OcrScript(this.id, this.label, this.blurb);
 
@@ -62,6 +68,41 @@ enum OcrScript {
   /// Le japonais mentionne qu'il lit **aussi** le latin : sans cela, le choisir
   /// ressemble à renoncer au français, et personne ne le cocherait.
   final String blurb;
+
+  /// L'écriture à réessayer quand celle-ci lit sans rien retrouver.
+  ///
+  /// **Le déclencheur n'est pas « rien lu », c'est « lu sans succès ».** Sur une
+  /// carte japonaise, le modèle latin lit très bien ce qui est en caractères
+  /// latins — `Illus. Greg Staples`, le copyright, le numéro de collection —
+  /// mais aucun de ces textes n'est un nom de carte. Le scan tombait donc au
+  /// recours par illustration alors que le modèle japonais, déjà empaqueté,
+  /// aurait lu le nom.
+  ///
+  /// Le second passage ne coûte rien au cas courant : une carte française
+  /// trouve son nom du premier coup et n'y arrive jamais. Il ne se paie que là
+  /// où l'alternative était d'échouer.
+  ///
+  /// **On ne se replie jamais vers le latin.** Chaque modèle non latin le
+  /// couvre déjà — `LATIN_AND_JAPANESE`, `LATIN_AND_CHINESE`,
+  /// `LATIN_AND_KOREAN` — si bien qu'un repli ne perd jamais ce que l'écriture
+  /// courante savait lire, et que revenir au latin n'apporterait rien.
+  ///
+  /// L'ordre suit la couverture du catalogue Magic, seul à porter ces
+  /// écritures : `ja` 29 979 noms, `zhs` 21 166, `zht` 12 472, `ko` 10 574. Le
+  /// modèle chinois couvre le simplifié et le traditionnel d'un seul tenant.
+  ///
+  /// **Chaque repli coûte une passe d'OCR, et seulement en cas d'échec.** Une
+  /// carte dont le nom est trouvé du premier coup n'en paie aucune. Le pire cas
+  /// — une carte qu'aucune écriture ne sait lire — les paie toutes avant de
+  /// tomber sur l'illustration, qui l'attendait de toute façon.
+  List<OcrScript> get fallbacks => [
+    for (final autre in const [
+      OcrScript.japanese,
+      OcrScript.chinese,
+      OcrScript.korean,
+    ])
+      if (autre != this) autre,
+  ];
 
   /// L'écriture portant cet identifiant, latin à défaut.
   ///

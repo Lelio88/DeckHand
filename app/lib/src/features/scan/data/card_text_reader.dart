@@ -36,6 +36,8 @@ import '../domain/card_name_text.dart';
 /// native jusqu'à l'écran de réglage.
 TextRecognitionScript _mlkit(OcrScript script) => switch (script) {
   OcrScript.japanese => TextRecognitionScript.japanese,
+  OcrScript.chinese => TextRecognitionScript.chinese,
+  OcrScript.korean => TextRecognitionScript.korean,
   OcrScript.latin => TextRecognitionScript.latin,
 };
 
@@ -193,6 +195,22 @@ class CardTextReader {
     _recognizer = null;
   }
 }
+
+/// Le lecteur de secours, quand l'écriture choisie lit sans rien retrouver.
+///
+/// Rendus dans l'ordre où les essayer — voir [OcrScript.fallbacks]. Chacun
+/// porte son propre reconnaisseur, ouvert paresseusement : un lecteur qui n'est
+/// jamais sollicité ne charge aucun modèle.
+final fallbackCardTextReadersProvider = Provider<List<CardTextReader>>((ref) {
+  final replis = ref.watch(selectedOcrScriptProvider).fallbacks;
+  final readers = [for (final script in replis) CardTextReader(script: script)];
+  ref.onDispose(() {
+    for (final reader in readers) {
+      reader.dispose();
+    }
+  });
+  return readers;
+});
 
 final cardTextReaderProvider = Provider<CardTextReader>((ref) {
   // `watch` et non `read` : changer d'écriture dans les réglages doit

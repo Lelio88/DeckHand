@@ -1,17 +1,20 @@
-# Reconnaissance de texte ML Kit — alphabets non embarqués.
+# Reconnaissance de texte ML Kit — l'écriture que nous n'embarquons pas.
 #
-# Le plugin `google_mlkit_text_recognition` référence les modules chinois,
-# japonais, coréen et devanagari, que nous n'incluons pas : DeckHand ne lit que
-# l'alphabet latin, et chaque modèle supplémentaire alourdit l'APK de plusieurs
-# mégaoctets pour des cartes qui n'existent pas en français ni en anglais.
+# Le plugin `google_mlkit_text_recognition` référence quatre modules non latins
+# en `compileOnly` : chinois, japonais, coréen et devanagari. Nous empaquetons
+# les trois premiers (`build.gradle.kts`) ; **le devanagari, non** — aucun de
+# nos jeux n'édite en hindi.
 #
-# R8 refuse de compiler tant que ces classes absentes ne sont pas explicitement
-# tolérées. Les ignorer est sans risque : le code qui les instancie n'est jamais
-# atteint, `TextRecognitionScript.latin` étant seul utilisé.
--dontwarn com.google.mlkit.vision.text.chinese.**
+# R8 refuse de compiler tant que les classes absentes ne sont pas explicitement
+# tolérées. L'ignorer est sans risque : le code qui les instancie n'est jamais
+# atteint, `OcrScript` ne proposant pas cette écriture.
+#
+# **Cette liste suit `build.gradle.kts` et ne le devance pas.** Un `-dontwarn`
+# sur un module présent ne casse rien, mais il étouffe les avertissements qui le
+# concernent — précisément ceux qu'on voudrait lire le jour où R8 a quelque
+# chose à dire sur un modèle qu'on livre. Empaqueter une écriture, c'est donc la
+# retirer d'ici dans le même geste.
 -dontwarn com.google.mlkit.vision.text.devanagari.**
--dontwarn com.google.mlkit.vision.text.japanese.**
--dontwarn com.google.mlkit.vision.text.korean.**
 
 # Les registrars de ML Kit, que R8 ne voit appelés nulle part.
 #

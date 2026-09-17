@@ -102,23 +102,29 @@ kotlin {
 }
 
 dependencies {
-    // **Le modèle japonais de ML Kit, et pourquoi il est ici et pas ailleurs.**
+    // **Les modèles d'écriture de ML Kit, et pourquoi ils sont ici.**
     // Le greffon `google_mlkit_text_recognition` déclare les quatre modèles non
     // latins en `compileOnly` : son API les expose, aucun n'est empaqueté. Sans
-    // cette ligne, demander `TextRecognitionScript.japanese` échoue à
+    // ces lignes, demander `TextRecognitionScript.japanese` échoue à
     // l'exécution.
     //
-    // Il ne s'ajoute pas au modèle latin, il le remplace :
-    // `JapaneseTextRecognizerOptions` déclare `LATIN_AND_JAPANESE`, donc il lit
-    // aussi les cartes françaises et anglaises. Coût annoncé par Google : ~4 Mo
-    // par écriture et par architecture — et l'AAB ne livre que l'architecture
-    // de l'appareil.
+    // Chacun ne s'ajoute pas au modèle latin, il le remplace :
+    // `JapaneseTextRecognizerOptions` déclare `LATIN_AND_JAPANESE`, et ses
+    // homologues chinois et coréen font de même — ils lisent donc aussi les
+    // cartes françaises et anglaises. Mesuré sur le bundle : le japonais pèse
+    // 1,2 Mo compressés, en *assets* et non en bibliothèques natives, donc
+    // livrés une fois quelle que soit l'architecture. Le « ~4 Mo par écriture
+    // et par architecture » annoncé par Google ne s'applique pas ici.
+    //
+    // Le devanagari n'est pas empaqueté : aucun de nos jeux n'édite en hindi.
     //
     // Variante non empaquetée disponible, écartée :
     // `com.google.android.gms:play-services-mlkit-text-recognition-japanese`
     // télécharge le modèle à la demande et n'alourdit pas l'application, mais
     // fait attendre au premier scan — au moment précis où l'on tient la carte.
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
 }
 
 flutter {

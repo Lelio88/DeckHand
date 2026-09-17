@@ -281,11 +281,18 @@ class ScanService {
     this._reader,
     this._cards, {
     this.game = Game.magic,
+    this.fallbackReaders = const [],
   });
 
   final ArtHashIndex _index;
   final CardTextReader _reader;
   final CardRepository _cards;
+
+  /// Lecteurs des autres écritures, essayés dans l'ordre quand la première
+  ///
+  /// lit sans rien retrouver. Vide quand il n'y a rien d'autre à essayer —
+  /// voir [OcrScript.fallbacks].
+  final List<CardTextReader> fallbackReaders;
 
   /// Jeu saisi, qui décide des gabarits d'illustration essayés.
   ///
@@ -340,6 +347,17 @@ class ScanService {
     // aucune carte. L'écran annonçait alors un nom illisible, et envoyait
     // recadrer une photo irréprochable.
     if (found.isEmpty) {
+      // **Le second passage d'OCR, et son seul déclencheur.** Des noms ont été
+      // lus et aucun ne rencontre le catalogue : sur une carte en écriture non
+      // latine, c'est exactement ce que produit le modèle latin, qui déchiffre
+      // le copyright et le numéro de collection mais pas le nom. Une autre
+      // écriture peut le lire — et si elle n'existe pas, rien ne change.
+      //
+      // Le cas courant ne paie rien : une carte française trouve son nom du
+      // premier coup et n'arrive jamais ici.
+      final secondes = await _relire(photoPath, limit: limit);
+      if (secondes != null) return secondes;
+
       final named = byArt.named(names.first);
       return search.unreachable ? named.unreachable() : named;
     }
@@ -793,6 +811,38 @@ class ScanService {
     );
   }
 
+  /// Relit la photo avec les autres écritures, et cherche ce qu'elles lisent.
+  ///
+  /// S'arrête à la première qui trouve. Rend `null` quand aucune n'aboutit —
+  /// pas de lecteur, pas de chemin de photo, rien de lu, rien de trouvé — pour
+  /// que l'appelant garde son propre repli sans distinguer les causes.
+  ///
+  /// **L'empreinte n'est pas recalculée.** Elle ne dépend pas de l'écriture, et
+  /// la refaire coûterait le double pour le même résultat ; seul le texte est
+  /// relu. Le résultat est donc marqué `nameAndArt` ou `name` selon que les
+  /// deux voies concordent, comme pour un premier passage réussi.
+  Future<ScanOutcome?> _relire(String? photoPath, {required int limit}) async {
+    if (photoPath == null) return null;
+
+    for (final lecteur in fallbackReaders) {
+      final lines = await lecteur.readLines(photoPath);
+      final names = cardNameCandidates(lines);
+      if (names.isEmpty) continue;
+
+      final search = await _searchNames(names, limit: limit);
+      if (search.ids.isEmpty) continue;
+
+      return ScanOutcome(
+        oracleIds: search.ids,
+        isConfident: true,
+        method: ScanMethod.name,
+        readName: names.first,
+        readLines: lines,
+      );
+    }
+    return null;
+  }
+
   /// Les hypothèses qui peuvent l'emporter, le texte lu faisant foi.
   ///
   /// **Une carte dont on vient de lire le texte n'est pas à l'envers.** Les
@@ -943,5 +993,6 @@ final scanServiceProvider = FutureProvider<ScanService>((ref) async {
     ref.watch(cardTextReaderProvider),
     ref.watch(cardRepositoryProvider),
     game: ref.watch(selectedGameProvider),
+    fallbackReaders: ref.watch(fallbackCardTextReadersProvider),
   );
 });

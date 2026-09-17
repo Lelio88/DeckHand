@@ -39,6 +39,43 @@ void main() {
     });
   });
 
+  group('la cascade de replis', () {
+    test('le latin essaie les trois autres ecritures, dans l ordre', () {
+      // L'ordre suit la couverture du catalogue Magic, seul a porter ces
+      // ecritures : ja 29 979 noms, zhs+zht 33 638, ko 10 574.
+      expect(OcrScript.latin.fallbacks, [
+        OcrScript.japanese,
+        OcrScript.chinese,
+        OcrScript.korean,
+      ]);
+    });
+
+    test('une ecriture ne se replie jamais sur elle-meme', () {
+      for (final script in OcrScript.values) {
+        expect(script.fallbacks, isNot(contains(script)), reason: script.label);
+      }
+    });
+
+    test('on ne se replie jamais vers le latin', () {
+      // Chaque modele non latin couvre deja le latin — LATIN_AND_JAPANESE et
+      // ses homologues. Y revenir couterait une passe pour rien.
+      for (final script in OcrScript.values) {
+        expect(script.fallbacks, isNot(contains(OcrScript.latin)));
+      }
+    });
+
+    test('chaque repli a un modele empaquete', () {
+      // Un repli vers une ecriture absente de build.gradle.kts echouerait a
+      // l'execution, et le repli sur l'illustration masquerait la panne.
+      for (final script in OcrScript.values) {
+        for (final repli in script.fallbacks) {
+          expect(OcrScript.values, contains(repli));
+        }
+      }
+    });
+  });
+
+
   group('la préférence', () {
     test('part sur le latin quand rien n\'est enregistré', () async {
       SharedPreferences.setMockInitialValues({});

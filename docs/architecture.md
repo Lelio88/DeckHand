@@ -1683,11 +1683,25 @@ Une carte couchée est fréquente dans un étalement, une carte japonaise est ra
 
 **Le poids n'entre pas dans l'arbitrage.** Mesuré sur le bundle : 15 entrées, 1,90 Mo décompressés, **1,19 Mo compressés**, en `assets` et non en bibliothèques natives — donc livrés une fois, quelle que soit l'architecture. Le « ~4 Mo par écriture et par architecture » annoncé par Google ne s'applique pas ici.
 
-Ajouter une écriture tient en deux gestes : une entrée dans `OcrScript`, une ligne dans `build.gradle.kts`.
+Ajouter une écriture tient en trois gestes : une entrée dans `OcrScript`, une ligne dans `build.gradle.kts`, et **son retrait de `proguard-rules.pro`** — un `-dontwarn` sur un module désormais présent étoufferait les avertissements qui le concernent.
+
+**Trois écritures sont empaquetées : japonaise, chinoise, coréenne.** Pas la devanagari — aucun de nos jeux n'édite en hindi. Poids mesuré dans l'APK release, modèle par modèle : `Latn_ctc` 0,17 Mo, `Jpan_ctc` 0,52 Mo, `Hani_ctc` 0,57 Mo, `Kore_ctc` 0,45 Mo. **Le chinois et le coréen ont donc coûté 1,02 Mo à eux deux** : ce qui pèse dans cette fonctionnalité n'est pas le modèle d'une langue, c'est le moteur commun — `libmlkit_google_ocr_pipeline.so`, 28,1 Mo pour les trois architectures de l'APK universel, dont l'AAB livré au Play Store n'en sert qu'une.
+
+### Le repli automatique d'une écriture à l'autre
+
+**Le déclencheur n'est pas « rien lu », c'est « lu sans rien retrouver ».** Sur une carte japonaise, le modèle latin lit très bien ce qui est en caractères latins — `Illus. Greg Staples`, le copyright, le numéro de collection — mais aucun de ces textes n'est un nom de carte. Le scan tombait donc au recours par illustration alors que le modèle japonais, déjà empaqueté, aurait lu le nom. C'est ce qu'a montré le premier essai terrain de la 1.10.0 : « il n'a pas reconnu de nom mais il a trouvé à l'illustration », sur un appareil dont le réglage était resté latin.
+
+Quand aucune piste ne sort de la lecture, `scan_service` **relit la photo** avec les autres écritures, dans l'ordre `japonaise → chinoise → coréenne`, moins celle déjà essayée, et s'arrête à la première qui trouve. L'ordre suit la couverture du catalogue Magic, seul à porter ces écritures : `ja` 29 979 noms, `zhs` 21 166, `zht` 12 472, `ko` 10 574 — le modèle chinois couvrant simplifié et traditionnel d'un seul tenant.
+
+**On ne se replie jamais vers le latin**, et c'est ce qui rend la cascade sûre : chaque modèle non latin en est un sur-ensemble (`LATIN_AND_JAPANESE`, `LATIN_AND_CHINESE`, `LATIN_AND_KOREAN`), donc un repli ne perd jamais ce que l'écriture courante savait lire.
+
+**Le coût ne se paie qu'en cas d'échec.** Une carte dont le nom sort du premier coup — le cas courant — ne paie aucune passe supplémentaire. Le pire cas, une carte qu'aucune écriture ne sait lire, en paie trois avant de tomber sur l'illustration, qui l'attendait de toute façon. Chaque lecteur de repli ouvre son reconnaisseur paresseusement : celui qu'on ne sollicite jamais ne charge aucun modèle.
+
+Le réglage garde donc son sens — il dit quelle écriture essayer **en premier**, ce qui vaut pour qui photographie surtout des cartes japonaises — mais il n'est plus ce qui sépare une carte reconnue d'une carte perdue.
 
 `ScanMethod` remonte la voie employée jusqu'à l'écran, qui annonce « nom lu », « illustration » ou « nom et illustration ». Dire d'où vient une proposition permet à l'utilisateur de juger s'il peut la croire.
 
-**Coût :** +30 Mo d'APK (53,6 → 83,8 Mo), le modèle latin étant empaqueté. Les modules chinois, japonais, coréen et devanagari sont écartés par `android/app/proguard-rules.pro` — sans quoi R8 refuse de compiler, le plugin les référençant sans qu'ils soient présents.
+**Coût :** l'APK universel release pèse 94,4 Mo, contre 53,6 avant ML Kit. Seul le devanagari reste écarté par `android/app/proguard-rules.pro` — sans quoi R8 refuse de compiler, le plugin le référençant sans qu'il soit présent.
 
 ### L'édition se lit par son code d'extension, jamais par son numéro
 
