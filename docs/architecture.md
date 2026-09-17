@@ -1628,6 +1628,25 @@ Depuis le test terrain, la carte est identifiée **par son nom d'abord**, par so
 
 Le nom est le seul repère stable : il figure en première ligne sur toutes les éditions depuis 1993, reste lisible de travers, et ne dépend pas de l'illustration — donc pas de l'édition. L'empreinte garde en revanche un rôle que le nom ne peut pas tenir : distinguer deux impressions d'une même carte.
 
+### L'écriture, et pourquoi c'est un réglage
+
+**ML Kit n'a pas un modèle par langue, il en a un par écriture** — latine, chinoise, japonaise, coréenne, devanagari — et les quatre modèles non latins sont des **sur-ensembles** du latin : `JapaneseTextRecognizerOptions` déclare `LATIN_AND_JAPANESE`. Le japonais ne s'enchaîne donc pas au latin, il le remplace, et lit toujours les cartes françaises et anglaises. Le greffon les déclare tous en `compileOnly` : sans une ligne dans `android/app/build.gradle.kts`, en demander un échoue à l'exécution.
+
+Il aurait donc suffi de livrer le japonais à tout le monde. C'est l'hypothèse qui a été posée — puis mesurée sur le banc sur appareil, mêmes 41 photos sous les deux modèles, deux passages chacun :
+
+| modèle | justes / 38 | par le nom | la paire japonaise |
+|---|---|---|---|
+| **latin** | **34** | **31** | justes par l'illustration |
+| japonais | 33 | 30 | justes **par le nom**, sans réserve |
+
+Le japonais gagne franchement sur ce qu'il vise — la carte sous pochette passe de trois candidats dont deux faux à **un seul, le bon** — et perd **une carte couchée**, sur laquelle il ne lit qu'une ligne au lieu de deux. Reproduit à l'identique aux deux passages : ce n'est pas du bruit.
+
+Une carte couchée est fréquente dans un étalement, une carte japonaise est rare. Imposer le japonais échangerait un cas courant contre un cas rare — d'où le réglage `OcrScript`, rangé comme le jeu sélectionné, latin par défaut. Le provider du lecteur **observe** la préférence : changer d'écriture reconstruit le lecteur et ferme l'ancien reconnaisseur, sans quoi le choix n'agirait qu'au redémarrage et sans rien pour le dire.
+
+**Le poids n'entre pas dans l'arbitrage.** Mesuré sur le bundle : 15 entrées, 1,90 Mo décompressés, **1,19 Mo compressés**, en `assets` et non en bibliothèques natives — donc livrés une fois, quelle que soit l'architecture. Le « ~4 Mo par écriture et par architecture » annoncé par Google ne s'applique pas ici.
+
+Ajouter une écriture tient en deux gestes : une entrée dans `OcrScript`, une ligne dans `build.gradle.kts`.
+
 `ScanMethod` remonte la voie employée jusqu'à l'écran, qui annonce « nom lu », « illustration » ou « nom et illustration ». Dire d'où vient une proposition permet à l'utilisateur de juger s'il peut la croire.
 
 **Coût :** +30 Mo d'APK (53,6 → 83,8 Mo), le modèle latin étant empaqueté. Les modules chinois, japonais, coréen et devanagari sont écartés par `android/app/proguard-rules.pro` — sans quoi R8 refuse de compiler, le plugin les référençant sans qu'ils soient présents.

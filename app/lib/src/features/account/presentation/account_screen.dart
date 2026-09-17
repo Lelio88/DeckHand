@@ -15,6 +15,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../config/ocr_script.dart';
 import '../../../config/selected_game.dart';
 
 import '../../about/presentation/about_screen.dart';
@@ -102,6 +103,11 @@ class AccountScreen extends ConsumerWidget {
         Text('Jeu', style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
         const _GamePicker(),
+
+        const SizedBox(height: 28),
+        Text('Scan', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        const _OcrScriptTile(),
 
         const SizedBox(height: 28),
         Text('Partage', style: theme.textTheme.titleSmall),
@@ -579,5 +585,69 @@ class _PublicationTile extends ConsumerWidget {
         context,
       ).push(MaterialPageRoute<void>(builder: (_) => const SharingScreen())),
     );
+  }
+}
+
+/// L'écriture que la reconnaissance sait lire, et le choix de l'utilisateur.
+///
+/// **Pourquoi ce réglage existe alors qu'un seul modèle suffirait presque.**
+/// Le modèle japonais de ML Kit lit *aussi* le latin, il aurait donc pu être
+/// livré à tout le monde. Mesuré sur le banc sur appareil, il perd une carte
+/// couchée — un cas courant en étalement — pour gagner les cartes en écriture
+/// non latine, un cas rare. Le défaut reste donc le latin, et ceci est la porte
+/// pour qui possède des cartes japonaises. Chiffres dans [OcrScript].
+class _OcrScriptTile extends ConsumerWidget {
+  const _OcrScriptTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final script = ref.watch(selectedOcrScriptProvider);
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.translate),
+      title: const Text('Écriture de mes cartes'),
+      // Le libellé de l'écriture, puis ce qu'elle couvre : le second seul ne
+      // dirait pas ce qui est coché, le premier seul ne dirait pas ce que ça
+      // change.
+      subtitle: Text('${script.label} — ${script.blurb}'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _choisir(context, ref, script),
+    );
+  }
+
+  Future<void> _choisir(
+    BuildContext context,
+    WidgetRef ref,
+    OcrScript courant,
+  ) async {
+    final choisi = await showDialog<OcrScript>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Écriture de mes cartes'),
+        children: [
+          // `RadioGroup` porte la valeur et le rappel depuis Flutter 3.32 ; les
+          // passer a chaque tuile est deprecie.
+          RadioGroup<OcrScript>(
+            groupValue: courant,
+            onChanged: (valeur) => Navigator.of(context).pop(valeur),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final script in OcrScript.values)
+                  RadioListTile<OcrScript>(
+                    value: script,
+                    title: Text(script.label),
+                    subtitle: Text(script.blurb),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    // `null` = boîte refermée sans choisir. L'écrire quand même remettrait le
+    // défaut à quelqu'un qui a seulement changé d'avis sur l'ouverture.
+    if (choisi == null) return;
+    await ref.read(selectedOcrScriptProvider.notifier).select(choisi);
   }
 }

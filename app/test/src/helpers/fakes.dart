@@ -12,6 +12,7 @@ import 'dart:async';
 
 import 'package:deckhand/src/features/auth/data/auth_repository.dart';
 import 'package:deckhand/src/features/card_search/data/card_repository.dart';
+import 'package:deckhand/src/config/ocr_script.dart';
 import 'package:deckhand/src/features/scan/data/card_text_reader.dart';
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/card_search/domain/card_hit.dart';
@@ -120,6 +121,12 @@ class FakeDeckRepository implements DeckRepository {
 class FakeCardTextReader implements CardTextReader {
   List<ReadLine> lines = const [];
   String? lastPath;
+
+  /// L'ecriture n'entre pas en jeu ici : la doublure rend [lines] telles
+  /// quelles, sans modele derriere. Le champ existe pour satisfaire le
+  /// contrat, et le latin est le defaut de production.
+  @override
+  final OcrScript script = OcrScript.latin;
 
   @override
   ({double width, double height})? lastImageSize;

@@ -101,6 +101,26 @@ kotlin {
     }
 }
 
+dependencies {
+    // **Le modèle japonais de ML Kit, et pourquoi il est ici et pas ailleurs.**
+    // Le greffon `google_mlkit_text_recognition` déclare les quatre modèles non
+    // latins en `compileOnly` : son API les expose, aucun n'est empaqueté. Sans
+    // cette ligne, demander `TextRecognitionScript.japanese` échoue à
+    // l'exécution.
+    //
+    // Il ne s'ajoute pas au modèle latin, il le remplace :
+    // `JapaneseTextRecognizerOptions` déclare `LATIN_AND_JAPANESE`, donc il lit
+    // aussi les cartes françaises et anglaises. Coût annoncé par Google : ~4 Mo
+    // par écriture et par architecture — et l'AAB ne livre que l'architecture
+    // de l'appareil.
+    //
+    // Variante non empaquetée disponible, écartée :
+    // `com.google.android.gms:play-services-mlkit-text-recognition-japanese`
+    // télécharge le modèle à la demande et n'alourdit pas l'application, mais
+    // fait attendre au premier scan — au moment précis où l'on tient la carte.
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
+}
+
 flutter {
     source = "../.."
 }

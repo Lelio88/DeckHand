@@ -80,7 +80,11 @@ Future<FakeCollectionRepository> pump(
   // un widget hors champ d'une `ListView` n'est pas construit, donc `find.text`
   // ne le voit pas. Le défilement n'est pas une commodité : sans lui, le test
   // échouerait sur une mise en page parfaitement correcte.
-  await tester.drag(find.byType(ListView), const Offset(0, -900));
+  // **Le montant suit ce qu'on ajoute au-dessus.** Il est passe de 900 a 1100
+  // quand la section « Scan » s'est intercalee avant « Partage » : un reglage de
+  // plus, et la cible ressort du champ. C'est le prix d'un defilement chiffre
+  // plutot que vise, et il se paie ici plutot qu'en cherchant un faux defaut.
+  await tester.drag(find.byType(ListView), const Offset(0, -1100));
   await tester.pumpAndSettle();
   return collection;
 }

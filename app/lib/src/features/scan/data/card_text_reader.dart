@@ -25,10 +25,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/painting.dart' show Size;
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
+import '../../../config/ocr_script.dart';
 import '../domain/card_name_text.dart';
 
+/// L'écriture choisie, traduite pour ML Kit.
+///
+/// La table vit ici et non dans [OcrScript] : le domaine du réglage sait *quelle
+/// écriture* l'utilisateur lit, ce fichier sait comment le demander au greffon.
+/// Mettre le type de ML Kit dans `config/` ferait remonter une dépendance
+/// native jusqu'à l'écran de réglage.
+TextRecognitionScript _mlkit(OcrScript script) => switch (script) {
+  OcrScript.japanese => TextRecognitionScript.japanese,
+  OcrScript.latin => TextRecognitionScript.latin,
+};
+
 class CardTextReader {
-  CardTextReader();
+  CardTextReader({this.script = OcrScript.latin});
+
+  /// L'écriture que ce lecteur sait lire.
+  ///
+  /// **Fixée à la construction, jamais changée en vol.** Le reconnaisseur est
+  /// coûteux à ouvrir et se garde entre deux lectures ; le remplacer sous une
+  /// lecture en cours laisserait une instance fermée derrière elle. Changer
+  /// d'écriture reconstruit donc le lecteur — c'est le `watch` du provider qui
+  /// s'en charge, et l'ancien se ferme par `onDispose`.
+  final OcrScript script;
 
   TextRecognizer? _recognizer;
 
@@ -104,9 +125,7 @@ class CardTextReader {
   /// bancs de ce projet.
   Future<List<ReadLine>> _lire(InputImage image) async {
     try {
-      final recognizer = _recognizer ??= TextRecognizer(
-        script: TextRecognitionScript.latin,
-      );
+      final recognizer = _recognizer ??= TextRecognizer(script: _mlkit(script));
       final recognised = await recognizer.processImage(image);
 
       final height = _imageHeight(recognised);
@@ -176,7 +195,11 @@ class CardTextReader {
 }
 
 final cardTextReaderProvider = Provider<CardTextReader>((ref) {
-  final reader = CardTextReader();
+  // `watch` et non `read` : changer d'écriture dans les réglages doit
+  // reconstruire le lecteur, donc fermer l'ancien reconnaisseur et en ouvrir un
+  // sur le bon modèle. Avec `read`, le choix ne prendrait effet qu'au
+  // redémarrage — et sans rien pour le dire.
+  final reader = CardTextReader(script: ref.watch(selectedOcrScriptProvider));
   ref.onDispose(reader.dispose);
   return reader;
 });
