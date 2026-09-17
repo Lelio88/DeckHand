@@ -109,9 +109,11 @@ def test_une_langue_non_entreposee_donne_quand_meme_son_nom(monkeypatch):
 
     written, noms = ingest_prints_and_names(conn, {ORACLE})
 
-    assert noms[(ORACLE, "de")][0] == "Blitzschlag"
-    assert noms[(ORACLE, "ja")][0] == "稲妻"
-    assert noms[(ORACLE, "fr")][0] == "Foudre"
+    # Une liste par (carte, langue) : une carte a plusieurs faces en porte
+    # plusieurs, et une carte ordinaire un seul.
+    assert noms[(ORACLE, "de")] == [("Blitzschlag", "blitzschlag")]
+    assert noms[(ORACLE, "ja")][0][0] == "稲妻"
+    assert noms[(ORACLE, "fr")][0][0] == "Foudre"
     assert written == 2, "seules les impressions en et fr sont entreposées"
 
 
@@ -135,7 +137,12 @@ def test_les_impressions_restent_bornees_aux_langues_gardees(monkeypatch):
     written, noms = ingest_prints_and_names(conn, {ORACLE})
 
     assert written == 1, "une impression par œuvre orpheline, pas une par langue"
-    assert len(noms) == 2, "les noms des deux langues sont là, eux"
+    # **Les langues, pas le compte d'entrées.** La récolte porte aussi le nom
+    # oracle anglais de chaque impression — `write_search_names` l'écarte
+    # ensuite comme répétant celui de `cards`.
+    assert {"de", "ja"} <= {lang for _, lang in noms}, (
+        "les noms des deux langues sont là, eux"
+    )
     assert "de" not in KEEP_LANGS and "ja" not in KEEP_LANGS
 
 
@@ -160,9 +167,9 @@ def test_une_carte_hors_perimetre_n_est_pas_recoltee(monkeypatch):
 def test_chaque_langue_recoltee_atteint_l_index():
     conn = ConnexionFactice()
     noms = {
-        (ORACLE, "fr"): ("Foudre", "foudre"),
-        (ORACLE, "de"): ("Blitzschlag", "blitzschlag"),
-        (ORACLE, "ja"): ("稲妻", "稲妻"),
+        (ORACLE, "fr"): [("Foudre", "foudre")],
+        (ORACLE, "de"): [("Blitzschlag", "blitzschlag")],
+        (ORACLE, "ja"): [("稲妻", "稲妻")],
     }
 
     write_search_names(conn, {ORACLE: "Lightning Bolt"}, noms)
@@ -177,7 +184,7 @@ def test_l_anglais_vient_du_nom_oracle_et_n_est_pas_doublonne():
     pour la même chose — `ON CONFLICT` les absorberait, mais écrire deux fois ce
     qu'on sait écrire une fois est un coût qu'on paie à chaque ingestion."""
     conn = ConnexionFactice()
-    noms = {(ORACLE, "en"): ("Lightning Bolt", "lightning bolt")}
+    noms = {(ORACLE, "en"): [("Lightning Bolt", "lightning bolt")]}
 
     write_search_names(conn, {ORACLE: "Lightning Bolt"}, noms)
 
@@ -188,8 +195,103 @@ def test_un_nom_sans_carte_au_catalogue_est_ecarte():
     """Garde-fou de clé étrangère : `card_search_names.oracle_id` référence
     `cards`. Une entrée orpheline ferait échouer l'insertion entière du lot."""
     conn = ConnexionFactice()
-    noms = {(AUTRE, "de"): ("Blitzschlag", "blitzschlag")}
+    noms = {(AUTRE, "de"): [("Blitzschlag", "blitzschlag")]}
 
     write_search_names(conn, {ORACLE: "Lightning Bolt"}, noms)
 
     assert [row[0] for row in conn.rows] == [ORACLE]
+
+
+# --- les cartes a plusieurs faces -------------------------------------------
+
+
+def payload_multiface(lang: str, faces: list[tuple[str, str | None]]) -> dict:
+    """Une carte recto-verso telle que le *bulk* la publie.
+
+    **`printed_name` est vide a la racine**, et c'est tout le sujet : Scryfall le
+    place dans `card_faces`, pour toutes les mises en page a plusieurs faces —
+    `split`, `transform`, `adventure`, `modal_dfc`, `flip`.
+    """
+    base = payload(lang, None)
+    base["name"] = " // ".join(nom for nom, _ in faces)
+    base["printed_name"] = None
+    base["card_faces"] = [
+        {"name": nom, "printed_name": imprime} for nom, imprime in faces
+    ]
+    return base
+
+
+def test_les_noms_traduits_des_faces_sont_recoltes(monkeypatch):
+    """**Le trou constate sur l'appareil.** L'OCR lisait « Transformation » sur
+    une carte *split* francaise, et le catalogue ne connaissait pas ce nom :
+    aucune carte a plusieurs faces n'y portait de nom traduit. La recolte lisait
+    `printed_name` a la racine, vide pour celles-la.
+
+    Mesure du 2026-09-17 : 743 cartes du perimetre ont une traduction francaise
+    publiee que nous jetions."""
+    monkeypatch.setattr(
+        scryfall_ingest,
+        "stream_bulk",
+        lambda _source: iter([
+            payload_multiface("en", [("Turn", None), ("Burn", None)]),
+            payload_multiface(
+                "fr", [("Turn", "Transformation"), ("Burn", "Brûlage")]
+            ),
+        ]),
+    )
+    conn = ConnexionFactice()
+
+    _, noms = ingest_prints_and_names(conn, {ORACLE})
+
+    recoltes = {
+        affiche for entrees in noms.values() for affiche, _ in entrees
+    }
+    assert "Transformation" in recoltes
+    assert "Brûlage" in recoltes
+
+
+def test_le_nom_complet_et_chaque_face_atteignent_l_index(monkeypatch):
+    """Les trois se saisissent : les joueurs disent « Transformation » aussi
+    souvent que le nom complet."""
+    monkeypatch.setattr(
+        scryfall_ingest,
+        "stream_bulk",
+        lambda _source: iter([
+            payload_multiface(
+                "fr", [("Turn", "Transformation"), ("Burn", "Brûlage")]
+            ),
+        ]),
+    )
+    conn = ConnexionFactice()
+    _, noms = ingest_prints_and_names(conn, {ORACLE})
+
+    conn2 = ConnexionFactice()
+    write_search_names(conn2, {ORACLE: "Turn // Burn"}, noms)
+
+    ecrits = {(row[1], row[3]) for row in conn2.rows}
+    assert ("Transformation", "fr") in ecrits
+    assert ("Brûlage", "fr") in ecrits
+    assert ("Turn // Burn", "en") in ecrits
+
+
+def test_les_faces_anglaises_entrent_aussi(monkeypatch):
+    """`backfill_face_names` les ajoutait, mais elle n'est appelee par aucun
+    flux : « Turn » et « Burn » ne tenaient en base que d'un rattrapage joue a
+    la main une fois. L'ingestion normale doit suffire."""
+    monkeypatch.setattr(
+        scryfall_ingest,
+        "stream_bulk",
+        lambda _source: iter([
+            payload_multiface("en", [("Turn", None), ("Burn", None)]),
+        ]),
+    )
+    conn = ConnexionFactice()
+    _, noms = ingest_prints_and_names(conn, {ORACLE})
+
+    conn2 = ConnexionFactice()
+    write_search_names(conn2, {ORACLE: "Turn // Burn"}, noms)
+
+    ecrits = {(row[1], row[3]) for row in conn2.rows}
+    assert ("Turn", "en") in ecrits
+    assert ("Burn", "en") in ecrits
+    assert ("Turn // Burn", "en") in ecrits

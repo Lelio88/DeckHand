@@ -589,6 +589,24 @@ langue d'impressions vaut neuf langues de noms. `scryfall_ingest` récolte donc
 le nom imprimé de **toutes** les langues, puis `KEEP_LANGS` ne laisse entrer que
 les impressions anglaises et françaises.
 
+**Le nom d'une carte à plusieurs faces ne vit pas à la racine.** Scryfall place
+`printed_name` dans `card_faces` pour toute mise en page `split`, `transform`,
+`adventure`, `modal_dfc` ou `flip` ; la racine y est toujours vide. La récolte
+lisait la racine, si bien qu'**aucune** de ces cartes n'avait de nom traduit au
+catalogue — 393 `transform`, 158 `adventure`, 135 `split`, 98 `modal_dfc`,
+26 `flip`, contre 91 % des cartes ordinaires pourvues de leur français.
+
+Le symptôme s'est vu sur l'appareil, et il ressemblait à un défaut de cadrage :
+l'OCR lisait « Transformation » sur une carte *split* française, sans faute, et
+la recherche ne rencontrait rien. La récolte passe donc par `search_names_for`,
+qui rend le nom complet **et** celui de chaque face — ce qu'un joueur saisit.
+Mesuré sur l'export complet : **743 cartes** ont une traduction française
+publiée que nous jetions.
+
+> C'est le second piège du même genre, après `illustration_id` : **ce qui vit
+> dans `card_faces` se lit dans `card_faces`.** Toute donnée nouvelle tirée du
+> *bulk* doit être vérifiée sur une carte recto-verso avant d'être crue.
+
 Coût mesuré du multilingue : ~61 Mo et une vingtaine de secondes. Le parcours du
 *bulk* ne change pas — il était déjà intégral, le filtre se contentait de jeter
 au vol.

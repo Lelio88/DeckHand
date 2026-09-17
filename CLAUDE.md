@@ -97,4 +97,4 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 ## VIII. Contexte de Session
 
 - **Dernier focus** : le scan relit dans une autre écriture quand le nom ne sort pas, les œuvres sans impression en/fr entrent à l'index, et le catalogue est réduit à Magic, Riftbound et Wankul pour tenir dans le quota Supabase (#48).
-- **Focus immédiat** : les gabarits manquants mesurés au banc — `full_art` (3 702 impressions Magic) et `split` (135 cartes), seules causes restantes d'échec du scan.
+- **Focus immédiat** : le gabarit `full_art` (3 702 impressions Magic), dernière cause d'échec mesurée au banc après la récolte des noms de faces.

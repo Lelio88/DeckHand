@@ -207,7 +207,9 @@ def ingest_prints_and_names(
     **1,8 s** au total (4,8 µs par payload, mesuré) : le parcours du *bulk*
     domine tout le reste, et il était déjà intégral.
     """
-    printed_names: dict[tuple[str, str], tuple[str, str]] = {}
+    #: (oracle, langue) -> les noms sous lesquels la carte se saisit dans
+    #: cette langue : le nom complet, et celui de chaque face.
+    printed_names: dict[tuple[str, str], list[tuple[str, str]]] = {}
     #: Illustrations portées par une impression gardée : elles n'ont besoin de
     #: rien de plus, l'art ne dépendant pas de la langue.
     couvertes: set[str] = set()
@@ -234,12 +236,23 @@ def ingest_prints_and_names(
 
             # Récolte d'abord, tri ensuite : le nom d'une langue qu'on
             # n'entrepose pas reste utile à la reconnaissance.
-            key = (oracle_id, printing.lang)
-            if printing.printed_name and key not in printed_names:
-                printed_names[key] = (
-                    printing.printed_name,
-                    normalize_name(printing.printed_name),
-                )
+            #
+            # **Par `search_names_for`, et non par `printed_name`.** Celui de la
+            # racine est vide pour toute carte à plusieurs faces — Scryfall le
+            # place dans `card_faces` —, si bien qu'aucune carte `split`,
+            # `transform`, `adventure`, `modal_dfc` ni `flip` n'avait de nom
+            # traduit au catalogue. Constaté sur l'appareil : l'OCR lisait
+            # « Transformation » sur une carte française, et la recherche ne
+            # rencontrait rien. Mesuré le 2026-09-17 : 743 cartes du périmètre
+            # ont une traduction française publiée que nous jetions.
+            #
+            # La fonction rend aussi le nom complet et celui de chaque face,
+            # ce qui est exactement ce qu'un joueur saisit — « Transformation »
+            # autant que « Transformation // Brûlage ».
+            for display, normalized, entry_lang in search_names_for(payload):
+                entrees = printed_names.setdefault((oracle_id, entry_lang), [])
+                if all(vu != normalized for _, vu in entrees):
+                    entrees.append((display, normalized))
 
             if printing.lang not in KEEP_LANGS:
                 # **Une œuvre qu'aucune impression gardée ne porte serait
@@ -289,7 +302,7 @@ def ingest_prints_and_names(
 def write_search_names(
     conn: psycopg.Connection,
     cards: dict[str, str],
-    printed_names: dict[tuple[str, str], tuple[str, str]],
+    printed_names: dict[tuple[str, str], list[tuple[str, str]]],
 ) -> int:
     """Écrit l'index de saisie : le nom oracle anglais, plus chaque nom traduit.
 
@@ -300,6 +313,13 @@ def write_search_names(
 
     L'anglais est pris sur `cards` et non sur la récolte : le nom oracle existe
     pour toute carte, y compris celles qui n'ont jamais été imprimées en anglais.
+
+    **Un nom anglais récolté n'est écarté que s'il répète le nom oracle.** Les
+    faces d'une carte recto-verso ne le répètent pas : « Turn » et « Burn » ne
+    sont pas « Turn // Burn », et les joueurs les saisissent séparément. Ces
+    entrées ne tenaient jusqu'ici qu'à `backfill_face_names`, un rattrapage
+    qu'aucun flux n'appelle — donc joué à la main une fois, puis jamais
+    rafraîchi.
     """
     statement = """
         INSERT INTO public.card_search_names (oracle_id, name, normalized, lang)
@@ -308,12 +328,18 @@ def write_search_names(
     """
 
     def rows() -> Iterator[tuple[str, str, str, str]]:
+        oracle_normalises = {
+            oracle_id: normalize_name(name) for oracle_id, name in cards.items()
+        }
         for oracle_id, name in cards.items():
-            yield (oracle_id, name, normalize_name(name), "en")
-        for (oracle_id, lang), (display, normalized) in printed_names.items():
-            if lang == "en" or oracle_id not in cards:
+            yield (oracle_id, name, oracle_normalises[oracle_id], "en")
+        for (oracle_id, lang), entrees in printed_names.items():
+            if oracle_id not in cards:
                 continue
-            yield (oracle_id, display, normalized, lang)
+            for display, normalized in entrees:
+                if lang == "en" and normalized == oracle_normalises[oracle_id]:
+                    continue
+                yield (oracle_id, display, normalized, lang)
 
     written = 0
     with conn.cursor() as cur:
