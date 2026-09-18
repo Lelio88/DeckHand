@@ -96,5 +96,5 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 
 ## VIII. Contexte de Session
 
-- **Dernier focus** : le scan relit dans une autre écriture quand le nom ne sort pas, les œuvres sans impression en/fr entrent à l'index, et le catalogue est réduit à Magic, Riftbound et Wankul pour tenir dans le quota Supabase (#48).
-- **Focus immédiat** : le gabarit `full_art` (3 702 impressions Magic), dernière cause d'échec mesurée au banc après la récolte des noms de faces.
+- **Dernier focus** : 1.11.0 — gabarit pleine page, cartes couchées, et l'arbitrage nom/illustration revu ; zéro carte affirmée à tort au banc réel, 37 justes sur 43 contre 35.
+- **Focus immédiat** : le gabarit pleine page au **flux caméra**, écarté faute de mesure — filmer des cartes pleine page et relever les annonces fausses avant/après.

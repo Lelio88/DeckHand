@@ -1,0 +1,9 @@
+La reconnaissance voit plus juste.
+
+- Une carte dont l'illustration couvre tout le carton est reconnue, même
+  photographiée en travers.
+- Quand le nom lu ne correspond qu'en partie, l'app propose au lieu
+  d'affirmer — et laisse l'illustration trancher quand elle est sûre.
+- Le scan relit dans une autre écriture quand le nom ne sort pas.
+- Si la reconnaissance échoue, vous pouvez préciser que la carte se lit en
+  travers et relancer la recherche sur la même photo.
