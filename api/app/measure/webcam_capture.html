@@ -1,0 +1,369 @@
+<!doctype html>
+<!--
+  Capture de plans Y bruts depuis une webcam, pour le banc de plage vidéo (#41).
+
+  **Ce que cette page fait.** Elle ouvre une webcam, lit ses images par
+  WebCodecs — le chemin que le pont (#43) empruntera — et écrit, à chaque
+  capture, trois fichiers : le plan Y brut en PGM, le RGB converti par le
+  navigateur en PNG, et un JSON qui dit ce que la caméra a déclaré (format,
+  plage, dimensions). `webcam_plage.py` fait le reste.
+
+  **Pourquoi WebCodecs et non un canvas.** Un canvas ne rend que du RGB déjà
+  converti : il ne dirait rien de la plage du Y. `MediaStreamTrackProcessor`
+  livre des `VideoFrame` dont `copyTo()` rend les plans natifs — le plan 0 d'un
+  NV12 ou d'un I420 *est* la luminance, sans conversion. Chromium seulement, ce
+  qui tombe bien : le PC de stream utilisera Chrome.
+
+  **Le stride est retiré à l'écriture.** `copyTo()` rend un `layout` dont le
+  `stride` dépasse souvent la largeur ; le PGM est écrit ligne par ligne sur la
+  largeur visible. Le JSON porte `width`/`height` pour que le banc refuse tout
+  PGM qui ne les fait pas.
+
+  **Quand la caméra ne livre pas de plan Y** (RGBA, BGRA…), le Y est dérivé du
+  RGB par la formule entière de `dhash` et le JSON le dit (`derive: "rgb"`). Le
+  banc saura alors que la question de la plage ne se pose pas — et que le pont
+  devra convertir, ce qui a un coût à mesurer.
+
+  **Jetable.** Aucune dépendance, aucun lien avec l'application. Si elle
+  survit au banc, c'est qu'elle a trouvé un autre usage — sinon, la supprimer.
+-->
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Capture webcam — banc de plage vidéo</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; margin: 1.5rem; max-width: 60rem; color: #222; }
+    h1 { font-size: 1.2rem; }
+    fieldset { border: 1px solid #ccc; margin: 0 0 1rem; }
+    video { width: 100%; max-width: 640px; background: #000; display: block; }
+    button { font: inherit; padding: .4rem .8rem; margin-right: .5rem; }
+    button:disabled { opacity: .5; }
+    code, pre { font: 12px/1.4 ui-monospace, monospace; }
+    pre { background: #f4f4f4; padding: .6rem; overflow: auto; max-height: 14rem; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1rem; }
+    dt { color: #666; }
+    .alerte { color: #b00; }
+    .ok { color: #070; }
+  </style>
+</head>
+<body>
+  <h1>Capture webcam — banc de plage vidéo (#41)</h1>
+
+  <fieldset>
+    <legend>1. Caméra</legend>
+    <select id="cameras"></select>
+    <button id="ouvrir">Ouvrir</button>
+    <span id="etat-camera"></span>
+    <p>La liste sert aussi à #42 : si la caméra virtuelle du logiciel de stream y figure, elle est lisible par <code>getUserMedia</code>.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>2. Ce que la caméra déclare</legend>
+    <dl>
+      <dt>format</dt><dd id="d-format">—</dd>
+      <dt>dimensions</dt><dd id="d-dims">—</dd>
+      <dt>plage déclarée</dt><dd id="d-plage">—</dd>
+      <dt>espace couleur</dt><dd id="d-cs">—</dd>
+      <dt>Y de la dernière capture</dt><dd id="d-y">—</dd>
+    </dl>
+  </fieldset>
+
+  <fieldset>
+    <legend>3. Destination</legend>
+    <button id="dossier">Choisir un dossier…</button>
+    <span id="etat-dossier">téléchargements du navigateur (repli)</span>
+    <p>Vise <code>.deckhand-bench/webcam/</code>, hors dépôt. Trois fichiers par capture : <code>capture-NNN.pgm</code>, <code>.png</code>, <code>.json</code>.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>4. Capturer</legend>
+    <video id="apercu" autoplay muted playsinline></video>
+    <p>
+      <button id="capturer" disabled>Capturer (Espace)</button>
+      <span id="compteur">0 capture</span>
+    </p>
+    <pre id="journal"></pre>
+  </fieldset>
+
+<script>
+'use strict';
+
+// Formats dont le plan 0 est la luminance. Les variantes 10/12 bits ont des
+// échantillons sur deux octets : improbables sur une webcam, refusées plutôt
+// que mal lues.
+const FORMATS_Y = new Set(['I420', 'I420A', 'I422', 'I444', 'NV12']);
+const FORMATS_RGB = new Set(['RGBA', 'RGBX', 'BGRA', 'BGRX']);
+
+const $ = (id) => document.getElementById(id);
+const journal = (ligne, classe = '') => {
+  const pre = $('journal');
+  pre.textContent += ligne + '\n';
+  pre.scrollTop = pre.scrollHeight;
+  if (classe) console.log(ligne);
+};
+
+let piste = null;          // MediaStreamTrack
+let derniere = null;       // VideoFrame la plus récente, gardée ouverte
+let lecteur = null;        // ReadableStreamDefaultReader
+let dossier = null;        // FileSystemDirectoryHandle, ou null → téléchargement
+let numero = 0;
+
+// ---------------------------------------------------------------- caméras
+
+async function listerCameras() {
+  // Les libellés ne sont servis qu'après une première permission.
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ video: true });
+    s.getTracks().forEach((t) => t.stop());
+  } catch (e) {
+    $('etat-camera').textContent = `permission refusée : ${e.message}`;
+    $('etat-camera').className = 'alerte';
+    return;
+  }
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const select = $('cameras');
+  select.innerHTML = '';
+  for (const d of devices.filter((d) => d.kind === 'videoinput')) {
+    const o = document.createElement('option');
+    o.value = d.deviceId;
+    o.textContent = d.label || `caméra ${select.length + 1}`;
+    select.appendChild(o);
+  }
+  if (!select.length) {
+    $('etat-camera').textContent = 'aucune caméra';
+    $('etat-camera').className = 'alerte';
+  }
+}
+
+async function ouvrir() {
+  fermer();
+  const deviceId = $('cameras').value;
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      deviceId: deviceId ? { exact: deviceId } : undefined,
+      // Ce que le flux Android demande : ResolutionPreset.high.
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+    },
+  });
+  piste = stream.getVideoTracks()[0];
+  $('apercu').srcObject = stream;
+  $('etat-camera').textContent = piste.label;
+  $('etat-camera').className = 'ok';
+
+  if (!('MediaStreamTrackProcessor' in window)) {
+    journal('MediaStreamTrackProcessor absent : ce navigateur ne rend pas les plans natifs. '
+          + 'Le Y sera dérivé du RGB (derive: "rgb"). Utiliser Chrome pour la mesure.', 'alerte');
+    $('capturer').disabled = false;
+    return;
+  }
+
+  const processor = new MediaStreamTrackProcessor({ track: piste });
+  lecteur = processor.readable.getReader();
+  $('capturer').disabled = false;
+  lire();
+}
+
+async function lire() {
+  // On ne garde que la dernière image : fermer les autres, sinon le décodeur
+  // s'étouffe en quelques secondes.
+  while (lecteur) {
+    const { value, done } = await lecteur.read();
+    if (done) break;
+    if (derniere) derniere.close();
+    derniere = value;
+    decrire(value);
+  }
+}
+
+function fermer() {
+  if (lecteur) { lecteur.cancel(); lecteur = null; }
+  if (derniere) { derniere.close(); derniere = null; }
+  if (piste) { piste.stop(); piste = null; }
+  $('capturer').disabled = true;
+}
+
+// ------------------------------------------------------------- description
+
+let decrite = false;
+function decrire(frame) {
+  if (decrite) return;
+  decrite = true;
+  const cs = frame.colorSpace || {};
+  $('d-format').textContent = frame.format || '?';
+  $('d-dims').textContent =
+    `${frame.visibleRect.width}×${frame.visibleRect.height} visibles, `
+    + `${frame.codedWidth}×${frame.codedHeight} codées`;
+  $('d-plage').textContent =
+    cs.fullRange === true ? 'pleine (fullRange = true)'
+    : cs.fullRange === false ? 'vidéo 16–235 (fullRange = false)'
+    : 'non déclarée';
+  $('d-cs').textContent =
+    `primaries ${cs.primaries ?? '?'}, transfer ${cs.transfer ?? '?'}, matrix ${cs.matrix ?? '?'}`;
+  journal(`caméra : ${frame.format}, ${frame.visibleRect.width}×${frame.visibleRect.height}, `
+        + `fullRange=${cs.fullRange}`);
+}
+
+// ------------------------------------------------------------------ Y brut
+
+// Le plan Y d'un VideoFrame planaire, stride retiré, sur le rectangle visible.
+async function planY(frame) {
+  const rect = frame.visibleRect;
+  const taille = frame.allocationSize({ rect });
+  const buffer = new Uint8Array(taille);
+  const layout = await frame.copyTo(buffer, { rect });
+  const { offset, stride } = layout[0];
+  const { width, height } = rect;
+  const y = new Uint8Array(width * height);
+  for (let ligne = 0; ligne < height; ligne++) {
+    y.set(buffer.subarray(offset + ligne * stride, offset + ligne * stride + width), ligne * width);
+  }
+  return { y, width, height, layout, derive: 'y' };
+}
+
+// Le Y dérivé du RGB d'un canvas, par la formule entière de dhash — quand la
+// caméra ne livre pas de plan Y, ou que WebCodecs manque.
+function planYDepuisRgb(imageData) {
+  const { data, width, height } = imageData;
+  const y = new Uint8Array(width * height);
+  for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+    y[j] = Math.floor((data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000);
+  }
+  return { y, width, height, layout: null, derive: 'rgb' };
+}
+
+function pgm({ y, width, height }) {
+  const entete = new TextEncoder().encode(`P5\n${width} ${height}\n255\n`);
+  const octets = new Uint8Array(entete.length + y.length);
+  octets.set(entete, 0);
+  octets.set(y, entete.length);
+  return new Blob([octets], { type: 'image/x-portable-graymap' });
+}
+
+function plageDe(y) {
+  let min = 255, max = 0;
+  for (let i = 0; i < y.length; i++) {
+    if (y[i] < min) min = y[i];
+    if (y[i] > max) max = y[i];
+  }
+  return { min, max };
+}
+
+// ----------------------------------------------------------------- capture
+
+async function capturer() {
+  if (!piste) return;
+  $('capturer').disabled = true;
+  try {
+    // Le RGB converti par le navigateur : la référence de la mesure A.
+    const source = derniere || $('apercu');
+    const width = derniere ? derniere.visibleRect.width : source.videoWidth;
+    const height = derniere ? derniere.visibleRect.height : source.videoHeight;
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(source, 0, 0, width, height);
+    const png = await canvas.convertToBlob({ type: 'image/png' });
+
+    let plan;
+    if (derniere && FORMATS_Y.has(derniere.format)) {
+      plan = await planY(derniere);
+    } else {
+      if (derniere && !FORMATS_RGB.has(derniere.format)) {
+        journal(`format ${derniere.format} non géré (échantillons sur deux octets ?) — Y dérivé du RGB`, 'alerte');
+      }
+      plan = planYDepuisRgb(ctx.getImageData(0, 0, width, height));
+    }
+
+    const cs = (derniere && derniere.colorSpace) || {};
+    const meta = {
+      format: derniere ? derniere.format : 'canvas',
+      width: plan.width,
+      height: plan.height,
+      codedWidth: derniere ? derniere.codedWidth : null,
+      codedHeight: derniere ? derniere.codedHeight : null,
+      colorSpace: {
+        primaries: cs.primaries ?? null,
+        transfer: cs.transfer ?? null,
+        matrix: cs.matrix ?? null,
+        fullRange: cs.fullRange ?? null,
+      },
+      layout: plan.layout,
+      derive: plan.derive,
+      device: piste.label,
+      settings: piste.getSettings(),
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+    };
+
+    const nom = await prochainNom();
+    await ecrire(`${nom}.pgm`, pgm(plan));
+    await ecrire(`${nom}.png`, png);
+    await ecrire(`${nom}.json`, new Blob([JSON.stringify(meta, null, 2)], { type: 'application/json' }));
+
+    const { min, max } = plageDe(plan.y);
+    $('d-y').textContent = `${min}–${max} (${plan.derive === 'y' ? 'plan natif' : 'dérivé du RGB'})`;
+    $('compteur').textContent = `${numero} capture${numero > 1 ? 's' : ''}`;
+    journal(`${nom}  ${meta.format}  ${plan.width}×${plan.height}  Y ${min}–${max}  ${plan.derive}`);
+  } catch (e) {
+    journal(`échec : ${e.message}`, 'alerte');
+  } finally {
+    $('capturer').disabled = false;
+  }
+}
+
+async function prochainNom() {
+  // Ne jamais écraser : si le dossier a déjà des captures, continuer après.
+  for (;;) {
+    numero++;
+    const nom = `capture-${String(numero).padStart(3, '0')}`;
+    if (!dossier) return nom;
+    try {
+      await dossier.getFileHandle(`${nom}.pgm`);
+    } catch {
+      return nom;
+    }
+  }
+}
+
+async function ecrire(nom, blob) {
+  if (dossier) {
+    const fichier = await dossier.getFileHandle(nom, { create: true });
+    const w = await fichier.createWritable();
+    await w.write(blob);
+    await w.close();
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nom;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function choisirDossier() {
+  if (!('showDirectoryPicker' in window)) {
+    journal('showDirectoryPicker absent : les fichiers iront dans les téléchargements', 'alerte');
+    return;
+  }
+  dossier = await window.showDirectoryPicker({ mode: 'readwrite' });
+  $('etat-dossier').textContent = dossier.name;
+  $('etat-dossier').className = 'ok';
+}
+
+// ------------------------------------------------------------------ câblage
+
+$('ouvrir').addEventListener('click', () => ouvrir().catch((e) => journal(`ouverture : ${e.message}`, 'alerte')));
+$('capturer').addEventListener('click', capturer);
+$('dossier').addEventListener('click', () => choisirDossier().catch((e) => journal(`dossier : ${e.message}`, 'alerte')));
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !$('capturer').disabled && e.target === document.body) {
+    e.preventDefault();
+    capturer();
+  }
+});
+window.addEventListener('beforeunload', fermer);
+
+listerCameras();
+</script>
+</body>
+</html>

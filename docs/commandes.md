@@ -160,6 +160,17 @@ cd app && flutter test integration_test/plafond_reel_test.dart -d <appareil> \
     --dart-define=DECKHAND_TEST_EMAIL=... --dart-define=DECKHAND_TEST_PASSWORD=...
 cd api && .venv/Scripts/python -m app.measure.plafond_reel <journal.log>
 
+# Le Y d'une webcam est-il lisible par l'index ? — la plage vidéo (#41), avant le pont
+# Ouvrir api/app/measure/webcam_capture.html dans Chrome (Chromium seul rend les
+# plans natifs), viser ../../.deckhand-bench/webcam/, capturer une trentaine de
+# cartes : trois fichiers par capture (.pgm = plan Y brut, .png = RGB converti
+# par le navigateur, .json = ce que la caméra déclare). Puis :
+cd api && .venv/Scripts/python -m app.measure.webcam_plage --captures ../../.deckhand-bench/webcam
+# La mesure A (écart imputable à la plage seule) ne demande ni base ni vérité.
+# La mesure B (contre l'index) demande la vérité — attendu.csv, une ligne par
+# capture « capture-001.pgm;ext;numéro » — et la base :
+cd api && .venv/Scripts/python -m app.measure.webcam_plage --captures ../../.deckhand-bench/webcam     --attendu ../../.deckhand-bench/webcam/attendu.csv        # --carte-pleine : sans détection
+
 # POURQUOI le nom n'a pas abouti : toutes les lignes lues, leur position, et ce
 # que la sélection garde — dans les quatre écritures de la cascade
 cd app && flutter test integration_test/lecture_reelle_test.dart -d <appareil>     --dart-define=DECKHAND_PHOTOS=<filtre sur le nom de fichier>
