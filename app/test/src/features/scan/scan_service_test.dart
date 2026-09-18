@@ -809,6 +809,56 @@ void main() {
       },
     );
 
+    test('un nom lu qui n_est qu_un préfixe ne s_affirme pas', () async {
+      // **Mesuré sur l_appareil : deux cartes affirmées à tort sur 43.**
+      // « Transformation », lu sur une carte split française, trouvait
+      // « Transformation divine » avec un score de 0,937 — au-dessus du seuil
+      // décisif — donc un seul candidat, donc la confiance. L_app annonçait
+      // sans réserve une carte que l_utilisateur n_a pas.
+      //
+      // Le bonus de préfixe qui produit ce score sert la saisie au clavier et
+      // dessert la lecture d_une photo : l_OCR rend un nom entier, pas un
+      // début de nom. Un nom trouvé nettement plus long que le nom lu est donc
+      // une piste, jamais une réponse.
+      final service = ScanService(
+        ArtHashIndex.fromEntries(const []),
+        FakeCardTextReader()..lines = [const ReadLine('Transformation', 0.1, 0.05)],
+        FakeCardRepository()
+          ..results = [_prefixeHit('divine', 'Transformation divine')],
+      );
+
+      final outcome = await service.recognise(
+        photoOf(fakeCard(CardFrame.modern, seed: 5)),
+        photoPath: 'photo.jpg',
+      );
+
+      expect(outcome.oracleIds, contains('divine'), reason: 'la piste reste');
+      expect(
+        outcome.isConfident,
+        isFalse,
+        reason: 'affirmer à tort coûte plus cher que suggérer (§IV.8)',
+      );
+    });
+
+    test('une faute de lecture sur un nom entier reste décisive', () async {
+      // Le pendant du test précédent, et ce qu_il ne doit pas casser : une
+      // lettre mal lue sur un nom de longueur comparable garde sa confiance.
+      // Sans ce garde, la règle se durcirait jusqu_à ne plus rien affirmer.
+      final service = ScanService(
+        ArtHashIndex.fromEntries(const []),
+        FakeCardTextReader()..lines = [const ReadLine('Foudrs', 0.1, 0.05)],
+        FakeCardRepository()..results = [_spreadHit('foudre', 'Foudre')],
+      );
+
+      final outcome = await service.recognise(
+        photoOf(fakeCard(CardFrame.modern, seed: 6)),
+        photoPath: 'photo.jpg',
+      );
+
+      expect(outcome.oracleIds, ['foudre']);
+      expect(outcome.isConfident, isTrue);
+    });
+
     test('une reconnaissance incertaine propose sans affirmer', () async {
       // « Affirmer à tort coûte plus cher que suggérer » : l'écran présentera
       // ces candidats sans les cocher.
@@ -831,6 +881,24 @@ void main() {
     });
   });
 }
+
+/// Une carte trouvée par un nom lu qui n'en est que le **préfixe**.
+///
+/// Le score vient de la vraie fonction serveur : `0,85 + 0,13 × (longueur lue /
+/// longueur trouvée)`, soit 0,937 pour « Transformation » contre
+/// « Transformation divine ». Ce bonus sert la saisie au clavier — taper
+/// « Lightning » doit proposer « Lightning Bolt » — et dessert la lecture d'une
+/// photo, où l'OCR rend un nom entier.
+CardHit _prefixeHit(String oracleId, String trouve) => CardHit(
+  oracleId: oracleId,
+  name: trouve,
+  matchedName: trouve,
+  matchedLang: 'fr',
+  legalPauper: true,
+  legalModern: true,
+  legalCommander: true,
+  score: 0.937,
+);
 
 CardHit _hit(String oracleId) => CardHit(
   oracleId: oracleId,

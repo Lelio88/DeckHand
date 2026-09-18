@@ -275,6 +275,27 @@ class SpreadFind {
 /// rapprochements approximatifs.
 const double _decisiveScore = 0.9;
 
+/// Ce qu'un nom trouvé peut dépasser le nom lu sans cesser d'être décisif.
+///
+/// **Le score ne suffit pas à lui seul, et c'est mesuré.** La recherche
+/// serveur accorde un bonus au nom qui *commence par* ce qu'on lui donne :
+/// `0,85 + 0,13 × (longueur lue / longueur trouvée)`. Taper « Lightning » doit
+/// proposer « Lightning Bolt » — c'est utile au clavier. Sur une photo, c'est
+/// l'inverse : l'OCR rend un nom **entier**, et un nom entier qui n'est que le
+/// début d'un autre désigne une carte différente.
+///
+/// Mesuré sur l'appareil, 43 photos : deux cartes affirmées à tort, les deux
+/// par ce chemin. « Transformation », lu sur une carte *split* française, valait
+/// 0,937 contre « Transformation divine » ; « Creature », lu sur une ligne de
+/// type, valait 0,937 contre « Creature Guy ». Les deux dépassent d'une moitié.
+///
+/// **Le seuil ne coûte rien au cas courant** : les fautes de lecture n'étaient
+/// déjà pas décisives — « Counterspel » → « Counterspell » vaut 0,828, donc la
+/// carte était proposée, pas affirmée. Relevé des rapports de longueur : 1,00
+/// et 1,09 pour les lectures justes ou fautives, 1,50 pour les deux faux
+/// positifs. 1,2 passe entre les deux avec de la marge des deux côtés.
+const double _decisiveLengthRatio = 1.2;
+
 class ScanService {
   const ScanService(
     this._index,
@@ -382,7 +403,7 @@ class ScanService {
       // aiguiser » et « Skald chanteguerre » donne l'impression que l'app
       // hésite alors qu'elle sait.
       oracleIds: found.take(limit).toList(growable: false),
-      isConfident: confirmed || found.length == 1,
+      isConfident: confirmed || (found.length == 1 && search.franc),
       method: confirmed ? ScanMethod.nameAndArt : ScanMethod.name,
       readName: names.first,
       readLines: lines,
@@ -960,7 +981,7 @@ class ScanService {
   ///
   /// Les lignes suivantes ne servent donc que de repli, quand la première n'a
   /// rien donné — le cas d'un nom mal lu.
-  Future<({List<String> ids, bool unreachable})> _searchNames(
+  Future<({List<String> ids, bool unreachable, bool franc})> _searchNames(
     List<String> names, {
     required int limit,
   }) async {
@@ -972,7 +993,7 @@ class ScanService {
         // Sans réseau, la lecture ne sert à rien : l'empreinte prend le relais.
         // **Mais la panne se dit.** Avalée, elle se confondait avec une carte
         // absente du catalogue, et l'écran conseillait de recadrer.
-        return (ids: const <String>[], unreachable: true);
+        return (ids: const <String>[], unreachable: true, franc: false);
       }
       if (hits.isEmpty) continue;
 
@@ -982,15 +1003,28 @@ class ScanService {
       // que si la lecture était douteuse. Les afficher sous une carte trouvée
       // net donne l'impression que l'app hésite alors qu'elle sait.
       final best = hits.first;
-      if (best.score >= _decisiveScore) {
-        return (ids: [best.oracleId], unreachable: false);
+      // **Deux conditions, et la seconde est celle qui manquait.** Un score
+      // élevé dit que le nom lu *mène* à cette carte ; il ne dit pas qu'il la
+      // *désigne*. Un nom trouvé bien plus long que le nom lu reste une piste,
+      // et une piste se propose.
+      final assezProche =
+          best.matchedName.length <= name.length * _decisiveLengthRatio;
+      if (best.score >= _decisiveScore && assezProche) {
+        return (ids: [best.oracleId], unreachable: false, franc: true);
       }
       return (
         ids: hits.map((h) => h.oracleId).toList(growable: false),
         unreachable: false,
+        // **Ce que « franc » protège quand il n'y a qu'un candidat.** Un seul
+        // résultat vaut confiance — le catalogue ne connaît qu'une carte qui
+        // ressemble, et une lettre mal lue ne doit pas coûter une confirmation
+        // de plus à l'utilisateur. Mais « une seule qui ressemble » devient
+        // trompeur quand la ressemblance est un préfixe : « Brûlage » ne trouve
+        // que « Bricolage », et ce n'est pas la carte tenue.
+        franc: assezProche,
       );
     }
-    return (ids: const <String>[], unreachable: false);
+    return (ids: const <String>[], unreachable: false, franc: false);
   }
 }
 
