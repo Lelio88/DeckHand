@@ -2836,6 +2836,8 @@ Chaque écran a été écrit à son tour, et chacun a inventé sa réponse à de
 
 **La règle, sans exception.** Un appui simple exécute l'action propre à la surface — ajouter, choisir une édition, ouvrir une feuille. L'appui long ouvre toujours la même chose : la carte en grand.
 
+**À la souris, le survol montre ce que le maintien montre au doigt** (#44). Maintenir un clic une seconde n'est pas un geste de bureau — personne ne le fait spontanément. Sous un pointeur, une loupe apparaît sur la tuile et ouvre la même carte en grand ; un écran tactile n'entre jamais dans un survol, et garde donc l'appui long tel quel. Une seule surface la porte aujourd'hui, le panier du flux (`scan_basket_grid.dart`), parce que c'est la seule qu'on utilise à la souris — le scan webcam sur le PC de stream (#40). Si d'autres écrans y passent, la loupe doit les suivre : une règle qui ne vaudrait que sur un écran enseignerait, comme le pictogramme d'aperçu autrefois, un geste que les autres ne connaissent pas.
+
 Neuf surfaces agrandissent une carte. Huit le faisaient déjà au maintien ; une seule le faisait au **toucher** — la ligne du général sur une tuile de deck. C'était aussi la seule à porter un pictogramme d'aperçu, si bien que **la surface aberrante était celle qui enseignait la règle** : l'utilisateur en déduisait « je tape sur le nom », geste sans effet dans le classeur, les scans et les listes de courses. Le pictogramme a disparu avec l'exception, et la tuile entière porte désormais le couple canonique.
 
 Trois écrans n'offraient aucun chemin vers la carte en grand, et ce sont ceux où il manquait le plus :

@@ -31,6 +31,7 @@ import '../../printings/presentation/edition_line.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../application/scan_service.dart';
 import '../data/photo_source.dart';
+import 'copies_stepper.dart';
 
 /// Une carte repérée sur la photo, telle que l'utilisateur peut l'amender.
 class _Spotted {
@@ -698,39 +699,15 @@ class _SpottedTile extends StatelessWidget {
             ),
             // Les exemplaires identiques ne sont pas comptés : la lecture des noms
             // ne distingue pas deux cartes côte à côte d'un nom lu deux fois. La
-            // quantité s'ajuste donc à la main.
-            IconButton(
-              // **Resserrés, pour rendre au nom la place que le compte prend.**
-              // Deux boutons pleine taille et leur nombre occupaient 116 dp des
-              // 360 d'un téléphone étroit ; l'aperçu montrait « Levée de b… »
-              // là où le nom tient largement. La cible tactile reste au-dessus
-              // des 40 dp que réclame Material.
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              padding: EdgeInsets.zero,
-              icon: const Icon(Icons.remove_circle_outline),
-              tooltip: 'Un de moins',
-              onPressed: item.quantity > 1
-                  ? () {
-                      item.quantity--;
-                      onChanged();
-                    }
-                  : null,
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                '${item.quantity}',
-                style: theme.textTheme.titleMedium,
-              ),
-            ),
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              padding: EdgeInsets.zero,
-              icon: const Icon(Icons.add_circle_outline),
-              tooltip: 'Un de plus',
-              onPressed: () {
+            // quantité s'ajuste donc à la main — le même composant que le
+            // panier du flux, qui en a besoin pour la raison inverse.
+            CopiesStepper(
+              quantity: item.quantity,
+              onDecrement: () {
+                item.quantity--;
+                onChanged();
+              },
+              onIncrement: () {
                 item.quantity++;
                 onChanged();
               },

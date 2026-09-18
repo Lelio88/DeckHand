@@ -67,6 +67,34 @@ class ScanBasket {
     return line;
   }
 
+  /// Un exemplaire de plus, à la main (#44).
+  ///
+  /// **Ne remet pas une carte écartée**, contrairement à [add] : repasser la
+  /// carte devant l'objectif est un geste délibéré, un « + » à la souris ne
+  /// fait qu'ajuster un nombre. Une carte que le flux n'a pas vue n'est pas
+  /// créée non plus — seul [add] crée, la correction porte sur ce qui a été
+  /// reconnu.
+  void increment(String oracleId) => _line(oracleId)?.quantity++;
+
+  /// Un exemplaire de moins, sans descendre sous un.
+  ///
+  /// **Le dernier ne se retire pas par ce geste.** Écarter la ligne existe
+  /// déjà et reste visible ; descendre à zéro laisserait une carte « gardée »
+  /// qui n'enregistre rien, un état sans nom. `CardTracker` a raison de
+  /// compter deux passages quand on repose une carte et qu'on la remontre :
+  /// c'est le geste qui est ambigu, et c'est ici qu'on le rattrape.
+  void decrement(String oracleId) {
+    final line = _line(oracleId);
+    if (line != null && line.quantity > 1) line.quantity--;
+  }
+
+  BasketLine? _line(String oracleId) {
+    for (final line in _lines) {
+      if (line.oracleId == oracleId) return line;
+    }
+    return null;
+  }
+
   /// Retire une ligne entière — la carte n'aurait jamais dû entrer.
   void remove(String oracleId) =>
       _lines.removeWhere((l) => l.oracleId == oracleId);

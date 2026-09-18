@@ -672,6 +672,14 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
     }
   }
 
+  // Le compte à la main (#44) : le panier borne, l'écran ne fait que
+  // redessiner.
+  void _increment(String oracleId) =>
+      setState(() => _basket.increment(oracleId));
+
+  void _decrement(String oracleId) =>
+      setState(() => _basket.decrement(oracleId));
+
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
@@ -862,7 +870,10 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen> {
                     cards: _scannedCards(),
                     enabled: !_saving,
                     onToggle: _toggleKeep,
-                    // L'appui long agrandit, comme partout ailleurs.
+                    onIncrement: _increment,
+                    onDecrement: _decrement,
+                    // L'appui long agrandit, comme partout ailleurs — et la
+                    // loupe du survol, là où il y a une souris.
                     onEnlarge: (id) => showCardImage(
                       context,
                       imageUrl: _sole[id]?.printing.artCropUrl ??

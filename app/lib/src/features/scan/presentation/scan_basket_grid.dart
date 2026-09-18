@@ -32,6 +32,22 @@
 /// manœuvre, alors qu'elle avait été écartée exprès — c'était un faux positif,
 /// et le geste avait parfaitement fonctionné.
 ///
+/// **Le compte se corrige sur place, quand la tuile a la place** (#44).
+/// `CardTracker` a raison de compter deux passages quand on repose une carte
+/// et qu'on la remontre ; c'est le geste qui est ambigu, et la seule issue
+/// était d'écarter la ligne entière. Un bandeau « − n + » en bas de l'image
+/// — le même composant que l'étalement, [CopiesStepper] — apparaît dès que la
+/// tuile fait la largeur qu'il demande, ce qui est le cas d'un poste de
+/// travail et non d'un téléphone à quatre par ligne : le téléphone garde
+/// exactement ce qu'il avait. Écarter reste le geste courant, et le seul qui
+/// retire.
+///
+/// **À la souris, le survol montre ce que le maintien montre au doigt.** Une
+/// loupe apparaît sous un pointeur et ouvre la carte en grand ; le tactile
+/// n'entre jamais dans un survol, et garde l'appui long. C'est la seule
+/// surface qui la porte — voir « Toucher agit, maintenir montre » dans
+/// `docs/architecture.md` pour ce que cela engage.
+///
 /// Exemple canonique :
 /// ```dart
 /// ScanBasketGrid(
@@ -45,6 +61,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../common/card_image.dart';
+import 'copies_stepper.dart';
 
 /// Une carte du panier, telle que la grille l'affiche.
 class ScannedCard {
@@ -92,11 +109,18 @@ class ScanBasketGrid extends StatelessWidget {
     required this.cards,
     required this.onToggle,
     required this.onEnlarge,
+    required this.onIncrement,
+    required this.onDecrement,
     this.enabled = true,
   });
 
   final List<ScannedCard> cards;
   final void Function(String oracleId) onToggle;
+
+  /// Un exemplaire de plus, ou de moins, à la main (#44). **Requis** : un
+  /// écran qui oublierait de les brancher montrerait un bandeau inerte.
+  final void Function(String oracleId) onIncrement;
+  final void Function(String oracleId) onDecrement;
 
   /// Ce que fait l'appui long. **Confié à l'appelant**, comme le reste : ce
   /// composant n'ouvre pas de dialogue et ne connaît pas le réseau, ce qui est
@@ -119,28 +143,60 @@ class ScanBasketGrid extends StatelessWidget {
       ),
       itemCount: cards.length,
       itemBuilder: (context, i) => _ScannedTile(
+        // La clé sert aux tests, qui visent une tuile par sa carte.
+        key: ValueKey(cards[i].oracleId),
         card: cards[i],
+        enabled: enabled,
         onToggle: enabled ? () => onToggle(cards[i].oracleId) : null,
         onEnlarge: () => onEnlarge(cards[i].oracleId),
+        onIncrement: () => onIncrement(cards[i].oracleId),
+        onDecrement: () => onDecrement(cards[i].oracleId),
       ),
     );
   }
 }
 
-class _ScannedTile extends StatelessWidget {
+/// Largeur de tuile à partir de laquelle le compte se corrige sur place.
+///
+/// **Mesurée par le composant, pas choisie.** `CopiesStepper.minWidth` fait
+/// 104 dp ; huit de chaque côté pour qu'il ne touche pas les bords. Sous ce
+/// seuil — un téléphone de 360 donne des tuiles de 76 — la pastille `×N`
+/// reste seule, et la quantité se lit sans se régler : c'est l'état d'avant,
+/// là où tout est mesuré. Au-dessus — un poste de travail donne 250 et plus —
+/// le bandeau apparaît.
+const double _stepperMinTileWidth = CopiesStepper.minWidth + 16;
+
+class _ScannedTile extends StatefulWidget {
   const _ScannedTile({
+    super.key,
     required this.card,
     required this.onToggle,
     required this.onEnlarge,
+    required this.onIncrement,
+    required this.onDecrement,
+    required this.enabled,
   });
 
   final ScannedCard card;
   final VoidCallback? onToggle;
   final VoidCallback onEnlarge;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+  final bool enabled;
+
+  @override
+  State<_ScannedTile> createState() => _ScannedTileState();
+}
+
+class _ScannedTileState extends State<_ScannedTile> {
+  /// Vrai sous un pointeur. **C'est le seul signal fiable d'une souris** : un
+  /// écran tactile n'entre jamais ici, et garde donc ses gestes tels quels.
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final card = widget.card;
     // **Le geste porte sur la tuile entière, nom compris.** Le nom est sous
     // l'image, et un doigt qui vise une vignette de trois par ligne tombe
     // volontiers dessus : n'écouter que l'image rendait la carte
@@ -148,83 +204,159 @@ class _ScannedTile extends StatelessWidget {
     return Semantics(
       label: card.label,
       selected: card.keep,
-      child: GestureDetector(
-        onTap: onToggle,
-        onLongPress: onEnlarge,
-        // Sans cela, les espaces entre l'image et le nom ne repondent pas.
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Une carte couchée est redressée pour remplir sa case,
-                    // exactement comme dans le classeur : sans cela, `cover`
-                    // n'en montrerait qu'une bande centrale.
-                    Opacity(
-                      opacity: card.keep ? 1 : 0.28,
-                      child: CardImage(
-                        url: card.imageUrl,
-                        uprightInCell: true,
-                        placeholder: ColoredBox(
-                          color: theme.colorScheme.surfaceContainerHighest,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onToggle,
+          onLongPress: widget.onEnlarge,
+          // Sans cela, les espaces entre l'image et le nom ne repondent pas.
+          behavior: HitTestBehavior.opaque,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Une carte couchée est redressée pour remplir sa
+                        // case, exactement comme dans le classeur : sans
+                        // cela, `cover` n'en montrerait qu'une bande
+                        // centrale.
+                        Opacity(
+                          opacity: card.keep ? 1 : 0.28,
+                          child: CardImage(
+                            url: card.imageUrl,
+                            uprightInCell: true,
+                            placeholder: ColoredBox(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (!card.keep)
+                          const Center(
+                            child: Icon(
+                              Icons.block,
+                              size: 32,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        // Le témoin de l'état, et rien de plus : c'est la
+                        // tuile entière qui écoute le doigt.
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: _Pastille(
+                            icon: card.keep ? Icons.check : Icons.close,
+                            color: card.keep
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.outline,
+                          ),
+                        ),
+                        if (card.quantity > 1)
+                          Positioned(
+                            top: 4,
+                            left: 4,
+                            child: _Pastille.text(
+                              '×${card.quantity}',
+                              color: theme.colorScheme.secondary,
+                            ),
+                          ),
+                        // **La loupe n'existe que sous un pointeur.** L'appui
+                        // long n'a pas de sens au clic — maintenir le bouton
+                        // une seconde, personne ne le fait spontanément. Le
+                        // tactile n'entre jamais ici et garde l'appui long.
+                        if (_hovered)
+                          Positioned(
+                            top: 28,
+                            right: 4,
+                            child: _Loupe(onPressed: widget.onEnlarge),
+                          ),
+                        // **Le compte se corrige sur place quand la tuile a
+                        // la place** (#44), et seulement sur une carte gardée
+                        // : compter les exemplaires d'une carte écartée n'a
+                        // pas de sens. En bandeau sur le bas de l'image plutôt
+                        // que sous le nom, pour ne pas toucher à la hauteur de
+                        // la grille — ce qu'il couvre est le texte de règles,
+                        // pas l'illustration ni le nom.
+                        if (card.keep &&
+                            constraints.maxWidth >= _stepperMinTileWidth)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: _Bandeau(
+                              child: CopiesStepper(
+                                quantity: card.quantity,
+                                enabled: widget.enabled,
+                                onIncrement: widget.onIncrement,
+                                onDecrement: widget.onDecrement,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    if (!card.keep)
-                      const Center(
-                        child: Icon(
-                          Icons.block,
-                          size: 32,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    // Le témoin de l'état, et rien de plus : c'est la tuile
-                    // entière qui écoute le doigt.
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: _Pastille(
-                        icon: card.keep ? Icons.check : Icons.close,
-                        color: card.keep
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.outline,
-                      ),
-                    ),
-                    if (card.quantity > 1)
-                      Positioned(
-                        top: 4,
-                        left: 4,
-                        child: _Pastille.text(
-                          '×${card.quantity}',
-                          color: theme.colorScheme.secondary,
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              card.label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: card.keep
-                    ? theme.colorScheme.onSurface
-                    : theme.colorScheme.onSurfaceVariant,
+              const SizedBox(height: 4),
+              Text(
+                card.label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: card.keep
+                      ? theme.colorScheme.onSurface
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// Le bandeau sombre translucide qui porte le compte, en bas de l'image.
+class _Bandeau extends StatelessWidget {
+  const _Bandeau({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: const Color(0xAA101014),
+    child: Center(child: child),
+  );
+}
+
+/// La loupe du survol : un petit bouton rond, sombre, qui agrandit.
+class _Loupe extends StatelessWidget {
+  const _Loupe({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton.filled(
+    tooltip: 'Voir en grand',
+    icon: const Icon(Icons.zoom_in, size: 18),
+    style: IconButton.styleFrom(
+      backgroundColor: const Color(0xCC101014),
+      foregroundColor: Colors.white,
+      minimumSize: const Size(32, 32),
+      padding: EdgeInsets.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ),
+    onPressed: onPressed,
+  );
 }
 
 /// La pastille de coin — coche, croix ou nombre d'exemplaires.

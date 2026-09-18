@@ -11,6 +11,7 @@ library;
 
 import 'package:deckhand/src/common/card_image.dart';
 import 'package:deckhand/src/features/scan/presentation/scan_basket_grid.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,6 +30,8 @@ Future<void> pump(
   List<ScannedCard> cards = _cards,
   void Function(String)? onToggle,
   void Function(String)? onEnlarge,
+  void Function(String)? onIncrement,
+  void Function(String)? onDecrement,
   bool enabled = true,
 }) => tester.pumpWidget(
   MaterialApp(
@@ -38,6 +41,8 @@ Future<void> pump(
         enabled: enabled,
         onToggle: onToggle ?? (_) {},
         onEnlarge: onEnlarge ?? (_) {},
+        onIncrement: onIncrement ?? (_) {},
+        onDecrement: onDecrement ?? (_) {},
       ),
     ),
   ),
@@ -121,5 +126,124 @@ void main() {
     await tester.pump();
 
     expect(touches, isEmpty);
+  });
+
+  group('le compte, à la souris', () {
+    // **Le stepper n'apparaît que si la tuile a la place** (#44). À quatre
+    // par ligne, une tuile fait 76 dp sur un téléphone de 360 : deux cibles
+    // de 40 et le nombre n'y tiennent pas, et ce n'est pas une affaire de
+    // goût. Sur un poste de travail la même grille donne des tuiles de 250 :
+    // la place est là, et c'est là qu'on corrige un compte à la souris. Le
+    // téléphone garde ses gestes tels quels, là où tout est mesuré.
+    Finder dansLaTuile(String oracleId, Finder quoi) =>
+        find.descendant(of: find.byKey(ValueKey(oracleId)), matching: quoi);
+
+    testWidgets('sur une tuile large, un de plus et un de moins', (
+      tester,
+    ) async {
+      // 800 dp de large par défaut : des tuiles de 186, au-dessus du seuil.
+      final plus = <String>[];
+      final moins = <String>[];
+      await pump(tester, onIncrement: plus.add, onDecrement: moins.add);
+
+      await tester.tap(dansLaTuile('b', find.byTooltip('Un de plus')));
+      await tester.tap(dansLaTuile('b', find.byTooltip('Un de moins')));
+      await tester.pump();
+
+      expect(plus, ['b']);
+      expect(moins, ['b']);
+    });
+
+    testWidgets('un de moins est inactif sur un seul exemplaire', (
+      tester,
+    ) async {
+      // Descendre à zéro n'est pas ce geste — écarter la ligne l'est.
+      final moins = <String>[];
+      await pump(tester, onDecrement: moins.add);
+
+      await tester.tap(dansLaTuile('a', find.byTooltip('Un de moins')));
+      await tester.pump();
+
+      expect(moins, isEmpty);
+    });
+
+    testWidgets('corriger le compte n\'écarte pas la carte', (tester) async {
+      // La tuile entière écoute le toucher pour écarter ; les boutons du
+      // stepper doivent gagner l'arène, sinon chaque « + » décocherait.
+      final bascules = <String>[];
+      await pump(tester, onToggle: bascules.add);
+
+      await tester.tap(dansLaTuile('b', find.byTooltip('Un de plus')));
+      await tester.pump();
+
+      expect(bascules, isEmpty);
+    });
+
+    testWidgets('sur une tuile étroite, pas de stepper', (tester) async {
+      // Un téléphone de 360 : tuiles de 76 dp, sous le seuil.
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pump(tester);
+
+      expect(find.byTooltip('Un de plus'), findsNothing);
+      expect(find.byTooltip('Un de moins'), findsNothing);
+      // Le nombre d'exemplaires se lit toujours, sur la pastille.
+      expect(find.text('×3'), findsOneWidget);
+    });
+
+    testWidgets('une carte écartée n\'a pas de compte à corriger', (
+      tester,
+    ) async {
+      await pump(tester);
+      expect(dansLaTuile('c', find.byTooltip('Un de plus')), findsNothing);
+    });
+
+    testWidgets('pendant l\'enregistrement, le compte ne bouge plus', (
+      tester,
+    ) async {
+      final plus = <String>[];
+      await pump(tester, enabled: false, onIncrement: plus.add);
+
+      await tester.tap(dansLaTuile('b', find.byTooltip('Un de plus')));
+      await tester.pump();
+
+      expect(plus, isEmpty);
+    });
+  });
+
+  group('agrandir, à la souris', () {
+    // **L'appui long n'a pas de sens au clic** : maintenir le bouton une
+    // seconde, personne ne le fait spontanément. Une loupe apparaît au survol
+    // — donc seulement là où il y a un pointeur —, et le tactile garde
+    // l'appui long tel quel.
+    testWidgets('sans survol, pas de loupe', (tester) async {
+      await pump(tester);
+      expect(find.byTooltip('Voir en grand'), findsNothing);
+    });
+
+    testWidgets('au survol, la loupe agrandit sans écarter', (tester) async {
+      final bascules = <String>[];
+      final agrandies = <String>[];
+      await pump(tester, onToggle: bascules.add, onEnlarge: agrandies.add);
+
+      final souris = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await souris.addPointer(location: Offset.zero);
+      addTearDown(souris.removePointer);
+      await souris.moveTo(tester.getCenter(find.text('Pym Technologies')));
+      await tester.pump();
+
+      final loupe = find.descendant(
+        of: find.byKey(const ValueKey('a')),
+        matching: find.byTooltip('Voir en grand'),
+      );
+      expect(loupe, findsOneWidget);
+
+      await tester.tap(loupe);
+      await tester.pump();
+
+      expect(agrandies, ['a']);
+      expect(bascules, isEmpty);
+    });
   });
 }

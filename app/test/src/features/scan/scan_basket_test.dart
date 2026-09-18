@@ -79,6 +79,59 @@ void main() {
     });
   });
 
+  group('corriger le compte', () {
+    // **Le compte se corrige à la main** (#44). `CardTracker` a raison de
+    // compter deux passages quand on repose une carte et qu'on la remontre ;
+    // c'est le geste qui est ambigu, pas la mesure. Avant, la seule issue
+    // était d'écarter la ligne entière — trois exemplaires comptés pour deux
+    // possédés obligeaient à jeter les deux.
+    test('un de plus ajoute un exemplaire sans repasser la carte', () {
+      final basket = ScanBasket()..add('alpha');
+      basket.increment('alpha');
+
+      expect(basket.lines.single.quantity, 2);
+      expect(basket.keptCount, 2);
+    });
+
+    test('un de moins en retire un, et s\'arrête à un', () {
+      // Retirer le dernier exemplaire n'est pas ce geste : c'est écarter la
+      // ligne, qui existe déjà et reste visible. Descendre à zéro laisserait
+      // une carte « gardée » qui n'enregistre rien — un état sans nom.
+      final basket = ScanBasket()
+        ..add('alpha')
+        ..add('alpha')
+        ..add('alpha');
+      basket.decrement('alpha');
+      expect(basket.lines.single.quantity, 2);
+
+      basket.decrement('alpha');
+      basket.decrement('alpha');
+      expect(basket.lines.single.quantity, 1);
+      expect(basket.lines, hasLength(1));
+    });
+
+    test('une carte inconnue n\'est pas créée par la correction', () {
+      // Seul `add` crée une ligne : la correction porte sur ce que le flux a
+      // vu, jamais sur une carte qu'il n'a pas reconnue.
+      final basket = ScanBasket()..add('alpha');
+      basket.increment('beta');
+      basket.decrement('beta');
+
+      expect(basket.lines.map((l) => l.oracleId), ['alpha']);
+    });
+
+    test('corriger le compte ne remet pas une carte écartée', () {
+      // `add` remet `keep` parce que repasser la carte devant l'objectif est
+      // délibéré. Un `+` à la souris ne dit rien de tel : il ajuste un nombre.
+      final basket = ScanBasket()..add('alpha');
+      basket.lines.single.keep = false;
+      basket.increment('alpha');
+
+      expect(basket.lines.single.keep, isFalse);
+      expect(basket.keptCount, 0);
+    });
+  });
+
   group('retirer', () {
     test('fait disparaître la ligne entière', () {
       final basket = ScanBasket()
