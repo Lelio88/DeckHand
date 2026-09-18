@@ -524,7 +524,9 @@ def _ecart(prod: list[list[float]], vrai: list[tuple[float, float]]) -> float:
 #: le Dart pour l'interdire.
 MODERN = (0.080, 0.120, 0.920, 0.550)
 LEGACY = (0.114, 0.100, 0.890, 0.538)
-BOITES = {"modern": MODERN, "legacy": LEGACY}
+#: Carte pleine page : mêmes bords et même haut que `MODERN`, le bas seul change.
+FULL_ART = (0.080, 0.114, 0.918, 0.830)
+BOITES = {"modern": MODERN, "legacy": LEGACY, "fullArt": FULL_ART}
 
 
 def carte_depuis_fenetre(

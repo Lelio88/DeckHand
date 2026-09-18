@@ -61,6 +61,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 const String _email = String.fromEnvironment('DECKHAND_TEST_EMAIL');
 const String _motDePasse = String.fromEnvironment('DECKHAND_TEST_PASSWORD');
 
+/// Rejoue le banc comme si l'utilisateur avait coché « la carte se lit en
+/// travers ».
+///
+/// **Mesurer le geste, pas seulement l'automatique.** Les quatre orientations
+/// coûtent un faux positif sur ce banc et en gagnent d'autres ; savoir lesquels
+/// demande de passer les mêmes photos dans les deux réglages, et de soustraire.
+const bool _toutesOrientations = bool.fromEnvironment(
+  'DECKHAND_TOUTES_ORIENTATIONS',
+);
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -98,7 +108,10 @@ void main() {
       isNotEmpty,
       reason: 'photos absentes : adb push <photos>/. ${dossier.path}/',
     );
-    print('PLAFOND-REEL ${photos.length} photos dans ${dossier.path}');
+    print(
+      'PLAFOND-REEL ${photos.length} photos dans ${dossier.path} '
+      'toutesOrientations=$_toutesOrientations',
+    );
 
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -111,7 +124,11 @@ void main() {
       final chrono = Stopwatch()..start();
       PhotoOutcome resultat;
       try {
-        resultat = await service.recognisePhoto(octets, photoPath: photo.path);
+        resultat = await service.recognisePhoto(
+          octets,
+          photoPath: photo.path,
+          precisions: (toutesOrientations: _toutesOrientations),
+        );
       } catch (erreur) {
         print('PLAFOND-REEL $nom ERREUR $erreur');
         continue;

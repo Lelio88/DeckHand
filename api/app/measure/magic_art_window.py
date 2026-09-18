@@ -158,7 +158,19 @@ def telecharger(client: httpx.Client, url: str) -> Image.Image:
     return Image.open(BytesIO(reponse.content)).convert("RGB")
 
 
-def mesurer(requete: str, taille: int, titre: str) -> list[Fenetre]:
+def mesurer(
+    requete: str, taille: int, titre: str, rotation: int = 0
+) -> list[Fenetre]:
+    """Mesure une famille, la carte éventuellement tournée d'abord.
+
+    **[rotation] existe pour les maquettes dont l'illustration est couchée sur
+    un carton debout** — les cartes *split*, dont chaque moitié se lit en
+    tournant la carte d'un quart de tour. Chercher un `art_crop` de rapport 2,86
+    dans une carte debout ne peut rien donner : aucune fenêtre de ce rapport n'y
+    contient l'illustration. La fenêtre rendue est alors exprimée **dans le
+    repère de la carte tournée**, qui est celui où le moteur la lira —
+    `CardFrame.landscape` déclenche exactement la même rotation.
+    """
     with httpx.Client(headers={"User-Agent": USER_AGENT}) as client:
         echantillon = cartes(client, requete, taille)
         print(f"{titre} : {len(echantillon)} impressions")
@@ -170,6 +182,8 @@ def mesurer(requete: str, taille: int, titre: str) -> list[Fenetre]:
             images = carte["image_uris"]
             try:
                 entiere = telecharger(client, images["normal"])
+                if rotation:
+                    entiere = entiere.rotate(rotation, expand=True)
                 art = telecharger(client, images["art_crop"])
             except httpx.HTTPError as erreur:
                 print(f"  {carte.get('name', '?')[:28]:30s} indisponible ({erreur})")
@@ -277,10 +291,15 @@ def sur_photo(chemin: str, carte: str) -> None:
 #: *Breeding Pool* — des terrains non-base dont la maquette reste ordinaire
 #: (`bottom` ≈ 0,554, soit `modern`). Les cartes réellement pleine page du lot
 #: étaient deux. Le drapeau `is:fullart` de Scryfall recouvre donc large.
+#: `(titre, requête Scryfall, rotation à appliquer à la carte)`.
 FAMILLES = {
-    "borderless": ("sans bordure", "border:borderless"),
-    "fullart": ("pleine page", "is:fullart"),
-    "terrains": ("terrain de base pleine page", "is:fullart t:basic"),
+    "borderless": ("sans bordure", "border:borderless", 0),
+    "fullart": ("pleine page", "is:fullart", 0),
+    "terrains": ("terrain de base pleine page", "is:fullart t:basic", 0),
+    # Les deux sens sont à essayer : rien ne dit d'avance de quel côté la
+    # première face se redresse, et c'est la mesure qui tranche.
+    "split": ("carte split, quart horaire", "is:split", 90),
+    "split-inverse": ("carte split, quart anti-horaire", "is:split", 270),
 }
 
 
@@ -303,11 +322,12 @@ def main() -> None:
         return
 
     portee = f" set:{arguments.set}" if arguments.set else ""
-    titre, filtre = FAMILLES[arguments.famille]
+    titre, filtre, rotation = FAMILLES[arguments.famille]
     sans_bord = mesurer(
         f"{filtre} -is:token lang:en{portee}",
         arguments.size,
         titre,
+        rotation,
     )
     med_sans = resumer(titre, sans_bord)
 

@@ -18,6 +18,7 @@ from PIL import Image
 from app.measure.magic_art_window import gradient
 from app.measure.plafond_empreinte import (
     LEGACY,
+    FULL_ART,
     MODERN,
     Rotation,
     Scene,
@@ -358,7 +359,10 @@ def test_les_gabarits_magic_sont_ceux_du_dart() -> None:
 
     dart = cadres_dart().get("magic")
     assert dart is not None, "aucun cadre magic lu dans art_box.dart"
-    assert {MODERN, LEGACY} == {tuple(b) for b in dart}
+    assert {MODERN, LEGACY, FULL_ART} == {tuple(b) for b in dart}, (
+        "un gabarit ajouté d'un seul côté fait mesurer au banc une chaîne que "
+        "la production n'exécute pas"
+    )
 
 
 def test_pose_lue_dans_la_note() -> None:

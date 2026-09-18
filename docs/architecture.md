@@ -1730,6 +1730,22 @@ Trois règles tiennent ce dispositif :
   renonce à la chercher. L'impasse défile depuis qu'elle porte les deux — sans
   cela le geste de secours tombait sous le pli, mesuré à 62 pixels de trop.
 
+**Le *split* n'a pas besoin d'un gabarit à lui, et c'est mesuré.** On l'a
+longtemps rangé parmi les maquettes à mesurer : une carte *split* porte deux
+illustrations tournées d'un quart de tour, ce qui ressemble à une géométrie
+propre. Mesuré sur douze impressions par `magic_art_window --famille
+split-inverse` : une fois la carte tournée d'un quart **anti-horaire**, la
+fenêtre tombe à 0,092 / 0,151 / 0,883 / 0,535 — soit `modern` (0,080 / 0,120 /
+0,920 / 0,550) à quelques centièmes près. Chaque moitié d'une *split* **est** une
+carte ordinaire posée en travers.
+
+Le sens compte, et lui seul : en quart horaire, les accords tombent à 0,12-0,26
+contre 0,30-0,60 dans l'autre sens, et les fenêtres partent dans tous les sens
+(écart-type 0,31 sur `top`). Ce qui manquait n'était donc pas un gabarit mais
+**la rotation** : sur une *split* photographiée debout, le rapport du
+quadrilatère autorise les demi-tours et interdit les quarts. C'est exactement ce
+que la case « la carte se lit en travers » rouvre.
+
 **La langue n'y figure pas**, et c'est délibéré : la cascade d'écritures s'en
 charge seule, sans rien demander, et ne coûte qu'en cas d'échec. Une case
 « autre langue » ferait doublon avec ce qui marche déjà.
