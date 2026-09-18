@@ -124,6 +124,7 @@ Future<
     FakeCollectionRepository collection,
     FakePrintingRepository printings,
     _FakeCatalogue catalogue,
+    FakeCardTextReader reader,
   })
 >
 pumpSpreadScan(
@@ -185,7 +186,12 @@ pumpSpreadScan(
   await tester.tap(find.text('Photographier'));
   await tester.pumpAndSettle();
 
-  return (collection: collection, printings: printings, catalogue: cards);
+  return (
+    collection: collection,
+    printings: printings,
+    catalogue: cards,
+    reader: reader,
+  );
 }
 
 /// Ouvre la feuille de recherche depuis la ligne nommee [from], y cherche
@@ -199,9 +205,16 @@ Future<void> _pickCard(
   required String query,
   required String pick,
 }) async {
-  await tester.tap(
-    from == null ? find.text('Saisir une carte oubliée') : find.text(from),
-  );
+  final cible = from == null
+      ? find.text('Saisir une carte oubliée')
+      : find.text(from);
+  // **Amener la cible à l'écran avant d'y taper.** L'impasse défile depuis
+  // qu'elle porte aussi les précisions sur une carte particulière ; un `tap`
+  // sur un widget sous le pli échoue avec un avertissement, pas une erreur —
+  // le genre de panne qui se lit mal dans un journal de test.
+  await tester.ensureVisible(cible);
+  await tester.pumpAndSettle();
+  await tester.tap(cible);
   await tester.pumpAndSettle();
 
   await tester.enterText(find.byType(TextField).last, query);
@@ -831,6 +844,50 @@ void main() {
 
       expect(find.textContaining("Aucun nom n'a pu être lu"), findsOneWidget);
       expect(find.text('Saisir une carte oubliée'), findsOneWidget);
+    });
+
+    testWidgets('une carte particulière peut être précisée', (tester) async {
+      // **L'échec est le seul moment où la question se pose.** Une case
+      // toujours visible se coche par curiosité, et chaque hypothèse ouverte
+      // est un tirage de plus dans l'index — donc une chance de plus de se
+      // voir affirmer une carte qu'on n'a pas.
+      await pumpSpreadScan(tester, found: const []);
+
+      expect(find.text('La carte se lit en travers'), findsOneWidget);
+      expect(find.text('Chercher à nouveau'), findsOneWidget);
+
+      final bouton = tester.widget<FilledButton>(
+        find.ancestor(
+          of: find.text('Chercher à nouveau'),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      expect(
+        bouton.onPressed,
+        isNull,
+        reason:
+            'rien de coché : relancer à l_identique redonnerait le même '
+            'échec, et le bouton promettrait ce qu_il ne peut pas tenir',
+      );
+    });
+
+    testWidgets('cocher puis relancer relit la même photo', (tester) async {
+      final fakes = await pumpSpreadScan(tester, found: const []);
+      final avant = fakes.reader.reads;
+
+      await tester.tap(find.text('La carte se lit en travers'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Chercher à nouveau'));
+      await tester.pumpAndSettle();
+
+      expect(
+        fakes.reader.reads,
+        greaterThan(avant),
+        reason:
+            'la photo est relue sur place : la refaire prendre pour changer '
+            'une case serait le geste de trop, et la seconde photo ne serait '
+            'pas la même',
+      );
     });
 
     testWidgets('la carte saisie depuis l\'impasse atteint la collection', (

@@ -11,6 +11,8 @@
 /// fausse ensuite toutes les suggestions de decks.
 library;
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -123,6 +125,18 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
   /// Le recours a hesite : il propose, il n'affirme pas.
   bool _uncertain = false;
 
+  /// La dernière photo, gardée pour pouvoir la relire autrement.
+  ///
+  /// **Sans elle, « réessayer » redemanderait la photo.** Une carte
+  /// particulière est précisément celle qu'on vient de cadrer avec soin ; la
+  /// refaire photographier pour changer une case serait le geste de trop,
+  /// et la seconde photo ne serait pas la même.
+  Uint8List? _dernierePhoto;
+  String? _dernierChemin;
+
+  /// « Ma carte se lit en travers », coché par l'utilisateur après un échec.
+  bool _enTravers = false;
+
   /// L'enregistrement a échoué, alors que la liste, elle, est intacte.
   ///
   /// **Deux pannes, deux champs.** Elles partageaient `_error`, si bien qu'une
@@ -155,6 +169,12 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         return;
       }
 
+      // Une nouvelle photo repart sans précision : elles valent pour le
+      // carton qu'on vient de quitter, pas pour le suivant.
+      _dernierePhoto = photo.bytes;
+      _dernierChemin = photo.path;
+      _enTravers = false;
+
       final service = await ref.read(scanServiceProvider.future);
       final found = await service.recognisePhoto(
         photo.bytes,
@@ -179,6 +199,49 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         _fromArtwork = found.fromArtwork;
         _uncertain = found.fromArtwork && !found.isConfident;
         _scanned = true;
+      });
+      await _fillSoleEditions();
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Relit **la même photo** en levant les restrictions que l'utilisateur
+  /// a désignées.
+  ///
+  /// **Ce que ce geste achète.** La chaîne s'impose des restrictions parce
+  /// qu'elles paient : n'essayer que les deux orientations compatibles avec le
+  /// rapport du quadrilatère rend « 8 cartes justes et 1 inventée » là où les
+  /// quatre sens rendent « 8 et 2 ». Ce compromis est le bon tant que personne
+  /// ne sait ce que la carte a de particulier — mais l'utilisateur, lui, le
+  /// sait. Il paie alors le faux positif de plus pour lui seul, et sur une
+  /// photo où l'alternative était de ne rien trouver du tout.
+  Future<void> _relirePhoto() async {
+    final photo = _dernierePhoto;
+    if (photo == null || _busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final service = await ref.read(scanServiceProvider.future);
+      final found = await service.recognisePhoto(
+        photo,
+        photoPath: _dernierChemin,
+        precisions: (toutesOrientations: _enTravers),
+      );
+      if (!mounted) return;
+      setState(() {
+        _spotted
+          ..clear()
+          ..addAll(
+            found.cards.map((find) => _Spotted(find, keep: found.isConfident)),
+          );
+        _readButUnmatched = found.readButUnmatched;
+        _fromArtwork = found.fromArtwork;
+        _uncertain = found.fromArtwork && !found.isConfident;
       });
       await _fillSoleEditions();
     } catch (e) {
@@ -390,7 +453,24 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       // **Le geste de secours est le même dans les deux cas**, et il n'était
       // offert dans aucun : quelle que soit la raison de l'échec, la carte est
       // là, dans la main, et se saisit en trois frappes.
-      final rattrapage = _AddByHand(onTap: _saving ? null : _addManually);
+      final rattrapage = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // **Le geste précis d'abord, la saisie à la main ensuite.** L'un
+          // peut encore trouver la carte, l'autre renonce à la chercher : les
+          // proposer dans l'ordre inverse revient à conseiller d'abandonner.
+          if (_dernierePhoto != null)
+            _CartePariculiere(
+              enTravers: _enTravers,
+              onChanged: _busy
+                  ? null
+                  : (valeur) => setState(() => _enTravers = valeur),
+              onRetry: _busy || !_enTravers ? null : _relirePhoto,
+            ),
+          const SizedBox(height: 8),
+          _AddByHand(onTap: _saving ? null : _addManually),
+        ],
+      );
 
       // **Deux causes opposées, deux gestes opposés.** Confondre les deux
       // envoyait nettoyer des protège-cartes quand la lecture était parfaite.
@@ -935,6 +1015,65 @@ class _SaveError extends StatelessWidget {
   }
 }
 
+/// Ce que l'utilisateur peut préciser quand la reconnaissance a échoué.
+///
+/// **Offert seulement après un échec, et jamais avant.** Une case toujours
+/// visible se coche par curiosité, et chaque hypothèse ouverte est un tirage de
+/// plus dans l'index — donc une chance de plus de se voir affirmer une carte
+/// qu'on n'a pas. Ici l'alternative est de ne rien trouver : le marché est
+/// clair, et il ne concerne que la photo en cours.
+///
+/// **Les mots sont ceux de qui tient le carton.** « La carte se lit en
+/// travers » se comprend sans rien savoir du pipeline ; « toutes orientations »
+/// ou « landscape » demanderaient d'avoir lu le code.
+class _CartePariculiere extends StatelessWidget {
+  const _CartePariculiere({
+    required this.enTravers,
+    required this.onChanged,
+    required this.onRetry,
+  });
+
+  final bool enTravers;
+  final ValueChanged<bool>? onChanged;
+
+  /// Nul tant que rien n'est coché : relancer à l'identique redonnerait le
+  /// même échec, et le bouton promettrait ce qu'il ne peut pas tenir.
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CheckboxListTile(
+          value: enTravers,
+          onChanged: onChanged == null
+              ? null
+              : (valeur) => onChanged!(valeur ?? false),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          // **Pas de sous-titre.** « Son illustration est tournée d'un quart
+          // de tour » n'apprenait rien que le titre ne dise, et la ligne
+          // gagnée repoussait « Saisir une carte oubliée » sous le pli —
+          // mesuré : le geste de secours n'était plus atteignable sans
+          // défiler, sur l'écran où il sert le plus.
+          title: Text(
+            'La carte se lit en travers',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Chercher à nouveau'),
+        ),
+      ],
+    );
+  }
+}
+
 class _Note extends StatelessWidget {
   const _Note({required this.icon, required this.text, this.action});
 
@@ -953,8 +1092,14 @@ class _Note extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // **Défilable, parce que l'impasse est l'écran qui grandit.** Elle porte un
+    // message, un geste de secours, et depuis peu les précisions qu'on peut
+    // donner sur une carte particulière. Mesuré : sur un écran de test, la
+    // colonne débordait déjà de 62 pixels — donc sur un téléphone en paysage,
+    // ou avec une police agrandie, le geste de sortie devenait invisible. Un
+    // cul-de-sac qui ne montre plus sa porte est pire qu'un cul-de-sac.
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,

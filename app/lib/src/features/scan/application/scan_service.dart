@@ -314,6 +314,7 @@ class ScanService {
     Uint8List photoBytes, {
     String? photoPath,
     int limit = 3,
+    ScanPrecisions precisions = sansPrecision,
   }) async {
     // **Le texte passe devant, et il ne peut rien emporter avec lui.** L'ordre
     // était inverse, au motif que l'empreinte ne dépend d'aucun service
@@ -327,7 +328,12 @@ class ScanService {
     final lines = photoPath == null
         ? const <ReadLine>[]
         : await _reader.readLines(photoPath);
-    final art = _byArt(photoBytes, limit: limit, lines: lines);
+    final art = _byArt(
+      photoBytes,
+      limit: limit,
+      lines: lines,
+      precisions: precisions,
+    );
     final names = cardNameCandidates(lines);
 
     // Même quand le nom n'a rien donné, le texte lu garde sa valeur : la carte
@@ -409,6 +415,7 @@ class ScanService {
     Uint8List photoBytes, {
     String? photoPath,
     int limit = 3,
+    ScanPrecisions precisions = sansPrecision,
   }) async {
     final spread = photoPath == null
         ? const SpreadOutcome([])
@@ -422,6 +429,7 @@ class ScanService {
       // Rien de lu la première fois : inutile de relire.
       photoPath: spread.namesRead == 0 ? null : photoPath,
       limit: limit,
+      precisions: precisions,
     );
 
     if (byArt.oracleIds.isEmpty) {
@@ -736,6 +744,7 @@ class ScanService {
     Uint8List photoBytes, {
     required int limit,
     List<ReadLine> lines = const [],
+    ScanPrecisions precisions = sansPrecision,
   }) {
     // `decodeImage` renvoie null sur un format inconnu, mais **lève** sur des
     // octets tronqués ou corrompus — les deux arrivent avec une photo
@@ -791,7 +800,12 @@ class ScanService {
             cropToCardFrame(decoded, game: game.id),
             game: game.id,
           )
-        : artHashCandidatesInQuad(decoded, quad, game: game.id);
+        : artHashCandidatesInQuad(
+            decoded,
+            quad,
+            game: game.id,
+            toutesOrientations: precisions.toutesOrientations,
+          );
     final outcome = _index.searchAny(
       candidates,
       limit: limit,

@@ -246,6 +246,38 @@ void main() {
       }
     });
 
+    test('l_utilisateur peut rouvrir les quatre sens', () {
+      // **La restriction par le rapport est un compromis, pas une vérité.**
+      // Elle écarte le sens géométriquement impossible, et c'est ce qui vaut
+      // « 8 justes et 1 inventée » au lieu de « 8 et 2 ». Mais le rapport se
+      // lit sur le quadrilatère détecté : quand celui-ci est faux — carte
+      // tenue de travers, bord mal trouvé —, la restriction écarte le bon
+      // sens avec l_autre.
+      //
+      // Personne ne peut le deviner à notre place ; l_utilisateur qui tient la
+      // carte, si. Le geste est donc à lui, et il ne coûte qu'à celui qui le
+      // fait : le cas courant garde ses deux sens.
+      for (final quad in [upright, landscape]) {
+        final keys = artHashCandidatesInQuad(
+          img.Image(width: 800, height: 1100),
+          quad,
+          game: 'magic',
+          toutesOrientations: true,
+        ).keys.toList();
+
+        expect(
+          keys.map((h) => h.quarterTurns).toSet(),
+          {0, 1, 2, 3},
+          reason: 'rapport ${quad.aspect} : les quatre sens sont rouverts',
+        );
+        expect(
+          keys.length,
+          4 * keys.map((h) => h.frame).toSet().length,
+          reason: 'quatre sens par cadre, sans doublon',
+        );
+      }
+    });
+
     test('la carte couchée se retrouve par son quart de tour', () {
       // L'index ne porte que l'illustration telle qu'elle est cadrée sur la
       // carte couchée. La photo, elle, la présente droite — c'est le cas de la

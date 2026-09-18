@@ -452,6 +452,24 @@ img.Image cropArt(img.Image card, CardFrame frame) {
   );
 }
 
+/// Ce que l'utilisateur précise quand la reconnaissance a échoué.
+///
+/// **Rien ici n'est deviné, tout est demandé.** Chaque champ lève une
+/// restriction que la chaîne s'impose pour de bonnes raisons — chaque
+/// hypothèse de plus est un tirage de plus dans l'index, avec sa chance de
+/// passer les deux garde-fous sur du bruit. Les lever pour tout le monde
+/// échangerait un gain rare contre un faux positif fréquent ; les lever sur
+/// demande ne coûte qu'à celui qui tient la carte et sait ce qu'elle a de
+/// particulier.
+///
+/// **L'écran ne les propose qu'après un échec**, et dans les mots de
+/// l'utilisateur : « la carte se lit en travers », jamais « toutes
+/// orientations ».
+typedef ScanPrecisions = ({bool toutesOrientations});
+
+/// Le cas courant : la chaîne décide seule, avec ses garde-fous.
+const ScanPrecisions sansPrecision = (toutesOrientations: false);
+
 /// Une manière de lire la carte : un cadre, et l'orientation sous laquelle on
 /// le cherche.
 ///
@@ -530,6 +548,7 @@ Map<ArtHypothesis, ArtHash> artHashCandidatesInQuad(
   img.Image photo,
   CardQuad quad, {
   String game = 'magic',
+  bool toutesOrientations = false,
 }) {
   final quadIsUpright = quad.aspect <= 1;
   final candidates = <ArtHypothesis, ArtHash>{};
@@ -539,7 +558,16 @@ Map<ArtHypothesis, ArtHash> artHashCandidatesInQuad(
     // Le gabarit et le quadrilatère pointent-ils dans le même sens ? Si oui la
     // carte est déjà lisible, au demi-tour près ; sinon il faut la redresser.
     final aligne = frame.landscape != quadIsUpright;
-    for (final t in aligne ? const [0, 2] : const [1, 3]) {
+    // **[toutesOrientations] lève la restriction, et seulement sur demande.**
+    // Le rapport se lit sur le quadrilatère *détecté* : quand celui-ci est
+    // faux — carte tenue de travers, bord mal trouvé —, il écarte le bon sens
+    // avec le mauvais. Personne ne peut le deviner à sa place ; l'utilisateur
+    // qui tient la carte, si. Le cas courant garde donc ses deux sens, et le
+    // faux positif de plus n'est payé que par qui a demandé.
+    final sens = toutesOrientations
+        ? const [0, 1, 2, 3]
+        : (aligne ? const [0, 2] : const [1, 3]);
+    for (final t in sens) {
       candidates[(frame: frame, quarterTurns: t)] = computeArtHash(
         sampleArt(photo, quad.quarterTurned(t), frame.box),
       );

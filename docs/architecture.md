@@ -1703,6 +1703,42 @@ Le réglage garde donc son sens — il dit quelle écriture essayer **en premier
 
 **Coût :** l'APK universel release pèse 94,4 Mo, contre 53,6 avant ML Kit. Seul le devanagari reste écarté par `android/app/proguard-rules.pro` — sans quoi R8 refuse de compiler, le plugin le référençant sans qu'il soit présent.
 
+### Ce que l'utilisateur peut préciser quand la reconnaissance a échoué
+
+**Les restrictions de la chaîne sont des compromis, pas des vérités.** N'essayer
+que les deux orientations compatibles avec le rapport du quadrilatère rend « 8
+cartes justes et 1 inventée » là où les quatre sens rendent « 8 et 2 » : chaque
+hypothèse ouverte est un tirage de plus dans l'index, donc une chance de plus de
+passer les deux garde-fous sur du bruit. Le compromis est le bon **tant que
+personne ne sait ce que la carte a de particulier**.
+
+L'utilisateur, lui, le sait : il la tient. L'écran d'impasse lui propose donc de
+le dire — aujourd'hui « la carte se lit en travers », qui rouvre les quatre
+sens — et relit **la même photo**. Refaire prendre la photo pour changer une
+case serait le geste de trop, et la seconde photo ne serait pas la première.
+
+Trois règles tiennent ce dispositif :
+
+- **Après l'échec seulement.** Une case toujours visible se coche par curiosité,
+  et le faux positif qu'elle ouvre serait payé par tout le monde. Ici
+  l'alternative est de ne rien trouver, et le marché ne vaut que pour cette
+  photo : une nouvelle capture repart sans précision.
+- **Dans les mots de qui tient le carton.** « La carte se lit en travers », pas
+  « toutes orientations ».
+- **Le geste précis avant le renoncement.** « Chercher à nouveau » passe devant
+  « Saisir une carte oubliée » : l'un peut encore trouver la carte, l'autre
+  renonce à la chercher. L'impasse défile depuis qu'elle porte les deux — sans
+  cela le geste de secours tombait sous le pli, mesuré à 62 pixels de trop.
+
+**La langue n'y figure pas**, et c'est délibéré : la cascade d'écritures s'en
+charge seule, sans rien demander, et ne coûte qu'en cas d'échec. Une case
+« autre langue » ferait doublon avec ce qui marche déjà.
+
+`ScanPrecisions` porte ces demandes du bouton jusqu'à `artHashCandidatesInQuad`.
+Le type est un *record* à un champ : les maquettes qui restent à mesurer — le
+*split* et ses deux illustrations tournées à 90° — y entreront sans toucher
+aucune signature.
+
 ### L'édition se lit par son code d'extension, jamais par son numéro
 
 Une case de classeur est le couple `(set_code, collector_number)`, et le premier réflexe est de lire la ligne qui porte les deux : « 0412/0853 U • MSH • FR ». **Le numéro n'est pas lisible sur une photo à main levée.** Sur la seule lecture réelle figée (`test/src/features/scan/measured_spread.dart`, 36 lignes), il sort « C O0O5 » et « 02 » — il est imprimé deux fois plus petit que le nom, ce que la hauteur relative des caractères confirme : 0,006 à 0,008 de la hauteur de l'image contre 0,016. Le **code d'extension** de la même ligne, lui, sort juste deux fois sur deux : il est en capitales et plus large.
