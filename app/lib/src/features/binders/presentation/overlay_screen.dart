@@ -5,11 +5,16 @@
 /// touche jamais la vidéo : OBS filme, DeckHand publie ce qu'il a vu, et cette
 /// page le montre.
 ///
-/// **Deux sources, et le scan prime.** Le calque montre ce que le diffuseur
-/// scanne, et ce qu'un spectateur a fait monter depuis le chat (`!montre`). Une
-/// carte scannée arrive **physiquement devant l'objectif** : elle passe donc
-/// toujours devant une désignation, qui n'est qu'une curiosité. L'inverse
-/// serait un calque qui cache ce qu'on est en train de filmer.
+/// **Deux sources, deux zones** (#45). Le calque montre ce que le diffuseur
+/// scanne — en bas à gauche, la bannière — et ce qu'un spectateur a fait
+/// monter depuis le chat (`!montre`) — en bas au centre, la planche ou le
+/// tapis. Chaque zone a sa source, son état et son délai d'effacement ; l'une
+/// n'évince plus l'autre. Le scan primait auparavant, et la demande attendait
+/// son tour : tenable quand le chat était la seule source concurrente, plus
+/// quand une webcam fait défiler des cartes toutes les dix secondes — la
+/// demande n'aurait jamais trouvé de place. Les positions sont celles d'avant
+/// et ne se touchent pas en 1920 × 1080 (la planche fait 694 de large, centrée
+/// ; la bannière 420, à gauche) : une scène déjà montée n'a rien à retoucher.
 ///
 /// **Deux sources, deux traitements — et c'est la fréquence qui le décide.**
 /// Une désignation ouvre un classeur qui feuillette jusqu'à la page de la
@@ -18,10 +23,10 @@
 /// animation quinze fois d'affilée épuiserait, et le calque ne se tairait
 /// jamais. Une désignation est rare et délibérée — elle mérite le geste.
 ///
-/// **Une désignation évincée n'est pas perdue.** Elle n'est marquée vue qu'au
-/// moment où elle s'affiche : recouverte par un scan, elle remonte au tour
-/// suivant, une fois le scan effacé. La laisser tomber ferait disparaître sans
-/// trace la demande d'un spectateur — et il n'y a pas de file pour la rattraper.
+/// **Le délai de garde en base reste celui de la zone chat.** Seule la
+/// désignation écrit (`public_request_spotlight`, trente secondes) ; le scan
+/// lit le journal, qui n'a pas de garde. Deux zones n'ont donc rien changé au
+/// modèle : une ligne par collection, écrasée, comme avant.
 ///
 /// **Il se tait quand le réseau tombe.** L'issue en fait une exigence, et elle
 /// est juste : un message d'erreur en plein direct est pire que rien. Une
@@ -217,13 +222,19 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
   /// reconstruction à l'échéance, la carte serait restée à l'écran jusqu'à
   /// l'arrivée de la suivante — c'est-à-dire indéfiniment sur un direct qui
   /// s'arrête. Le test l'a montré avant l'antenne.
-  Timer? _hide;
+  ///
+  /// **Un réveil par zone.** Un seul timer partagé ferait disparaître la
+  /// demande avec le scan qui l'a précédée, ou garderait le scan tant que la
+  /// demande vit : chaque zone compte ses douze secondes depuis sa propre
+  /// arrivée.
+  Timer? _hideCard;
+  Timer? _hideDesignated;
 
-  /// La carte scannée à l'écran, ou `null`. Les deux affichages s'excluent :
-  /// au plus un des deux champs est renseigné.
+  /// La carte scannée à l'écran, ou `null` — la zone scan.
   OverlayCard? _card;
 
-  /// Ce qui a été désigné à l'écran — une carte ou une page —, ou `null`.
+  /// Ce qui a été désigné à l'écran — une carte, une page ou un tapis —, ou
+  /// `null` — la zone chat. Indépendante de [_card].
   SpotlightRequest? _designated;
 
   /// Les neuf cases de sa page. Vides tant que la lecture n'est pas revenue —
@@ -252,8 +263,9 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
   /// événements, et une comparaison par nom en avalerait le second.
   int? _lastSeen;
 
-  /// La dernière demande **affichée**, et non la dernière reçue : une
-  /// désignation recouverte par un scan doit pouvoir remonter ensuite.
+  /// La dernière demande déjà affichée. Même rôle que [_lastSeen] pour le
+  /// journal : deux spectateurs qui désignent la même carte sont deux
+  /// événements, et le calque doit rejouer pour le second.
   int? _lastShownRequest;
 
   /// Vrai tant qu'aucune réponse n'est revenue de la désignation. La première
@@ -271,7 +283,8 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
   @override
   void dispose() {
     _timer?.cancel();
-    _hide?.cancel();
+    _hideCard?.cancel();
+    _hideDesignated?.cancel();
     _reveal?.dispose();
     _riffle.dispose();
     super.dispose();
@@ -307,14 +320,15 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
     ).wait;
     if (!mounted) return;
 
-    if (_takeAddition(additions)) return;
+    // Les deux zones se mettent à jour indépendamment : rien de ce que l'une
+    // fait ne conditionne l'autre.
+    _takeAddition(additions);
     _takeDesignation(designated);
   }
 
-  /// Affiche la dernière carte scannée si elle est neuve. Rend vrai si elle a
-  /// pris la place — auquel cas la désignation attend son tour.
-  bool _takeAddition(List<RecentAddition>? rows) {
-    if (rows == null || rows.isEmpty) return false;
+  /// Affiche la dernière carte scannée si elle est neuve.
+  void _takeAddition(List<RecentAddition>? rows) {
+    if (rows == null || rows.isEmpty) return;
     final latest = rows.first;
 
     // **La première réponse ne déclenche rien.** Au lancement d'OBS, la
@@ -322,18 +336,13 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
     // croire qu'on vient de l'ouvrir.
     if (_lastSeen == null) {
       _lastSeen = latest.movementId;
-      return false;
+      return;
     }
-    if (latest.movementId == _lastSeen) return false;
+    if (latest.movementId == _lastSeen) return;
 
     _lastSeen = latest.movementId;
-    setState(() {
-      _card = OverlayCard.scanned(latest);
-      _designated = null;
-      _cells = const [];
-    });
-    _relaunchHide();
-    return true;
+    setState(() => _card = OverlayCard.scanned(latest));
+    _relaunchHideCard();
   }
 
   void _takeDesignation(SpotlightRequest? card) {
@@ -350,21 +359,16 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
     }
     if (card.requestId == _lastShownRequest) return;
 
-    // Le scan à l'écran garde la main. La demande n'est pas marquée vue : elle
-    // remontera au tour suivant, une fois la carte scannée effacée.
-    if (_card != null) return;
-
     _lastShownRequest = card.requestId;
     setState(() {
       _designated = card;
-      _card = null;
       _cells = const [];
     });
     _startReveal(card);
     // **Un tapis n'a pas de page.** Ses cartes viennent avec la demande ; aller
     // chercher neuf cases serait un appel pour rien.
     if (card is BinderRequest) unawaited(_loadCells(card));
-    _relaunchHide();
+    _relaunchHideDesignated();
   }
 
   /// La durée d'une apparition, quel qu'en soit le genre.
@@ -427,12 +431,19 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
     setState(() => _cells = cells);
   }
 
-  void _relaunchHide() {
-    _hide?.cancel();
-    _hide = Timer(overlayLinger, () {
+  void _relaunchHideCard() {
+    _hideCard?.cancel();
+    _hideCard = Timer(overlayLinger, () {
+      if (!mounted) return;
+      setState(() => _card = null);
+    });
+  }
+
+  void _relaunchHideDesignated() {
+    _hideDesignated?.cancel();
+    _hideDesignated = Timer(overlayLinger, () {
       if (!mounted) return;
       setState(() {
-        _card = null;
         _designated = null;
         _cells = const [];
       });
@@ -449,40 +460,47 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
     );
   }
 
+  /// Les deux zones, empilées : chacune se dessine si elle a quelque chose à
+  /// montrer, et ne sait rien de l'autre.
   Widget _body() {
-    final designated = _designated;
-    if (designated != null) {
-      final clock = _reveal;
-      if (clock == null) return const SizedBox.shrink();
-      // Centrée en bas : la planche est large, et un coin la ferait déborder.
-      return Align(
-        alignment: Alignment.bottomCenter,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 40),
-          child: AnimatedBuilder(
-            animation: clock,
-            builder: (_, _) {
-              final ecoule = clock.value * _dureeDe(designated);
-              // **Un classeur ou un tapis, jamais les deux.** Le type le dit :
-              // `BinderReveal` ne prend qu'un `BinderRequest`, et le
-              // compilateur refuse de lui passer un tapis.
-              return switch (designated) {
-                final BinderRequest r => BinderReveal(
-                  request: r,
-                  cells: _cells,
-                  elapsed: ecoule,
-                  sheetBack: _back,
-                ),
-                final SpotlightStrip s => CardMat(strip: s, elapsed: ecoule),
-              };
-            },
-          ),
-        ),
-      );
-    }
+    return Stack(children: [?_zoneChat(), ?_zoneScan()]);
+  }
 
+  Widget? _zoneChat() {
+    final designated = _designated;
+    if (designated == null) return null;
+    final clock = _reveal;
+    if (clock == null) return null;
+    // Centrée en bas : la planche est large, et un coin la ferait déborder.
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 40),
+        child: AnimatedBuilder(
+          animation: clock,
+          builder: (_, _) {
+            final ecoule = clock.value * _dureeDe(designated);
+            // **Un classeur ou un tapis, jamais les deux.** Le type le dit :
+            // `BinderReveal` ne prend qu'un `BinderRequest`, et le
+            // compilateur refuse de lui passer un tapis.
+            return switch (designated) {
+              final BinderRequest r => BinderReveal(
+                request: r,
+                cells: _cells,
+                elapsed: ecoule,
+                sheetBack: _back,
+              ),
+              final SpotlightStrip s => CardMat(strip: s, elapsed: ecoule),
+            };
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget? _zoneScan() {
     final card = _card;
-    if (card == null) return const SizedBox.shrink();
+    if (card == null) return null;
     return Align(
       alignment: Alignment.bottomLeft,
       child: Padding(

@@ -317,10 +317,12 @@ void main() {
       expect(find.textContaining('bob'), findsOneWidget);
     });
 
-    testWidgets('le scan prime sur la demande', (tester) async {
-      // Une carte scannée est physiquement devant l'objectif ; une désignation
-      // n'est qu'une curiosité. La cacher derrière le chat ferait un calque qui
-      // masque ce qu'on est en train de filmer.
+    testWidgets('le scan et la demande s\'affichent ensemble', (tester) async {
+      // **Deux zones, deux sources** (#45). Le scan a sa bannière, le chat sa
+      // planche ; l'une n'évince plus l'autre. Avant, le scan primait et la
+      // demande attendait son tour — tenable quand le chat était la seule
+      // source concurrente, plus quand une webcam fait défiler des cartes
+      // toutes les dix secondes : la demande n'aurait jamais trouvé de place.
       final repo = OverlayRepo()..rows = [addition(id: 1)];
       await pumpOverlay(tester, repo);
       await tester.pump(const Duration(milliseconds: 100));
@@ -331,16 +333,54 @@ void main() {
       await tester.pump();
 
       expect(find.text('Scannée'), findsOneWidget);
-      expect(find.text('Demandée'), findsNothing);
+      expect(find.text('Demandée'), findsOneWidget);
     });
 
-    testWidgets('une demande évincée remonte une fois le scan effacé', (
+    testWidgets(
+      'une demande arrivée pendant un scan s\'affiche sans attendre',
+      (tester) async {
+        final repo = OverlayRepo()..rows = [addition(id: 1)];
+        await pumpOverlay(tester, repo);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        repo.rows = [addition(id: 2, name: 'Scannée')];
+        await tester.pump(overlayPollInterval);
+        await tester.pump();
+        expect(find.text('Scannée'), findsOneWidget);
+
+        repo.asked = designation(id: 7, name: 'Demandée');
+        await tester.pump(overlayPollInterval);
+        await tester.pump();
+
+        expect(find.text('Scannée'), findsOneWidget);
+        expect(find.text('Demandée'), findsOneWidget);
+      },
+    );
+
+    testWidgets('un scan n\'efface pas la demande affichée', (tester) async {
+      final repo = OverlayRepo()..rows = [addition(id: 1)];
+      await pumpOverlay(tester, repo);
+      await tester.pump(const Duration(milliseconds: 100));
+
+      repo.asked = designation(id: 7, name: 'Demandée');
+      await tester.pump(overlayPollInterval);
+      await tester.pump();
+      expect(find.text('Demandée'), findsOneWidget);
+
+      repo.rows = [addition(id: 2, name: 'Scannée')];
+      await tester.pump(overlayPollInterval);
+      await tester.pump();
+      expect(find.text('Scannée'), findsOneWidget);
+      expect(find.text('Demandée'), findsOneWidget);
+    });
+
+    testWidgets('chaque zone s\'efface à son heure, pas à celle de l\'autre', (
       tester,
     ) async {
-      // **Le test qui justifie de ne marquer une demande vue qu'à l'affichage.**
-      // Sans cela, la demande d'un spectateur disparaîtrait sans trace parce
-      // qu'un carton est passé au mauvais moment — et il n'y a pas de file pour
-      // la rattraper.
+      // **Un délai par zone.** Un seul timer partagé ferait disparaître la
+      // demande avec le scan qui l'a précédée — ou garderait le scan tant que
+      // la demande vit. Le scan arrive d'abord, la demande quatre tours plus
+      // tard : le scan doit partir le premier, et la demande rester seule.
       final repo = OverlayRepo()..rows = [addition(id: 1)];
       await pumpOverlay(tester, repo);
       await tester.pump(const Duration(milliseconds: 100));
@@ -348,36 +388,26 @@ void main() {
       repo.rows = [addition(id: 2, name: 'Scannée')];
       await tester.pump(overlayPollInterval);
       await tester.pump();
-      expect(find.text('Scannée'), findsOneWidget);
 
-      repo.asked = designation(id: 7, name: 'Demandée');
-      // Pas à pas plutôt qu'en un bond : chaque interrogation est asynchrone,
-      // et un seul grand `pump` n'en résoudrait pas la totalité.
-      for (var i = 0; i < 9; i++) {
+      for (var i = 0; i < 4; i++) {
         await tester.pump(overlayPollInterval);
         await tester.pump();
       }
-
-      expect(find.text('Scannée'), findsNothing);
-      expect(find.text('Demandée'), findsOneWidget);
-    });
-
-    testWidgets('un scan reprend la main sur une demande affichée', (
-      tester,
-    ) async {
-      final repo = OverlayRepo()..rows = [addition(id: 1)];
-      await pumpOverlay(tester, repo);
-      await tester.pump(const Duration(milliseconds: 100));
-
       repo.asked = designation(id: 7, name: 'Demandée');
       await tester.pump(overlayPollInterval);
       await tester.pump();
+      expect(find.text('Scannée'), findsOneWidget);
       expect(find.text('Demandée'), findsOneWidget);
 
-      repo.rows = [addition(id: 2, name: 'Scannée')];
-      await tester.pump(overlayPollInterval);
+      // Le scan a douze secondes depuis son arrivée ; la demande en a encore.
+      await tester.pump(overlayLinger - overlayPollInterval * 5);
       await tester.pump();
-      expect(find.text('Scannée'), findsOneWidget);
+      expect(find.text('Scannée'), findsNothing);
+      expect(find.text('Demandée'), findsOneWidget);
+
+      // Puis la demande part à son tour.
+      await tester.pump(overlayPollInterval * 5);
+      await tester.pump();
       expect(find.text('Demandée'), findsNothing);
     });
 

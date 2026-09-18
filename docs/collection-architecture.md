@@ -636,11 +636,16 @@ peut donc désigner que ce qu'il pouvait déjà voir, **sans qu'une seule ligne 
 Python ne le vérifie**. Un test l'exige : une carte absente ne doit produire
 aucun appel d'écriture.
 
-**Le scan prime sur la demande.** Une carte scannée est physiquement devant
-l'objectif ; une désignation n'est qu'une curiosité. Mais une demande évincée
-n'est **pas perdue** : elle n'est marquée vue qu'au moment de s'afficher, si bien
-qu'elle remonte une fois le scan effacé. La laisser tomber ferait disparaître
-sans trace la demande d'un spectateur, et il n'y a pas de file pour la rattraper.
+**Le scan et la demande ont chacun leur zone** (#45). La bannière du scan en
+bas à gauche, la planche ou le tapis du chat en bas au centre ; chaque zone a
+sa source, son état et ses douze secondes, et l'une n'évince plus l'autre. Le
+scan primait auparavant — une carte physiquement devant l'objectif passait
+devant une curiosité du chat — et la demande évincée remontait une fois le scan
+effacé. C'était tenable quand le chat était la seule source concurrente ; une
+webcam qui fait défiler des cartes toutes les dix secondes ne lui aurait jamais
+laissé de place. Les positions sont celles d'avant et ne se touchent pas en
+1920 × 1080 : une scène déjà montée n'a rien à retoucher. Rien n'a changé en
+base — le scan lit le journal, seule la désignation écrit.
 
 **Un refus dit quoi faire, contrairement à un refus de débit.** « L'écran est
 déjà pris — réessaie dans un instant » : la commande a été acceptée et la
@@ -720,8 +725,8 @@ allumé.
 case ; `page` s'arrête une fois la page posée, et la sortie n'est pas seulement
 sautée mais **retirée du tempo** — la laisser courir à vide ferait attendre
 devant une page qui ne bouge plus. Une seule ligne par collection, comme avant :
-l'écran n'a qu'une place, et le délai de garde de trente secondes est **partagé**
-entre les deux commandes puisque c'est le même écran.
+la zone du chat n'a qu'une place, et le délai de garde de trente secondes est
+**partagé** entre les commandes puisque c'est la même zone.
 
 **Côté Dart, une hiérarchie scellée plutôt qu'un drapeau.** `SpotlightRequest`
 se décline en `SpotlightCard` et `SpotlightPage` ; le calque fait un `switch`
