@@ -840,6 +840,32 @@ void main() {
       );
     });
 
+    test('une ligne de règles qui trouve une carte courte ne s_affirme pas', () async {
+      // **Le cas inverse du préfixe, et il a résisté au premier correctif.**
+      // Mesuré sur l_appareil : sur une photo de Blazing Crescendo, l_OCR ne
+      // retenait qu_une ligne du texte de règles — « Une créature ciblée gagne
+      // +3/+1 » — qui trouvait « Creature Guy » par le seul mot « créature ».
+      // Le nom trouvé fait 12 caractères contre 31 lus : la correspondance
+      // porte sur un fragment, pas sur la carte.
+      final service = ScanService(
+        ArtHashIndex.fromEntries(const []),
+        FakeCardTextReader()
+          ..lines = [const ReadLine('Une créature ciblée gagne +3/+1', 0.1, 0.05)],
+        FakeCardRepository()..results = [_spreadHit('guy', 'Creature Guy')],
+      );
+
+      final outcome = await service.recognise(
+        photoOf(fakeCard(CardFrame.modern, seed: 7)),
+        photoPath: 'photo.jpg',
+      );
+
+      expect(
+        outcome.isConfident,
+        isFalse,
+        reason: 'un fragment ne désigne pas une carte',
+      );
+    });
+
     test('une faute de lecture sur un nom entier reste décisive', () async {
       // Le pendant du test précédent, et ce qu_il ne doit pas casser : une
       // lettre mal lue sur un nom de longueur comparable garde sa confiance.

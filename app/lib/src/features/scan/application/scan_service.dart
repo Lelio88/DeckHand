@@ -1007,8 +1007,18 @@ class ScanService {
       // élevé dit que le nom lu *mène* à cette carte ; il ne dit pas qu'il la
       // *désigne*. Un nom trouvé bien plus long que le nom lu reste une piste,
       // et une piste se propose.
-      final assezProche =
-          best.matchedName.length <= name.length * _decisiveLengthRatio;
+      // **Le rapport se borne des deux côtés.** Borné d'un seul, il laissait
+      // passer le cas inverse, mesuré sur l'appareil : l'OCR ne retenait
+      // qu'une ligne du texte de règles — « Une créature ciblée gagne +3/+1 »,
+      // 31 caractères — qui trouvait « Creature Guy », 12, par le seul mot
+      // « créature ». Le nom trouvé était deux fois et demie plus court que le
+      // texte lu, et la carte était affirmée.
+      //
+      // Un nom de carte et le texte qui l'a fait trouver ont des longueurs
+      // comparables, ou la correspondance porte sur un fragment.
+      final rapport = best.matchedName.length / name.length;
+      final assezProche = rapport <= _decisiveLengthRatio &&
+          rapport >= 1 / _decisiveLengthRatio;
       if (best.score >= _decisiveScore && assezProche) {
         return (ids: [best.oracleId], unreachable: false, franc: true);
       }
