@@ -389,6 +389,25 @@ class ScanService {
       return search.unreachable ? named.unreachable() : named;
     }
 
+    // **Un nom douteux ne masque pas une illustration sûre.** La règle
+    // « quand le nom a répondu, l'illustration n'apporte rien » vaut tant que
+    // le nom répond franchement ; elle devient coûteuse quand il répond sur un
+    // fragment. Mesuré sur l'appareil : deux terrains japonais photographiés
+    // couchés, dont l'illustration donnait la bonne carte à 4 et 5 bits avec
+    // une marge de 8, pendant que l'OCR lisait le copyright « M &O 2022
+    // Wizards of the Coast » et rencontrait une carte nommée « Wizards of the
+    // _____ ». Les candidats du nom l'emportaient, et la bonne réponse était
+    // jetée.
+    //
+    // **Les deux conditions comptent.** Un nom non franc ne suffit pas — sans
+    // illustration sûre on n'aurait rien de mieux à proposer ; une
+    // illustration sûre ne suffit pas non plus — un nom lu net désigne la
+    // carte mieux qu'une ressemblance d'image, et lui passer devant
+    // remplacerait un défaut rare par un défaut courant.
+    if (!search.franc && art.isConfident) {
+      return byArt;
+    }
+
     // Les deux voies concordent : le doute est levé, quelle que soit la
     // distance d'empreinte — c'est la confirmation croisée qui fait foi.
     final confirmed =

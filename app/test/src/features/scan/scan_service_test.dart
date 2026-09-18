@@ -885,6 +885,56 @@ void main() {
       expect(outcome.isConfident, isTrue);
     });
 
+    test('une illustration sûre passe devant un nom douteux', () async {
+      // **Mesuré sur l_appareil, et c_est le défaut le plus coûteux du lot.**
+      // Sur deux terrains japonais photographiés couchés, l_illustration
+      // trouvait la bonne carte à 4 et 5 bits avec une marge de 8 — sûre, donc
+      // — pendant que l_OCR lisait le copyright « M &O 2022 Wizards of the
+      // Coast » et rencontrait une carte nommée « Wizards of the _____ ».
+      //
+      // La règle « quand le nom a répondu, l_illustration n_apporte rien » est
+      // juste tant que le nom répond franchement. Elle jetait ici une réponse
+      // sûre au profit d_un fragment de copyright.
+      final carte = fakeCard(CardFrame.modern, seed: 11);
+      final service = ScanService(
+        indexOf({'cible': carte}, CardFrame.modern),
+        FakeCardTextReader()
+          ..lines = [const ReadLine('M &O 2022 Wizards of the Coast', 0.1, 0.05)],
+        FakeCardRepository()
+          ..results = [_spreadHit('copyright', 'Wizards of the _____')],
+      );
+
+      final outcome = await service.recognise(
+        photoOf(carte),
+        photoPath: 'photo.jpg',
+      );
+
+      expect(outcome.oracleIds.first, 'cible');
+      expect(outcome.method, ScanMethod.art);
+      expect(outcome.isConfident, isTrue);
+    });
+
+    test('un nom franc garde la main sur l_illustration', () async {
+      // Le garde-fou du test précédent : la bascule ne vaut que pour un nom
+      // douteux. Un nom lu net désigne la carte mieux qu_une ressemblance
+      // d_image, et doit continuer à l_emporter — sans quoi on remplacerait
+      // un défaut rare par un défaut courant.
+      final carte = fakeCard(CardFrame.modern, seed: 12);
+      final service = ScanService(
+        indexOf({'par-image': carte}, CardFrame.modern),
+        FakeCardTextReader()..lines = [const ReadLine('Foudre', 0.1, 0.05)],
+        FakeCardRepository()..results = [_spreadHit('par-nom', 'Foudre')],
+      );
+
+      final outcome = await service.recognise(
+        photoOf(carte),
+        photoPath: 'photo.jpg',
+      );
+
+      expect(outcome.oracleIds.first, 'par-nom');
+      expect(outcome.method, ScanMethod.name);
+    });
+
     test('une reconnaissance incertaine propose sans affirmer', () async {
       // « Affirmer à tort coûte plus cher que suggérer » : l'écran présentera
       // ces candidats sans les cocher.
