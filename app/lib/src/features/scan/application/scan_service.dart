@@ -888,7 +888,13 @@ class ScanService {
 
       return ScanOutcome(
         oracleIds: search.ids,
-        isConfident: true,
+        // **La seconde écriture n'affirme pas plus que la première.** Ce
+        // chemin rendait `true` en dur, et court-circuitait donc la règle qui
+        // refuse d'affirmer une correspondance portant sur un fragment : une
+        // ligne de copyright lue en japonais aurait été annoncée sans réserve
+        // là où la même, lue en latin, ne l'est plus. Une écriture de repli
+        // change ce qu'on sait lire, pas ce qui vaut une certitude.
+        isConfident: search.ids.length == 1 && search.franc,
         method: ScanMethod.name,
         readName: names.first,
         readLines: lines,

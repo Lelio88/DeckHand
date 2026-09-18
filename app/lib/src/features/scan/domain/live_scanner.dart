@@ -535,6 +535,16 @@ class LiveScanner {
     final candidates = <ArtHypothesis, ArtHash>{};
     for (final frame in CardFrame.values) {
       if (frame.game != game) continue;
+      // **Le gabarit pleine page attend sa mesure ici.** Il gagne deux cartes
+      // sur le banc photo, où l'on tire une fois par carton. Le flux tire
+      // trente fois par seconde : une hypothèse de plus y pèse trente fois
+      // plus lourd en chances d'annonce fausse, et rien n'a été mesuré sur un
+      // flux réel. C'est la décision déjà prise pour l'ouverture des deux sens
+      // — le mode photo avance, le flux attend la mesure qui le concerne.
+      //
+      // Pour l'ouvrir : filmer des cartes pleine page, relever les annonces
+      // fausses avant et après. Pas un raisonnement, une mesure.
+      if (frame == CardFrame.fullArt) continue;
       // Un cadre couché cherché dans un quadrilatère droit est lu tourné, dans
       // les deux sens : une carte couchée glissée dans une pochette verticale
       // se laisse détecter comme une carte debout, et une empreinte ne survit
