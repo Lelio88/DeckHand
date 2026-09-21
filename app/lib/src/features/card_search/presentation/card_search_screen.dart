@@ -4,6 +4,12 @@
 /// La frappe est amortie avant d'atteindre le réseau : sans cela, « lightning »
 /// déclencherait neuf requêtes dont huit sans intérêt. Le délai est court pour
 /// que la liste paraisse suivre la frappe.
+///
+/// **Ajouter vide le champ, pas la liste.** Saisir une pile de cartes, c'est
+/// enchaîner les noms, et effacer le précédent à la main coûtait un geste par
+/// carte. La liste reste en place jusqu'à ce que le nom suivant la remplace :
+/// un second exemplaire, ou une autre édition de la même carte, reste à un
+/// appui.
 library;
 
 import 'dart:async';
@@ -34,6 +40,7 @@ class CardSearchScreen extends ConsumerStatefulWidget {
 
 class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
   final _controller = TextEditingController();
+  final _focus = FocusNode();
   Timer? _timer;
   String _query = '';
 
@@ -45,6 +52,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
   void dispose() {
     _timer?.cancel();
     _controller.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -53,6 +61,27 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
     _timer = Timer(_debounce, () {
       if (mounted) setState(() => _query = value.trim());
     });
+  }
+
+  /// Libère le champ pour le nom suivant, en laissant `_query` — donc la
+  /// liste — intact.
+  ///
+  /// **À l'appui, pas au retour du serveur.** Le nom suivant se tape pendant
+  /// que l'ajout voyage ; vidé seulement ensuite, le champ aurait accolé la
+  /// nouvelle frappe à l'ancien nom. Si l'ajout échoue, la liste est toujours
+  /// là et « + » se rejoue.
+  ///
+  /// **Seule la saisie qui a produit la liste est effacée.** Un nom déjà
+  /// entamé pour la carte suivante, dont la recherche n'est pas encore partie,
+  /// n'est pas à nous.
+  ///
+  /// Le focus est rendu au champ : à la souris, cliquer « + » le lui retire,
+  /// et vider le champ ne servirait à rien s'il fallait encore cliquer dedans.
+  void _onAdd() {
+    if (_controller.text.trim() == _query) {
+      setState(_controller.clear);
+    }
+    _focus.requestFocus();
   }
 
   @override
@@ -84,6 +113,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               Expanded(
                 child: _SearchField(
                   controller: _controller,
+                  focusNode: _focus,
                   onChanged: _onChanged,
                 ),
               ),
@@ -96,7 +126,7 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               : results.when(
                   data: (hits) => hits.isEmpty
                       ? _NoMatch(query: _query)
-                      : _ResultList(hits: hits),
+                      : _ResultList(hits: hits, onAdd: _onAdd),
                   loading: () => const Center(
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
@@ -109,9 +139,14 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
 }
 
 class _SearchField extends StatelessWidget {
-  const _SearchField({required this.controller, required this.onChanged});
+  const _SearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+  });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final ValueChanged<String> onChanged;
 
   @override
@@ -119,6 +154,7 @@ class _SearchField extends StatelessWidget {
     return SizedBox(
       child: TextField(
         controller: controller,
+        focusNode: focusNode,
         onChanged: onChanged,
         autofocus: true,
         textInputAction: TextInputAction.search,
@@ -227,9 +263,10 @@ class TypeFilter extends StatelessWidget {
 }
 
 class _ResultList extends StatelessWidget {
-  const _ResultList({required this.hits});
+  const _ResultList({required this.hits, required this.onAdd});
 
   final List<CardHit> hits;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -237,15 +274,44 @@ class _ResultList extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       itemCount: hits.length,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) => _CardTile(hit: hits[index]),
+      itemBuilder: (context, index) =>
+          _CardTile(hit: hits[index], onAdd: onAdd),
     );
   }
 }
 
+/// Ce qui survit à une ligne de résultat : de quoi finir un geste commencé
+/// sur elle.
+///
+/// **La ligne peut disparaître avant la fin du geste.** Le champ se vide à
+/// l'appui, le nom suivant se tape pendant que l'ajout voyage, et la
+/// notification reste quatre secondes : dans les deux cas, la liste peut être
+/// remplacée et la ligne démontée. `ref` et `context` meurent avec elle —
+/// l'ajout aboutissait alors sans confirmation, « Annuler » ne partait plus,
+/// le choix d'édition ne s'ouvrait pas, tout cela sans rien dire.
+///
+/// **Invariant** : pris avant le premier `await`, et seul utilisé après. Le
+/// navigateur sert d'ancrage aux feuilles qu'on ouvre ensuite : `Navigator.of`
+/// reconnaît son propre contexte, et le thème comme les traductions sont posés
+/// au-dessus de lui.
+class _Anchors {
+  _Anchors.of(BuildContext context)
+    : container = ProviderScope.containerOf(context, listen: false),
+      messenger = ScaffoldMessenger.of(context),
+      navigator = Navigator.of(context);
+
+  final ProviderContainer container;
+  final ScaffoldMessengerState messenger;
+  final NavigatorState navigator;
+}
+
 class _CardTile extends ConsumerStatefulWidget {
-  const _CardTile({required this.hit});
+  const _CardTile({required this.hit, required this.onAdd});
 
   final CardHit hit;
+
+  /// Prévient l'écran qu'un ajout part, pour qu'il libère le champ.
+  final VoidCallback onAdd;
 
   @override
   ConsumerState<_CardTile> createState() => _CardTileState();
@@ -301,18 +367,24 @@ class _CardTileState extends ConsumerState<_CardTile> {
   /// C'est le rattrapage du geste rapide : on ajoute d'abord, la notification
   /// propose de préciser, un appui suffit. Le moment compte — c'est celui où
   /// l'on a encore la carte en main.
-  Future<void> _specifyAfterAdd(int quantity) async {
-    final hit = widget.hit;
+  ///
+  /// Le sélecteur s'ouvre depuis le navigateur et non depuis cette ligne, que
+  /// le nom suivant a pu démonter entre-temps — voir [_Anchors].
+  Future<void> _specifyAfterAdd(
+    _Anchors anchors,
+    CardHit hit,
+    int quantity,
+  ) async {
     final chosen = await showPrintingPicker(
-      context,
+      anchors.navigator.context,
       oracleId: hit.oracleId,
       cardName: hit.matchedName,
     );
-    if (chosen == null || chosen.isUnspecified || !mounted) return;
+    if (chosen == null || chosen.isUnspecified) return;
 
-    final messenger = ScaffoldMessenger.of(context);
+    final messenger = anchors.messenger;
     try {
-      await ref
+      await anchors.container
           .read(collectionRepositoryProvider)
           .setPrinting(
             hit.oracleId,
@@ -321,9 +393,8 @@ class _CardTileState extends ConsumerState<_CardTile> {
             toFoil: chosen.isFoil,
             quantity: quantity,
           );
-      refreshCollectionViews(ref.invalidate);
-      if (!mounted) return;
-      setState(() => _printing = chosen);
+      refreshCollectionViews(anchors.container.invalidate);
+      if (mounted) setState(() => _printing = chosen);
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
         SnackBar(
@@ -332,31 +403,31 @@ class _CardTileState extends ConsumerState<_CardTile> {
         ),
       );
     } catch (e) {
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Édition non enregistrée : $e')),
-        );
-      }
+      messenger.showSnackBar(
+        SnackBar(content: Text('Édition non enregistrée : $e')),
+      );
     }
   }
 
   Future<void> _add() async {
     setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.of(context);
+    widget.onAdd();
+    // Tout ce qui sert après l'envoi est pris avant, voir [_Anchors].
+    final anchors = _Anchors.of(context);
+    final messenger = anchors.messenger;
     final hit = widget.hit;
+    final printing = _printing;
 
     try {
-      final printing = _printing;
-      final total = await ref
+      final total = await anchors.container
           .read(collectionRepositoryProvider)
           .add(
             hit.oracleId,
             printId: printing?.printing.printId,
             isFoil: printing?.isFoil ?? false,
           );
-      refreshCollectionViews(ref.invalidate);
-      if (!mounted) return;
-      setState(() => _owned = total);
+      refreshCollectionViews(anchors.container.invalidate);
+      if (mounted) setState(() => _owned = total);
       // Sans cela les messages s'empilent et l'utilisateur lit un retour périmé :
       // en ajoutant trois cartes d'affilée, la dernière notification affichée
       // concernait encore la première carte.
@@ -382,39 +453,50 @@ class _CardTileState extends ConsumerState<_CardTile> {
           action: printing == null
               ? SnackBarAction(
                   label: 'Préciser l\'édition',
-                  onPressed: () => unawaited(_specifyAfterAdd(1)),
+                  onPressed: () => unawaited(_specifyAfterAdd(anchors, hit, 1)),
                 )
               : SnackBarAction(
                   label: 'Annuler',
-                  onPressed: () async {
-                    // `remove` rend ce qu'il a retiré, non ce qui reste : le
-                    // compte affiché s'en déduit par soustraction. Zéro veut
-                    // dire que la ligne n'existait plus — un second appui, ou
-                    // un retrait fait ailleurs entre-temps — et le badge ne
-                    // doit alors pas bouger.
-                    final removed = await ref
-                        .read(collectionRepositoryProvider)
-                        .remove(
-                          hit.oracleId,
-                          printId: printing.printing.printId,
-                          isFoil: printing.isFoil,
-                        );
-                    refreshCollectionViews(ref.invalidate);
-                    if (mounted) {
-                      setState(
-                        () =>
-                            _owned = (_quantity - removed).clamp(0, _quantity),
-                      );
-                    }
-                  },
+                  onPressed: () =>
+                      unawaited(_undo(anchors, hit.oracleId, printing)),
                 ),
         ),
       );
     } catch (e) {
-      if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('Ajout impossible : $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Retire l'exemplaire qu'on vient d'ajouter, et le dit s'il échoue.
+  ///
+  /// Ne passe que par [_Anchors] : la ligne a pu être démontée depuis.
+  Future<void> _undo(
+    _Anchors anchors,
+    String oracleId,
+    PrintingChoice printing,
+  ) async {
+    try {
+      // `remove` rend ce qu'il a retiré, non ce qui reste : le compte affiché
+      // s'en déduit par soustraction. Zéro veut dire que la ligne n'existait
+      // plus — un second appui, ou un retrait fait ailleurs entre-temps — et
+      // le badge ne doit alors pas bouger.
+      final removed = await anchors.container
+          .read(collectionRepositoryProvider)
+          .remove(
+            oracleId,
+            printId: printing.printing.printId,
+            isFoil: printing.isFoil,
+          );
+      refreshCollectionViews(anchors.container.invalidate);
+      if (mounted) {
+        setState(() => _owned = (_quantity - removed).clamp(0, _quantity));
+      }
+    } catch (e) {
+      anchors.messenger.showSnackBar(
+        SnackBar(content: Text('Annulation impossible : $e')),
+      );
     }
   }
 

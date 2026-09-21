@@ -2729,6 +2729,8 @@ Le jalon 1 prouve la valeur du produit avant tout investissement dans la vision,
 
 **Le premier onglet s'appelle « Ajouter », non « Rechercher ».** On n'y vient pas pour consulter le catalogue mais pour faire entrer une carte dans sa collection : la recherche est le moyen, pas la fin. Ses filtres de type sont passés d'une rangée de puces débordante à un **menu à gauche du champ**, où ils annoncent la portée de ce qu'on va taper — plusieurs types restent cochables, l'étiquette nommant le premier et comptant les autres.
 
+**Ajouter une carte vide le champ, pas la liste.** Saisir une pile, c'est enchaîner les noms : effacer le précédent à la main coûtait un geste par carte. Le champ se vide à l'appui, avant la réponse du serveur, pour que le nom suivant ne s'accole pas à l'ancien, et il reprend le focus, qu'un clic à la souris lui retire. La liste reste jusqu'à ce que le nom suivant la remplace, ce qui garde un second exemplaire ou une autre édition à un appui. Un nom déjà entamé pour la carte suivante n'est jamais effacé. Ce qui suit un ajout — sa confirmation, puis « Annuler » ou « Préciser l'édition » dans la notification — reste valable une fois la liste remplacée, y compris quand elle l'est avant la réponse du serveur : tout passe par le conteneur de providers, le messager et le navigateur, pris à l'appui et qui survivent à la ligne de la carte, et chaque échec se dit.
+
 **Le choix de la finition précède l'action sur une case.** Une case dit ce qu'elle contient, pas ce qu'on tient en main : on peut posséder la version normale et vouloir ajouter la brillante, qui se range dans la même case mais ne vaut pas le même prix. Sans ce choix, aucun moyen d'ajouter l'autre finition depuis le classeur.
 
 ### Trois défauts que l'usage a révélés

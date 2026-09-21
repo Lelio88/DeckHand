@@ -18,6 +18,7 @@ import 'package:deckhand/src/features/collection/data/collection_repository.dart
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/printings/domain/card_printing.dart';
 import 'package:deckhand/src/features/printings/presentation/card_art_view.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -322,6 +323,187 @@ void main() {
       reason:
           'porteuse d\'une action, la notification attendrait sinon un '
           'balayage et recouvrirait les commandes de l\'écran suivant',
+    );
+  });
+
+  group('ajouter libère le champ, pas la liste', () {
+    // Saisir une pile de cartes, c'est enchaîner les noms : effacer le
+    // précédent à la main coûtait un geste par carte. La liste, elle, doit
+    // survivre — un second exemplaire reste à un appui.
+
+    String fieldText(WidgetTester tester) =>
+        tester.widget<TextField>(find.byType(TextField).first).controller!.text;
+
+    testWidgets('le champ se vide, la carte reste ajoutable', (tester) async {
+      await pumpSearch(tester, results: [hit()]);
+
+      await tester.tap(find.byTooltip('Ajouter à ma collection'));
+      await tester.pumpAndSettle();
+
+      expect(fieldText(tester), isEmpty);
+      expect(find.text('Foudre'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Ajouter à ma collection'));
+      await tester.pumpAndSettle();
+
+      expect(
+        collection.quantities[('oracle-1', null)],
+        2,
+        reason: 'vider le champ ne doit pas emporter la liste avec lui',
+      );
+    });
+
+    testWidgets('choisir une édition vide aussi le champ', (tester) async {
+      await pumpSearch(
+        tester,
+        results: [hit()],
+        availablePrintings: [printing()],
+      );
+
+      await tester.tap(find.text('Toutes éditions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Modern Horizons 2').last);
+      await tester.pumpAndSettle();
+
+      expect(fieldText(tester), isEmpty);
+      expect(find.textContaining('MH2 #123'), findsOneWidget);
+    });
+
+    testWidgets("un nom entamé pour la carte suivante n'est pas effacé", (
+      tester,
+    ) async {
+      await pumpSearch(tester, results: [hit()]);
+
+      // La recherche de « contre » n'est pas encore partie : la liste montre
+      // toujours « foudre », et c'est sur elle qu'on appuie.
+      await tester.enterText(find.byType(TextField), 'contre');
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.byTooltip('Ajouter à ma collection'));
+      await tester.pump();
+
+      expect(fieldText(tester), 'contre');
+
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('à la souris, le champ retrouve le focus', (tester) async {
+      // Cliquer hors d'un champ lui retire le focus sur ordinateur et dans un
+      // navigateur ; vide mais sans focus, il faudrait encore cliquer dedans.
+      await pumpSearch(tester, results: [hit()]);
+
+      await tester.tap(
+        find.byTooltip('Ajouter à ma collection'),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus,
+        isTrue,
+      );
+    });
+  });
+
+  group('les actions de la notification d\'ajout', () {
+    // La notification dure quatre secondes, et le nom suivant se tape pendant
+    // ce temps : la liste est remplacée, la ligne de la carte démontée. Des
+    // actions adossées à elle ne partaient plus, sans rien en dire — la carte
+    // restait en collection alors qu'on croyait l'avoir retirée, et le choix
+    // d'édition ne s'ouvrait pas.
+
+    Future<void> addMh2(WidgetTester tester) async {
+      await pumpSearch(
+        tester,
+        results: [hit()],
+        availablePrintings: [printing()],
+      );
+      await tester.tap(find.text('Toutes éditions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Modern Horizons 2').last);
+      await tester.pumpAndSettle();
+      expect(collection.quantities[('oracle-1', 'print-mh2')], 1);
+    }
+
+    testWidgets('elle agit encore quand le nom suivant a remplacé la liste', (
+      tester,
+    ) async {
+      await addMh2(tester);
+
+      await tester.enterText(find.byType(TextField), 'contre');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Annuler'));
+      await tester.pumpAndSettle();
+
+      expect(
+        collection.quantities[('oracle-1', 'print-mh2')],
+        isNull,
+        reason: "l'exemplaire annoncé comme annulé doit quitter la collection",
+      );
+    });
+
+    testWidgets('une annulation qui échoue le dit', (tester) async {
+      await addMh2(tester);
+      collection.removeError = Exception('réseau indisponible');
+
+      await tester.tap(find.text('Annuler'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Annulation impossible'), findsOneWidget);
+    });
+
+    testWidgets(
+      "l'ajout se confirme même si la liste a changé pendant l'envoi",
+      (tester) async {
+        // Le champ se vide à l'appui : le nom suivant se tape pendant que
+        // l'ajout voyage, et sur un réseau lent la liste change avant la
+        // réponse. La carte entrait alors en collection sans confirmation,
+        // donc sans « Annuler » ni « Préciser l'édition ».
+        await pumpSearch(tester, results: [hit()]);
+        collection.addLatency = const Duration(seconds: 1);
+
+        await tester.tap(find.byTooltip('Ajouter à ma collection'));
+        await tester.pump();
+        await tester.enterText(find.byType(TextField), 'contre');
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+
+        expect(collection.quantities[('oracle-1', null)], 1);
+        expect(find.text('Préciser l\'édition'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '« Préciser l\'édition » s\'ouvre encore quand le nom suivant a '
+      'remplacé la liste',
+      (tester) async {
+        await pumpSearch(
+          tester,
+          results: [hit()],
+          availablePrintings: [printing()],
+        );
+        await tester.tap(find.byTooltip('Ajouter à ma collection'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextField), 'contre');
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Préciser l\'édition'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Modern Horizons 2').last);
+        await tester.pumpAndSettle();
+
+        expect(
+          collection.quantities[('oracle-1', 'print-mh2')],
+          1,
+          reason: "l'exemplaire ajouté sans édition doit rejoindre la sienne",
+        );
+        expect(collection.quantities[('oracle-1', null)], isNull);
+      },
     );
   });
 

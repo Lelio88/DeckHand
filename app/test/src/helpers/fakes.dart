@@ -261,6 +261,10 @@ class FakeCollectionRepository implements CollectionRepository {
   final List<({String oracleId, String? printId, bool isFoil, int quantity})>
   added = [];
 
+  /// Temps de réponse simulé de l'ajout. Nul par défaut : aucun délai n'est
+  /// alors programmé, et les tests qui ne s'en soucient pas n'ont rien à pomper.
+  Duration addLatency = Duration.zero;
+
   @override
   Future<int> add(
     String oracleId, {
@@ -268,6 +272,7 @@ class FakeCollectionRepository implements CollectionRepository {
     String? printId,
     bool isFoil = false,
   }) async {
+    if (addLatency > Duration.zero) await Future<void>.delayed(addLatency);
     added.add((
       oracleId: oracleId,
       printId: printId,
@@ -278,6 +283,9 @@ class FakeCollectionRepository implements CollectionRepository {
     quantities[key] = (quantities[key] ?? 0) + quantity;
     return quantities[key]!;
   }
+
+  /// Erreur à lever au retrait — le réseau qui tombe pendant une annulation.
+  Object? removeError;
 
   /// Rend le nombre **retire**, comme la fonction Postgres.
   ///
@@ -291,6 +299,7 @@ class FakeCollectionRepository implements CollectionRepository {
     String? printId,
     bool isFoil = false,
   }) async {
+    if (removeError != null) throw removeError!;
     final key = (oracleId, printId);
     final current = quantities[key] ?? 0;
     if (current == 0) return 0;
