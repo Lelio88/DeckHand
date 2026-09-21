@@ -16,6 +16,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/request_timeout.dart';
 import '../../../config/selected_game.dart';
 
+import '../../printings/data/printing_repository.dart';
+import '../../printings/domain/card_printing.dart';
 import '../domain/card_hit.dart';
 
 /// Noms envoyés par appel à `search_cards_bulk`.
@@ -174,10 +176,7 @@ class CardRepository {
       final rows = await _client
           .rpc<List<dynamic>>(
             'search_cards_bulk',
-            params: {
-              'p_names': wanted.sublist(start, end),
-              'p_game': game.id,
-            },
+            params: {'p_names': wanted.sublist(start, end), 'p_game': game.id},
           )
           .timedOut();
       for (final row in rows.cast<Map<String, dynamic>>()) {
@@ -224,4 +223,32 @@ final cardSearchProvider = FutureProvider.autoDispose
             game: game,
             types: query.types.isEmpty ? const [] : query.types.split(','),
           );
+    });
+
+/// Pour les cartes d'une recherche qui n'ont qu'une édition, cette édition.
+///
+/// **Un seul candidat n'est pas un choix** (garde-fou §IV.8) : la ligne
+/// l'affiche d'office et « + » l'enregistre, comme le font déjà l'étalement et
+/// la dictée. Sans cela, l'écran Ajouter envoyait ces cartes dans la pile à
+/// trier.
+///
+/// **Groupé par langue, en un aller-retour chacune** : l'édition est servie
+/// dans la langue du nom qui a répondu, et une requête par carte coûterait les
+/// secondes que le lot épargne. Une panne laisse la table vide — les lignes
+/// restent « Toutes éditions », l'état d'avant.
+final searchSoleEditionsProvider = FutureProvider.autoDispose
+    .family<Map<String, CardPrinting>, CardQuery>((ref, query) async {
+      final hits = await ref.watch(cardSearchProvider(query).future);
+      final byLang = <String, Set<String>>{};
+      for (final hit in hits) {
+        byLang.putIfAbsent(hit.matchedLang, () => {}).add(hit.oracleId);
+      }
+      final repository = ref.watch(printingRepositoryProvider);
+      final sole = <String, CardPrinting>{};
+      for (final entry in byLang.entries) {
+        sole.addAll(
+          await repository.soleEditions(entry.value, lang: entry.key),
+        );
+      }
+      return sole;
     });

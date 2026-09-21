@@ -50,6 +50,9 @@ CardPrinting printing({
   String? setName = 'Modern Horizons 2',
   double? price = 3.40,
   String? artCropUrl = 'https://exemple/mh2.jpg',
+  int owned = 0,
+  bool hasNonfoil = true,
+  bool hasFoil = false,
 }) => CardPrinting(
   printId: printId,
   setCode: setCode,
@@ -58,6 +61,9 @@ CardPrinting printing({
   lang: 'en',
   priceEur: price,
   artCropUrl: artCropUrl,
+  owned: owned,
+  hasNonfoil: hasNonfoil,
+  hasFoil: hasFoil,
 );
 
 late FakeCardRepository cards;
@@ -68,10 +74,13 @@ Future<void> pumpSearch(
   WidgetTester tester, {
   List<CardHit> results = const [],
   List<CardPrinting> availablePrintings = const [],
+  Map<String, CardPrinting> sole = const {},
 }) async {
   cards = FakeCardRepository()..results = results;
   collection = FakeCollectionRepository();
-  printings = FakePrintingRepository()..printings = availablePrintings;
+  printings = FakePrintingRepository()
+    ..printings = availablePrintings
+    ..sole = sole;
 
   await tester.pumpWidget(
     ProviderScope(
@@ -297,6 +306,115 @@ void main() {
           'ne suffirait pas, le serveur n\'en envoie qu\'une partie',
     );
     expect(find.text('Modern Horizons 2'), findsNothing);
+  });
+
+  group('l\'édition que « + » propose', () {
+    // Garde-fou §IV.8 : l'unique édition se pose d'office, et sinon celle
+    // qu'on possède le plus pour cette carte. Dans les deux cas elle s'affiche
+    // sur la ligne avant l'appui — c'est là qu'on la confronte à la carte
+    // qu'on tient. Sans elle, la carte partait dans la pile à trier.
+
+    testWidgets('une carte à édition unique la reçoit sans geste', (
+      tester,
+    ) async {
+      await pumpSearch(
+        tester,
+        results: [hit()],
+        sole: {'oracle-1': printing()},
+      );
+
+      expect(find.textContaining('MH2 #123'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Ajouter à ma collection'));
+      await tester.pumpAndSettle();
+
+      expect(collection.quantities[('oracle-1', 'print-mh2')], 1);
+      expect(collection.quantities[('oracle-1', null)], isNull);
+    });
+
+    testWidgets(
+      "une édition unique qui n'existe qu'en brillant part brillante",
+      (tester) async {
+        // Enregistrer sa jumelle normale inventerait un exemplaire impossible.
+        await pumpSearch(
+          tester,
+          results: [hit()],
+          sole: {'oracle-1': printing(hasNonfoil: false, hasFoil: true)},
+        );
+
+        await tester.tap(find.byTooltip('Ajouter à ma collection'));
+        await tester.pumpAndSettle();
+
+        expect(collection.added.single.isFoil, isTrue);
+      },
+    );
+
+    testWidgets("sinon, l'édition de cette carte qu'on possède le plus", (
+      tester,
+    ) async {
+      // Le faux dépôt rend les éditions dans l'ordre où le serveur les trie :
+      // les plus possédées d'abord (`card_printings`, ORDER BY owned DESC).
+      await pumpSearch(
+        tester,
+        results: [hit(owned: 4)],
+        availablePrintings: [
+          printing(printId: 'print-m11', setCode: 'm11', owned: 3),
+          printing(owned: 1),
+        ],
+      );
+
+      expect(find.textContaining('M11 #123'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Ajouter à ma collection'));
+      await tester.pumpAndSettle();
+
+      expect(collection.quantities[('oracle-1', 'print-m11')], 1);
+    });
+
+    testWidgets("des exemplaires sans édition ne proposent rien", (
+      tester,
+    ) async {
+      // Possédée, mais jamais précisée : aucune édition n'a d'exemplaire, il
+      // n'y a donc rien à proposer — la ligne reste honnête.
+      await pumpSearch(
+        tester,
+        results: [hit(owned: 2)],
+        availablePrintings: [
+          printing(),
+          printing(printId: 'print-m11'),
+        ],
+      );
+
+      expect(find.text('Toutes éditions'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Ajouter à ma collection'));
+      await tester.pumpAndSettle();
+
+      expect(collection.quantities[('oracle-1', null)], 1);
+    });
+
+    testWidgets('« ne pas préciser » écarte la proposition', (tester) async {
+      // Sans quoi la proposition reviendrait écraser le choix qu'on vient
+      // de faire, et « + » enregistrerait l'édition qu'on a refusée.
+      await pumpSearch(
+        tester,
+        results: [hit()],
+        availablePrintings: [printing()],
+        sole: {'oracle-1': printing()},
+      );
+
+      await tester.tap(find.textContaining('MH2 #123'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ne pas préciser l\'édition'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Toutes éditions'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Ajouter à ma collection'));
+      await tester.pumpAndSettle();
+
+      expect(collection.quantities[('oracle-1', null)], 1);
+    });
   });
 
   testWidgets('la possession déjà connue est visible', (tester) async {

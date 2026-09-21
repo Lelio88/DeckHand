@@ -20,6 +20,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../config/selected_game.dart';
 import '../../collection/data/collection_repository.dart';
 import '../../collection/data/collection_views.dart';
+import '../../printings/data/printing_repository.dart';
+import '../../printings/domain/card_printing.dart';
 import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../data/card_repository.dart';
@@ -126,7 +128,11 @@ class _CardSearchScreenState extends ConsumerState<CardSearchScreen> {
               : results.when(
                   data: (hits) => hits.isEmpty
                       ? _NoMatch(query: _query)
-                      : _ResultList(hits: hits, onAdd: _onAdd),
+                      : _ResultList(
+                          hits: hits,
+                          query: cardQuery(_query, _types),
+                          onAdd: _onAdd,
+                        ),
                   loading: () => const Center(
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
@@ -262,20 +268,40 @@ class TypeFilter extends StatelessWidget {
   }
 }
 
-class _ResultList extends StatelessWidget {
-  const _ResultList({required this.hits, required this.onAdd});
+class _ResultList extends ConsumerWidget {
+  const _ResultList({
+    required this.hits,
+    required this.query,
+    required this.onAdd,
+  });
 
   final List<CardHit> hits;
+
+  /// La recherche qui a produit [hits], clé des éditions uniques.
+  final CardQuery query;
   final VoidCallback onAdd;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sole = ref.watch(searchSoleEditionsProvider(query)).value ?? const {};
+
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       itemCount: hits.length,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) =>
-          _CardTile(hit: hits[index], onAdd: onAdd),
+      // **La clé attache l'état de la ligne à sa carte**, pas à son rang : une
+      // ligne retient une édition, et réutilisée pour une autre carte, elle
+      // ferait enregistrer celle-ci sous l'édition de la précédente. Unique :
+      // `search_cards` rend une ligne par carte (`DISTINCT ON (oracle_id)`).
+      itemBuilder: (context, index) {
+        final hit = hits[index];
+        return _CardTile(
+          key: ValueKey(hit.oracleId),
+          hit: hit,
+          soleEdition: sole[hit.oracleId],
+          onAdd: onAdd,
+        );
+      },
     );
   }
 }
@@ -306,9 +332,17 @@ class _Anchors {
 }
 
 class _CardTile extends ConsumerStatefulWidget {
-  const _CardTile({required this.hit, required this.onAdd});
+  const _CardTile({
+    super.key,
+    required this.hit,
+    required this.onAdd,
+    this.soleEdition,
+  });
 
   final CardHit hit;
+
+  /// L'unique édition de la carte, quand le catalogue n'en connaît qu'une.
+  final CardPrinting? soleEdition;
 
   /// Prévient l'écran qu'un ajout part, pour qu'il libère le champ.
   final VoidCallback onAdd;
@@ -325,13 +359,69 @@ class _CardTileState extends ConsumerState<_CardTile> {
   /// pas rechargée après un ajout, sans cela le compteur resterait figé.
   int? _owned;
 
-  /// Édition retenue pour le prochain ajout. Nulle par défaut : préciser n'est
-  /// jamais obligatoire, et l'imposer rendrait la saisie de deux mille cartes
-  /// pénible. Le choix reste en place d'un ajout à l'autre — on saisit
-  /// généralement plusieurs cartes de la même extension à la suite.
+  /// Édition désignée par l'utilisateur lui-même. Le choix reste en place
+  /// d'un ajout à l'autre : les exemplaires suivants de la même carte sont
+  /// souvent de la même édition.
   PrintingChoice? _printing;
 
+  /// Vrai dès que l'utilisateur a statué sur l'édition — y compris par « ne
+  /// pas préciser », qui laisse [_printing] nul comme une ligne jamais
+  /// examinée. Sans cette marque, la proposition reviendrait écraser le choix
+  /// qu'on vient de faire.
+  bool _decided = false;
+
+  /// L'édition de cette carte dont on possède le plus d'exemplaires, si l'on
+  /// en possède d'édition précisée.
+  CardPrinting? _mostOwned;
+
   int get _quantity => _owned ?? widget.hit.owned;
+
+  /// L'édition que « + » enregistrera, et que la ligne affiche.
+  ///
+  /// **Proposée tant qu'on n'a pas statué** (garde-fou §IV.8) : l'unique
+  /// édition si le catalogue n'en connaît qu'une, sinon celle qu'on possède le
+  /// plus — on range souvent le même tirage. Affichée avant l'appui, avec son
+  /// illustration et son prix, elle se confronte à la carte qu'on tient ;
+  /// appuyer sur « + » vaut alors choix. Rien à proposer, et préciser reste
+  /// facultatif : la carte part à trier.
+  PrintingChoice? get _retained {
+    if (_decided) return _printing;
+    final proposed = widget.soleEdition ?? _mostOwned;
+    if (proposed == null) return null;
+    // Une édition qui n'existe qu'en brillante l'est d'office : enregistrer
+    // sa jumelle normale inventerait un exemplaire impossible.
+    return PrintingChoice(
+      proposed,
+      isFoil: !proposed.hasNonfoil && proposed.hasFoil,
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Seule une carte déjà possédée peut avoir une édition « la plus possédée ».
+    if (widget.hit.owned > 0) unawaited(_loadMostOwned());
+  }
+
+  /// Demande au serveur l'édition la plus possédée de cette carte.
+  ///
+  /// `card_printings` trie déjà les éditions par exemplaires possédés, puis par
+  /// sortie la plus récente — ce qui départage deux éditions à égalité : une
+  /// ligne suffit. Des exemplaires tous sans édition ne comptent pour aucune,
+  /// et ne proposent donc rien.
+  Future<void> _loadMostOwned() async {
+    final hit = widget.hit;
+    try {
+      final top = await ref
+          .read(printingRepositoryProvider)
+          .forCard(hit.oracleId, limit: 1, lang: hit.matchedLang);
+      if (!mounted || top.isEmpty || top.first.owned == 0) return;
+      setState(() => _mostOwned = top.first);
+    } catch (_) {
+      // Sans proposition, la ligne reste « Toutes éditions » — l'état d'avant,
+      // jamais une perte. Rien ne justifie d'interrompre la saisie pour cela.
+    }
+  }
 
   /// Ouvre le sélecteur, retient l'édition choisie, et ajoute la carte.
   ///
@@ -345,20 +435,24 @@ class _CardTileState extends ConsumerState<_CardTile> {
   /// de la même édition.
   Future<void> _choosePrinting() async {
     final hit = widget.hit;
+    final current = _retained;
     final chosen = await showPrintingPicker(
       context,
       oracleId: hit.oracleId,
       cardName: hit.matchedName,
-      currentPrintId: _printing?.printing.printId,
-      currentIsFoil: _printing?.isFoil ?? false,
+      currentPrintId: current?.printing.printId,
+      currentIsFoil: current?.isFoil ?? false,
       lang: hit.matchedLang,
-      allowUnspecified: _printing != null,
+      allowUnspecified: current != null,
     );
     if (chosen == null || !mounted) return;
     // Le sélecteur renvoie une édition vide pour « ne pas préciser » — `null`
     // signifiant déjà « refermé sans choisir ».
     final printing = chosen.isUnspecified ? null : chosen;
-    setState(() => _printing = printing);
+    setState(() {
+      _printing = printing;
+      _decided = true;
+    });
     if (printing != null) await _add();
   }
 
@@ -394,7 +488,12 @@ class _CardTileState extends ConsumerState<_CardTile> {
             quantity: quantity,
           );
       refreshCollectionViews(anchors.container.invalidate);
-      if (mounted) setState(() => _printing = chosen);
+      if (mounted) {
+        setState(() {
+          _printing = chosen;
+          _decided = true;
+        });
+      }
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
         SnackBar(
@@ -416,7 +515,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
     final anchors = _Anchors.of(context);
     final messenger = anchors.messenger;
     final hit = widget.hit;
-    final printing = _printing;
+    final printing = _retained;
 
     try {
       final total = await anchors.container
@@ -507,7 +606,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
-    final printing = _printing;
+    final printing = _retained;
 
     // **La ligne décrit l'édition retenue, pas la carte en général.** Tant
     // qu'aucune n'est choisie, l'illustration est celle d'une impression de
@@ -591,7 +690,7 @@ class _CardTileState extends ConsumerState<_CardTile> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  _PrintingSelector(choice: _printing, onTap: _choosePrinting),
+                  _PrintingSelector(choice: printing, onTap: _choosePrinting),
                 ],
               ),
             ),
