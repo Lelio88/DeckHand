@@ -1,0 +1,8 @@
+La saisie au clavier enchaîne les cartes.
+
+- Après un ajout, le champ se vide tout seul et la liste reste : on tape
+  le nom suivant, ou on rajoute un exemplaire d'un appui.
+- « + » choisit l'édition : l'unique quand la carte n'en a qu'une, sinon
+  celle que vous possédez le plus. Elle s'affiche avant l'appui.
+- « Annuler » et « Préciser l'édition » fonctionnent même quand on a déjà
+  tapé la carte suivante.

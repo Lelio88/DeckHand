@@ -96,5 +96,5 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 
 ## VIII. Contexte de Session
 
-- **Dernier focus** : 1.11.0 — gabarit pleine page, cartes couchées, et l'arbitrage nom/illustration revu ; zéro carte affirmée à tort au banc réel, 37 justes sur 43 contre 35.
-- **Focus immédiat** : le gabarit pleine page au **flux caméra**, écarté faute de mesure — filmer des cartes pleine page et relever les annonces fausses avant/après.
+- **Dernier focus** : 1.12.0 — l'écran Ajouter enchaîne les cartes : le champ se vide à l'ajout, « + » propose l'édition (l'unique, sinon la plus possédée, exception écrite au §IV.8), et les gestes de la notification survivent au remplacement de la liste.
+- **Focus immédiat** : confronter sur l'appareil l'édition que « + » propose à la vraie collection ; puis le gabarit pleine page au **flux caméra**, écarté faute de mesure.
