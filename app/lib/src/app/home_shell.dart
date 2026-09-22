@@ -21,6 +21,7 @@
 /// mégarde.
 library;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -194,16 +195,23 @@ class _CaptureButtons extends StatelessWidget {
           icon: const Icon(Icons.mic_none),
           onPressed: () => _open(context, const VoiceInputScreen()),
         ),
-        const SizedBox(width: 6),
         // **Le viseur est devenu ce qu'il annonçait** : la caméra reconnaît au
         // fil des cartes (#8), et le panier se confirme à la fin. Le coût d'une
         // image est mesuré — 12,3 ms pour 33 disponibles — et les deux seuils
         // du suivi temporel le sont aussi.
-        IconButton.filledTonal(
-          tooltip: 'Scanner au fil de la caméra',
-          icon: const Icon(Icons.center_focus_strong_outlined),
-          onPressed: () => _open(context, const LiveScanScreen()),
-        ),
+        //
+        // **Absent du web** : le greffon `camera` n'y livre aucun flux d'images
+        // (`startImageStream` lève `UnimplementedError`). L'écran s'ouvrait,
+        // montrait un aperçu et n'analysait rien. Il reviendra avec le pont
+        // webcam de #43, qui lira la caméra sans passer par le greffon.
+        if (!kIsWeb) ...[
+          const SizedBox(width: 6),
+          IconButton.filledTonal(
+            tooltip: 'Scanner au fil de la caméra',
+            icon: const Icon(Icons.center_focus_strong_outlined),
+            onPressed: () => _open(context, const LiveScanScreen()),
+          ),
+        ],
       ],
     );
   }
