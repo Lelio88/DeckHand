@@ -96,5 +96,5 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 
 ## VIII. Contexte de Session
 
-- **Dernier focus** : 1.12.0 — l'écran Ajouter enchaîne les cartes : le champ se vide à l'ajout, « + » propose l'édition (l'unique, sinon la plus possédée, exception écrite au §IV.8), et les gestes de la notification survivent au remplacement de la liste.
+- **Dernier focus** : 1.12.1 — l'illustration se lit par homographie (une carte prise en trapèze n'est plus lue trop bas) et une carte n'est affirmée qu'avec deux marges, celle du découpage gagnant et celle de la fusion. Sur l'appareil : 38 justes sur 44 au lieu de 37, aucune fausse affirmée.
 - **Focus immédiat** : confronter sur l'appareil l'édition que « + » propose à la vraie collection ; puis le gabarit pleine page au **flux caméra**, écarté faute de mesure.

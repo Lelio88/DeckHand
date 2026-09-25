@@ -1,0 +1,7 @@
+La reconnaissance par photo lit mieux les cartes prises de biais.
+
+- Une carte photographiée en perspective est désormais lue au bon endroit :
+  des cartes qui n'étaient pas reconnues sortent maintenant en tête.
+- Une carte n'est plus affirmée quand une autre lecture de la photo
+  désigne presque aussi bien une autre carte : elle est alors proposée,
+  à confirmer d'un geste.
