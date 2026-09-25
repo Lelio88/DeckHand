@@ -56,6 +56,7 @@ import 'package:image/image.dart' as img;
 
 import 'art_box.dart';
 import 'card_geometry.dart';
+import 'card_projection.dart';
 
 /// Largeur à laquelle l'analyse travaille. La carte y reste assez grande pour
 /// que ses bords soient nets, et le parcours de composantes — le seul point
@@ -969,10 +970,12 @@ CardQuad? _cornersOf(Uint8List shape, int width, int height) {
 /// Lit la zone [box] de la carte décrite par [quad], sans redresser la photo.
 ///
 /// Chaque pixel de sortie correspond à un couple `(u, v)` en proportions de la
-/// carte ; sa position dans la photo s'obtient en interpolant les quatre coins,
-/// puis la couleur en interpolant les quatre pixels voisins. **Le plus proche
-/// voisin coûterait trois bits** — mesuré — sur un seuil de confiance qui n'en
-/// compte que douze.
+/// carte ; sa position dans la photo s'obtient **par homographie** — la carte
+/// est un rectangle vu en perspective, et interpoler linéairement les quatre
+/// coins lisait trop bas au milieu d'un carton pris en trapèze (voir
+/// `card_projection.dart`) —, puis la couleur en interpolant les quatre pixels
+/// voisins. **Le plus proche voisin coûterait trois bits** — mesuré — sur un
+/// seuil de confiance qui n'en compte que douze.
 img.Image sampleArt(
   img.Image photo,
   CardQuad quad,
@@ -981,22 +984,14 @@ img.Image sampleArt(
   int height = 190,
 }) {
   final out = img.Image(width: width, height: height);
+  final projection = CardProjection(quad);
 
   for (var row = 0; row < height; row++) {
     final v = box.top + (box.bottom - box.top) * (row + 0.5) / height;
     for (var col = 0; col < width; col++) {
       final u = box.left + (box.right - box.left) * (col + 0.5) / width;
 
-      final x =
-          (1 - u) * (1 - v) * quad.topLeft.x +
-          u * (1 - v) * quad.topRight.x +
-          u * v * quad.bottomRight.x +
-          (1 - u) * v * quad.bottomLeft.x;
-      final y =
-          (1 - u) * (1 - v) * quad.topLeft.y +
-          u * (1 - v) * quad.topRight.y +
-          u * v * quad.bottomRight.y +
-          (1 - u) * v * quad.bottomLeft.y;
+      final (:x, :y) = projection.map(u, v);
 
       _writeBilinear(photo, x, y, out, col, row);
     }
@@ -1014,8 +1009,8 @@ img.Image sampleArt(
 /// largeur et `pixelStride` vaut un.
 ///
 /// **Elle ne change pas le calcul.** Mêmes coordonnées `(u, v)`, même
-/// interpolation des quatre coins, même interpolation bilinéaire des quatre
-/// pixels voisins. Un test vérifie l'égalité **bit à bit** de l'empreinte
+/// homographie, même interpolation bilinéaire des quatre pixels voisins. Un
+/// test vérifie l'égalité **bit à bit** de l'empreinte
 /// obtenue par les deux chemins ; s'il tombe, c'est celle-ci qui a tort.
 ///
 /// Les trois canaux d'une image grise valant `Y`, l'interpolation rend `Y` :
@@ -1032,22 +1027,14 @@ Uint8List sampleArtFromLuma(
   int outHeight = 190,
 }) {
   final out = Uint8List(outWidth * outHeight);
+  final projection = CardProjection(quad);
 
   for (var row = 0; row < outHeight; row++) {
     final v = box.top + (box.bottom - box.top) * (row + 0.5) / outHeight;
     for (var col = 0; col < outWidth; col++) {
       final u = box.left + (box.right - box.left) * (col + 0.5) / outWidth;
 
-      final x =
-          (1 - u) * (1 - v) * quad.topLeft.x +
-          u * (1 - v) * quad.topRight.x +
-          u * v * quad.bottomRight.x +
-          (1 - u) * v * quad.bottomLeft.x;
-      final y =
-          (1 - u) * (1 - v) * quad.topLeft.y +
-          u * (1 - v) * quad.topRight.y +
-          u * v * quad.bottomRight.y +
-          (1 - u) * v * quad.bottomLeft.y;
+      final (:x, :y) = projection.map(u, v);
 
       final cx = x.clamp(0.0, (width - 1).toDouble());
       final cy = y.clamp(0.0, (height - 1).toDouble());

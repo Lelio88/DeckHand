@@ -42,26 +42,21 @@ import 'package:deckhand/src/features/scan/domain/art_hash.dart';
 import 'package:deckhand/src/features/scan/domain/art_hash_index.dart';
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
 import 'package:deckhand/src/features/scan/domain/card_edges.dart';
+import 'package:deckhand/src/features/scan/domain/card_projection.dart';
 import 'package:image/image.dart' as img;
 
 import 'index_download.dart';
 
 /// Où tombe le couple `(u, v)` de la carte dans la photo.
 ///
-/// **La même arithmétique que `sampleArt`**, à la lettre : interpolation
-/// bilinéaire des quatre coins. Elle est reprise ici plutôt qu'appelée parce que
-/// `sampleArt` rend des pixels, pas des coordonnées — et c'est de coordonnées
-/// qu'on a besoin pour comparer deux cadrages.
-List<double> _mapUV(CardQuad quad, double u, double v) => [
-  (1 - u) * (1 - v) * quad.topLeft.x +
-      u * (1 - v) * quad.topRight.x +
-      u * v * quad.bottomRight.x +
-      (1 - u) * v * quad.bottomLeft.x,
-  (1 - u) * (1 - v) * quad.topLeft.y +
-      u * (1 - v) * quad.topRight.y +
-      u * v * quad.bottomRight.y +
-      (1 - u) * v * quad.bottomLeft.y,
-];
+/// **La même projection que `sampleArt`** — la même classe, appelée et non
+/// recopiée : `CardProjection` rend des coordonnées, là où `sampleArt` rend des
+/// pixels, et c'est de coordonnées qu'on a besoin pour comparer deux cadrages.
+/// Une copie a longtemps vécu ici ; elle aurait dérivé au premier changement.
+List<double> _mapUV(CardQuad quad, double u, double v) {
+  final (:x, :y) = CardProjection(quad).map(u, v);
+  return [x, y];
+}
 
 /// Les quatre coins de la fenêtre d'illustration, dans le repère de la photo.
 ///

@@ -368,21 +368,34 @@ extension MultiQuerySearch on ArtHashIndex {
     }
     final fusionnes = meilleurParCarte.values.toList()
       ..sort((a, b) => a.distance.compareTo(b.distance));
+    final fusion = HashSearchResult(
+      fusionnes.take(limit).toList(growable: false),
+    );
+    final margeFusionnee = fusion.margin;
 
     return (
-      result: HashSearchResult(
-        fusionnes.take(limit).toList(growable: false),
-      ),
+      result: fusion,
       source: source,
-      // **La confiance reste celle de l'hypothèse gagnante, pas de la fusion.**
-      // La marge répond à « deux illustrations sont-elles trop proches pour
-      // qu'on les départage ? » — question qui n'a de sens qu'à découpage
-      // constant. Un concurrent né d'un autre gabarit ne dit rien de cette
-      // ambiguïté-là, et le compter ferait passer pour douteuses des
-      // reconnaissances franches : sans pochette, la même carte ressort à
-      // 6 bits avec 9 de marge, qu'un découpage absurde à 11 bits rabaisserait
-      // à 5 sans rien apporter.
-      isConfident: best?.isConfident ?? false,
+      // **Deux marges à franchir : celle de l'hypothèse gagnante, puis celle
+      // de la fusion.** La première dit si deux illustrations sont trop
+      // proches pour être départagées à découpage constant. La seconde dit si
+      // un **autre** découpage désigne une autre carte presque aussi bien —
+      // et c'est exactement la signature d'une annonce tirée au sort : sur une
+      // photo d'étalement ou une carte scindée, un gabarit tombe par hasard à
+      // 7 à 12 bits d'une carte absente, avec une marge propre confortable,
+      // pendant qu'un autre désigne une autre carte à un ou deux bits de là.
+      //
+      // **Mesuré sur le banc de photos réelles** (carte seule, étalements et
+      // fonds nus), lecture projective : la marge propre seule annonçait sans
+      // réserve 13 justes et 5 fausses ; la double garde en annonce 7 et
+      // **aucune fausse**. Les
+      // six justes perdues ne disparaissent pas : elles restent **en tête**
+      // des candidats, à un geste de confirmation — que le §IV.8 exige de
+      // toute façon. Une carte franche garde sa confiance : sans pochette, la
+      // japonaise ressort à 4 bits avec 9 de marge, fusion comprise.
+      isConfident:
+          (best?.isConfident ?? false) &&
+          (margeFusionnee == null || margeFusionnee >= minConfidenceMargin),
     );
   }
 }

@@ -167,17 +167,34 @@ void main() {
       expect(outcome.result.candidates[1].distance, 14);
     });
 
-    test('la confiance est celle du gabarit vainqueur, pas de la fusion', () {
-      // Fusionnés, les deux premiers sont à 11 et 14 : 3 bits d'écart, sous
-      // `minConfidenceMargin`. Pris seul, le vainqueur a 42 bits de marge.
-      // Compter un concurrent né d'un *autre* découpage rendrait douteuses des
-      // reconnaissances franches.
+    test('un autre découpage presque aussi bon retire la confiance', () {
+      // Pris seul, le vainqueur a 42 bits de marge. Fusionnés, les deux
+      // premiers sont à 11 et 14 : 3 bits d'écart, sous `minConfidenceMargin`.
+      // Et c'est bien le hasard qui gagne ici — la carte tenue est « cible » :
+      // l'affirmer « sosie » serait l'annonce fausse que la seconde marge
+      // existe pour empêcher.
       final outcome = index.searchAny({
         'legacy': bonGabarit,
         'modern+2': gabaritAbsurde,
       }, limit: 3);
 
       expect(outcome.source, 'modern+2');
+      expect(outcome.isConfident, isFalse);
+    });
+
+    test('une reconnaissance franche garde sa confiance malgré le bruit', () {
+      // La japonaise sans pochette : la bonne carte à 6 bits, un découpage
+      // absurde à 11 bits d'une autre — 5 bits de marge fusionnée, au-dessus
+      // du seuil. Le bruit d'un autre gabarit ne suffit pas à la rendre
+      // douteuse.
+      final outcome = index.searchAny({
+        'legacy': h('000000000000003F'),
+        'modern+2': gabaritAbsurde,
+      }, limit: 3);
+
+      expect(outcome.source, 'legacy');
+      expect(outcome.result.best?.oracleId, 'cible');
+      expect(outcome.result.margin, 5);
       expect(outcome.isConfident, isTrue);
     });
 

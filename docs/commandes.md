@@ -148,6 +148,11 @@ cd api && .venv/Scripts/python -m app.measure.plafond_empreinte --dump <dossier>
 cd api && .venv/Scripts/python -m app.measure.plafond_empreinte --depuis .cache/plafond-mesure.json
 # Balayer un seuil de détection — juge sur l'identification, jamais sur le détourage
 cd app && dart run tool/plafond.dart <dossier> --rupture 0.20 --support 0.74
+# Où est VRAIMENT l'illustration d'une carte connue — dans une photo, ou sur les
+# impressions d'une langue (l'art_crop anglais cherché dans le scan ; les rendus
+# `placeholder` de Scryfall, image anglaise barrée, sont écartés)
+cd api && .venv/Scripts/python -m app.measure.magic_art_window --photo <photo> --carte "Rethink"
+cd api && .venv/Scripts/python -m app.measure.magic_art_window --langue zhs --set pcy   # --cadre 1993
 
 # Ce que l'app reconnaît VRAIMENT — sur l'appareil, OCR compris (seule mesure entière)
 # **À repousser avant CHAQUE banc** : `flutter test` désinstalle l'application en

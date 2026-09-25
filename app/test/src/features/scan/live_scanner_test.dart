@@ -324,13 +324,23 @@ void main() {
     /// invariant : un damier seul est presque symétrique par quart de tour, et
     /// le test passerait alors quel que soit le sens du redressement — donc
     /// sans rien verrouiller. Le quart supérieur éclairci lève l'ambiguïté.
+    ///
+    /// **La rampe horizontale donne à l'empreinte de quoi se tenir.** Le
+    /// damier s'efface quand le dHash réduit l'illustration à 9 × 8 : son
+    /// empreinte ne tenait plus qu'à quelques bits d'arrondi, et le moindre
+    /// écart de lecture — la détection par droites rend ici un trapèze de 2 %,
+    /// que la lecture projective prend pour de la perspective — la faisait
+    /// basculer. Une carte réelle porte des variations à grande échelle ; la
+    /// rampe en tient lieu.
     Uint8List carteDebout() {
       final luma = Uint8List(stride * h)..fillRange(0, stride * h, 170);
       const left = 180, top = 300, cw = 322, ch = 450;
       for (var y = top; y < top + ch; y++) {
         for (var x = left; x < left + cw; x++) {
           final damier = ((x ~/ 7 + y ~/ 7) % 2 == 0) ? 18 : 60;
-          luma[y * stride + x] = y < top + ch ~/ 4 ? damier + 90 : damier;
+          final rampe = (x - left) * 40 ~/ cw;
+          luma[y * stride + x] =
+              (y < top + ch ~/ 4 ? damier + 90 : damier) + rampe;
         }
       }
       return luma;

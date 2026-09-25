@@ -1078,6 +1078,40 @@ huit. Le verdict « absente » est solide ; le verdict « appariée » ne prouve
 que c'était le bord **extérieur**. Aller plus loin sur ces 18 photos demanderait
 une vérité annotée à la main.
 
+#### La perspective : lire par homographie, non par interpolation des coins
+
+Une carte photographiée de biais n'est pas un quadrilatère quelconque : c'est un
+rectangle vu en perspective, dont la moitié éloignée paraît plus courte.
+Interpoler linéairement les quatre coins place le milieu du carton au milieu du
+quadrilatère, donc trop près du bord proche. `sampleArt` et `sampleArtFromLuma`
+lisent donc la fenêtre par **homographie** (`card_projection.dart`) ; sur un
+parallélogramme — une carte vue de face —, la lecture reste l'interpolation des
+coins au bit près.
+
+Le cas qui l'a révélé : un *Rethink* chinois de Prophecy (PCY 42), pris en
+trapèze, haut 7 % plus étroit que le bas. La corrélation situe le bas de
+l'illustration à 0,531 de la carte en projectif, 0,514 en interpolation des
+coins — l'empreinte tombait à **18 bits, rang 29** ; elle tombe à **10 bits, en
+tête**. Sur les 42 photos du banc dont la carte est connue et détourée, la bonne
+carte arrive en tête **13 fois au lieu de 10**, et sa distance s'améliore sur 17
+photos contre 8. Sur le flux composé de `stream_bench`, les seuils de production
+rendent le même résultat qu'avant (10 passages trouvés sur 11, aucun inventé),
+et les stratégies de suivi n'annoncent plus aucune carte que la redétection
+n'annonçait pas.
+
+Le revers est connu : la détection par droites quantifie les angles, et un faux
+trapèze de 2 % se lit comme une perspective. Le banc réel dit que le gain
+l'emporte ; un motif synthétique sans structure à grande échelle, lui, y perd son
+empreinte — `live_scanner_test.dart` porte une rampe pour cette raison.
+
+**Impasse, à ne pas refaire : une maquette « chinoise » d'ancien cadre.** Le
+premier soupçon sur ce *Rethink* fut une mise en page asiatique propre. Le seul
+scan chinois de Prophecy que publie Scryfall a la maquette anglaise. Et les
+impressions `zht` / `zhs` d'ancien cadre y sont presque toutes des
+**`placeholder`** — l'image anglaise barrée d'un bandeau —, qui retombent
+évidemment sur `legacy` : `magic_art_window --langue` les écarte, faute de quoi
+il conclut à tort.
+
 #### Ce qui reste après le cadrage : un plancher de reflet, sur une carte
 
 Six photos gardent une distance supérieure à douze bits **même avec la vraie
@@ -1091,19 +1125,24 @@ Les reflets **existent** comme plancher, mais ils expliquent 6 photos sur 32, pa
 le plafond général. C'est la nuance que la mesure apporte aux deux hypothèses de
 départ : les deux étaient vraies, l'une pèse cinq fois l'autre.
 
-#### Une carte annoncée « sans réserve » qui n'était pas là
+#### Deux marges pour affirmer une carte
 
-Le résultat que ce pipeline protège avant tout — ne jamais annoncer avec
-assurance une carte absente — **reste en défaut d'une photo** : sur 36 à carte
-unique, la production annonce 8 cartes justes et **1 inventée**, à 11 bits avec
-une marge de 4, c'est-à-dire exactement sur le fil des deux garde-fous. Elle
-tient à un quadrilatère de 9,5 % de travers sur une carte réelle, pas à une
-orientation : c'est le chantier de la détection, pas celui-ci.
+Le résultat que ce pipeline protège avant tout est de ne jamais annoncer avec
+assurance une carte absente. Une annonce fausse a une signature : un gabarit
+tombe par hasard à 7 à 12 bits d'une carte, avec une marge **propre**
+confortable, pendant qu'un **autre** découpage désigne une autre carte à un ou
+deux bits de là. `searchAny` exige donc deux marges de quatre bits : celle de
+l'hypothèse gagnante, puis celle de la liste fusionnée.
 
-Le dossier `sans-carte/` (douze photos de décor), lui, tient : **zéro carte
-annoncée**. Le défaut n'est donc pas « la chaîne invente sur n'importe quoi »,
-mais « un cadrage faux pris sur une vraie carte tombe parfois à portée d'une
-autre entrée de l'index ».
+Mesuré sur le banc (carte seule, étalements, fonds nus), en lecture projective :
+la marge propre seule affirme 13 cartes justes et **5 fausses** ; la double
+garde en affirme 7 et **aucune fausse**. Les six justes qui perdent l'assurance
+restent **en tête** des candidats, à un geste de confirmation — que le §IV.8
+exige de toute façon.
+
+Le dossier `sans-carte/` (douze photos de décor) tient sous les deux règles :
+**zéro carte annoncée**. Les annonces fausses naissaient toutes d'une vraie
+carte mal cadrée, d'un étalement ou d'une carte scindée, jamais du décor.
 
 #### Ce que le banc a appris sur lui-même
 
@@ -1817,7 +1856,7 @@ Sur 40 cartes, seuil de confiance à 12 bits :
 
 **Les quatre coins plutôt que la boîte englobante.** Une carte tournée de cinq degrés a une boîte nettement plus large qu'elle ; y découper une zone en proportions raterait l'illustration autant qu'avant. Les coins s'obtiennent par les extrêmes des sommes et des différences des coordonnées — exact pour un rectangle quelle que soit sa rotation, et insensible au bruit du contour.
 
-**L'image n'est jamais redressée.** Redresser demanderait de résoudre une homographie puis de rééchantillonner toute la photo pour n'en garder qu'un huitième. La zone voulue est lue directement, en interpolant les quatre coins puis les quatre pixels voisins. Le plus proche voisin coûtait trois bits — mesuré — sur un seuil qui n'en compte que douze.
+**L'image n'est jamais redressée.** Redresser demanderait de rééchantillonner toute la photo pour n'en garder qu'un huitième. La zone voulue est lue directement : chaque point passe par l'homographie des quatre coins, puis sa couleur s'interpole entre les quatre pixels voisins. Le plus proche voisin coûtait trois bits — mesuré — sur un seuil qui n'en compte que douze.
 
 **Limites mesurées.** Le régime « soigné » est le moins bon des cinq (33/40) : à 3 % de marge, la carte frôle le bord de la photo, et l'inondation du fond depuis les bords a peu de prise pour la contourner. Et un fond parfaitement uniforme privait le seuil de table de toute matière — corrigé, mais c'est le genre de cas qu'une photo réelle ne produit jamais et qu'un test de synthèse révèle immédiatement.
 

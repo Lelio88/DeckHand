@@ -383,11 +383,10 @@ class LiveScanner {
     // trop éloignée ou trop ambiguë ne désigne rien, et le suivi temporel doit
     // le voir comme une image muette — sans quoi une carte à moitié reconnue
     // accumulerait une série qu'elle n'a pas gagnée.
-    // **La confiance vient de `searchAny`, pas de la liste rendue.** Celle-ci
-    // fusionne désormais les candidats de plusieurs hypothèses, et sa marge ne
-    // répond plus à la question posée ici — « deux illustrations sont-elles
-    // trop proches pour qu'on les départage ? » n'a de sens qu'à découpage
-    // constant. La lire ferait perdre au flux des reconnaissances franches.
+    // **La confiance vient de `searchAny`, pas de la liste rendue.** Elle
+    // exige deux marges — celle de l'hypothèse gagnante, puis celle de la
+    // fusion — et c'est `searchAny` qui sait les combiner ; la refaire ici
+    // serait un second jumeau de la règle.
     final confident = outcome.isConfident;
 
     // **Le nom prime sur l'illustration quand il est frais.** Il se lit malgré

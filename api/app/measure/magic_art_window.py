@@ -25,6 +25,8 @@ Usage :
     .venv/Scripts/python -m app.measure.magic_art_window
     .venv/Scripts/python -m app.measure.magic_art_window --set msh --size 24
     .venv/Scripts/python -m app.measure.magic_art_window --famille terrains
+    .venv/Scripts/python -m app.measure.magic_art_window --langue zhs --set pcy
+    .venv/Scripts/python -m app.measure.magic_art_window --photo <photo> --carte Rethink
 """
 
 from __future__ import annotations
@@ -194,6 +196,61 @@ def mesurer(
     return fenetres
 
 
+def mesurer_langue(
+    langue: str, cadre: str, taille: int, portee: str = ""
+) -> list[Fenetre]:
+    """Où s'inscrit l'illustration sur une impression **étrangère** d'un cadre.
+
+    **Pourquoi l'`art_crop` anglais, et non celui de l'impression elle-même.**
+    Scryfall ne situe pas l'illustration sur chaque scan : rien ne garantit que
+    l'`art_crop` d'une impression chinoise ait été découpé à la bonne place, et
+    le mesurer contre sa propre carte ne mesurerait que la découpe de Scryfall.
+    L'impression anglaise du même numéro porte la même illustration (vérifié par
+    `illustration_id`), et c'est d'elle que l'index tire son empreinte : c'est
+    donc elle qu'il faut retrouver dans le carton étranger.
+
+    **Un rendu `placeholder` est écarté, et c'est l'essentiel du travail.** Pour
+    l'immense majorité des impressions asiatiques d'ancien cadre, Scryfall ne
+    publie aucun scan : il sert l'image **anglaise** barrée d'un bandeau. Mesurée
+    telle quelle, elle retombe sur `legacy` et fait conclure que la maquette ne
+    change pas — ce qui est arrivé. Seuls `lowres` et `highres_scan` sont de
+    vrais cartons de la langue demandée.
+    """
+    with httpx.Client(headers={"User-Agent": USER_AGENT}) as client:
+        echantillon = [
+            carte
+            for carte in cartes(
+                client, f"lang:{langue} frame:{cadre} -is:token{portee}", taille * 8
+            )
+            if carte.get("image_status") in ("lowres", "highres_scan")
+        ][:taille]
+        print(f"{langue}, cadre {cadre} : {len(echantillon)} impressions scannées")
+        fenetres: list[Fenetre] = []
+        for carte in echantillon:
+            nom = carte.get("name", "?")[:28]
+            try:
+                reponse = client.get(
+                    "https://api.scryfall.com/cards/"
+                    f"{carte['set']}/{carte['collector_number']}",
+                    timeout=30,
+                )
+                time.sleep(DELAI)
+                reponse.raise_for_status()
+                anglaise = reponse.json()
+                if anglaise.get("illustration_id") != carte.get("illustration_id"):
+                    print(f"  {nom:30s} illustration différente, écartée")
+                    continue
+                entiere = telecharger(client, carte["image_uris"]["normal"])
+                art = telecharger(client, anglaise["image_uris"]["art_crop"])
+            except (httpx.HTTPError, KeyError) as erreur:
+                print(f"  {nom:30s} indisponible ({erreur})")
+                continue
+            fenetre, score = situer(entiere, art)
+            fenetres.append(fenetre)
+            print(f"  {nom:30s} {fenetre}  accord {score:.3f}")
+    return fenetres
+
+
 def resumer(titre: str, fenetres: list[Fenetre]) -> Fenetre | None:
     if not fenetres:
         print(f"\n{titre} : rien à résumer")
@@ -315,6 +372,12 @@ def main() -> None:
     parseur.add_argument("--size", type=int, default=16)
     parseur.add_argument("--photo", default=None, help="situer l'illustration dedans")
     parseur.add_argument("--carte", default="Take Up the Shield")
+    parseur.add_argument(
+        "--langue",
+        default=None,
+        help="mesurer les impressions de cette langue (zht, zhs, ja, ko…)",
+    )
+    parseur.add_argument("--cadre", default="1997", help="avec --langue")
     arguments = parseur.parse_args()
 
     if arguments.photo:
@@ -322,6 +385,21 @@ def main() -> None:
         return
 
     portee = f" set:{arguments.set}" if arguments.set else ""
+    if arguments.langue:
+        titre = f"{arguments.langue}, cadre {arguments.cadre}"
+        resumer(
+            titre,
+            mesurer_langue(arguments.langue, arguments.cadre, arguments.size, portee),
+        )
+        # Le témoin : la même méthode sur l'anglais doit s'approcher de `legacy`
+        # (0,114 / 0,100 / 0,890 / 0,538), sans quoi c'est elle qui ment.
+        temoin = f"en, cadre {arguments.cadre} (témoin)"
+        resumer(
+            temoin,
+            mesurer_langue("en", arguments.cadre, max(6, arguments.size // 2), portee),
+        )
+        return
+
     titre, filtre, rotation = FAMILLES[arguments.famille]
     sans_bord = mesurer(
         f"{filtre} -is:token lang:en{portee}",
