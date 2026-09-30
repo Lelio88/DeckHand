@@ -6,11 +6,18 @@
 /// session Supabase (`signInWithIdToken`). Ni redirection ni secret Google
 /// côté application : le secret du client Web reste dans le coffre, inutilisé.
 ///
+/// **L'interface de la plateforme, et non le paquet `google_sign_in`.** Celui-ci
+/// embarque aussi une version web qui charge le script de Google dès le
+/// démarrage : la page d'un classeur partagé aurait transmis l'adresse IP de
+/// chaque visiteur à Google. L'application dépend donc de la seule
+/// implémentation Android (`google_sign_in_android`), qui s'inscrit comme
+/// `GoogleSignInPlatform.instance`, et parle à son interface.
+///
 /// Calqué sur DewDrop, qui l'a éprouvé sur appareil.
 library;
 
 import 'package:flutter/foundation.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 /// Identifiant du client OAuth **Web** « DeckHand – Web » (Google Cloud, projet
@@ -41,13 +48,13 @@ abstract interface class GoogleIdTokenSource {
   Future<void> forget({bool revoke = false});
 }
 
-/// Le sélecteur natif (`google_sign_in` 7 : Credential Manager sur Android).
+/// Le sélecteur natif (Credential Manager sur Android).
 ///
 /// - **Android seulement.** iOS demanderait son propre client, et la version
 ///   web publiée ne connecte personne (`DECKHAND_PUBLIC_ONLY`).
 /// - **Sans nonce** : ni l'une ni l'autre partie n'en fournit, Supabase n'a donc
 ///   rien à comparer ; le jeton reste lié à notre client et de courte durée.
-/// - `initialize` ne se joue qu'une fois par processus (le greffon l'exige), et
+/// - `init` ne se joue qu'une fois par processus (l'implémentation l'exige), et
 ///   paresseusement : une session qui ne touche jamais à Google ne le charge
 ///   pas.
 class NativeGoogleIdTokenSource implements GoogleIdTokenSource {
@@ -56,14 +63,16 @@ class NativeGoogleIdTokenSource implements GoogleIdTokenSource {
   final String serverClientId;
   Future<void>? _ready;
 
+  GoogleSignInPlatform get _platform => GoogleSignInPlatform.instance;
+
   @override
   bool get isAvailable =>
       serverClientId.isNotEmpty &&
       !kIsWeb &&
       defaultTargetPlatform == TargetPlatform.android;
 
-  Future<void> _init() => _ready ??= GoogleSignIn.instance
-      .initialize(serverClientId: serverClientId)
+  Future<void> _init() => _ready ??= _platform
+      .init(InitParameters(serverClientId: serverClientId))
       .catchError((Object e) {
         _ready = null; // une tentative suivante pourra réessayer
         throw e;
@@ -73,8 +82,10 @@ class NativeGoogleIdTokenSource implements GoogleIdTokenSource {
   Future<String?> pickAccount() async {
     try {
       await _init();
-      final account = await GoogleSignIn.instance.authenticate();
-      final token = account.authentication.idToken;
+      final result = await _platform.authenticate(
+        const AuthenticateParameters(),
+      );
+      final token = result.authenticationTokens.idToken;
       if (token == null) {
         throw const GoogleSignInException(
           code: GoogleSignInExceptionCode.unknownError,
@@ -97,9 +108,9 @@ class NativeGoogleIdTokenSource implements GoogleIdTokenSource {
     try {
       await _init();
       if (revoke) {
-        await GoogleSignIn.instance.disconnect();
+        await _platform.disconnect(const DisconnectParams());
       } else {
-        await GoogleSignIn.instance.signOut();
+        await _platform.signOut(const SignOutParams());
       }
     } on Exception {
       // Aucun compte choisi sur cet appareil, ou pas de réseau : il n'y a rien

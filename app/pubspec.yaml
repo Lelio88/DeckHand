@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.13.0+25
+version: 1.13.1+26
 
 environment:
   # **Relevée pour ML Kit 0.17**, qui exige Dart ^3.12.0. Dart 3.13.2 et
@@ -63,13 +63,18 @@ dependencies:
   http: ^1.6.0
 
   # **Le compte, et ce que la loi et Google Play demandent autour.**
-  # `google_sign_in` : « Continuer avec Google » (Android), un jeton d'identité
-  # échangé contre une session Supabase — calqué sur DewDrop.
+  # « Continuer avec Google » (Android) : un jeton d'identité échangé contre une
+  # session Supabase — calqué sur DewDrop. **L'implémentation Android seule, et
+  # non le paquet `google_sign_in`** : celui-ci embarque aussi sa version web,
+  # qui charge le script de Google dès le démarrage — à chaque visite d'un
+  # classeur partagé, l'adresse IP du visiteur partait chez Google. La version
+  # web publiée ne connecte personne : elle n'a pas à l'embarquer.
   # `flutter_secure_storage` : la session dans le Keystore plutôt qu'en clair
   # dans les préférences (`secure_session_storage.dart`).
   # `url_launcher` : ouvrir la politique, les CGU et les mentions légales, qui
   # vivent sur le web — l'application n'en garde pas de copie qui divergerait.
-  google_sign_in: ^7.2.0
+  google_sign_in_android: ^7.2.17
+  google_sign_in_platform_interface: ^3.1.0
   flutter_secure_storage: ^11.2.0
   url_launcher: ^6.3.2
 

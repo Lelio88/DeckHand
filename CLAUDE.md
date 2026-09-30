@@ -26,7 +26,7 @@ Topologie rapide :
 
 *Versions contraintes par `app/pubspec.yaml` et `api/pyproject.toml`. N'introduisez aucune dépendance alternative sans approbation.*
 
-- **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `camera` (flux temps réel), `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg` ; compte : `google_sign_in` (Android), `flutter_secure_storage` (session chiffrée), `url_launcher` (pages légales)
+- **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `camera` (flux temps réel), `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg` ; compte : `google_sign_in_android` (Google ; jamais le paquet `google_sign_in`, dont la version web charge le script de Google), `flutter_secure_storage` (session chiffrée), `url_launcher` (pages légales)
 - **`api/`** : Python 3.11+, httpx, psycopg, Pillow, numpy — **chaque contrainte porte un plafond de majeure** : `numpy` et `Pillow` sont le seul chemin par lequel une bibliothèque peut dégrader la reconnaissance en silence, une empreinte au calcul modifié restant valide mais devenant incomparable au jumeau Dart
 - **Données** : Supabase — Postgres, Auth, Storage. Cloud uniquement, rien à déployer
 - **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks), MTGJSON (précons), Riftcodex (catalogue Riftbound), Lorcast (catalogue et prix Lorcana), TCGCSV (prix Riftbound, Yu-Gi-Oh et Pokémon), BCE (taux de change), YGOPRODeck (catalogue Yu-Gi-Oh), TCGdex (catalogue Pokémon), Limitless TCG (decks Pokémon), Wankuldex (catalogue Wankul, sous autorisation)

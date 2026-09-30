@@ -1434,11 +1434,15 @@ visible.
 ### Google, la suppression, la session et les messages
 
 - **Connexion avec Google** (Android) : le sélecteur natif
-  (`google_id_token_source.dart`, `google_sign_in` 7) rend un jeton d'identité,
+  (`google_id_token_source.dart`) rend un jeton d'identité,
   échangé contre une session (`signInWithIdToken`). Son audience est le client
   Web `kGoogleWebClientId` (Google Cloud, projet DeckHand), déclaré au
   fournisseur Google du projet Supabase ; trois clients Android, un par
-  empreinte de signature (`docs/publication-play.md`). Un compte Google à la
+  empreinte de signature (`docs/publication-play.md`). **L'application dépend
+  de `google_sign_in_android` et de son interface, jamais du paquet
+  `google_sign_in`** : celui-ci embarque sa version web, qui charge le script
+  de Google dès le démarrage — la page d'un classeur partagé transmettait
+  alors l'adresse IP de chaque visiteur à Google. Un compte Google à la
   même adresse qu'un compte existant **le retrouve** : Supabase lie les
   identités d'une même adresse vérifiée. « Lier mon compte Google », dans
   l'écran Compte, lie à la main (liaison manuelle activée) ; délier est refusé
