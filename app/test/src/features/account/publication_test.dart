@@ -65,6 +65,7 @@ Future<FakeCollectionRepository> pump(
             ],
           ),
         ),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         sessionProvider.overrideWith(
           (ref) => Stream<Session?>.value(fakeSession()),
         ),

@@ -1,4 +1,11 @@
-"""Éprouve la désignation sous `anon` — la seule écriture ouverte du projet.
+"""Éprouve la désignation sous `anon` — la seule écriture du calque.
+
+**Depuis la migration `conformite`, elle passe par la porte du bot.** Les trois
+écritures d'origine (`public_request_spotlight`, `_page`, `_strip`) ne sont
+plus accordées à `anon` ; les portes `bot_request_*` les précèdent de la clé du
+calque. Le banc pose une clé le temps de l'essai et remet ensuite celle qui
+existait : il éprouve la clé fausse, l'ancienne porte et la table des
+empreintes, en plus des verrous d'origine.
 
 **Pourquoi ce banc et pas une relecture du SQL.** La connexion d'ingestion est
 propriétaire de la base : elle traverse RLS sans la voir, et un `GRANT` oublié
@@ -32,12 +39,13 @@ Usage :
 
 from __future__ import annotations
 
+import secrets
 import sys
 
 import httpx
 import psycopg
 
-from app.config import SupabaseConfig
+from app.config import SupabaseConfig, load_env_file
 
 
 def _rpc(client: httpx.Client, key: str, fonction: str, corps: dict[str, object]) -> object:
@@ -118,8 +126,13 @@ def main() -> int:
                 """
                 WITH tenues AS (
                     SELECT i.oracle_id,
-                           MIN(p.set_code)         AS set_code,
-                           MIN(p.collector_number) AS collector_number,
+                           -- Une case réelle : l'extension et le numéro d'une
+                           -- même impression, et non deux minimums pris chacun
+                           -- de leur côté, qui désigneraient une case absente.
+                           (ARRAY_AGG(p.set_code ORDER BY p.set_code, p.collector_number))[1]
+                               AS set_code,
+                           (ARRAY_AGG(p.collector_number ORDER BY p.set_code, p.collector_number))[1]
+                               AS collector_number,
                            COUNT(DISTINCT COALESCE(
                                p.illustration_id::text,
                                p.set_code || '/' || p.collector_number)) AS dessins
@@ -140,8 +153,13 @@ def main() -> int:
                 """
                 WITH tenues AS (
                     SELECT i.oracle_id,
-                           MIN(p.set_code)         AS set_code,
-                           MIN(p.collector_number) AS collector_number,
+                           -- Une case réelle : l'extension et le numéro d'une
+                           -- même impression, et non deux minimums pris chacun
+                           -- de leur côté, qui désigneraient une case absente.
+                           (ARRAY_AGG(p.set_code ORDER BY p.set_code, p.collector_number))[1]
+                               AS set_code,
+                           (ARRAY_AGG(p.collector_number ORDER BY p.set_code, p.collector_number))[1]
+                               AS collector_number,
                            COUNT(DISTINCT COALESCE(
                                p.illustration_id::text,
                                p.set_code || '/' || p.collector_number)) AS dessins
@@ -156,6 +174,32 @@ def main() -> int:
                 (collection_id,),
             )
             unique_dessin = cur.fetchone()
+
+            # **La clé du coffre d'abord, quand c'est la bonne** : le banc
+            # n'écrase alors rien, et un arrêt brutal ne laisse pas le calque du
+            # direct sous une clé jetable. Sinon, une clé d'essai est posée le
+            # temps du banc, et l'empreinte d'origine remise ensuite.
+            cur.execute(
+                "SELECT key_hash FROM public.collection_overlay_keys WHERE collection_id = %s",
+                (collection_id,),
+            )
+            ancienne = cur.fetchone()
+            cle = load_env_file("twitch.env").get("DECKHAND_OVERLAY_KEY") or ""
+            cur.execute(
+                "SELECT %s <> '' AND %s = sha256(convert_to(%s, 'UTF8'))",
+                (cle, ancienne[0] if ancienne else None, cle),
+            )
+            cle_du_coffre = bool(cur.fetchone()[0])
+            if not cle_du_coffre:
+                cle = secrets.token_urlsafe(32)
+                cur.execute(
+                    """
+                    INSERT INTO public.collection_overlay_keys (collection_id, key_hash)
+                    VALUES (%s, sha256(convert_to(%s, 'UTF8')))
+                    ON CONFLICT (collection_id) DO UPDATE SET key_hash = EXCLUDED.key_hash
+                    """,
+                    (collection_id, cle),
+                )
 
         handle = slug or str(collection_id)
         print(f"collection {handle} — case possédée {set_code.upper()} #{numero}")
@@ -172,6 +216,10 @@ def main() -> int:
 
             with httpx.Client(base_url=config.url, timeout=30) as client:
                 anon = config.anon_key
+
+                def ecrire(fonction: str, corps: dict[str, object]) -> object:
+                    """Une écriture du calque, par la porte du bot, sous la clé de l'essai."""
+                    return _rpc(client, anon, fonction, {"p_key": cle, **corps})
 
                 def rouvrir() -> None:
                     """Recule la dernière demande pour lever le délai de garde.
@@ -190,7 +238,7 @@ def main() -> int:
                         )
 
                 print("\nce qu'un spectateur peut faire")
-                accepte = _rpc(client, anon, "public_request_spotlight", {
+                accepte = ecrire("bot_request_spotlight", {
                     "p_handle": handle, "p_set_code": set_code,
                     "p_collector_number": numero, "p_requested_by": "alice",
                 })
@@ -213,7 +261,7 @@ def main() -> int:
                     )
 
                 rouvrir()
-                page_ok = _rpc(client, anon, "public_request_spotlight_page", {
+                page_ok = ecrire("bot_request_spotlight_page", {
                     "p_handle": handle, "p_set_code": set_code,
                     "p_page": 1, "p_requested_by": "bob",
                 })
@@ -245,7 +293,7 @@ def main() -> int:
                 if plusieurs is not None:
                     tapis_set, tapis_num, dessins = plusieurs
                     rouvrir()
-                    tapis = _rpc(client, anon, "public_request_spotlight_strip", {
+                    tapis = ecrire("bot_request_spotlight_strip", {
                         "p_handle": handle, "p_set_code": tapis_set,
                         "p_collector_number": tapis_num, "p_requested_by": "carol",
                     })
@@ -279,7 +327,40 @@ def main() -> int:
                         )
 
                 print("\nce qu'il ne peut pas")
-                encore = _rpc(client, anon, "public_request_spotlight", {
+                rouvrir()
+                ancienne_porte = _rpc(client, anon, "public_request_spotlight", {
+                    "p_handle": handle, "p_set_code": set_code,
+                    "p_collector_number": numero, "p_requested_by": "mallory",
+                })
+                total += 1
+                reussis += _verdict(
+                    "écrire par l'ancienne porte, sans clé", ancienne_porte is True, False
+                )
+                fausse = _rpc(client, anon, "bot_request_spotlight", {
+                    "p_key": "pas-la-bonne", "p_handle": handle, "p_set_code": set_code,
+                    "p_collector_number": numero, "p_requested_by": "mallory",
+                })
+                total += 1
+                reussis += _verdict("écrire avec une clé fausse", fausse is True, False)
+                empreintes = client.get(
+                    "/rest/v1/collection_overlay_keys",
+                    params={"select": "*"},
+                    headers={"apikey": anon, "Authorization": f"Bearer {anon}"},
+                )
+                total += 1
+                reussis += _verdict(
+                    "lire les empreintes de clé",
+                    empreintes.status_code == 200 and empreintes.json() not in ([], None),
+                    False,
+                )
+                # Le délai a été levé pour que la clé fausse soit refusée pour
+                # sa clé et non pour le délai ; une écriture valide le réarme
+                # avant le contrôle qui l'éprouve.
+                ecrire("bot_request_spotlight", {
+                    "p_handle": handle, "p_set_code": set_code,
+                    "p_collector_number": numero, "p_requested_by": "alice",
+                })
+                encore = ecrire("bot_request_spotlight", {
                     "p_handle": handle, "p_set_code": set_code,
                     "p_collector_number": numero, "p_requested_by": "mallory",
                 })
@@ -288,7 +369,7 @@ def main() -> int:
 
                 if absente is not None:
                     rouvrir()
-                    hors = _rpc(client, anon, "public_request_spotlight", {
+                    hors = ecrire("bot_request_spotlight", {
                         "p_handle": handle, "p_set_code": set_code,
                         "p_collector_number": absente[0], "p_requested_by": "mallory",
                     })
@@ -296,7 +377,7 @@ def main() -> int:
                     reussis += _verdict("désigner une case non possédée", hors is True, False)
 
                 rouvrir()
-                inconnue = _rpc(client, anon, "public_request_spotlight_page", {
+                inconnue = ecrire("bot_request_spotlight_page", {
                     "p_handle": handle, "p_set_code": "__aucune__",
                     "p_page": 1, "p_requested_by": "mallory",
                 })
@@ -308,7 +389,7 @@ def main() -> int:
                 )
 
                 rouvrir()
-                zero = _rpc(client, anon, "public_request_spotlight_page", {
+                zero = ecrire("bot_request_spotlight_page", {
                     "p_handle": handle, "p_set_code": set_code,
                     "p_page": 0, "p_requested_by": "mallory",
                 })
@@ -320,7 +401,7 @@ def main() -> int:
                 # et non sur la carte, faute de quoi une page, qui n'en a pas,
                 # passerait au travers. Une relecture du SQL ne le dirait pas.
                 rouvrir()
-                _rpc(client, anon, "public_request_spotlight_page", {
+                ecrire("bot_request_spotlight_page", {
                     "p_handle": handle, "p_set_code": set_code,
                     "p_page": 1, "p_requested_by": "bob",
                 })
@@ -342,14 +423,14 @@ def main() -> int:
                         (portee, collection_id),
                     )
                 rouvrir()
-                _rpc(client, anon, "public_request_spotlight", {
+                ecrire("bot_request_spotlight", {
                     "p_handle": handle, "p_set_code": set_code,
                     "p_collector_number": numero, "p_requested_by": "alice",
                 })
 
                 if unique_dessin is not None:
                     rouvrir()
-                    seul = _rpc(client, anon, "public_request_spotlight_strip", {
+                    seul = ecrire("bot_request_spotlight_strip", {
                         "p_handle": handle, "p_set_code": unique_dessin[0],
                         "p_collector_number": unique_dessin[1],
                         "p_requested_by": "mallory",
@@ -366,7 +447,7 @@ def main() -> int:
                 # montre que deux ; tout retirer ne doit rien laisser.
                 if plusieurs is not None:
                     rouvrir()
-                    _rpc(client, anon, "public_request_spotlight_strip", {
+                    ecrire("bot_request_spotlight_strip", {
                         "p_handle": handle, "p_set_code": plusieurs[0],
                         "p_collector_number": plusieurs[1], "p_requested_by": "carol",
                     })
@@ -389,7 +470,7 @@ def main() -> int:
                             (portee, collection_id),
                         )
                     rouvrir()
-                    _rpc(client, anon, "public_request_spotlight", {
+                    ecrire("bot_request_spotlight", {
                         "p_handle": handle, "p_set_code": set_code,
                         "p_collector_number": numero, "p_requested_by": "alice",
                     })
@@ -411,7 +492,7 @@ def main() -> int:
 
                 with conn.cursor() as cur:
                     cur.execute("UPDATE public.collections SET is_public = false WHERE id = %s", (collection_id,))
-                ferme = _rpc(client, anon, "public_request_spotlight", {
+                ferme = ecrire("bot_request_spotlight", {
                     "p_handle": handle, "p_set_code": set_code,
                     "p_collector_number": numero, "p_requested_by": "mallory",
                 })
@@ -429,11 +510,24 @@ def main() -> int:
         finally:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM public.collection_spotlight WHERE collection_id = %s", (collection_id,))
+                if cle_du_coffre:
+                    pass  # la clé en place est celle du coffre : rien n'a été écrasé
+                elif ancienne is None:
+                    cur.execute(
+                        "DELETE FROM public.collection_overlay_keys WHERE collection_id = %s",
+                        (collection_id,),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE public.collection_overlay_keys SET key_hash = %s WHERE collection_id = %s",
+                        (ancienne[0], collection_id),
+                    )
                 cur.execute(
                     "UPDATE public.collections SET is_public = %s, shared_sets = %s WHERE id = %s",
                     (etait_public, portee, collection_id),
                 )
-            print(f"\nétat restauré : is_public={etait_public}, shared_sets={portee}")
+            print(f"\nétat restauré : is_public={etait_public}, shared_sets={portee}, "
+                  f"clé du calque {'celle du coffre, intacte' if cle_du_coffre else 'retirée' if ancienne is None else 'remise'}")
 
     print(f"\n{reussis}/{total} contrôles conformes")
     return 0 if reussis == total else 1

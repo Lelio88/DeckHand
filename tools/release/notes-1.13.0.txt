@@ -1,0 +1,6 @@
+Votre compte et vos données, mieux protégés.
+
+- Connexion avec Google, et liaison d'un compte Google à votre compte (écran Compte).
+- Une nouvelle inscription confirme son adresse par e-mail.
+- Supprimer son compte et toutes ses données : écran Compte, ou depuis le web.
+- Informations légales dans l'écran Compte ; la session est rangée dans le stockage chiffré du téléphone.

@@ -449,9 +449,9 @@ le build n'a pas besoin de `--base-href`.
 **Les pages statiques vivent à côté** : `app/web/` porte l'accueil
 (`accueil.html`), la politique de confidentialité (`privacy.html`), les CGU et
 les mentions légales, que `flutter build web` copie telles quelles. Une feuille
-commune (`legal.css`) et aucun script ni style inline. CanvasKit est embarqué
-(`--no-web-resources-cdn`) : la page d'un classeur ne le tire plus des
-serveurs de Google.
+commune (`legal.css`) et aucun script ni style inline. CanvasKit
+(`--no-web-resources-cdn`) et la police Roboto (`app/pubspec.yaml`) sont
+embarqués : la page d'un classeur ne tire plus rien des serveurs de Google.
 
 ### Le bot de chat lit par la même porte
 
@@ -461,7 +461,7 @@ le temps d'un direct ; rien n'est déployé. Cinq commandes lisent, une écrit.
 | commande | ce qu'elle dit | ce qu'elle appelle |
 |---|---|---|
 | `!card <nom>` | la carte est-elle possédée, où, et ce qu'elle vaut | `binder_locate` |
-| `!montre <nom>` | fait monter la carte sur l'overlay | `binder_locate` puis `public_request_spotlight` |
+| `!montre <nom>` | fait monter la carte sur l'overlay | `binder_locate` puis `bot_request_spotlight` (sous la clé du calque) |
 | `!page <ext> <n>` | ce qui manque à une page | `public_binder_page` |
 | `!dernieres` | les trois dernières cartes entrées au classeur | `public_recent_additions` |
 | `!classeur` | l'avancement, extension par extension | `public_binder_shelf` |
@@ -611,13 +611,27 @@ service est écartée par doctrine** — elle contournerait la portée choisie d
 l'écran de partage, ce qui est l'unique erreur qui rendrait ce bot dangereux.
 Restait à borner l'écriture anonyme assez pour qu'elle soit sans conséquence.
 
-**Ce qu'un inconnu peut faire au pire.** Il connaît l'adresse de partage — elle
-est à l'antenne — et appelle `public_request_spotlight` directement, sans passer
-par le chat ni par le débit du bot. Il peut alors faire monter, une fois toutes
-les trente secondes, **une carte que le propriétaire possède déjà et donne déjà à
-lire**. Rien d'autre : la fonction ne touche qu'une table qui n'existe que pour
-ça, n'accepte aucun texte libre hors un pseudonyme borné à quarante caractères,
-et la table ne grossit pas — une ligne par collection, écrasée.
+**L'écriture exige la clé du calque.** L'adresse de partage est à l'antenne :
+si elle suffisait à écrire, n'importe qui pourrait faire monter une carte
+toutes les trente secondes, sous le pseudo de son choix, sans passer par le
+chat ni par sa modération. Les trois portes `bot_request_spotlight`, `_page` et
+`_strip` refusent donc qui ne présente pas la clé de cette collection ; seule
+son empreinte SHA-256 est en base (`collection_overlay_keys`, que ni `anon` ni
+`authenticated` ne lisent), et le jeton vit dans le coffre du poste qui diffuse
+(`DECKHAND_OVERLAY_KEY`, posé par `python -m app.twitch.cle` — le relancer
+renouvelle la clé). Les fonctions d'origine `public_request_*` portent les
+verrous ci-dessous et ne sont plus accordées qu'à leur propriétaire. **La clé
+de service reste écartée** : elle contournerait la portée, là où la clé du
+calque n'ouvre que ces trois écritures bornées. Sans clé configurée, le bot lit
+toujours, et n'essaie même pas d'écrire.
+
+Même avec la clé, ce qui peut monter est borné : **une carte que le
+propriétaire possède déjà et donne déjà à lire**. La fonction ne touche qu'une
+table qui n'existe que pour ça, n'accepte aucun texte libre hors un pseudonyme
+borné à quarante caractères, et la table ne grossit pas — une ligne par
+collection, écrasée. **Le pseudo ne dure pas** : la tâche `pg_cron`
+`deckhand-purge-calque` efface chaque nuit les demandes de plus de 24 heures,
+la durée qu'annonce la politique de confidentialité.
 
 Trois verrous, tous mécaniques : `collection_by_handle` refuse une collection non
 publiée ; la case doit être **possédée**, sans quoi on ferait défiler les 165 000

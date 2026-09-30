@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'dart:async';
 
 import 'package:deckhand/src/features/auth/data/auth_repository.dart';
+import 'package:deckhand/src/features/auth/domain/google_link.dart';
 import 'package:deckhand/src/features/card_search/data/card_repository.dart';
 import 'package:deckhand/src/config/display_lang.dart';
 import 'package:deckhand/src/config/ocr_script.dart';
@@ -709,6 +710,58 @@ class FakeAuthRepository implements AuthRepository {
   /// Levée par le prochain appel, quel qu'il soit.
   Object? error;
 
+  /// Ce que rend une inscription : vrai = le compte attend sa confirmation.
+  bool signUpAwaitsConfirmation = true;
+
+  /// Vrai quand « Continuer avec Google » doit s'afficher.
+  bool googleAvailable = false;
+
+  /// Le compte Google lié, tel que la session le décrirait.
+  GoogleLink? google;
+
+  int googleSignIns = 0;
+  int googleLinks = 0;
+  int googleUnlinks = 0;
+  int deletions = 0;
+  int signOuts = 0;
+
+  @override
+  String? email = 'moi@exemple.fr';
+
+  @override
+  bool get supportsGoogle => googleAvailable;
+
+  @override
+  GoogleLink? get linkedGoogle => google;
+
+  @override
+  Future<bool> signInWithGoogle() async {
+    if (error != null) throw error!;
+    googleSignIns++;
+    return true;
+  }
+
+  @override
+  Future<bool> linkGoogle() async {
+    if (error != null) throw error!;
+    googleLinks++;
+    google = const GoogleLink(email: 'moi@gmail.com', canUnlink: true);
+    return true;
+  }
+
+  @override
+  Future<void> unlinkGoogle() async {
+    if (error != null) throw error!;
+    googleUnlinks++;
+    google = null;
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    if (error != null) throw error!;
+    deletions++;
+  }
+
   final _events = StreamController<AuthState>.broadcast();
 
   /// Rejoue ce que `supabase_flutter` émet quand un lien de réinitialisation
@@ -732,13 +785,14 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> signUp({required String email, required String password}) async {
+  Future<bool> signUp({required String email, required String password}) async {
     if (error != null) throw error!;
     signUps.add((email, password));
+    return signUpAwaitsConfirmation;
   }
 
   @override
-  Future<void> signOut() async {}
+  Future<void> signOut() async => signOuts++;
 
   @override
   Future<void> sendPasswordReset(String email) async {

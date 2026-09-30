@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.12.2+24
+version: 1.13.0+25
 
 environment:
   # **Relevée pour ML Kit 0.17**, qui exige Dart ^3.12.0. Dart 3.13.2 et
@@ -62,6 +62,17 @@ dependencies:
   flutter_svg: ^2.3.0
   http: ^1.6.0
 
+  # **Le compte, et ce que la loi et Google Play demandent autour.**
+  # `google_sign_in` : « Continuer avec Google » (Android), un jeton d'identité
+  # échangé contre une session Supabase — calqué sur DewDrop.
+  # `flutter_secure_storage` : la session dans le Keystore plutôt qu'en clair
+  # dans les préférences (`secure_session_storage.dart`).
+  # `url_launcher` : ouvrir la politique, les CGU et les mentions légales, qui
+  # vivent sur le web — l'application n'en garde pas de copie qui divergerait.
+  google_sign_in: ^7.2.0
+  flutter_secure_storage: ^11.2.0
+  url_launcher: ^6.3.2
+
   # Le flux vidéo, pour le mode temps réel (issue #8). Le paquet ne sert qu'à
   # obtenir les plans d'une image ; la reconnaissance reste celle du mode photo,
   # au bit près — c'est la condition pour que l'index embarqué reste valide.
@@ -104,12 +115,31 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # **Le seul asset du projet, et il est de nous.** Les illustrations de cartes
-  # ne peuvent pas être commitées (§IV.11, le dépôt est public) ; ce jingle
-  # est généré par `tools/sounds/gen_intro_jingle.py`, qui le refait à
-  # l'identique. 49 Kio.
+  # **Le jingle est de nous.** Les illustrations de cartes ne peuvent pas être
+  # commitées (§IV.11, le dépôt est public) ; ce jingle est généré par
+  # `tools/sounds/gen_intro_jingle.py`, qui le refait à l'identique. 49 Kio.
   assets:
     - assets/audio/deckhand_intro.mp3
+    - assets/fonts/roboto/LICENSE.txt
+
+  # **Roboto embarquée**, copiée du SDK Flutter (licence Apache 2.0, déclarée
+  # au registre des licences dans `main.dart`). Sans elle, la version web tire
+  # la police de `fonts.gstatic.com` à chaque visite, et transmet l'adresse IP
+  # du visiteur d'un classeur partagé à Google sans son accord. Sur Android, elle
+  # remplace la Roboto du système par la même police. Cinq styles : ceux que le
+  # code emploie (300, 400, 500, 700, italique ; 600 se résout en 700).
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/roboto/roboto-light.ttf
+          weight: 300
+        - asset: assets/fonts/roboto/roboto-regular.ttf
+        - asset: assets/fonts/roboto/roboto-italic.ttf
+          style: italic
+        - asset: assets/fonts/roboto/roboto-medium.ttf
+          weight: 500
+        - asset: assets/fonts/roboto/roboto-bold.ttf
+          weight: 700
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

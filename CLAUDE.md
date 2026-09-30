@@ -26,7 +26,7 @@ Topologie rapide :
 
 *Versions contraintes par `app/pubspec.yaml` et `api/pyproject.toml`. N'introduisez aucune dépendance alternative sans approbation.*
 
-- **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `camera` (flux temps réel), `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg`
+- **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `camera` (flux temps réel), `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg` ; compte : `google_sign_in` (Android), `flutter_secure_storage` (session chiffrée), `url_launcher` (pages légales)
 - **`api/`** : Python 3.11+, httpx, psycopg, Pillow, numpy — **chaque contrainte porte un plafond de majeure** : `numpy` et `Pillow` sont le seul chemin par lequel une bibliothèque peut dégrader la reconnaissance en silence, une empreinte au calcul modifié restant valide mais devenant incomparable au jumeau Dart
 - **Données** : Supabase — Postgres, Auth, Storage. Cloud uniquement, rien à déployer
 - **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks), MTGJSON (précons), Riftcodex (catalogue Riftbound), Lorcast (catalogue et prix Lorcana), TCGCSV (prix Riftbound, Yu-Gi-Oh et Pokémon), BCE (taux de change), YGOPRODeck (catalogue Yu-Gi-Oh), TCGdex (catalogue Pokémon), Limitless TCG (decks Pokémon), Wankuldex (catalogue Wankul, sous autorisation)
@@ -85,16 +85,16 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 |---|---|
 | Nouvelle source, ou changement de ses conditions | `CLAUDE.md` §IV + `docs/architecture.md` §3 |
 | Évolution du pipeline de reconnaissance | `docs/architecture.md` §2 |
-| Modèle de données, politique RLS, comptes ou connexion | `docs/architecture.md` §4 — et toute fonction qui montre un nom traduit lit `my_display_lang()`, jamais `'fr'` en dur |
+| Modèle de données, politique RLS, comptes ou connexion | `docs/architecture.md` §4 (+ `supabase/tests/conformite.test.sql` si la RLS change) — et toute fonction qui montre un nom traduit lit `my_display_lang()`, jamais `'fr'` en dur |
+| Donnée collectée, durée ou destinataire ; page publique | `app/web/privacy.html` (+ la purge en base si une durée change) + Data safety (`docs/publication-play.md` §4) |
 | Évolution du classeur, du journal ou du partage | [`docs/collection-architecture.md`](./docs/collection-architecture.md) |
 | Accueil d'un jeu, langue ajoutée à un connecteur, ou ce qui dépend du jeu | [`docs/multi-game.md`](./docs/multi-game.md) + `CardLang.coverage`, qui annonce à l'écran ce que chaque langue couvre |
 | Nouveau gabarit d'illustration, ou nouvelle maquette | `api/app/vision/art_box.py` **et** `app/lib/src/features/scan/domain/art_box.dart` (jumeaux, un test lit le Dart) |
 | Écriture d'OCR ajoutée (japonais, chinois…) | `app/lib/src/config/ocr_script.dart` **et** `app/android/app/build.gradle.kts` (le greffon les déclare `compileOnly`) |
 | Nouvelle impasse mesurée | Section « impasses » de l'annexe concernée |
-| Nouveau secret / clé d'API | `../.deckhand-secrets/` (jamais dans le dépôt) |
-| Nouvelle commande, ou banc de mesure ajouté | [`docs/commandes.md`](./docs/commandes.md) |
+| Nouveau secret / clé d'API ; nouvelle commande ou banc de mesure | `../.deckhand-secrets/` (jamais dans le dépôt) ; [`docs/commandes.md`](./docs/commandes.md) |
 
 ## VIII. Contexte de Session
 
-- **Dernier focus** : 1.12.2 (alpha) — sur un étalement, une carte porte un seul nom et un seul exemplaire (`spread_attribution.dart`), positions ML Kit ramenées à l'image, orientation jugée en pixels. Banc entier (77 photos, émulateur) : 5 vraies cartes rendues, *Flight* et un exemplaire en trop ôtés, rien perdu.
-- **Focus immédiat** : confronter sur l'appareil l'édition que « + » propose à la vraie collection ; puis le gabarit pleine page au **flux caméra**, écarté faute de mesure.
+- **Dernier focus** : **mise en conformité** — connexion Google, adresse confirmée par courriel (inscription muette sur les doublons), suppression du compte (app et web), session chiffrée, clé du calque pour le bot, purges `pg_cron`, pages légales sur `deckhand.heianenterprise.com`, CanvasKit embarqué.
+- **Focus immédiat** : essai **sur appareil** (Google, confirmation d'une inscription, suppression, reprise de la session) ; puis l'édition que « + » propose, confrontée à la vraie collection.

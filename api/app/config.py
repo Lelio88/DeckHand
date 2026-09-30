@@ -27,6 +27,11 @@ def _secrets_dir() -> Path:
     return Path(os.environ.get("DECKHAND_SECRETS", _DEFAULT_SECRETS_DIR))
 
 
+def secrets_dir() -> Path:
+    """Le dossier du coffre, pour la seule commande qui y écrit (`app.twitch.cle`)."""
+    return _secrets_dir()
+
+
 def load_env_file(name: str) -> dict[str, str]:
     """Lit un fichier `clé=valeur` du coffre de secrets.
 
@@ -93,12 +98,19 @@ class TwitchConfig:
     publique, y compris la portée retenue extension par extension.
 
     `channel` est le canal Twitch, avec ou sans `#`.
+
+    `overlay_key` est la clé du calque (`DECKHAND_OVERLAY_KEY`), posée par
+    `python -m app.twitch.cle`. Elle est **facultative** : sans elle, le bot
+    répond toujours aux commandes de lecture, et seules les demandes
+    d'affichage (`!montre`) sont refusées — la base n'accepte plus d'écriture
+    sur le calque sans elle.
     """
 
     nick: str
     token: str
     channel: str
     handle: str
+    overlay_key: str | None = None
 
     @classmethod
     def load(cls) -> TwitchConfig:
@@ -108,6 +120,11 @@ class TwitchConfig:
             token=_require(values, "TWITCH_TOKEN", "twitch.env"),
             channel=_require(values, "TWITCH_CHANNEL", "twitch.env"),
             handle=_require(values, "DECKHAND_HANDLE", "twitch.env"),
+            overlay_key=(
+                os.environ.get("DECKHAND_OVERLAY_KEY")
+                or values.get("DECKHAND_OVERLAY_KEY")
+                or None
+            ),
         )
 
 

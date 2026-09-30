@@ -18,9 +18,10 @@
 # résultat du build est envoyé comme artefact et n'atterrit sur aucune branche :
 # rien de compilé n'entre dans l'historique.
 #
-# **CanvasKit est embarqué** (`--no-web-resources-cdn`) au lieu d'être tiré de
-# `www.gstatic.com`, ce qui transmettait l'adresse IP de chaque visiteur à
-# Google sans son accord.
+# **Rien n'est tiré de chez Google pour s'afficher** : CanvasKit est embarqué
+# (`--no-web-resources-cdn`) au lieu de venir de `www.gstatic.com`, et la
+# police Roboto l'est aussi (`app/pubspec.yaml`). Chaque visite transmettait
+# sinon l'adresse IP du visiteur à Google sans son accord.
 
 name: Classeur partagé
 
@@ -70,6 +71,22 @@ jobs:
           --dart-define=DECKHAND_PUBLIC_ONLY=true
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
+      # La page de suppression de compte parle à Supabase sans passer par
+      # Flutter : son adresse et sa clé publiable y sont posées ici, depuis les
+      # mêmes secrets. Une marque restée en place ferait une page qui ne
+      # joint aucun serveur — la compilation échoue plutôt.
+      - name: Serveur de la page de suppression
+        working-directory: app/build/web
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          sed -i "s#__SUPABASE_URL__#${SUPABASE_URL}#g; s#__SUPABASE_PUBLISHABLE_KEY__#${SUPABASE_PUBLISHABLE_KEY}#g" suppression-compte.js suppression-compte.html
+          if grep -q "__SUPABASE_" suppression-compte.js suppression-compte.html; then
+            echo "marque de remplacement restée en place" >&2
+            exit 1
+          fi
 
       - uses: actions/upload-pages-artifact@v3
         with:

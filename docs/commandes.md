@@ -74,6 +74,9 @@ cd api && .venv/Scripts/python -m app.vision.local_index wankul <dossier>
 # Six commandes ; trois atteignent l'écran (*) : !card* <nom> · !page* <ext> <n>
 # · !montre* <nom> · !dernieres · !classeur · !deckhand
 cd api && .venv/Scripts/python -m app.twitch                       # --game riftbound
+# La clé du calque : empreinte en base, jeton dans twitch.env. La relancer la
+# renouvelle (l'ancienne cesse aussitôt de fonctionner). Sans elle, !montre échoue.
+cd api && .venv/Scripts/python -m app.twitch.cle
 # Le même bot, lié à Streamlabs : démarre avec lui, s'arrête quand on le ferme,
 # relancé trois fois au plus s'il tombe. -Verifier contrôle sans rien lancer ;
 # -Raccourci pose « Direct DeckHand » sur le bureau.
@@ -280,12 +283,18 @@ Une politique se vérifie **dans les deux sens** et **sous le rôle qui la subit
 ```bash
 # Politique RLS d'une table, éprouvée sous le rôle qui la subit
 cd api && .venv/Scripts/python -m app.measure.profiles_rls
-# La désignation : la seule écriture ouverte à `anon`, et ses cinq refus
+# La désignation, par la porte du bot et sous une clé posée le temps du banc,
+# et ses refus (ancienne porte, clé fausse, empreintes illisibles…)
 cd api && .venv/Scripts/python -m app.measure.spotlight_rls
+# Suppression de compte, clé du calque et purges, sur une base JETABLE : un
+# Supabase local où les migrations ont été rejouées (le CLI refuse les deux
+# migrations au même horodatage : `supabase start` sans migrations, puis psql)
+docker exec -i supabase_db_DeckHand psql -v ON_ERROR_STOP=1 -U postgres -d postgres < supabase/tests/conformite.test.sql
 
 # Migrations — jouées par psycopg, le CLI Supabase exigeant un lien interactif
 cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichier>.sql
 
-# Config d'authentification : relais d'envoi, adresses de retour, gabarits
+# Config d'authentification : relais d'envoi, adresses de retour, gabarits,
+# confirmation exigée, règle du mot de passe, réidentification, Google
 cd api && .venv/Scripts/python push_auth_config.py             # --verifier pour lire
 ```

@@ -23,10 +23,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../common/settled_async.dart';
 import '../../binders/data/binder_repository.dart';
+import '../../../common/legal_links.dart';
 import '../../collection/data/collection_repository.dart';
 
 /// Où vit la page publique. Le lien complet en découle.
-const String shareBaseUrl = 'https://lelio88.github.io/DeckHand/';
+///
+/// Les liens donnés avant le passage au domaine (`lelio88.github.io/DeckHand/`)
+/// redirigent vers celui-ci, paramètre compris.
+const String shareBaseUrl = '$webBase/';
 
 String shareLinkFor(String address) => '$shareBaseUrl?c=$address';
 

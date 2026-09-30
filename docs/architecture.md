@@ -1373,10 +1373,27 @@ les appels antérieurs gardent leur comportement. Détail et arbitrages :
 
 ### Le compte, et la route de retour du mot de passe
 
-La confirmation par courriel est désactivée côté projet (`mailer_autoconfirm`) :
-l'inscription ouvre immédiatement une session, choix assumé pour un cercle de
-proches. **Ce choix rend la réinitialisation nécessaire plutôt que
-confortable**, et trois manques se tenaient ensemble pour former une trappe :
+**L'adresse est confirmée par courriel avant la première connexion**
+(`mailer_autoconfirm` à faux, poussé par `api/push_auth_config.py`). Le lien
+(`supabase/templates/confirmation.html`) passe par Supabase, qui confirme
+l'adresse, puis rouvre l'application (`deckhand://login-callback`), qui ouvre la
+session. Deux raisons à cela :
+
+- **l'inscription ne dit jamais qu'une adresse est prise.** Sans confirmation,
+  Supabase refuse un doublon, et le refus renseigne n'importe qui. Avec, un
+  doublon reçoit un utilisateur factice, et l'écran « Vérifiez vos e-mails »
+  est le même (`blindSignUp`) ;
+- **une adresse mal tapée ne crée plus un compte que personne ne lit.** Une
+  inscription jamais confirmée ni utilisée est effacée au bout de 7 jours
+  (tâche `pg_cron` `deckhand-purge-inscriptions`).
+
+Les comptes nés avant la confirmation l'ont été d'office : leur adresse n'a
+jamais été vérifiée, alors que la liaison automatique d'un compte Google
+(ci-dessous) la suppose vérifiée. Le risque est théorique sur un cercle de
+proches, et il est assumé.
+
+**La réinitialisation reste nécessaire plutôt que confortable** : trois manques
+se tenaient ensemble pour former une trappe :
 
 | | |
 |---|---|
@@ -1413,6 +1430,42 @@ rejoue pas ce qui est passé, donc **l'abonnement doit précéder l'événement*
 c'est pourquoi l'aiguillage observe le drapeau dès son premier build. Un test
 écrit dans l'autre ordre a échoué, et c'est ce qui a rendu la contrainte
 visible.
+
+### Google, la suppression, la session et les messages
+
+- **Connexion avec Google** (Android) : le sélecteur natif
+  (`google_id_token_source.dart`, `google_sign_in` 7) rend un jeton d'identité,
+  échangé contre une session (`signInWithIdToken`). Son audience est le client
+  Web `kGoogleWebClientId` (Google Cloud, projet DeckHand), déclaré au
+  fournisseur Google du projet Supabase ; trois clients Android, un par
+  empreinte de signature (`docs/publication-play.md`). Un compte Google à la
+  même adresse qu'un compte existant **le retrouve** : Supabase lie les
+  identités d'une même adresse vérifiée. « Lier mon compte Google », dans
+  l'écran Compte, lie à la main (liaison manuelle activée) ; délier est refusé
+  quand Google est le seul moyen de connexion.
+- **Supprimer son compte** : `delete_my_account()` efface l'utilisateur du
+  jeton, et la base emporte le reste par ses cascades — collection, cases,
+  journal, profil, partage, clé du calque. Depuis l'application (*Compte →
+  Supprimer mon compte*, confirmation écrite : SUPPRIMER) et depuis le web
+  (`app/web/suppression-compte.html`, connexion par mot de passe ou par
+  Google ; adresse et clé injectées par `pages.yml`). **Le déclencheur du
+  journal ignore les cases d'une collection qui disparaît** : il inscrivait
+  sinon chaque retrait dans le journal d'une collection déjà effacée, et la clé
+  étrangère faisait échouer toute suppression de compte.
+- **La session vit dans le coffre chiffré** (`session_vault.dart`,
+  `flutter_secure_storage`, clé du Keystore), reprise une fois de son ancienne
+  place en clair. Un coffre illisible vaut une déconnexion, pas un plantage.
+- **Les messages d'erreur viennent de `auth_error_message.dart`**, par code
+  GoTrue et jamais par le texte brut du serveur : une adresse inconnue et un
+  mauvais mot de passe disent la même chose.
+- **Le mot de passe** : 8 caractères au moins, avec lettres et chiffres
+  (`password_rules.dart` et `password_required_characters`, la même règle des
+  deux côtés) ; le changer hors d'un lien de réinitialisation demande de se
+  réidentifier.
+
+`supabase/tests/conformite.test.sql` éprouve la suppression, la clé du calque
+et les purges sur une base jetable (un Supabase local où les migrations ont été
+rejouées) : 25 contrôles, dans une transaction annulée.
 
 ### Les jeux joués, déclarés à l'inscription
 
@@ -1510,7 +1563,10 @@ veut dire selon qu'il s'agit d'un prix ou d'une taille.
 | Schéma `deckhand` déclaré | `AndroidManifest.xml` | le dépôt |
 | `deckhand://reset-password` autorisé | Supabase → URL Configuration | `push_auth_config.py` |
 | Relais d'envoi (Brevo) | Supabase → Auth → SMTP | `push_auth_config.py` |
-| Sujet et corps du courriel | Supabase → Auth → Templates | `supabase/templates/` |
+| Sujets et corps des courriels (réinitialisation, confirmation) | Supabase → Auth → Templates | `supabase/templates/` |
+| Confirmation exigée, règle du mot de passe, réidentification, fournisseur Google, liaison manuelle | Supabase → Auth | `push_auth_config.py` |
+| Clients OAuth (Web et trois Android), marque vérifiée | Google Cloud, projet DeckHand | la console, à la main — empreintes dans `docs/publication-play.md` |
+| Purges nocturnes (demandes du calque, inscriptions non confirmées) | `cron.job` | migration `20260930100000_conformite.sql` |
 
 **Le courriel part par Brevo, sur le compte de DewDrop.** Le relais de
 démonstration de Supabase plafonnait à **deux courriels par heure** et n'écrivait

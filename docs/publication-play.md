@@ -141,10 +141,34 @@ grep DECKHAND_DEMO ../.deckhand-secrets/supabase.env
 | 4 · Annonces | **Non**, aucune publicité. |
 | 5 · Classification IARC | Catégorie *Application*, donc questionnaire court. Aucune violence, aucun contenu sexuel, aucun jeu d'argent, aucune substance. **Pas de chat** : le partage est en lecture seule, sans messagerie. |
 | 6 · Public cible | 13 ans et plus. L'app ne cible pas les enfants et ne collecte rien à des fins publicitaires. |
-| 7 · Data safety | **Collecté** : adresse e-mail (compte), et le contenu que l'utilisateur crée — collection, classeurs, decks. Finalité : *fonctionnement de l'application*. Chiffré en transit, suppression sur demande. **Non collecté** : photos et vidéos — la reconnaissance est embarquée, l'image est jetée après analyse. L'**audio** de la dictée est traité par le moteur du système (Google), pas par DeckHand. |
+| 7 · Data safety | Envoyée par l'API (`applications.dataSafety`), alignée sur `app/web/privacy.html`. **Collecté, jamais partagé** : adresse e-mail et identifiant de compte (obligatoires ; fonctionnement, gestion du compte), nom transmis par Google (facultatif, connexion Google), contenu créé — collection, classeurs, journal — et préférences (fonctionnement), identifiant d'installation et diagnostics de **ML Kit** (analyse ; Google déclare ne pas les transmettre à des tiers). Création de compte : e-mail et mot de passe, ou OAuth (Google). Chiffré en transit ; suppression par l'utilisateur. **Non collecté** : photos et vidéos (reconnaissance embarquée, image jetée après analyse) ; l'**audio** de la dictée est traité par le moteur du système (Google), pas par DeckHand. |
+| 7 bis · Suppression de compte | <https://deckhand.heianenterprise.com/suppression-compte.html> ; dans l'app, *Compte → Supprimer mon compte*. |
 | 8 · Applis gouvernementales | Non. |
 | 9 · Fonctionnalités financières | Aucune. Les prix affichés sont indicatifs ; l'app ne vend rien et ne prend aucun paiement. |
 | 10 · Applis de santé | Non. |
+
+## 4 ter. Connexion avec Google : les clients OAuth
+
+Projet Google Cloud **DeckHand**, Google Auth Platform : marque « DeckHand »
+(accueil, politique et CGU sur `deckhand.heianenterprise.com`, domaine
+`heianenterprise.com`), audience externe en production, champs `openid`,
+`userinfo.email`, `userinfo.profile`. Quatre clients :
+
+| Client | Réglage |
+|---|---|
+| Web « DeckHand – Web » | son identifiant est `kGoogleWebClientId` (audience des jetons, fournisseur Google du projet Supabase, page de suppression) ; origine JavaScript `https://deckhand.heianenterprise.com` ; secret dans `../.deckhand-secrets/google-oauth.env`, inutilisé |
+| Android (Play) | `app.deckhand`, SHA-1 `EB:91:E1:42:46:1A:74:B3:AB:E4:EA:CD:36:89:4D:91:77:AB:FA:96` |
+| Android (upload) | `app.deckhand`, SHA-1 `F4:96:6F:76:9F:FB:E9:E8:5B:94:35:27:B4:CE:AD:40:72:43:3B:B6` |
+| Android (debug) | `app.deckhand`, SHA-1 `B6:F5:00:8B:00:AC:CD:32:D6:89:35:7A:84:64:D3:46:C9:44:BE:C8` |
+
+**Une clé de signature de plus = un client Android de plus**, sinon « Continuer
+avec Google » échoue sur les installations qu'elle signe. L'empreinte de la clé
+**Play App Signing** se lit sans la console : l'API rend l'APK universel que
+Google signe (`generatedApks/<versionCode>` puis son `download`), et
+`apksigner verify --print-certs --max-sdk-version 36` en donne le SHA-1 — le
+plafond de SDK écarte le signataire hybride post-quantique que la version 37
+d'`apksigner` ne sait pas lire. Le signataire « V3.0 » à `O=Google Inc.` est le
+bon ; ignorer le « Source Stamp Signer ».
 
 ## 4 bis. Où vivent la clé et le bundle
 

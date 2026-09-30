@@ -65,6 +65,7 @@ Future<FakeProfileRepository> pumpProfil(
         playedGamesProvider.overrideWith((ref) async => const [Game.magic]),
         collectionRepositoryProvider.overrideWithValue(collection),
         binderRepositoryProvider.overrideWithValue(FakeBinderRepository()),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         sessionProvider.overrideWith(
           (ref) => Stream<Session?>.value(fakeSession()),
         ),

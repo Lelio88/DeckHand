@@ -5,16 +5,21 @@
 /// échec d'authentification opaque à la première requête.
 library;
 
+import 'package:flutter/foundation.dart'
+    show LicenseEntryWithLineBreaks, LicenseRegistry, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/app/home_shell.dart';
+import 'src/common/legal_footer.dart';
 import 'src/config/supabase_config.dart';
 import 'src/common/settled_async.dart';
 import 'src/features/account/data/profile_repository.dart';
 import 'src/features/account/presentation/pick_games_screen.dart';
 import 'src/features/auth/data/auth_repository.dart';
+import 'src/features/auth/data/session_vault.dart';
 import 'src/features/binders/presentation/overlay_screen.dart';
 import 'src/features/binders/presentation/public_binder_screen.dart';
 import 'src/features/intro/presentation/intro_gate.dart';
@@ -24,11 +29,25 @@ import 'src/features/scan/presentation/frame_bench_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Roboto est embarquée (voir `pubspec.yaml`) : sa licence Apache 2.0 doit
+  // accompagner l'application, et c'est le registre des licences qui l'expose.
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(
+      const ['Roboto'],
+      await rootBundle.loadString('assets/fonts/roboto/LICENSE.txt'),
+    );
+  });
 
   SupabaseConfig.assertConfigured();
   await Supabase.initialize(
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.publishableKey,
+    // **La session dans le coffre chiffré du téléphone**, reprise une fois de
+    // son ancienne place en clair (`session_vault.dart`). Le web garde le
+    // stockage par défaut : la version publiée ne connecte personne.
+    authOptions: FlutterAuthClientOptions(
+      localStorage: kIsWeb ? null : SessionVault.forDevice(SupabaseConfig.url),
+    ),
   );
 
   runApp(const ProviderScope(child: DeckHandApp()));
@@ -51,6 +70,9 @@ class DeckHandApp extends StatelessWidget {
       title: 'DeckHand',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        // La police embarquée, et non celle que le web irait chercher chez
+        // Google (`pubspec.yaml`).
+        fontFamily: 'Roboto',
         colorScheme: scheme,
         scaffoldBackgroundColor: const Color(0xFF15131A),
         useMaterial3: true,
@@ -124,11 +146,16 @@ class _AuthGate extends ConsumerWidget {
       loading: () => const Scaffold(
         body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
-      error: (error, _) => Scaffold(
+      // Le détail de l'erreur n'apprendrait rien à l'utilisateur et en dirait
+      // trop à un curieux (guide de conformité, C2).
+      error: (_, _) => const Scaffold(
         body: Center(
           child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Text('Authentification indisponible : $error'),
+            padding: EdgeInsets.all(32),
+            child: Text(
+              'Connexion au serveur impossible. Vérifiez votre connexion, '
+              'puis relancez DeckHand.',
+            ),
           ),
         ),
       ),
@@ -215,6 +242,8 @@ class _SharedOnly extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                const SizedBox(height: 8),
+                const LegalFooterLinks(),
               ],
             ),
           ),

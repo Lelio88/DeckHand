@@ -12,16 +12,11 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/auth_repository.dart';
+import 'auth_error_message.dart';
 import 'auth_shell.dart';
-
-/// Longueur minimale, fixée côté projet Supabase.
-///
-/// La vérifier ici évite un aller-retour réseau pour une réponse connue
-/// d'avance, et surtout évite de le découvrir après avoir tapé deux fois.
-const int minPasswordLength = 8;
+import 'password_rules.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -66,21 +61,10 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       // Referme le mode récupération : la session redevient ordinaire, et
       // l'application reprend son cours à l'écran d'accueil.
       ref.read(passwordRecoveryProvider.notifier).clear();
-    } on AuthException catch (e) {
-      if (mounted) {
-        setState(
-          () => e.message.toLowerCase().contains('password')
-              ? _error = 'Mot de passe refusé : au moins '
-                    '$minPasswordLength caractères.'
-              // Un lien de réinitialisation expire ; le dire évite de chercher
-              // la faute du côté du mot de passe choisi.
-              : _error = 'Lien expiré ou déjà utilisé. Redemandez-en un.',
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _error = 'Changement impossible. Réessayez.');
-      }
+    } on Object catch (e) {
+      // Un mot de passe trop faible, un lien expiré ou une panne réseau ont
+      // chacun leur message ; le texte brut du serveur n'est jamais montré.
+      if (mounted) setState(() => _error = authErrorMessage(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -103,14 +87,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                 onToggle: () => setState(() => _obscured = !_obscured),
                 autofillHints: const [AutofillHints.newPassword],
                 textInputAction: TextInputAction.next,
-                validator: (value) {
-                  final v = value ?? '';
-                  if (v.isEmpty) return 'Mot de passe requis';
-                  if (v.length < minPasswordLength) {
-                    return 'Au moins $minPasswordLength caractères';
-                  }
-                  return null;
-                },
+                validator: (value) => passwordRuleError(value ?? ''),
               ),
               const SizedBox(height: 14),
               AuthPasswordField(

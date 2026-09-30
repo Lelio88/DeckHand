@@ -20,6 +20,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../common/legal_footer.dart';
 import '../../collection/data/collection_repository.dart';
 import '../data/binder_repository.dart';
 import 'binder_view.dart';
@@ -139,14 +140,20 @@ class _Attribution extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
-      child: Text(
-        'Cartes, images et prix : Scryfall. Magic: The Gathering est une marque '
-        'de Wizards of the Coast, qui n\'est pas affiliée à DeckHand.',
-        textAlign: TextAlign.center,
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Cartes, images et prix : Scryfall. Magic: The Gathering est une '
+            'marque de Wizards of the Coast, qui n\'est pas affiliée à DeckHand.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const LegalFooterLinks(),
+        ],
       ),
     );
   }

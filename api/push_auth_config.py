@@ -1,4 +1,5 @@
-"""Pousse la configuration d'authentification vers Supabase : SMTP et gabarits.
+"""Pousse la configuration d'authentification vers Supabase : SMTP, gabarits,
+règles du compte et connexion avec Google.
 
 **Pourquoi un script et non la console.** Trois réglages décident si la route du
 mot de passe fonctionne, et aucun ne vit dans la base : le serveur d'envoi,
@@ -13,6 +14,22 @@ d'expéditeur, l'adresse, le sujet et le corps sont des réglages du projet
 Supabase. Le compte Brevo n'est qu'un relais, et son identifiant de connexion
 n'apparaît jamais dans le message — c'est ce qui permet de partager un compte
 entre deux applications sans qu'aucune ne laisse de trace chez l'autre.
+
+**Les règles du compte vivent ici aussi**, pour la même raison — elles
+engagent la conformité du projet et doivent se relire en revue :
+
+- la **confirmation de l'adresse** avant la première connexion
+  (`mailer_autoconfirm` à faux). C'est elle qui permet de ne jamais dire qu'une
+  adresse est déjà inscrite : sans elle, Supabase refuse l'inscription d'un
+  doublon, et le refus renseigne n'importe qui ;
+- un mot de passe d'au moins 8 caractères **avec lettres et chiffres**, la même
+  règle que `password_rules.dart` ;
+- la **réidentification** pour changer de mot de passe hors d'un lien de
+  réinitialisation (une session de plus de 24 h ne suffit plus) ;
+- **Google** : l'identifiant du client Web, audience des jetons que l'application
+  échange (`kGoogleWebClientId`), et la liaison manuelle d'un compte Google à un
+  compte existant. Aucun secret Google n'est poussé : l'échange d'un jeton
+  d'identité n'en a pas besoin.
 
 Le script est **idempotent** : le rejouer réapplique le même état.
 
@@ -45,6 +62,25 @@ GABARITS = Path(__file__).resolve().parent.parent / "supabase" / "templates"
 #: Le sujet porte le nom du produit : c'est ce qui rend les courriels de
 #: l'application filtrables dans une boîte de réception.
 SUJET_RECOVERY = "DeckHand — nouveau mot de passe"
+SUJET_CONFIRMATION = "DeckHand — confirmez votre adresse"
+
+#: Le site public : pages légales et classeurs partagés.
+SITE = "https://deckhand.heianenterprise.com"
+
+#: Les adresses où un lien de courriel a le droit de mener. Les deux schémas
+#: rouvrent l'application (`auth_repository.dart`) ; l'adresse locale sert au
+#: développement web.
+RETOURS = ",".join([
+    "http://127.0.0.1:8099",
+    "deckhand://reset-password",
+    "deckhand://login-callback",
+])
+
+#: « Lettres et chiffres », dans la notation de l'API de gestion : des groupes
+#: séparés par `:`, dont chacun doit fournir au moins un caractère.
+LETTRES_ET_CHIFFRES = (
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789"
+)
 
 
 def lire_env(nom: str, coffre: Path = COFFRE) -> dict[str, str]:
@@ -63,6 +99,7 @@ def lire_env(nom: str, coffre: Path = COFFRE) -> dict[str, str]:
 def main() -> int:
     supabase = lire_env("supabase.env")
     brevo = lire_env("brevo-smtp.env", COFFRE_BREVO)
+    google = lire_env("google-oauth.env")
 
     ref = re.sub(r"https?://([^.]+)\..*", r"\1", supabase["SUPABASE_URL"])
     entetes = {"Authorization": f"Bearer {supabase['SUPABASE_ACCESS_TOKEN']}"}
@@ -74,8 +111,10 @@ def main() -> int:
     recovery = (GABARITS / "recovery.html").read_text(encoding="utf-8")
     # Le lien substitué par Supabase est ce qui fait le courriel : sans lui, le
     # message part et ne mène nulle part, ce qu'aucune erreur ne signalerait.
-    if "{{ .ConfirmationURL }}" not in recovery:
-        raise SystemExit("recovery.html ne contient pas {{ .ConfirmationURL }}")
+    confirmation = (GABARITS / "confirmation.html").read_text(encoding="utf-8")
+    for nom, gabarit in (("recovery", recovery), ("confirmation", confirmation)):
+        if "{{ .ConfirmationURL }}" not in gabarit:
+            raise SystemExit(f"{nom}.html ne contient pas {{{{ .ConfirmationURL }}}}")
 
     reponse = httpx.patch(
         url,
@@ -92,6 +131,17 @@ def main() -> int:
             "rate_limit_email_sent": 30,
             "mailer_subjects_recovery": SUJET_RECOVERY,
             "mailer_templates_recovery_content": recovery,
+            "mailer_subjects_confirmation": SUJET_CONFIRMATION,
+            "mailer_templates_confirmation_content": confirmation,
+            "mailer_autoconfirm": False,
+            "site_url": SITE,
+            "uri_allow_list": RETOURS,
+            "password_min_length": 8,
+            "password_required_characters": LETTRES_ET_CHIFFRES,
+            "security_update_password_require_reauthentication": True,
+            "external_google_enabled": True,
+            "external_google_client_id": google["GOOGLE_WEB_CLIENT_ID"],
+            "security_manual_linking_enabled": True,
         },
         timeout=60,
     )
@@ -112,6 +162,17 @@ def rapporter(cfg: dict) -> int:
           f"{' — sur mesure' if 'DeckHand' in gabarit else ' — PAR DÉFAUT'}")
     print(f"retours autorisés : {cfg.get('uri_allow_list')}")
     print(f"courriels par heure : {cfg.get('rate_limit_email_sent')}")
+    confirmation = cfg.get("mailer_templates_confirmation_content") or ""
+    print(f"confirmation exigée : {not cfg.get('mailer_autoconfirm')}")
+    print(f"gabarit confirmation : {len(confirmation)} caractères"
+          f"{' — sur mesure' if 'DeckHand' in confirmation else ' — PAR DÉFAUT'}")
+    print(f"site              : {cfg.get('site_url')}")
+    print(f"mot de passe      : {cfg.get('password_min_length')} caractères, "
+          f"groupes exigés « {cfg.get('password_required_characters') or 'aucun'} »")
+    print(f"réidentification  : {cfg.get('security_update_password_require_reauthentication')}")
+    print(f"google            : {cfg.get('external_google_enabled')} "
+          f"(client {cfg.get('external_google_client_id')})")
+    print(f"liaison manuelle  : {cfg.get('security_manual_linking_enabled')}")
     return 0
 
 

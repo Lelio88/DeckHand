@@ -4,7 +4,8 @@ Cinq fonctions publiques y sont appelées, et toutes par la même porte :
 `binder_locate` (où est cette carte, et ce qu'elle vaut),
 `public_recent_additions` (ce qui vient d'entrer au classeur),
 `public_binder_shelf` (l'avancement par extension), `public_binder_page` (ce
-qui manque à une page) et `public_request_spotlight` — **la seule qui écrive**.
+qui manque à une page) et les trois portes `bot_request_*` — **les seules qui
+écrivent**, sur le calque.
 Elles ont en commun d'accepter une **adresse de partage** — ce qui n'est pas le
 cas de la plupart des fonctions du projet, dont `my_binder_shelf`, qui lisent la
 collection de l'appelant et ne rendent donc rien sous la clé anonyme.
@@ -16,13 +17,15 @@ la page web protègent le bot par la même mécanique. Utiliser la clé de servi
 dans l'écran de partage — c'est l'unique erreur qui rendrait cette
 fonctionnalité dangereuse.
 
-**L'écriture ne fait pas exception, et c'est tout son intérêt.**
-`public_request_spotlight` est `SECURITY DEFINER` parce qu'elle touche une table
-que personne d'autre n'atteint, mais elle est accordée à `anon` comme les
-lectures : le bot n'a toujours aucun privilège qu'un spectateur n'ait pas. Ce
-que la désignation peut faire au pire est borné dans la migration
-`collection_spotlight`, pas ici — un garde-fou écrit côté client se contourne en
-appelant la fonction sans le client.
+**L'écriture exige la clé du calque, et rien de plus.** Les portes
+`bot_request_*` sont accordées à `anon` comme les lectures, mais refusent qui ne
+présente pas la clé de cette collection (`overlay_key`, rangée dans le coffre du
+poste qui diffuse) : l'adresse du classeur est à l'antenne, et elle suffisait
+auparavant à écrire sur l'écran du direct. Derrière la clé, les verrous restent
+ceux de la migration `collection_spotlight` — classeur publié, case possédée,
+trente secondes —, pas ceux de ce fichier : un garde-fou écrit côté client se
+contourne en appelant la fonction sans le client. Sans clé configurée, le bot
+n'essaie même pas d'écrire.
 
 **Une panne réseau ne dit rien de plus qu'une carte absente.** L'appelant reçoit
 une liste vide, et le chat lit « pas dans le classeur ». Un direct n'est pas un
@@ -93,6 +96,7 @@ class Locator:
     anon_key: str
     handle: str
     game: str = "magic"
+    overlay_key: str | None = None
 
     def locate(self, client: httpx.Client, query: str) -> list[Location]:
         """Les cases où la carte se range, avec un second essai s'il le faut.
@@ -161,9 +165,9 @@ class Locator:
         Le spectateur est invité à réessayer, ce qui est la bonne conduite dans
         les deux cas.
         """
-        rendu = self._poster(
+        return self._ecrire(
             client,
-            "public_request_spotlight",
+            "bot_request_spotlight",
             {
                 "p_handle": self.handle,
                 "p_set_code": set_code,
@@ -172,7 +176,6 @@ class Locator:
                 "p_game": self.game,
             },
         )
-        return rendu is True
 
     def designate_page(
         self,
@@ -191,9 +194,9 @@ class Locator:
 
         **Une panne réseau se lit comme un refus**, comme partout ailleurs ici.
         """
-        rendu = self._poster(
+        return self._ecrire(
             client,
-            "public_request_spotlight_page",
+            "bot_request_spotlight_page",
             {
                 "p_handle": self.handle,
                 "p_set_code": set_code,
@@ -202,7 +205,6 @@ class Locator:
                 "p_game": self.game,
             },
         )
-        return rendu is True
 
     def designate_strip(
         self,
@@ -220,9 +222,9 @@ class Locator:
 
         **Une panne réseau se lit comme un refus**, comme partout ailleurs ici.
         """
-        rendu = self._poster(
+        return self._ecrire(
             client,
-            "public_request_spotlight_strip",
+            "bot_request_spotlight_strip",
             {
                 "p_handle": self.handle,
                 "p_set_code": set_code,
@@ -231,6 +233,18 @@ class Locator:
                 "p_game": self.game,
             },
         )
+
+    def _ecrire(
+        self, client: httpx.Client, fonction: str, corps: dict[str, object]
+    ) -> bool:
+        """Une écriture sur le calque, sous la clé — faux si refusée ou sans clé.
+
+        **Sans clé, aucune requête ne part** : la base la refuserait de toute
+        façon, et un appel voué à l'échec coûterait du débit sur un direct.
+        """
+        if not self.overlay_key:
+            return False
+        rendu = self._poster(client, fonction, {"p_key": self.overlay_key, **corps})
         return rendu is True
 
     def _interroger(self, client: httpx.Client, query: str) -> list[Location]:
@@ -261,7 +275,7 @@ class Locator:
         contrat de silence ci-dessus, et probablement à la clé anonyme.
 
         Elle rend la réponse **telle quelle** parce que toutes les fonctions ne
-        rendent pas des lignes : `public_request_spotlight` répond un booléen. La
+        rendent pas des lignes : `bot_request_spotlight` répond un booléen. La
         mise en forme en liste appartient à `_appeler`, qui sert les lectures.
         """
         try:

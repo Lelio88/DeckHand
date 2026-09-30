@@ -23,6 +23,7 @@ import '../../about/presentation/about_screen.dart';
 import '../data/game_artwork.dart';
 import '../data/profile_repository.dart';
 import '../domain/game_order.dart';
+import 'account_actions.dart';
 import 'game_blurb.dart';
 import 'game_tile.dart';
 import 'pick_games_screen.dart';
@@ -121,6 +122,20 @@ class AccountScreen extends ConsumerWidget {
         const _PublicationTile(),
 
         const SizedBox(height: 28),
+        Text('Compte', style: theme.textTheme.titleSmall),
+        if (ref.watch(authRepositoryProvider).email case final email?)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              email,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        const GoogleLinkTile(),
+
+        const SizedBox(height: 28),
         const Divider(),
         ListTile(
           contentPadding: EdgeInsets.zero,
@@ -136,6 +151,7 @@ class AccountScreen extends ConsumerWidget {
             context,
           ).push(MaterialPageRoute<void>(builder: (_) => const AboutScreen())),
         ),
+        const LegalTile(),
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.logout, color: theme.colorScheme.error),
@@ -145,6 +161,7 @@ class AccountScreen extends ConsumerWidget {
           ),
           onTap: () => ref.read(authRepositoryProvider).signOut(),
         ),
+        const DeleteAccountTile(),
       ],
     );
   }

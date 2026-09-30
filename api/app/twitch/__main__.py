@@ -8,6 +8,7 @@ Les identifiants viennent de `../.deckhand-secrets/twitch.env` :
     TWITCH_TOKEN=<jeton OAuth, portées chat:read et chat:edit>
     TWITCH_CHANNEL=lelio88
     DECKHAND_HANDLE=<le nom de partage de la collection, ou son identifiant>
+    DECKHAND_OVERLAY_KEY=<posée par `python -m app.twitch.cle`, jamais à la main>
 
 Le bot s'arrête au Ctrl-C. Rien n'est déployé : il tourne le temps du direct,
 sur le poste qui diffuse.
@@ -28,7 +29,7 @@ from .locator import Locator
 #: Le workflow `pages.yml` y publie le build web ; l'adresse de partage est
 #: cette base suivie de la poignée. `--share-url` la remplace si elle bouge, sans
 #: quoi une adresse périmée s'annoncerait dans le chat en silence.
-DEFAULT_SHARE_BASE = "https://lelio88.github.io/DeckHand/"
+DEFAULT_SHARE_BASE = "https://deckhand.heianenterprise.com/"
 
 
 def main() -> int:
@@ -51,12 +52,21 @@ def main() -> int:
         logging.error("%s", error)
         return 1
 
+    if not twitch.overlay_key:
+        # Le bot reste utile sans elle : il lit. Mais `!montre` échouerait à
+        # chaque fois sans que le chat sache pourquoi — le journal le dit ici.
+        logging.warning(
+            "DECKHAND_OVERLAY_KEY absente de twitch.env : le calque refusera "
+            "les demandes d'affichage. La poser : python -m app.twitch.cle"
+        )
+
     bot = Bot(
         locator=Locator(
             supabase_url=supabase.url,
             anon_key=supabase.anon_key,
             handle=twitch.handle,
             game=args.game,
+            overlay_key=twitch.overlay_key,
         ),
         channel=twitch.channel,
         command=args.command,

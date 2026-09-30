@@ -55,6 +55,7 @@ Future<FakeProfileRepository> pumpPicker(
           FakeCollectionRepository(),
         ),
         binderRepositoryProvider.overrideWithValue(FakeBinderRepository()),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         sessionProvider.overrideWith(
           (ref) => Stream<Session?>.value(fakeSession()),
         ),
@@ -81,6 +82,7 @@ Future<FakeProfileRepository> pumpChoice(
     ProviderScope(
       overrides: [
         profileRepositoryProvider.overrideWithValue(profile),
+        authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         sessionProvider.overrideWith(
           (ref) => Stream<Session?>.value(fakeSession()),
         ),
