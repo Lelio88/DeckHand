@@ -41,6 +41,7 @@ import '../domain/card_edges.dart';
 import '../domain/card_framing.dart';
 import '../domain/card_name_text.dart';
 import '../domain/card_segmentation.dart';
+import '../domain/spread_attribution.dart';
 import '../domain/spread_names.dart';
 
 /// Comment une carte a été identifiée. Détermine ce que l'écran annonce.
@@ -554,7 +555,7 @@ class ScanService {
     }
 
     final found = <String, CardHit>{};
-    final places = <String, List<NameCandidate>>{};
+    final readings = <MatchedReading>[];
     for (var i = 0; i < candidates.length; i++) {
       final hit = results[candidates[i].text];
       if (hit == null) {
@@ -578,137 +579,83 @@ class ScanService {
       // homologue français sur la même identité. Le regroupement se fait donc
       // ici, à l'identité de carte, et non sur la ligne lue.
       found.putIfAbsent(hit.oracleId, () => hit);
-      places.putIfAbsent(hit.oracleId, () => []).add(candidates[i]);
+      readings.add(MatchedReading(hit.oracleId, candidates[i]));
     }
 
-    final rejected = _citationsAmong(places, photoBytes, found);
+    // Une carte n'existe que par une lecture qui la désigne, et ses
+    // exemplaires ne se comptent que sur celles-là : une mention absorbée par
+    // la carte qui la porte ne fait ni carte ni exemplaire.
+    final places = <String, List<NameCandidate>>{};
+    for (final reading in _attribute(readings, photoBytes, found).kept) {
+      places.putIfAbsent(reading.identity, () => []).add(reading.line);
+    }
     return SpreadOutcome([
       for (final entry in found.entries)
-        if (!rejected.contains(entry.key))
-          SpreadFind(entry.value, copies: _countCopies(places[entry.key]!)),
+        if (places[entry.key] case final lectures?)
+          SpreadFind(entry.value, copies: _countCopies(lectures)),
     ], namesRead: candidates.length);
   }
 
-  /// Identifie les correspondances qui sont des **citations**, non des noms.
+  /// Rattache chaque lecture reconnue à la carte qui la porte.
   ///
-  /// **Le texte d'ambiance cite un personnage qui porte souvent le nom d'une
-  /// vraie carte.** « Ka-Zar of the Savage Land » figure au bas des quatre
-  /// dinosaures d'une photo, avec un score parfait : ni la longueur, ni le
-  /// score, ni la casse ne peuvent s'en apercevoir. Le tiret d'ouverture en
-  /// attrape la plupart, mais la reconnaissance le manque parfois.
+  /// **Une carte porte un seul nom.** Le catalogue reconnaît plus de lignes
+  /// qu'il n'y a de cartes : une citation d'ambiance (« Ka-Zar »), une ligne de
+  /// capacités (« Vol » trouve *Flight*), le nom d'une carte répété dans ses
+  /// propres règles (« Régénérez le Meneur de Rakdos » comptait un second
+  /// exemplaire). Dans chaque rectangle de carte isolée, seule la lecture la
+  /// plus proche du bout des noms est une carte — voir [attributeToCards].
   ///
-  /// Ce qui les sépare vraiment est leur place **dans leur carte** : mesuré, le
-  /// nom siège à 2-5 % d'un bord quand la citation est à 15-22 % du sien. Il
-  /// suffit donc de ne garder, par carte, que la correspondance la plus collée à
-  /// une extrémité — ce qui impose au passage un invariant vrai : *une carte
-  /// porte un seul nom*.
-  ///
-  /// **Ce filtrage ne peut jamais dégrader le résultat.** Il ne s'applique qu'aux
-  /// rectangles dont la taille est celle d'une carte isolée ; là où les cartes se
-  /// touchent, les blocs soudés sont écartés et leurs lignes retombent sur le
-  /// comportement d'avant. Sans photo, sans rectangle exploitable ou sans carte
-  /// reconnue, rien n'est rejeté.
-  Set<String> _citationsAmong(
-    Map<String, List<NameCandidate>> places,
+  /// **Ce filtrage ne peut qu'ôter, et ne dépend de rien.** Sans photo, sans
+  /// rectangle exploitable, ou s'il échoue — image illisible, format
+  /// inattendu, mémoire —, toutes les lectures sont gardées, comme avant qu'il
+  /// existe. Une reconnaissance qui marche ne peut pas être mise en échec par
+  /// son garde-fou.
+  Attribution _attribute(
+    List<MatchedReading> readings,
     Uint8List? photoBytes,
     Map<String, CardHit> found,
   ) {
-    if (photoBytes == null || photoBytes.isEmpty || places.length < 2) {
-      return const {};
+    final unchanged = Attribution(readings, const []);
+    if (photoBytes == null || photoBytes.isEmpty || readings.length < 2) {
+      return unchanged;
     }
 
-    // **Ce filtrage est un supplément, jamais une dépendance.** Il affine un
-    // résultat déjà bon ; s'il échoue — image illisible, format inattendu,
-    // mémoire — le scan doit rendre exactement ce qu'il rendait avant. Une
-    // reconnaissance qui marche ne peut pas être mise en échec par son garde-fou.
+    final img.Image? photo;
     final List<CardBounds> cards;
     try {
-      final photo = img.decodeImage(photoBytes);
-      if (photo == null) return const {};
+      photo = img.decodeImage(photoBytes);
+      if (photo == null) return unchanged;
       cards = singleCards(findCards(photo));
     } catch (error) {
       diagnose('spread_cards_failed', {'error': error.toString()});
-      return const {};
+      return unchanged;
     }
     diagnose('spread_cards', {'found': cards.length});
-    if (cards.isEmpty) return const {};
 
-    // Position de chaque correspondance le long de chaque carte, de 0 à 1.
-    // Hors de cet intervalle, la ligne appartient à la carte d'à côté.
-    final byCard = <int, Map<String, double>>{};
-    for (var i = 0; i < cards.length; i++) {
-      final card = cards[i];
-      final mx = card.width * boundsMargin;
-      final my = card.height * boundsMargin;
-      final horizontal = card.width > card.height;
-      final lo = horizontal ? card.left : card.top;
-      final hi = horizontal ? card.right : card.bottom;
-      if (hi - lo <= 0) continue;
-
-      final along = <String, double>{};
-      for (final entry in places.entries) {
-        for (final line in entry.value) {
-          if (line.left < card.left - mx || line.left > card.right + mx) {
-            continue;
-          }
-          if (line.top < card.top - my || line.top > card.bottom + my) continue;
-          final axis = horizontal ? line.left : line.top;
-          final at = (axis - lo) / (hi - lo);
-          final seen = along[entry.key];
-          // La plus intérieure des lectures : c'est celle qui appartient le
-          // plus vraisemblablement à cette carte.
-          if (seen == null || (at - 0.5).abs() < (seen - 0.5).abs()) {
-            along[entry.key] = at;
-          }
-        }
-      }
-      if (along.isNotEmpty) byCard[i] = along;
-    }
-
-    // **Le sens se lit dans la photo, il ne peut pas être une constante.** Les
-    // rectangles ne portant qu'une correspondance la désignent sans ambiguïté :
-    // c'est un nom. La majorité dit de quel côté siègent les noms.
-    final lonely = [
-      for (final along in byCard.values)
-        if (along.length == 1) along.values.first,
-    ];
-    if (lonely.isEmpty) return const {};
-    final low = nameSitsLow(lonely);
-
-    final suspect = <String>{};
-    final elected = <String>{};
-    for (final along in byCard.values) {
-      for (final entry in along.entries) {
-        // Hors du rectangle : la ligne est le nom de la carte voisine, pas une
-        // citation portée par celle-ci. C'est ce qui sauve *Gorille
-        // mercenaire*, dont le nom débordait de trois pour cent.
-        if (entry.value < 0 || entry.value > 1) continue;
-        // Mesuré depuis le bout qui porte les noms : une citation siège au
-        // bout opposé, pas simplement au-delà du milieu.
-        final fromNameEnd = low ? entry.value : 1 - entry.value;
-        if (fromNameEnd > citationEnd) {
-          suspect.add(entry.key);
-        } else {
-          elected.add(entry.key);
-        }
-      }
-    }
-
-    // Une carte citée ici peut être posée ailleurs : les quatre dinosaures
-    // citent Ka-Zar, mais si une carte Ka-Zar était sur la table, son propre
-    // rectangle la placerait du côté des noms.
-    final rejected = suspect.difference(elected);
-    if (rejected.isNotEmpty) {
-      // **Nommer ce qui est rejeté, pas seulement le compter.** Les événements
-      // `spread_match` sont émis avant ce filtrage et portent encore
-      // `kept: true` sur une citation ; sans cette ligne, le journal se
+    // ML Kit rapporte ses positions à l'étendue du texte lu, jamais à l'image.
+    final lu = _reader.lastImageSize;
+    final attribution = attributeToCards(
+      readings,
+      cards,
+      scaleX: lu == null || lu.width <= 0 ? 1 : lu.width / photo.width,
+      scaleY: lu == null || lu.height <= 0 ? 1 : lu.height / photo.height,
+      imageAspect: photo.width / photo.height,
+    );
+    if (attribution.absorbed.isNotEmpty) {
+      // **Nommer ce qui est absorbé, pas seulement le compter.** Les
+      // événements `spread_match` sont émis avant ce partage et portent encore
+      // `kept: true` sur une mention ; sans cette ligne, le journal se
       // contredirait sans qu'on puisse savoir laquelle a sauté.
-      diagnose('spread_citations', {
-        'low': low,
-        'rejected': [for (final id in rejected) found[id]?.matchedName ?? id],
+      diagnose('spread_absorbed', {
+        'low': attribution.namesSitLow,
+        'absorbed': [
+          for (final reading in attribution.absorbed)
+            '${reading.line.text} → '
+                '${found[reading.identity]?.matchedName ?? reading.identity}',
+        ],
       });
     }
-    return rejected;
+    return attribution;
   }
 
   /// Combien de cartes physiques ces lectures représentent.

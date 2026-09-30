@@ -588,6 +588,76 @@ void main() {
       expect(found.length, 2);
     });
 
+    test(
+      'une carte porte un seul nom : ni « Vol », ni un second exemplaire',
+      () async {
+        // **Vérité terrain, reproduite en synthèse.** Neuf cartes bien
+        // séparées : « Vol », seul mot-clé de sa ligne, trouvait la carte *Vol*
+        // (Flight), et « Régénérez le Meneur de Rakdos » comptait un second
+        // *Meneur*. Trois cartes debout de 150 × 196 px sur une photo de
+        // 600 × 800 — plus larges que hautes en fractions de l'image — et des
+        // positions rapportées, comme ML Kit le fait, à l'étendue du texte lu
+        // (540 × 700) et non à l'image.
+        final photo = img.Image(width: 600, height: 800)
+          ..clear(img.ColorRgb8(245, 245, 245));
+        for (final x in [30, 225, 420]) {
+          img.fillRect(
+            photo,
+            x1: x,
+            y1: 60,
+            x2: x + 150,
+            y2: 256,
+            color: img.ColorRgb8(20, 20, 20),
+          );
+        }
+        const revenant = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+        const meneur = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+        final cards = FakeCardRepository()
+          ..results = [
+            _spreadHit(revenant, 'Revenant rampant'),
+            _spreadHit('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'Vol'),
+            _spreadHit('ffffffff-ffff-ffff-ffff-ffffffffffff', 'Labourage'),
+            _spreadHit(meneur, 'Meneur de Rakdos'),
+            _spreadHit(meneur, 'Régénérez le Meneur de Rakdos'),
+          ];
+        // Position dans l'image ÷ (540/600, 700/800) = position lue.
+        final reader = FakeCardTextReader()
+          ..lastImageSize = (width: 540, height: 700)
+          ..lines = const [
+            ReadLine('Revenant rampant', 0.100, 0.012, 0.074, 0.15),
+            // Un rien plus à gauche que le nom : jugée couchée, la carte
+            // élirait « Vol ».
+            ReadLine('Vol', 0.214, 0.012, 0.068, 0.03),
+            ReadLine('Labourage', 0.100, 0.012, 0.435, 0.15),
+            ReadLine('Meneur de Rakdos', 0.100, 0.012, 0.796, 0.15),
+            ReadLine(
+              'Régénérez le Meneur de Rakdos',
+              0.336,
+              0.012,
+              0.796,
+              0.15,
+            ),
+          ];
+        final service = ScanService(
+          ArtHashIndex.fromEntries([]),
+          reader,
+          cards,
+        );
+
+        final found = (await service.recogniseSpread(
+          'etalement.jpg',
+          photoBytes: img.encodePng(photo),
+        )).cards;
+
+        expect(found.map((f) => f.card.name), [
+          'Revenant rampant',
+          'Labourage',
+          'Meneur de Rakdos',
+        ]);
+        expect(found.last.copies, 1);
+      },
+    );
+
     test('une image illisible ne met pas le scan en échec', () async {
       // Une reconnaissance qui marche ne peut pas être mise en échec par son
       // garde-fou : si le décodage échoue, on rend le résultat non filtré.

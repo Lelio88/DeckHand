@@ -1,4 +1,4 @@
-/// Rejoue un scan d'étalement complet — filtrage des citations compris.
+/// Rejoue un scan d'étalement complet — rattachement des lectures compris.
 ///
 /// **Ce que les autres outils ne peuvent pas montrer.** `replay_spread` rejoue
 /// le filtrage des lignes, `find_cards` la délimitation des cartes ; ni l'un ni
@@ -6,9 +6,15 @@
 /// croisement. Cet outil rejoue la chaîne entière sur un journal et sa photo,
 /// sans appareil ni reconstruction.
 ///
-/// Il reproduit ce que fait `ScanService._citationsAmong` : c'est la seule façon
-/// de régler le filtrage sur ce que l'application exécute réellement. Les deux
-/// doivent rester alignés — un écart ici rendrait la mesure trompeuse.
+/// **Il appelle `attributeToCards`, la fonction même de l'application.** Une
+/// version antérieure en recopiait la logique ; la copie aurait divergé en
+/// silence au premier réglage, et la mesure aurait décrit un autre code que
+/// celui qui tourne. Seul le décompte des exemplaires est refait ici, en trois
+/// lignes, `ScanService` le gardant privé.
+///
+/// Le journal ne porte pas l'`oracle_id` : le nom trouvé tient lieu d'identité.
+/// Deux langues d'une même carte comptent donc pour deux cartes ici, pour une
+/// dans l'application.
 ///
 /// Usage :
 ///   dart run tool/replay_full_spread.dart mesure.log photo.jpg [index-du-scan]
@@ -19,8 +25,21 @@ import 'dart:io';
 
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/scan/domain/card_segmentation.dart';
+import 'package:deckhand/src/features/scan/domain/spread_attribution.dart';
 import 'package:deckhand/src/features/scan/domain/spread_names.dart';
 import 'package:image/image.dart' as img;
+
+/// Un scan tel que le journal le rapporte.
+class _Scan {
+  final lines = <ReadLine>[];
+
+  /// Ligne lue → nom trouvé, pour les seules correspondances retenues.
+  final matched = <String, String>{};
+
+  /// L'étendue du texte lu, à laquelle ML Kit rapporte ses positions.
+  double? width;
+  double? height;
+}
 
 void main(List<String> args) {
   if (args.length < 2) {
@@ -30,8 +49,7 @@ void main(List<String> args) {
     exit(64);
   }
 
-  final scans = <List<ReadLine>>[];
-  final matches = <Map<String, dynamic>>[];
+  final scans = <_Scan>[];
   for (final raw in File(args[0]).readAsLinesSync()) {
     final start = raw.indexOf('{');
     final end = raw.lastIndexOf('}');
@@ -44,10 +62,13 @@ void main(List<String> args) {
     }
     switch (event['event']) {
       case 'spread_read':
-        scans.add(<ReadLine>[]);
-        matches.clear();
+        scans.add(
+          _Scan()
+            ..width = (event['w'] as num?)?.toDouble()
+            ..height = (event['h'] as num?)?.toDouble(),
+        );
       case 'spread_line' when scans.isNotEmpty:
-        scans.last.add(
+        scans.last.lines.add(
           ReadLine(
             event['text'] as String,
             (event['top'] as num).toDouble(),
@@ -56,97 +77,66 @@ void main(List<String> args) {
             ((event['width'] as num?) ?? 0).toDouble(),
           ),
         );
-      case 'spread_match' when (event['kept'] as bool? ?? false):
-        matches.add(event);
+      case 'spread_match'
+          when scans.isNotEmpty && (event['kept'] as bool? ?? false):
+        scans.last.matched[event['read'] as String] =
+            event['matched'] as String;
     }
+  }
+  if (scans.isEmpty) {
+    stderr.writeln('Aucun scan dans ${args[0]}.');
+    exit(65);
   }
 
   final index = args.length > 2 ? int.parse(args[2]) : scans.length - 1;
-  final lines = scans[index < 0 ? scans.length + index : index];
-  final candidates = spreadNameCandidates(lines);
-
-  // Le nom trouvé tient lieu d'identité : le journal ne porte pas l'oracle_id.
-  final places = <String, List<NameCandidate>>{};
-  for (final match in matches) {
-    final read = match['read'] as String;
-    final name = match['matched'] as String;
-    for (final c in candidates) {
-      if (c.text == read) places.putIfAbsent(name, () => []).add(c);
-    }
-  }
+  final scan = scans[index < 0 ? scans.length + index : index];
+  final candidates = spreadNameCandidates(scan.lines);
+  final readings = [
+    for (final c in candidates)
+      if (scan.matched[c.text] case final name?) MatchedReading(name, c),
+  ];
 
   final photo = img.decodeImage(File(args[1]).readAsBytesSync());
-  final cards = photo == null
-      ? const <CardBounds>[]
-      : singleCards(findCards(photo));
-
-  final byCard = <int, Map<String, double>>{};
-  for (var i = 0; i < cards.length; i++) {
-    final card = cards[i];
-    final mx = card.width * boundsMargin;
-    final my = card.height * boundsMargin;
-    final horizontal = card.width > card.height;
-    final lo = horizontal ? card.left : card.top;
-    final hi = horizontal ? card.right : card.bottom;
-    if (hi - lo <= 0) continue;
-
-    final along = <String, double>{};
-    for (final entry in places.entries) {
-      for (final line in entry.value) {
-        if (line.left < card.left - mx || line.left > card.right + mx) continue;
-        if (line.top < card.top - my || line.top > card.bottom + my) continue;
-        final axis = horizontal ? line.left : line.top;
-        final at = (axis - lo) / (hi - lo);
-        final seen = along[entry.key];
-        if (seen == null || (at - 0.5).abs() < (seen - 0.5).abs()) {
-          along[entry.key] = at;
-        }
-      }
-    }
-    if (along.isNotEmpty) byCard[i] = along;
+  if (photo == null) {
+    stderr.writeln('Photo illisible : ${args[1]}');
+    exit(66);
   }
-
-  final lonely = [
-    for (final along in byCard.values)
-      if (along.length == 1) along.values.first,
-  ];
-  final low = nameSitsLow(lonely);
-
-  final suspect = <String>{};
-  final elected = <String>{};
-  for (final along in byCard.values) {
-    for (final entry in along.entries) {
-      if (entry.value < 0 || entry.value > 1) continue;
-      final fromNameEnd = low ? entry.value : 1 - entry.value;
-      (fromNameEnd > citationEnd ? suspect : elected).add(entry.key);
-    }
-  }
-  final rejected = lonely.isEmpty ? <String>{} : suspect.difference(elected);
+  final cards = singleCards(findCards(photo));
+  final r = attributeToCards(
+    readings,
+    cards,
+    scaleX: (scan.width ?? photo.width) / photo.width,
+    scaleY: (scan.height ?? photo.height) / photo.height,
+    imageAspect: photo.width / photo.height,
+  );
 
   stdout.writeln(
-    '${lines.length} lignes, ${candidates.length} candidates, '
-    '${places.length} cartes avant filtrage',
+    '${scan.lines.length} lignes, ${candidates.length} candidates, '
+    '${readings.length} lectures reconnues',
   );
   stdout.writeln(
     '${cards.length} rectangles de carte isolée ; noms du côté '
-    '${low ? "bas" : "haut"} (${lonely.length} rectangles sans ambiguïté)',
+    '${switch (r.namesSitLow) {
+      true => "bas",
+      false => "haut",
+      null => "indéterminé",
+    }}',
   );
 
-  stdout.writeln('\npositions le long de chaque carte :');
-  for (final along in byCard.values) {
-    final parts = along.entries.map((e) {
-      final name = e.key.length > 24 ? e.key.substring(0, 24) : e.key;
-      return '$name à ${(e.value * 100).round()} %';
-    });
-    stdout.writeln('   ${parts.join('  |  ')}');
+  final places = <String, List<NameCandidate>>{};
+  for (final reading in r.kept) {
+    places.putIfAbsent(reading.identity, () => []).add(reading.line);
   }
-
   stdout.writeln('\ncartes retenues :');
-  for (final name in places.keys.where((n) => !rejected.contains(n))) {
-    stdout.writeln('   $name');
+  for (final entry in places.entries) {
+    final anchors = <NameCandidate>[];
+    for (final line in entry.value) {
+      if (!anchors.any((a) => areSameCard(line, a))) anchors.add(line);
+    }
+    stdout.writeln('   ${entry.key} ×${anchors.length}');
   }
-  stdout.writeln('\nrejetées comme citations (${rejected.length}) :');
-  for (final name in rejected) {
-    stdout.writeln('   $name');
+  stdout.writeln('\nabsorbées (${r.absorbed.length}) :');
+  for (final reading in r.absorbed) {
+    stdout.writeln('   « ${reading.line.text} » → ${reading.identity}');
   }
 }

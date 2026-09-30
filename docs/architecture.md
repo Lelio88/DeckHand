@@ -2310,46 +2310,83 @@ Banc : `api/app/measure/price_join.py`.
 ### Les bords servent de garde-fou, jamais de source
 
 Les rectangles de cartes sont calculés et **branchés au scan** — mais comme
-filtre, jamais comme source de vérité. Le scan continue de trouver les cartes
-par leurs noms ; la délimitation ne fait qu'écarter les citations.
+filtre, jamais comme source de vérité. Le scan trouve les cartes par leurs
+noms ; la délimitation dit ensuite **à quelle carte appartient chaque lecture**,
+et impose ce qu'aucune mesure globale ne pouvait tenir : *une carte porte un
+seul nom, et compte pour un seul exemplaire*.
 
-Trois précautions rendent l'ajout incapable de dégrader ce qui marche :
+Le catalogue reconnaît en effet plus de lignes qu'il n'y a de cartes, chacune
+au-dessus du seuil de score : la ligne de capacités « Vol » trouve la carte
+*Flight*, le nom répété dans les règles — « : Régénérez le Meneur de Rakdos. » —
+compte un second exemplaire, la citation « —Ka-Zar » fait un personnage qui est
+aussi une carte. Dans chaque rectangle de carte isolée, **seule la lecture la
+plus proche du bout des noms est une carte** ; les autres sont absorbées et ne
+font ni carte ni exemplaire (`scan/domain/spread_attribution.dart`).
 
-1. **Seuls les rectangles d'une carte isolée comptent.** Un bloc de cartes
+Ce qui rend la règle incapable de dégrader ce qui marche :
+
+1. **Elle ne fait qu'ôter.** Le résultat est un sous-ensemble des lectures
+   reconnues ; ce qu'elle ne sait pas situer est gardé tel quel.
+2. **Seuls les rectangles d'une carte isolée comptent.** Un bloc de cartes
    soudées peut avoir le rapport d'une carte — mesuré, un groupe couvrant 49 %
    de la surface encrée affichait 1,44. C'est la surface, comparée aux autres
    rectangles, qui le démasque ; il est alors ignoré.
-2. **Le nom et la citation sont aux deux bouts, et il faut savoir lequel est
-   lequel.** Mesuré sur un même rectangle : le nom à 9 %, la citation à 93 %.
-   Prendre la distance au bord *le plus proche* les ramène toutes deux sous
-   10 % et les rend indiscernables — c'est ce qui a fait échouer la première
-   version. Il faut une position orientée.
-3. **Le sens se lit dans la photo, il ne se suppose pas.** Les cartes d'une même
-   photo sont posées dans le même sens, mais ce sens change d'une photo à
-   l'autre : noms à 6-14 % ici, à 93-103 % là. Les rectangles ne portant qu'une
-   correspondance la désignent sans ambiguïté — c'est un nom —, et la majorité
-   tranche pour les autres.
-4. **Le bout, pas le milieu.** Sur des rectangles imparfaits, la position d'un
-   nom se décale : *Croisade de Murdock* tombait à 56 % et se faisait rejeter.
-   Les vraies citations siègent à 86-93 % du bout des noms. Le seuil se pose à
-   70 %.
-5. **Une ligne hors du rectangle est le nom du voisin, pas une citation.** C'est
-   ce qui sauve *Gorille mercenaire*, dont le nom débordait de trois pour cent
-   sur la carte d'à côté.
-6. **Toute panne rend le résultat non filtré.** Image absente, illisible,
-   format inattendu : le scan rend ce qu'il rendait avant.
+3. **Un rectangle qui contredit l'orientation de la majorité n'absorbe rien.**
+   Deux cartes debout soudées côte à côte ont le rapport d'une carte couchée,
+   et le second nom y siège au milieu : l'absorber perdrait une carte réelle.
+4. **Une ligne hors du rectangle est gardée.** C'est le nom du voisin, ou le
+   sien qui déborde : *Gorille mercenaire* débordait de trois pour cent sur la
+   carte d'à côté.
+5. **Toute panne rend le résultat non filtré.** Image absente, illisible,
+   format inattendu : le scan rend toutes les lectures reconnues.
 
-Mesuré sur les trois photos de référence :
+Trois conditions pour que « le bout des noms » veuille dire quelque chose :
+
+- **Un seul repère.** ML Kit ne communique pas la taille de l'image : ses
+  positions sont des fractions de l'étendue du **texte lu**, quand les
+  rectangles sont des fractions de l'image. Mesuré, 1444 × 1855 lus pour une
+  image de 1600 × 2125 — 11 et 13 % d'écart, assez pour sortir une mention de
+  sa carte ou y faire entrer le nom d'une voisine. Les positions lues sont
+  ramenées à l'image avant toute comparaison.
+- **L'orientation se juge en pixels.** Sur une photo en portrait, une carte
+  debout est plus large que haute *en fractions de l'image* — 0,2175 × 0,2116
+  sur la photo mesurée. Jugée ainsi, elle passait pour couchée et son nom se
+  cherchait le long de la mauvaise dimension.
+- **Le sens se lit dans la photo, et une position orientée le porte.** Les
+  cartes d'une même photo sont posées dans le même sens, qui change d'une photo
+  à l'autre : noms à 6-14 % de leurs rectangles ici, à 93-103 % là. Prendre la
+  distance au bord *le plus proche* rendrait le nom (9 %) et la citation (93 %)
+  indiscernables. Les rectangles qui ne portent qu'une carte votent, par leur
+  lecture la plus proche d'un bout — la mention au milieu des règles voterait
+  au hasard —, et la majorité tranche. Si même la meilleure lecture d'un
+  rectangle siège au-delà de 70 % du bout des noms, c'est une citation : les
+  vraies siègent à 86-93 %.
+
+**Mesuré sur tout le banc**, et non sur quelques photos choisies : les 77
+photos de `.deckhand-bench/photos` (47 cartes seules, 18 étalements, 12 sans
+carte), réduites comme `image_picker` les réduit — 1600 px au plus proche
+voisin, qualité 92 —, passées dans le vrai `recognisePhoto`, lecture ML Kit
+comprise, avant et après. Seules trois photos changent, toutes vérifiées à
+l'œil :
 
 | photo | avant | après |
 |---|---|---|
-| quinze cartes espacées | 9 vraies, 1 fausse | 9 vraies, **0 fausse** |
-| onze cartes espacées | 8 vraies, 2 fausses | 8 vraies, **1 fausse** |
-| dix-sept cartes jointives | 17 vraies, 0 fausse | inchangé — rien rejeté |
+| neuf cartes espacées, table claire | 9 vraies, *Flight* en trop, *Meneur de Rakdos* ×2 | **9 vraies, aucune fausse, ×1** |
+| huit cartes couchées, parquet | 5 vraies sur 8 | **8 sur 8** |
+| huit cartes posées à l'envers | 6 vraies sur 8 | **8 sur 8** |
+| les 74 autres | — | identiques |
 
-Jamais pire, parfois mieux. Ce qui reste — « Sacrificz » trouvant *Sacrifice* —
-n'est pas une citation mais un mot de règles capitalisé, qu'aucun rectangle ne
-distingue.
+Les deux dernières lignes sont le repère faux à l'œuvre : jugées dans le
+mauvais repère et selon la mauvaise dimension, cinq vraies cartes passaient
+pour des citations et disparaissaient. Aucune carte perdue, aucun exemplaire
+ajouté sur le banc.
+
+**Ce que la règle ne voit pas.** Elle n'agit que là où la délimitation trouve
+des cartes isolées, donc séparées par un jour. Sur quatorze des dix-huit
+étalements du banc — cartes jointives, parquet sombre —, elle en trouve deux au
+plus, et *Flight*, *Vigilance* et les citations « Ka-Zar » ou « Docteur
+Fatalis » y restent proposées. « Sacrificz » trouvant *Sacrifice* n'est pas
+davantage à sa portée : c'est un mot de règles capitalisé.
 
 ### Deux fausses cartes que ni le score ni la longueur ne voient
 
@@ -2440,6 +2477,10 @@ Deux, et non un : cinq cartes s'appellent exactement comme un mot-clé — *Flig
 règle naïve les rendrait invisibles au scan. Vérifié sur les 62 959 noms
 indexés : **aucun** n'en contient deux, un nom de carte n'énumérant pas des
 capacités. Le pluriel sépare exactement les deux, et la règle ne coûte rien.
+
+Un mot-clé **seul** sur sa ligne — « Vol » — passe ce filtre par construction.
+C'est la carte qui le porte qui l'écarte, quand la délimitation la trouve : voir
+« Les bords servent de garde-fou, jamais de source ».
 
 Seuls les mots-clés permanents figurent dans la liste : ce sont ceux qu'on
 croise partout, donc ceux qui produisent des faux positifs. Ceux propres à une
