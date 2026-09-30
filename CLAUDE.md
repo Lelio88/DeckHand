@@ -96,5 +96,5 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 
 ## VIII. Contexte de Session
 
-- **Dernier focus** : étalement — une carte porte un seul nom et un seul exemplaire (`spread_attribution.dart`), positions ML Kit ramenées à l'image, orientation jugée en pixels. Banc entier (77 photos, émulateur) : 5 vraies cartes rendues, *Flight* et un exemplaire en trop ôtés, rien perdu.
+- **Dernier focus** : 1.12.2 (alpha) — sur un étalement, une carte porte un seul nom et un seul exemplaire (`spread_attribution.dart`), positions ML Kit ramenées à l'image, orientation jugée en pixels. Banc entier (77 photos, émulateur) : 5 vraies cartes rendues, *Flight* et un exemplaire en trop ôtés, rien perdu.
 - **Focus immédiat** : confronter sur l'appareil l'édition que « + » propose à la vraie collection ; puis le gabarit pleine page au **flux caméra**, écarté faute de mesure.

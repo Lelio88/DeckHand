@@ -1,0 +1,7 @@
+Une photo de plusieurs cartes propose moins de cartes fantômes, et n'en perd plus.
+
+- Une ligne de capacités (« Vol », « Vigilance ») ou le nom d'une carte répété
+  dans ses propres règles ne fait plus apparaître une carte ou un exemplaire de
+  trop, quand les cartes sont posées avec un peu d'espace entre elles.
+- Des cartes couchées ou posées à l'envers, que le scan écartait à tort,
+  sont de nouveau trouvées.
