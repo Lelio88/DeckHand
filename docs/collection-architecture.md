@@ -432,16 +432,26 @@ un écran « à propos » qu'un visiteur n'ouvrira jamais.
 
 ### L'hébergement
 
-Le build web est statique et GitHub Pages le sert
-(`.github/workflows/pages.yml`). **Ce qui est publié n'est pas l'application** :
+Le build web est statique et GitHub Pages le sert sous
+`deckhand.heianenterprise.com` (`.github/workflows/pages.yml`) ; l'ancienne
+adresse `lelio88.github.io/DeckHand/` redirige, paramètres compris, si bien
+que les liens déjà donnés et les calques déjà montés dans OBS continuent de
+répondre. **Ce qui est publié n'est pas l'application** :
 `DECKHAND_PUBLIC_ONLY` compile une variante qui ne sait que lire des classeurs
 partagés — ni connexion, ni inscription. L'inscription est ouverte sur le projet
 Supabase, et une adresse publique donnerait sinon à n'importe qui de quoi créer
 un compte.
 
 Les clés viennent des secrets d'actions, jamais du dépôt, et le résultat part en
-artefact sans atterrir sur aucune branche. `--base-href` est obligatoire : un
-site de projet est servi sous `/<dépôt>/`.
+artefact sans atterrir sur aucune branche. Servi à la racine d'un domaine,
+le build n'a pas besoin de `--base-href`.
+
+**Les pages statiques vivent à côté** : `app/web/` porte l'accueil
+(`accueil.html`), la politique de confidentialité (`privacy.html`), les CGU et
+les mentions légales, que `flutter build web` copie telles quelles. Une feuille
+commune (`legal.css`) et aucun script ni style inline. CanvasKit est embarqué
+(`--no-web-resources-cdn`) : la page d'un classeur ne le tire plus des
+serveurs de Google.
 
 ### Le bot de chat lit par la même porte
 

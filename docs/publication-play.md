@@ -15,7 +15,7 @@ de toute façon une première release manuelle avant d'ouvrir l'API.
 | `applicationId` | `app.deckhand` — définitif après création de la fiche |
 | Version | `1.0.0+1` dans `app/pubspec.yaml` |
 | Signature de release | câblée, lit `app/android/key.properties` |
-| Politique de confidentialité | <https://lelio88.github.io/DeckHand/privacy.html> |
+| Politique de confidentialité | <https://deckhand.heianenterprise.com/privacy.html> |
 | Compte de démonstration | `DECKHAND_DEMO_EMAIL` / `DECKHAND_DEMO_PASSWORD` dans `../.deckhand-secrets/supabase.env` |
 
 ## 2. La clé de signature — à faire une seule fois
@@ -136,7 +136,7 @@ grep DECKHAND_DEMO ../.deckhand-secrets/supabase.env
 
 | Section | Réponse pour DeckHand |
 |---|---|
-| 2 · Politique de confidentialité | <https://lelio88.github.io/DeckHand/privacy.html> |
+| 2 · Politique de confidentialité | <https://deckhand.heianenterprise.com/privacy.html> |
 | 3 · App access | **Oui, une partie est limitée** — l'app exige un compte. Fournir `DECKHAND_DEMO_EMAIL` / `DECKHAND_DEMO_PASSWORD`. **Surtout pas `DECKHAND_TEST_EMAIL`** : malgré son nom, c'est le compte du propriétaire, avec sa collection réelle et son journal. |
 | 4 · Annonces | **Non**, aucune publicité. |
 | 5 · Classification IARC | Catégorie *Application*, donc questionnaire court. Aucune violence, aucun contenu sexuel, aucun jeu d'argent, aucune substance. **Pas de chat** : le partage est en lecture seule, sans messagerie. |

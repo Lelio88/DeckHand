@@ -1,185 +1,246 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Politique de confidentialité — DeckHand</title>
-  <meta name="robots" content="index, follow">
-  <style>
-    :root { --bg:#0a0a12; --surface:#12121f; --text:#e6e6f0; --muted:#a0a0b8; --accent:#22d3ee; --border:#26263a; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      line-height: 1.65; padding: 2rem 1rem;
-    }
-    main { max-width: 760px; margin: 0 auto; }
-    h1 { font-size: clamp(1.6rem, 1rem + 3vw, 2.4rem); margin: 0 0 .25rem; }
-    h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; }
-    .updated { color: var(--muted); font-size: .9rem; margin-bottom: 2rem; }
-    a { color: var(--accent); }
-    .tldr { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 1rem 1.25rem; margin: 1.5rem 0; }
-    ul { padding-left: 1.2rem; }
-    li { margin: .35rem 0; }
-    table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .95rem; }
-    th, td { border: 1px solid var(--border); padding: .5rem .6rem; text-align: left; vertical-align: top; }
-    th { background: var(--surface); }
-    footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--border); padding-top: 1rem; }
-    code { background: var(--surface); padding: .1rem .35rem; border-radius: 4px; font-size: .9em; }
-  </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DeckHand — Politique de confidentialité</title>
+  <meta name="description" content="Politique de confidentialité de DeckHand : données traitées, finalités, bases légales, durées de conservation, sous-traitants et droits." />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="stylesheet" href="legal.css" />
 </head>
 <body>
-  <main>
-    <h1>Politique de confidentialité</h1>
-    <p class="updated"><strong>DeckHand</strong> — Dernière mise à jour : 14 août 2026</p>
+  <main class="wrap">
+    <header>
+      <p class="logo"><a href="accueil.html">DeckHand</a></p>
+      <h1 class="title">Politique de confidentialité</h1>
+      <p class="updated">Application <code>app.deckhand</code> · Dernière mise à jour : 30 septembre 2026</p>
+    </header>
 
-    <div class="tldr">
-      <strong>En bref :</strong> DeckHand a besoin d'un compte (adresse e-mail) pour conserver votre
-      collection de cartes. <strong>Les photos de vos cartes ne quittent jamais votre appareil</strong> :
-      la reconnaissance est calculée sur place, et aucune image n'est envoyée ni conservée.
-      <strong>Aucune publicité, aucun pistage, aucune revente de données.</strong> Votre collection est
-      privée par défaut ; la rendre visible est un geste explicite et réversible.
-    </div>
+    <section class="card" aria-labelledby="bref">
+      <h2 id="bref">En bref</h2>
+      <p>
+        DeckHand a besoin d'un compte pour conserver votre collection de cartes et vous la rendre
+        sur tous vos appareils. <strong>Les photos de vos cartes ne quittent jamais votre
+        téléphone</strong> : la reconnaissance se fait sur place. Aucune publicité, aucune mesure
+        d'audience, aucune revente de données. Votre collection est privée tant que vous ne la
+        publiez pas.
+      </p>
+      <p>
+        DeckHand est un projet personnel, non professionnel. Le responsable du traitement est son
+        éditeur, que vous pouvez joindre à
+        <a href="mailto:heianenterpriseyt@gmail.com">heianenterpriseyt@gmail.com</a>
+        (voir les <a href="mentions-legales.html">mentions légales</a>).
+      </p>
+    </section>
 
-    <h2>1. Qui est responsable</h2>
-    <p>
-      DeckHand est développée par un particulier, sans société ni finalité commerciale. Pour toute
-      question ou demande relative à vos données :
-      <a href="mailto:heianenterpriseyt@gmail.com">heianenterpriseyt@gmail.com</a>.
-    </p>
+    <section class="card" aria-labelledby="traitements">
+      <h2 id="traitements">Ce que l'on traite, pourquoi, et combien de temps</h2>
+      <div class="table-scroll">
+        <table>
+          <caption>Chaque ligne est un traitement, avec sa base légale au sens du RGPD (article 6).</caption>
+          <thead>
+            <tr><th scope="col">Données</th><th scope="col">Pourquoi</th><th scope="col">Base légale</th><th scope="col">Durée</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Compte</strong> : adresse e-mail, mot de passe (stocké haché, jamais lisible), dates de création et de dernière connexion</td>
+              <td>Créer votre compte, vous connecter, sécuriser l'accès</td>
+              <td>Exécution du contrat (les <a href="cgu.html">conditions d'utilisation</a>)</td>
+              <td>Tant que votre compte existe</td>
+            </tr>
+            <tr>
+              <td><strong>Connexion avec Google</strong>, si vous la choisissez : Google transmet votre adresse Gmail, l'identifiant de votre compte Google, votre nom et l'adresse de votre photo de profil</td>
+              <td>Vous connecter sans mot de passe ; retrouver votre compte s'il a la même adresse. Le nom et la photo ne sont ni affichés ni utilisés</td>
+              <td>Exécution du contrat</td>
+              <td>Tant que votre compte existe, ou jusqu'à ce que vous déliiez Google (<em>Compte → Compte Google</em>)</td>
+            </tr>
+            <tr>
+              <td><strong>Collection</strong> : cartes, quantités, éditions, finition, langue, rangement en classeurs, et le journal de ce qui entre et sort</td>
+              <td>L'objet même de l'application : valoriser la collection, la ranger, proposer des decks</td>
+              <td>Exécution du contrat</td>
+              <td>Tant que votre compte existe</td>
+            </tr>
+            <tr>
+              <td><strong>Préférences du compte</strong> : jeux joués et leur ordre, langue du nom des cartes, taille et prix de booster retenus</td>
+              <td>Retrouver vos réglages d'un appareil à l'autre</td>
+              <td>Exécution du contrat</td>
+              <td>Tant que votre compte existe</td>
+            </tr>
+            <tr>
+              <td><strong>Classeur partagé</strong>, seulement si vous le publiez : le nom public que vous choisissez (facultatif), les extensions que vous partagez et les cartes qu'elles contiennent</td>
+              <td>Montrer votre classeur à qui a l'adresse. Rien n'y relie le classeur à votre compte ni à votre adresse e-mail</td>
+              <td>Exécution du contrat (vous le demandez)</td>
+              <td>Jusqu'à ce que vous retiriez la publication (<em>Compte → Partage</em>)</td>
+            </tr>
+            <tr>
+              <td><strong>E-mails de service</strong> : votre adresse, pour confirmer votre compte et réinitialiser votre mot de passe</td>
+              <td>Sécuriser votre compte</td>
+              <td>Exécution du contrat</td>
+              <td>Brevo garde un journal des envois (adresse, date, aperçu du message) sans limite de durée</td>
+            </tr>
+            <tr>
+              <td><strong>Spectateurs d'un direct Twitch</strong> : si vous demandez une carte dans le chat (commande <code>!montre</code>), votre pseudo Twitch</td>
+              <td>Afficher à l'écran du direct la carte demandée, et qui l'a demandée</td>
+              <td>Intérêt légitime (animer le direct à votre demande)</td>
+              <td>24 heures au plus. Les autres commandes du chat sont lues pour y répondre, sans rien enregistrer</td>
+            </tr>
+            <tr>
+              <td><strong>Journaux techniques</strong> : adresse IP, date et nature des requêtes au serveur</td>
+              <td>Sécurité, limitation des tentatives de connexion</td>
+              <td>Intérêt légitime (protéger le service et les comptes)</td>
+              <td>7 jours au plus chez Supabase</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-    <h2>2. Ce que l'application enregistre</h2>
-    <p>
-      DeckHand sert à saisir une collection de cartes physiques et à en tirer des decks. Les données
-      ci-dessous sont enregistrées sur un serveur pour que votre collection vous suive d'un appareil à
-      l'autre.
-    </p>
-    <table>
-      <tr><th>Donnée</th><th>Pourquoi</th></tr>
-      <tr>
-        <td>Adresse e-mail et mot de passe</td>
-        <td>Identifier votre compte. Le mot de passe n'est jamais conservé en clair : seule une
-        empreinte cryptographique l'est, et elle ne permet pas de le retrouver.</td>
-      </tr>
-      <tr>
-        <td>Votre collection : cartes, quantités, éditions, état</td>
-        <td>C'est l'objet même de l'application.</td>
-      </tr>
-      <tr>
-        <td>Vos classeurs et l'ordre de vos cartes</td>
-        <td>Retrouver une carte dans le classeur physique.</td>
-      </tr>
-      <tr>
-        <td>Le journal de vos ajouts et retraits</td>
-        <td>Savoir ce qui est entré ou sorti, et quand.</td>
-      </tr>
-      <tr>
-        <td>Vos decks enregistrés, le cas échéant</td>
-        <td>Les relire plus tard.</td>
-      </tr>
-    </table>
+    <section class="card" aria-labelledby="appareil">
+      <h2 id="appareil">Ce qui reste sur votre téléphone</h2>
+      <p>
+        <strong>Les photos de cartes.</strong> Quand vous scannez, l'image est analysée dans
+        l'application : l'illustration est résumée en une empreinte numérique, comparée à un index
+        téléchargé à l'avance, et le nom de la carte est lu sur place. L'image n'est ni envoyée, ni
+        enregistrée. Seule la carte que vous confirmez entre dans votre collection. La caméra ne
+        sert que pendant le scan, et la saisie au clavier reste toujours possible si vous la
+        refusez.
+      </p>
+      <p>
+        La lecture du nom utilise Google ML Kit, qui fonctionne sur le téléphone. ML Kit envoie à
+        Google des mesures techniques sur son propre fonctionnement (performances, utilisation),
+        mais pas l'image ni le texte lu.
+      </p>
+      <p>
+        <strong>La saisie vocale</strong> passe par le service de reconnaissance vocale de votre
+        téléphone (Google sur Android), et non par DeckHand : l'audio est traité selon les conditions
+        de ce service. Seul le texte transcrit revient à l'application. Refuser le micro ne prive que
+        de la dictée.
+      </p>
+      <p>
+        <strong>Votre session de connexion</strong> est rangée dans le stockage chiffré du téléphone.
+        Vos réglages d'appareil (jeu affiché, écriture lue par le scan) restent sur le téléphone.
+      </p>
+      <p>
+        <strong>Les images des cartes</strong> sont chargées directement depuis les serveurs des
+        catalogues (Scryfall pour Magic, et les sources créditées dans l'application pour les autres
+        jeux), qui voient donc l'adresse IP de votre téléphone. Rien d'autre ne leur est transmis :
+        les noms et les prix sont récupérés à l'avance par nos serveurs, qui ne leur disent rien de
+        vous.
+      </p>
+    </section>
 
-    <h2>3. Ce qui ne quitte pas votre appareil</h2>
-    <p>
-      <strong>Les photographies de cartes.</strong> Lorsque vous scannez une carte, l'image est
-      analysée <em>dans l'application</em> : elle est réduite, son illustration est résumée en une
-      empreinte numérique de 64 bits, et cette empreinte est comparée à un index téléchargé à l'avance.
-      L'image elle-même n'est ni envoyée, ni enregistrée, ni conservée après l'analyse. Seul le
-      résultat que vous confirmez — le nom de la carte — est enregistré.
-    </p>
-    <p>
-      La caméra n'est utilisée que pendant que vous scannez, et l'autorisation peut être refusée : la
-      saisie au clavier reste toujours disponible.
-    </p>
+    <section class="card" aria-labelledby="destinataires">
+      <h2 id="destinataires">Qui y a accès</h2>
+      <p>
+        L'éditeur, pour faire fonctionner le service. Et les sous-traitants suivants, qui traitent
+        les données pour son compte et selon ses instructions :
+      </p>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th scope="col">Service</th><th scope="col">Rôle</th><th scope="col">Où</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Supabase</td>
+              <td>Base de données, authentification</td>
+              <td>Serveurs à Londres (Royaume-Uni), pays reconnu par la Commission européenne comme offrant une protection adéquate. Société américaine : un accès depuis les États-Unis est encadré par les clauses contractuelles types de la Commission européenne.</td>
+            </tr>
+            <tr>
+              <td>Google (connexion avec Google, ML Kit)</td>
+              <td>Connexion avec un compte Google ; mesures techniques de ML Kit</td>
+              <td>Peut traiter aux États-Unis : Google LLC est certifiée au Data Privacy Framework UE–États-Unis, complété par les clauses contractuelles types.</td>
+            </tr>
+            <tr>
+              <td>Brevo</td>
+              <td>Envoi des e-mails de service</td>
+              <td>France (UE)</td>
+            </tr>
+            <tr>
+              <td>GitHub (GitHub Pages)</td>
+              <td>Hébergement de ces pages web et des classeurs partagés ; voit l'adresse IP de leurs visiteurs</td>
+              <td>États-Unis : GitHub est certifiée au Data Privacy Framework.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Twitch, pour les spectateurs d'un direct, applique sa propre politique à ce qui s'écrit dans
+        son chat. Aucune donnée n'est vendue ni partagée à des fins publicitaires.
+      </p>
+    </section>
 
-    <h2>4. La saisie vocale</h2>
-    <p>
-      DeckHand permet de dicter le nom d'une carte. Cette transcription est assurée par
-      <strong>le service de reconnaissance vocale de votre système</strong> (Google sur Android), et non
-      par DeckHand : l'audio est traité selon les conditions de ce service, sur lequel nous n'avons pas
-      de prise. Seul le texte transcrit revient à l'application. Si vous préférez l'éviter, refusez
-      l'autorisation du microphone — tout le reste de l'application continue de fonctionner.
-    </p>
+    <section class="card" aria-labelledby="suppression">
+      <h2 id="suppression">Supprimer votre compte</h2>
+      <p>
+        La suppression efface <strong>immédiatement et définitivement</strong> votre compte, votre
+        collection, vos classeurs, votre journal, vos préférences et votre classeur partagé s'il
+        était publié. L'accès de DeckHand à votre compte Google, si vous l'aviez lié, est retiré.
+      </p>
+      <ul>
+        <li><strong>Dans l'application</strong> : <em>Compte → Supprimer mon compte</em>.</li>
+        <li><strong>Sans l'application</strong> : écrivez à
+          <a href="mailto:heianenterpriseyt@gmail.com?subject=Suppression%20de%20mon%20compte%20DeckHand">heianenterpriseyt@gmail.com</a>
+          depuis l'adresse du compte, objet «&nbsp;Suppression de mon compte&nbsp;». La suppression
+          est faite sous 30 jours.</li>
+      </ul>
+      <p>
+        Vous pouvez aussi demander l'effacement d'une partie seulement de vos données, ou en obtenir
+        une copie. Les journaux techniques s'effacent d'eux-mêmes au bout de 7 jours.
+      </p>
+    </section>
 
-    <h2>5. Ce que nous ne faisons pas</h2>
-    <ul>
-      <li>Aucune publicité, aucune régie publicitaire.</li>
-      <li>Aucun outil de mesure d'audience ni de pistage comportemental.</li>
-      <li>Aucun rapport de plantage automatique.</li>
-      <li>Aucune vente, location ou transmission de vos données à des fins commerciales.</li>
-      <li>Aucun profilage, aucune décision automatisée vous concernant.</li>
-    </ul>
+    <section class="card" aria-labelledby="droits">
+      <h2 id="droits">Vos droits</h2>
+      <p>
+        Vous pouvez demander l'accès à vos données, leur rectification, leur effacement, leur
+        portabilité, la limitation d'un traitement, et vous opposer à ceux fondés sur l'intérêt
+        légitime. Écrivez à <a href="mailto:heianenterpriseyt@gmail.com">heianenterpriseyt@gmail.com</a> :
+        réponse sous un mois. Votre collection et vos préférences se modifient aussi directement
+        dans l'application.
+      </p>
+      <p>
+        Si vous estimez que vos droits ne sont pas respectés, vous pouvez adresser une réclamation à
+        la <a href="https://www.cnil.fr/fr/plaintes">CNIL</a> (3 place de Fontenoy, TSA 80715,
+        75334 Paris Cedex 07).
+      </p>
+    </section>
 
-    <h2>6. Le partage, et son caractère explicite</h2>
-    <p>
-      Une collection est <strong>privée par défaut</strong>. Vous pouvez choisir de la rendre lisible
-      par d'autres — pour montrer un classeur à un ami, par exemple. Ce choix est explicite, se limite
-      à ce que vous désignez, et se retire à tout moment. Tant qu'il n'est pas fait, personne d'autre
-      que vous n'y a accès.
-    </p>
+    <section class="card" aria-labelledby="securite">
+      <h2 id="securite">Sécurité</h2>
+      <p>
+        Tous les échanges sont chiffrés (HTTPS). Les mots de passe sont hachés par le service
+        d'authentification. Chaque collection n'est lisible que par son propriétaire, sauf ce qu'il
+        choisit de publier (règles d'accès appliquées par la base elle-même). Les tentatives de
+        connexion sont limitées. En cas de fuite de données présentant un risque, la CNIL est
+        prévenue sous 72 heures, et les personnes concernées si le risque est élevé.
+      </p>
+    </section>
 
-    <h2>7. Où les données sont hébergées</h2>
-    <p>
-      Sur <strong>Supabase</strong>, qui fournit la base de données et l'authentification. Les serveurs
-      utilisés se trouvent en Europe (Royaume-Uni). Supabase agit comme sous-traitant technique et
-      n'exploite pas ces données pour son compte.
-    </p>
+    <section class="card" aria-labelledby="age">
+      <h2 id="age">Âge</h2>
+      <p>
+        DeckHand n'est pas destinée aux enfants de moins de 13 ans, et ne collecte rien à des fins
+        publicitaires, quel que soit l'âge.
+      </p>
+    </section>
 
-    <h2>8. Les catalogues de cartes</h2>
-    <p>
-      Les informations sur les cartes (noms, éditions, prix indicatifs, illustrations) proviennent de
-      sources publiques — Scryfall, TCGdex, TCGCSV, YGOPRODeck, Riftcodex, TopDeck.gg, Limitless TCG,
-      MTGJSON. Ces catalogues sont récupérés côté serveur, à l'avance :
-      <strong>aucune de vos données personnelles ne leur est transmise</strong>, et ils ne savent pas
-      que vous existez. DeckHand n'est affiliée à aucun éditeur de jeu de cartes.
-    </p>
+    <section class="card" aria-labelledby="changements">
+      <h2 id="changements">Modifications</h2>
+      <p>
+        Cette politique peut évoluer avec l'application. La date en haut de page est alors mise à
+        jour, et un changement qui élargirait la collecte serait signalé dans l'application avant de
+        prendre effet.
+      </p>
+    </section>
 
-    <h2 id="suppression">9. Supprimer son compte et ses données</h2>
-    <p>
-      Vos données sont conservées tant que votre compte existe.
-    </p>
-    <p>
-      <strong>Pour supprimer votre compte et tout ce qu'il contient</strong>, écrivez à
-      <a href="mailto:heianenterpriseyt@gmail.com?subject=Suppression%20de%20mon%20compte%20DeckHand">heianenterpriseyt@gmail.com</a>
-      depuis l'adresse du compte, avec « Suppression de mon compte » en objet. Aucune autre
-      justification n'est demandée.
-    </p>
-    <p>
-      Sont alors effacés : votre compte, votre collection, vos classeurs, vos decks, votre journal de
-      mouvements et vos éventuels partages publics. La suppression est <strong>définitive</strong>,
-      intervient sous 30 jours, et <strong>reste possible après la désinstallation de
-      l'application</strong> — il suffit d'écrire depuis l'adresse concernée.
-    </p>
-    <p>
-      Vous pouvez aussi demander l'effacement d'une <em>partie</em> seulement de vos données — par
-      exemple votre journal ou vos partages — sans supprimer le compte, ou en obtenir une copie.
-    </p>
-
-    <h2>10. Vos droits</h2>
-    <p>
-      Conformément au RGPD, vous disposez d'un droit d'accès, de rectification, d'effacement, de
-      limitation, d'opposition et de portabilité. La base légale du traitement est l'exécution du
-      service que vous demandez (article 6.1.b). Adressez toute demande à l'adresse ci-dessus ; à
-      défaut de réponse satisfaisante, vous pouvez saisir la CNIL.
-    </p>
-
-    <h2>11. Mineurs</h2>
-    <p>
-      DeckHand n'est pas destinée aux enfants de moins de 13 ans et ne leur demande aucune donnée
-      spécifique. Aucun contenu n'y est adressé aux enfants, et aucune donnée n'est collectée à des
-      fins publicitaires, quel que soit l'âge.
-    </p>
-
-    <h2>12. Modifications</h2>
-    <p>
-      Toute évolution de cette politique sera publiée sur cette page, avec sa date de mise à jour. Un
-      changement qui élargirait la collecte serait signalé dans l'application avant de prendre effet.
-    </p>
-
-    <footer>
-      DeckHand — usage personnel, sans finalité commerciale.
-      Contact : <a href="mailto:heianenterpriseyt@gmail.com">heianenterpriseyt@gmail.com</a>
-    </footer>
+    <nav class="legal-nav" aria-label="Pages légales">
+      <a href="accueil.html">Accueil</a>
+      <a href="privacy.html">Confidentialité</a>
+      <a href="cgu.html">Conditions d'utilisation</a>
+      <a href="mentions-legales.html">Mentions légales</a>
+    </nav>
+    <footer>DeckHand · <a href="mailto:heianenterpriseyt@gmail.com">heianenterpriseyt@gmail.com</a></footer>
   </main>
 </body>
 </html>

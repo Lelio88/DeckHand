@@ -1,4 +1,11 @@
-# Publie le classeur partagé sur GitHub Pages.
+# Publie le classeur partagé et les pages statiques sur GitHub Pages, sous
+# `deckhand.heianenterprise.com` (domaine réglé dans les paramètres Pages du
+# dépôt ; `app/web/CNAME` le rappelle). L'ancienne adresse
+# `lelio88.github.io/DeckHand/` redirige, chemin et paramètres compris.
+#
+# **Les pages statiques voyagent avec le build.** Tout fichier de `app/web/`
+# est copié tel quel par `flutter build web` : accueil, politique, CGU,
+# mentions légales. Elles sont servies à côté de l'application, à la racine.
 #
 # **Ce qui est publié n'est pas l'application.** `DECKHAND_PUBLIC_ONLY` compile
 # une variante qui ne sait que lire des classeurs partagés : ni connexion, ni
@@ -11,8 +18,9 @@
 # résultat du build est envoyé comme artefact et n'atterrit sur aucune branche :
 # rien de compilé n'entre dans l'historique.
 #
-# `--base-href` est obligatoire : un site de projet est servi sous
-# `/<dépôt>/`, et sans lui l'application chercherait ses ressources à la racine.
+# **CanvasKit est embarqué** (`--no-web-resources-cdn`) au lieu d'être tiré de
+# `www.gstatic.com`, ce qui transmettait l'adresse IP de chaque visiteur à
+# Google sans son accord.
 
 name: Classeur partagé
 
@@ -58,7 +66,7 @@ jobs:
         working-directory: app
         run: >
           flutter build web --release
-          --base-href "/${GITHUB_REPOSITORY#*/}/"
+          --no-web-resources-cdn
           --dart-define=DECKHAND_PUBLIC_ONLY=true
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
