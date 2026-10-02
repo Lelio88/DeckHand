@@ -86,7 +86,7 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 | Nouvelle source, ou changement de ses conditions | `CLAUDE.md` §IV + `docs/architecture.md` §3 |
 | Évolution du pipeline de reconnaissance | `docs/architecture.md` §2 |
 | Modèle de données, politique RLS, comptes ou connexion | `docs/architecture.md` §4 (+ `supabase/tests/conformite.test.sql` si la RLS change) — et toute fonction qui montre un nom traduit lit `my_display_lang()`, jamais `'fr'` en dur |
-| Donnée collectée, durée ou destinataire ; page publique | `app/web/privacy.html` (+ la purge en base si une durée change) + Data safety (`docs/publication-play.md` §4) |
+| Donnée collectée, durée ou destinataire ; page publique | `app/web/privacy.html` (+ la purge en base si une durée change) + Data safety (`docs/publication-play.md` §4) ; toute page publique porte la balise `tdm-reservation` et entre dans `sitemap.xml` — robots d'entraînement IA **refusés** (`app/web/robots.txt`), moteurs de recherche admis |
 | Évolution du classeur, du journal ou du partage | [`docs/collection-architecture.md`](./docs/collection-architecture.md) |
 | Accueil d'un jeu, langue ajoutée à un connecteur, ou ce qui dépend du jeu | [`docs/multi-game.md`](./docs/multi-game.md) + `CardLang.coverage`, qui annonce à l'écran ce que chaque langue couvre |
 | Nouveau gabarit d'illustration, ou nouvelle maquette | `api/app/vision/art_box.py` **et** `app/lib/src/features/scan/domain/art_box.dart` (jumeaux, un test lit le Dart) |

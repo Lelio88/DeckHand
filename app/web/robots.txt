@@ -1,0 +1,30 @@
+# DeckHand — consignes aux robots.
+#
+# Les robots de recherche sont admis : l'accueil et les pages légales doivent
+# rester trouvables. Les robots qui collectent pour ENTRAÎNER des modèles d'IA
+# sont refusés partout : les classeurs partagés sont les collections des
+# utilisateurs. GitHub Pages ne pose pas d'en-tête : la réserve juridique
+# (CPI art. L122-5-3) est la balise tdm-reservation de chaque page.
+# Une liste, pas une garantie : un robot qui ment sur son nom passe.
+
+User-agent: *
+Allow: /
+
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: CCBot
+User-agent: Bytespider
+User-agent: meta-externalagent
+User-agent: FacebookBot
+User-agent: cohere-training-data-crawler
+User-agent: Amazonbot
+User-agent: ImagesiftBot
+User-agent: Diffbot
+User-agent: AI2Bot
+User-agent: Timpibot
+Disallow: /
+
+Sitemap: https://deckhand.heianenterprise.com/sitemap.xml
