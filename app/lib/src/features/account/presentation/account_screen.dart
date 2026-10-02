@@ -33,6 +33,7 @@ import '../../../common/settled_async.dart';
 import '../../collection/domain/booster_size.dart';
 import '../domain/collection_figures.dart';
 import 'booster_dialog.dart';
+import 'assistant_screen.dart';
 import 'sharing_screen.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -120,6 +121,10 @@ class AccountScreen extends ConsumerWidget {
         Text('Partage', style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
         const _PublicationTile(),
+
+        const SizedBox(height: 28),
+        Text('Assistant IA', style: theme.textTheme.titleSmall),
+        const AssistantTile(),
 
         const SizedBox(height: 28),
         Text('Compte', style: theme.textTheme.titleSmall),

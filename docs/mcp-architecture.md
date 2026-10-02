@@ -15,7 +15,10 @@ assistant ──OAuth 2.1──► Supabase Auth  (serveur OAuth, inscription dy
 
 **Adresse du connecteur** : `<SUPABASE_URL>/functions/v1/mcp` — à coller dans
 claude.ai (Paramètres → Connecteurs) ou dans `claude mcp add --transport http
-deckhand <url>`.
+deckhand <url>`. L'application la montre, avec un bouton pour la copier, le
+geste exact pour claude.ai et Claude Code, et la liste des accès accordés avec
+leur bouton « Révoquer », dans *Compte → Assistant IA*
+(`app/lib/src/features/account/presentation/assistant_screen.dart`).
 
 **Supabase Auth est le serveur d'autorisation**, DeckHand n'en écrit aucun.
 Activé par `api/push_auth_config.py` (production) et `supabase/config.toml`
