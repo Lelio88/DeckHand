@@ -256,7 +256,7 @@ def check(resp, what):
 def session(creds_path):
     if not os.path.isfile(creds_path):
         fail(f"Service account introuvable : {creds_path}\n"
-             "    Crée-le (voir play-store-publication-guide.md § 13) et pose "
+             "    Crée-le (voir docs/play-store-publication-guide.md § 13) et pose "
              "le JSON à ce chemin,\n    ou passe --credentials <chemin>.")
     creds = service_account.Credentials.from_service_account_file(
         creds_path, scopes=[SCOPE])

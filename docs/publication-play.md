@@ -1,7 +1,7 @@
 # Publication Google Play — DeckHand
 
 Procédure **propre à DeckHand**. La procédure générique, elle, vit hors du dépôt :
-[`../../play-store-publication-guide.md`](../../play-store-publication-guide.md) (13 sections, questionnaires
+[`../../docs/play-store-publication-guide.md`](../../docs/play-store-publication-guide.md) (13 sections, questionnaires
 IARC, Data safety, liste complète des tags). Ce fichier ne répète pas le guide — il porte les réponses
 et les valeurs qui sont celles de cette app.
 
@@ -26,7 +26,7 @@ détient la clé vue par les appareils et sait réinitialiser celle-ci, qui n'es
 mais cela les immobilise le temps de la procédure.
 
 La convention est commune à toutes les apps du conteneur : emplacement, alias, chemin absolu et
-câblage Gradle dans [`../../android-signing-guide.md`](../../android-signing-guide.md).
+câblage Gradle dans [`../../docs/android-signing-guide.md`](../../docs/android-signing-guide.md).
 
 ```bash
 cd ../.deckhand-secrets

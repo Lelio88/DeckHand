@@ -61,7 +61,7 @@ COFFRE = RACINE / ".deckhand-secrets"
 #: de `.play-secrets/`. La dupliquer par application donnerait deux endroits à
 #: mettre à jour lors d'une rotation, donc un des deux oublié — et une
 #: application qui cesse d'envoyer sans que rien ne le signale.
-#: Voir `../../brevo-email-guide.md`.
+#: Voir `../../docs/brevo-email-guide.md`.
 COFFRE_BREVO = RACINE / ".brevo-secrets"
 
 GABARITS = Path(__file__).resolve().parent.parent / "supabase" / "templates"
