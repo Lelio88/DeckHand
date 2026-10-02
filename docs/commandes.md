@@ -305,3 +305,24 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 # serveur OAuth des assistants IA
 cd api && .venv/Scripts/python push_auth_config.py             # --verifier pour lire
 ```
+
+## 9. Serveur MCP des assistants IA
+
+Annexe : [`mcp-architecture.md`](./mcp-architecture.md). Deno 2 sur `E:\dev\deno`
+(`DENO_DIR` = `E:\dev\deno-cache`).
+
+```bash
+# Tests sans réseau (règle « l'outil ne devine pas », orchestration sur fausse base),
+# types, lint, format
+cd supabase/functions/mcp && deno test && deno check index.ts && deno lint && deno fmt --check
+
+# Servir la fonction sur la pile locale (démarrée comme au §8)
+supabase functions serve                     # → http://127.0.0.1:54321/functions/v1/mcp
+# Découverte : 401 + WWW-Authenticate sans jeton, métadonnée qui désigne /auth/v1
+curl -i -X POST http://127.0.0.1:54321/functions/v1/mcp
+curl http://127.0.0.1:54321/functions/v1/mcp/oauth-protected-resource
+
+# Déployer (jeton d'accès Supabase du coffre, jamais affiché) ; sans vérification
+# de jeton à la passerelle, la fonction le vérifie elle-même
+SUPABASE_ACCESS_TOKEN=… supabase functions deploy mcp --project-ref <ref> --no-verify-jwt
+```

@@ -380,6 +380,12 @@ enabled = true
 authorization_url_path = "/oauth-consent.html"
 allow_dynamic_registration = true
 
+# Le serveur MCP vérifie lui-même le jeton (`withSupabase`) : la passerelle ne
+# doit pas le refuser avant, sans quoi la découverte OAuth, qui répond à un
+# client encore sans jeton, ne serait jamais servie.
+[functions.mcp]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

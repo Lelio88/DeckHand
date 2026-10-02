@@ -551,9 +551,11 @@ porte publique que le classeur, avec une autre page derrière.
 
 L'issue faisait dépendre l'overlay du mode temps réel (#8). **Ce n'était pas
 nécessaire** : le journal des mouvements existe déjà, et une carte qui entre en
-collection est exactement une carte reconnue puis confirmée. Le garde-fou §IV.8
-s'en trouve respecté sans effort — rien n'est publié en direct que l'utilisateur
-n'ait validé.
+collection est exactement une carte reconnue puis confirmée — dans l'application,
+par l'utilisateur (§IV.8), ou par un assistant IA qu'il a autorisé, dont l'outil
+n'écrit que les noms exacts ([`mcp-architecture.md`](./mcp-architecture.md)). Le
+journal ne distingue pas les deux : les ajouts d'un assistant passent au calque
+comme les autres.
 
 ### Le piège : un journal contourne les choix de partage
 

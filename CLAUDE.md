@@ -12,7 +12,7 @@ Usage privé (le propriétaire et quelques amis) sur un dépôt public. Ni produ
 
 ## II. Architecture
 
-**Modèle** : monorepo à deux têtes, sans serveur intermédiaire. `app/` (Flutter, mobile + web) parle **directement** à Supabase ; `api/` ne contient que des jobs d'ingestion et d'indexation, lancés à la main. Le moteur de matching vit dans la base, en fonctions SQL. La reconnaissance de cartes s'exécute **embarquée dans l'app**.
+**Modèle** : monorepo à deux têtes, sans serveur intermédiaire. `app/` (Flutter, mobile + web) parle **directement** à Supabase ; `api/` ne contient que des jobs d'ingestion et d'indexation, lancés à la main. Le moteur de matching vit dans la base, en fonctions SQL. La reconnaissance de cartes s'exécute **embarquée dans l'app**. Seule exception hébergée : le serveur MCP des assistants IA, une Edge Function **sans logique métier** dont chaque outil appelle une fonction SQL.
 
 **Détails complets** : [`docs/architecture.md`](./docs/architecture.md), qui sert d'index aux annexes.
 
@@ -21,6 +21,7 @@ Topologie rapide :
 - `app/lib/src/common/` et `config/` — images en cache, délais de requête, jeu sélectionné, écriture lue par l'OCR, langue du nom des cartes ; `app/tool/` — bancs de mesure Dart
 - `api/app/ingestion/` — un connecteur isolé par source ; `api/app/vision/` — empreintes ; `api/app/measure/` — bancs de mesure ; `api/app/twitch/` — bot de chat en lecture, lancé le temps d'un direct
 - `supabase/migrations/` — fichiers horodatés, joués par `api/apply_migration.py`
+- `supabase/functions/mcp/` — serveur MCP des assistants IA : outils de lecture, écritures en lot sous la règle « l'outil ne devine pas » ([`docs/mcp-architecture.md`](./docs/mcp-architecture.md))
 
 ## III. Pile Technologique
 
@@ -28,7 +29,8 @@ Topologie rapide :
 
 - **`app/`** : Flutter (mobile + web), Riverpod, `image` (empreintes), `image_picker` + `image_cropper`, `camera` (flux temps réel), `speech_to_text`, `google_mlkit_text_recognition`, `shared_preferences`, `flutter_svg` ; compte : `google_sign_in_android` (Google ; jamais le paquet `google_sign_in`, dont la version web charge le script de Google), `flutter_secure_storage` (session chiffrée), `url_launcher` (pages légales)
 - **`api/`** : Python 3.11+, httpx, psycopg, Pillow, numpy — **chaque contrainte porte un plafond de majeure** : `numpy` et `Pillow` sont le seul chemin par lequel une bibliothèque peut dégrader la reconnaissance en silence, une empreinte au calcul modifié restant valide mais devenant incomparable au jumeau Dart
-- **Données** : Supabase — Postgres, Auth, Storage. Cloud uniquement, rien à déployer
+- **Données** : Supabase — Postgres, Auth (serveur OAuth 2.1 des assistants), Storage. Cloud uniquement ; seule la fonction `mcp` se déploie
+- **`supabase/functions/mcp/`** : TypeScript sur Deno 2, versions exactes dans son `deno.json` — SDK MCP serveur 2.x, `@supabase/server` (OAuth, client borné à l'utilisateur), zod 4
 - **Sources** : Scryfall (catalogue, prix), TopDeck.gg (decks), MTGJSON (précons), Riftcodex (catalogue Riftbound), Lorcast (catalogue et prix Lorcana), TCGCSV (prix Riftbound, Yu-Gi-Oh et Pokémon), BCE (taux de change), YGOPRODeck (catalogue Yu-Gi-Oh), TCGdex (catalogue Pokémon), Limitless TCG (decks Pokémon), Wankuldex (catalogue Wankul, sous autorisation)
 
 ## IV. Garde-Fous non négociables
@@ -40,7 +42,7 @@ Topologie rapide :
 5. **Les prix ne changent qu'une fois par jour.** Toute re-interrogation plus fréquente est du gaspillage.
 6. **Un connecteur isolé par source de decks.** Aucune dépendance à une source ne remonte dans le cœur du produit.
 7. **Secrets hors dépôt**, dans `../.deckhand-secrets/`. Les clés de publication viennent des secrets d'actions, jamais du dépôt.
-8. **Toute carte identifiée passe par une confirmation utilisateur.** L'**édition**, elle, est déduite sans geste quand rien ne reste à choisir — désigner l'unique candidat n'apporte aucune information que la carte ne porte déjà. Dès que deux cases subsistent, l'utilisateur choisit — **seul l'écran Ajouter propose alors d'office** l'édition de la carte qu'il possède le plus, **affichée sur la ligne avant l'appui** : « + » vaut choix, et rien de possédé en édition précisée, rien de proposé.
+8. **Toute carte identifiée passe par une confirmation utilisateur.** L'**édition**, elle, est déduite sans geste quand rien ne reste à choisir — désigner l'unique candidat n'apporte aucune information que la carte ne porte déjà. Dès que deux cases subsistent, l'utilisateur choisit — **seul l'écran Ajouter propose alors d'office** l'édition de la carte qu'il possède le plus, **affichée sur la ligne avant l'appui** : « + » vaut choix, et rien de possédé en édition précisée, rien de proposé. **Un assistant IA autorisé écrit sans confirmation carte par carte**, sous une règle qui en tient lieu : l'outil **ne devine pas** — nom exact seulement, édition désignée ou unique, sinon pile à trier ; tout le reste revient refusé avec ses choix (`supabase/functions/mcp/resolution.ts`).
 9. **Une source sans conditions publiées reçoit celles de Scryfall** — `User-Agent` descriptif, débit bas, attribution visible. Vaut pour Riftcodex, TCGCSV, YGOPRODeck — dont le guide d'API tient lieu de conditions et **demande** le stockage local — TCGdex, dont le catalogue Pokémon est ingéré, Limitless TCG, qui ne publie aucune condition (404 sur `/terms`), **SWU-DB** (404 sur `/terms` et `/about`, pas de `robots.txt`, API documentée publiquement) et **SWU Meta Stats**, qui annonce « a public read-only REST API […] require no authentication » et dont le 429 se respecte. Ne jamais réhéberger d'illustration.
 10. **Wankul est ingéré sous autorisation nominative de LINK DIGITAL SPIRIT**, éditeur du jeu, et par elle seule. Ses conditions (article 4) interdisent sinon « toute utilisation de robots, systèmes d'exploration de données et autres outils de collecte » — sans condition de finalité, donc y compris pour un usage privé. C'est le cas EDHREC du §IV.1, levé par un accord explicite : **le retirer remettrait la source hors la loi du projet**. **L'autorisation couvre aussi l'hébergement des illustrations, et c'est la seule source dans ce cas.** Son CDN refuse de les servir — `403 Hotlinking not allowed` sans `Referer`, avec un `Referer` étranger, et avec celui de `wankul.fr` : une politique, pas un en-tête à ajuster. Les rendus sont donc versés dans le bucket `card-art` (`app.ingestion.wankul_art_upload`) et `art_crop_url` pointe dessus. **Ce bucket n'est pas un cache générique** : un autre jeu n'y entre pas parce que son CDN a eu un hoquet, il y entre avec son propre accord — d'où le préfixe de jeu dans le chemin. **Les dos de cartes du calque y vivent sous la même règle** (`<jeu>/back.jpg`) : le calque est une *browser source*, une image servie sans CORS s'y fait bloquer en silence, et seule notre infrastructure la sert à coup sûr. Deux d'entre eux viennent de leur source sur parole écrite — YGOPRODeck *demande* la copie, Scryfall n'interdit que paywall, *repackaging* et déformation — et `app.ingestion.card_back_upload` refuse tout jeu dont l'accord n'est pas cité dans sa table. Les six autres sont des fichiers **fournis sur le disque** (`--scan`) : aucune source n'est alors interrogée ni réhébergée, et leur provenance relève de qui les fournit. Pour tout le reste, la règle reste de pointer l'URL de l'éditeur et de n'en rien garder (§IV.3, §IV.9). L'index d'empreintes, lui, ne dépend d'aucun des deux : il est bâti depuis un dossier local (`app.vision.local_index`). Débit de collecte : une requête toutes les deux secondes, le plus prudent du projet.
 11. **Le dépôt est public** : aucune donnée de source n'est commitée (dumps, decklists, index d'empreintes sont des artefacts générés) ; les attributions figurent dans le `README.md` ; le `.gitignore` couvre tous les caches.
@@ -76,6 +78,10 @@ cd api && .venv/Scripts/python -m app.twitch                       # --game rift
 
 # Migrations — jouées par psycopg, le CLI Supabase exigeant un lien interactif
 cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichier>.sql
+
+# Serveur MCP — tests sans réseau, types, lint ; servi sur la pile locale
+cd supabase/functions/mcp && deno test && deno check index.ts && deno lint && deno fmt --check
+supabase functions serve                                           # → 127.0.0.1:54321/functions/v1/mcp
 ```
 
 ## VII. Maintenance documentaire
@@ -93,6 +99,7 @@ cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichie
 | Nouveau gabarit d'illustration, ou nouvelle maquette | `api/app/vision/art_box.py` **et** `app/lib/src/features/scan/domain/art_box.dart` (jumeaux, un test lit le Dart) |
 | Écriture d'OCR ajoutée (japonais, chinois…) | `app/lib/src/config/ocr_script.dart` **et** `app/android/app/build.gradle.kts` (le greffon les déclare `compileOnly`) |
 | Nouvelle impasse mesurée | Section « impasses » de l'annexe concernée |
+| Outil MCP ajouté ou modifié | [`docs/mcp-architecture.md`](./docs/mcp-architecture.md) (table des outils) ; une écriture s'éprouve sur la fausse base de `ecriture_test.ts` |
 | Nouveau secret / clé d'API ; nouvelle commande ou banc de mesure | `../.deckhand-secrets/` (jamais dans le dépôt) ; [`docs/commandes.md`](./docs/commandes.md) |
 
 ## VIII. Contexte de Session

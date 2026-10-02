@@ -72,7 +72,10 @@ fonctions ; elle ne rapatrie jamais le corpus pour le comparer localement.
 
 **Aucun serveur intermédiaire.** L'application interroge Supabase directement ; le
 moteur de matching vit dans la base, sous forme de fonctions SQL. `api/` n'expose
-rien : ce sont des jobs lancés à la main ou par planification.
+rien : ce sont des jobs lancés à la main ou par planification. La seule fonction
+hébergée, le serveur MCP des assistants IA (`supabase/functions/mcp/`), est une
+Edge Function de Supabase sans logique métier : chaque outil appelle une
+fonction SQL de l'application ([`mcp-architecture.md`](./mcp-architecture.md)).
 
 **Répartition des rôles.** La reconnaissance *à l'exécution* est embarquée dans l'app ; la *construction de l'index* est un travail serveur. Python parcourt le catalogue Scryfall, télécharge chaque illustration, calcule son empreinte et la jette. L'app télécharge le résultat compact et travaille hors ligne.
 

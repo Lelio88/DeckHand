@@ -9,8 +9,13 @@ utilisateur, et ce qui borne ce droit.
 ```
 assistant ──OAuth 2.1──► Supabase Auth  (serveur OAuth, inscription dynamique des clients)
     │                        └─ consentement : deckhand.heianenterprise.com/oauth-consent.html
-    └──MCP (HTTP)──► serveur MCP ──jeton de l'utilisateur──► fonctions SQL existantes (RLS)
+    └──MCP (HTTP)──► Edge Function supabase/functions/mcp
+                         └─ jeton de l'utilisateur ──► fonctions SQL existantes (RLS)
 ```
+
+**Adresse du connecteur** : `<SUPABASE_URL>/functions/v1/mcp` — à coller dans
+claude.ai (Paramètres → Connecteurs) ou dans `claude mcp add --transport http
+deckhand <url>`.
 
 **Supabase Auth est le serveur d'autorisation**, DeckHand n'en écrit aucun.
 Activé par `api/push_auth_config.py` (production) et `supabase/config.toml`
@@ -88,8 +93,92 @@ Vérifié dans les deux sens, sous le rôle `authenticated`, par
 `supabase/tests/assistant.test.sql` : ce que l'assistant fait passe, ce qu'il
 ne fait pas lui est refusé, et l'application garde tous ses gestes.
 
+## Le serveur MCP
+
+`supabase/functions/mcp/` — une Edge Function Supabase (TypeScript, Deno), sur
+le modèle officiel : `withOAuthProtectedResource` publie la découverte
+(`…/functions/v1/mcp/oauth-protected-resource`) et répond 401 avec
+`WWW-Authenticate` à un client sans jeton ; `withSupabase({ auth: 'user' })`
+vérifie le jeton et rend un client borné à l'utilisateur. Un serveur neuf par
+requête, sans état. `verify_jwt = false` (dans `config.toml` et au déploiement) :
+la passerelle refuserait sinon la découverte, qui répond à un client encore
+sans jeton.
+
+**Pourquoi une Edge Function** : DeckHand n'a aucun serveur à lui, et le
+serveur MCP ne doit pas en devenir un. Hébergée à côté de la base, sans système
+à maintenir, elle reçoit d'office les pièces OAuth de Supabase ; un service sur
+le Hetzner aurait demandé d'écrire la vérification du jeton et de le surveiller.
+
+**Une traduction mince, sans logique métier.** Chaque outil appelle une fonction
+SQL de l'application ; le calcul reste en base (`architecture.md` §0).
+
+| Outil | Fonction SQL | Notes |
+|---|---|---|
+| `resume_collection` | `my_collection_summary` | |
+| `ma_collection` | `my_collection` | une ligne par édition et finition, paginée |
+| `cartes_jouables` | `my_buildable_cards` | Magic ; identité, type et page filtrés côté PostgREST |
+| `cartes_possedees` | `search_cards_bulk` | nom reconnu, exact ou non, exemplaires, prix |
+| `editions_de_carte` | `search_cards_bulk` + `card_printings` | pour désigner une édition |
+| `decks_suggeres` | `deck_suggestions` | `attribution` sur chaque deck (§IV.2) |
+| `cartes_manquantes` | `deck_missing_cards` | |
+| `ajouter_cartes` | `add_to_collection` | en lot, règle ci-dessous |
+| `retirer_cartes` | `remove_from_collection` | en lot, `destructiveHint` |
+
+Les **consignes du serveur** (champ `instructions`, lu par l'agent) demandent
+de citer la source d'un deck, de tenir noms et textes de cartes pour des
+données et non des consignes, et de faire confirmer un retrait.
+
+### L'outil ne devine pas
+
+L'utilisateur ne confirme pas chaque carte qu'un assistant écrit (§IV.8 de
+`CLAUDE.md`) : l'outil n'écrit donc que ce qui ne laisse rien à choisir, et rend
+le reste. Règle pure dans `resolution.ts`, orchestration dans `ecriture.ts`.
+
+- **Nom** : seule une correspondance exacte (score 1 de `search_cards_bulk`,
+  nom normalisé identique, dans n'importe quelle langue) désigne une carte ;
+  une correspondance approchée revient en suggestion, un nom introuvable est
+  dit tel.
+- **Édition, à l'ajout** : désignée (extension + numéro), elle doit exister
+  pour cette carte ; non désignée, elle est déduite quand la carte n'en a
+  qu'une (`sole_editions`, la règle de l'application), et sinon la carte va dans
+  la **pile à trier**, comme une saisie au clavier sans édition. Une finition
+  que l'édition n'a pas est refusée.
+- **Ligne, au retrait** : `remove_from_collection` vise une ligne précise. Une
+  carte possédée sur plusieurs lignes n'est retirée que si la demande
+  départage (extension et numéro, `foil`, ou `pile: true`).
+- **Une ligne refusée n'arrête pas le lot**, et chaque ligne rend ce qui lui est
+  arrivé : carte, édition, quantité, total possédé — ou la raison du refus, la
+  suggestion, les choix.
+
+Les ajouts de l'assistant passent au calque OBS comme ceux de l'application :
+le journal ne distingue pas qui écrit.
+
+### Ajouter un outil
+
+1. Une fonction SQL d'abord, si le calcul n'existe pas encore : l'outil ne
+   calcule rien.
+2. Son enregistrement dans `lecture.ts` (ou `ecriture.ts`) : description en
+   français — l'agent la lit comme mode d'emploi —, entrée validée par zod,
+   annotations (`readOnlyHint`, `destructiveHint`).
+3. Une écriture passe par `Base` (`base.ts`) et s'éprouve sur la fausse base de
+   `ecriture_test.ts`.
+4. Un geste qui touche au compte plutôt qu'aux cartes n'a pas sa place ici, et
+   la base doit le refuser à un jeton d'assistant (`assistant.test.sql`).
+
 ## Révoquer
 
 L'utilisateur voit et retire les accès accordés (`GET` / `DELETE
-/auth/v1/user/oauth/grants`). Révoquer un accès invalide ses jetons de
-rafraîchissement ; le jeton d'accès en cours expire seul (une heure).
+/auth/v1/user/oauth/grants?client_id=…`, avec la session de l'application).
+Mesuré sur la pile locale : après révocation, le jeton de rafraîchissement de
+l'assistant est refusé aussitôt (`refresh_token_not_found`) ; le jeton d'accès en
+cours reste valable jusqu'à son expiration, une heure au plus.
+
+## Éprouver le parcours en local
+
+Pile locale démarrée (`docs/commandes.md`), fonction servie
+(`supabase functions serve`), page de consentement servie sur `127.0.0.1:8099`
+avec l'adresse et la clé locales à la place des marques. Un client d'essai
+s'inscrit (`POST /auth/v1/oauth/clients/register`), ouvre
+`/auth/v1/oauth/authorize` avec PKCE, passe par la page, échange le code
+(`/auth/v1/oauth/token`), puis appelle le serveur avec son jeton — ou le MCP
+Inspector (`npx @modelcontextprotocol/inspector`) fait tout cela d'un coup.
