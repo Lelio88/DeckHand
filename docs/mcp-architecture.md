@@ -64,6 +64,11 @@ propre :
   (`deny`) sans que son adresse soit suivie ; l'assistant est désigné par
   l'adresse vérifiée, le nom qu'il se donne n'étant montré que comme « se
   présente comme » ;
+- **Google en un geste de plus** : le clic sur « Continuer avec Google »
+  charge le script de Google et ouvre aussitôt le sélecteur de compte du
+  navigateur (FedCM) ; le bouton officiel reste en secours. Référent
+  `strict-origin` : avec `no-referrer`, Google refuse son bouton et le
+  remplace par un bouton de secours que la CSP défigure ;
 - **la déconnexion est locale** (`/logout?scope=local`) : sans paramètre,
   GoTrue fermerait toutes les sessions du compte, téléphone compris ;
 - un compte Google sans compte DeckHand, créé par la connexion même, est

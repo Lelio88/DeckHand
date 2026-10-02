@@ -156,6 +156,7 @@
       callback: surJetonGoogle,
       ux_mode: 'popup',
       auto_select: false,
+      use_fedcm_for_prompt: true,
     });
     bouton.hidden = true;
     window.google.accounts.id.renderButton($('google-officiel'), {
@@ -166,7 +167,12 @@
       shape: 'rectangular',
       locale: 'fr',
     });
-    statut('Choisissez votre compte Google avec le bouton ci-dessus.');
+    // Le sélecteur de compte du navigateur (FedCM) s'ouvre aussitôt : il ne
+    // reste qu'à choisir son compte, au lieu de recliquer sur un bouton
+    // identique au nôtre. S'il ne s'ouvre pas (aucun compte Google connecté,
+    // sélecteur refermé peu avant), le bouton officiel reste là.
+    window.google.accounts.id.prompt();
+    statut("Choisissez votre compte Google dans la fenêtre qui s'ouvre, ou avec le bouton ci-dessus.");
   }
 
   /** Jeton d'identité rendu par Google : l'échanger contre une session. */

@@ -1463,7 +1463,12 @@ visible.
   journal, profil, partage, clé du calque. Depuis l'application (*Compte →
   Supprimer mon compte*, confirmation écrite : SUPPRIMER) et depuis le web
   (`app/web/suppression-compte.html`, connexion par mot de passe ou par
-  Google ; adresse et clé injectées par `pages.yml`). **Le déclencheur du
+  Google ; adresse et clé injectées par `pages.yml`). Le bouton Google n'est
+  chargé qu'au clic, qui ouvre aussitôt le sélecteur de compte du navigateur
+  (FedCM), le bouton officiel restant en secours. **Référent `strict-origin`,
+  jamais `no-referrer`** : le bouton de Google vérifie l'origine de la page,
+  et sans elle refuse son cadre pour un bouton de secours que la CSP défigure
+  (logo géant). **Le déclencheur du
   journal ignore les cases d'une collection qui disparaît** : il inscrivait
   sinon chaque retrait dans le journal d'une collection déjà effacée, et la clé
   étrangère faisait échouer toute suppression de compte.

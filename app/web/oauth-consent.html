@@ -11,7 +11,11 @@
        bouton de Google (chargé au clic) sont joignables. Le script refuse
        lui-même de tourner dans un cadre. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' https://accounts.google.com/gsi/style; img-src 'self'; connect-src __SUPABASE_URL__ https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; form-action 'none'; base-uri 'none'" />
-  <meta name="referrer" content="no-referrer" />
+  <!-- strict-origin et non no-referrer : le bouton de Google vérifie l'origine
+       de la page ; sans elle, il refuse son cadre et se rabat sur un bouton de
+       secours que la CSP défigure (logo géant). Seule l'origine part, jamais
+       l'adresse complète ni ses paramètres. -->
+  <meta name="referrer" content="strict-origin" />
   <title>DeckHand — Autoriser un assistant</title>
   <meta name="description" content="Autoriser un assistant IA à lire et modifier sa collection DeckHand." />
   <link rel="icon" type="image/png" href="favicon.png" />

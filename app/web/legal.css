@@ -125,6 +125,9 @@ button.google {
   background: #ffffff;
   border: 1px solid #747775;
 }
+/* Garde : si Google retombe un jour sur son bouton de secours, la CSP en bloque
+   les styles en ligne et son logo prendrait toute la largeur de la page. */
+#google-officiel svg { width: 18px; height: 18px; }
 p.ou { margin: 18px 0 0; color: var(--faint); }
 .status { margin-top: 16px; min-height: 1.6em; color: var(--text); }
 .status.error { color: var(--danger); }
