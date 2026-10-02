@@ -66,8 +66,7 @@ class CollectionFigure {
 /// demi-largeur d'écran, une espace ordinaire laisserait « 167,45 » et « € »
 /// tomber sur deux lignes, et le chiffre principal de la page se lirait en
 /// escalier.
-String euros(num value) =>
-    '${value.toStringAsFixed(2).replaceAll('.', ',')} €';
+String euros(num value) => '${value.toStringAsFixed(2).replaceAll('.', ',')} €';
 
 /// Les chiffres de gauche : ce que la collection contient.
 ///

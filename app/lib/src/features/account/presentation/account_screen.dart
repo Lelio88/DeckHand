@@ -195,7 +195,11 @@ Future<void> _reglerLeBooster(
 
   await ref
       .read(profileRepositoryProvider)
-      .saveBoosterSettings(jeu.id, cards: choix.cards, priceEur: choix.priceEur);
+      .saveBoosterSettings(
+        jeu.id,
+        cards: choix.cards,
+        priceEur: choix.priceEur,
+      );
   ref.invalidate(boosterPricesProvider);
   ref.invalidate(boosterSizesProvider);
 }

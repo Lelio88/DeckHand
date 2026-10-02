@@ -128,7 +128,9 @@ class _BoosterDialogState extends State<_BoosterDialog> {
         _erreurTaille = tailleFautive
             ? 'Un nombre de cartes, au moins une'
             : null;
-        _erreurPrix = prixFautif ? 'Un prix, en euros — par exemple 6,90' : null;
+        _erreurPrix = prixFautif
+            ? 'Un prix, en euros — par exemple 6,90'
+            : null;
       });
       return;
     }

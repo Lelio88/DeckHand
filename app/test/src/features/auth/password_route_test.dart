@@ -60,11 +60,7 @@ void main() {
       // et devient le mot de passe du compte, que personne ne connaît.
       final auth = await pumpAuth(tester, const SignInScreen());
 
-      await fillSignUp(
-        tester,
-        password: 'motdepasse1',
-        confirm: 'motdepasse2',
-      );
+      await fillSignUp(tester, password: 'motdepasse1', confirm: 'motdepasse2');
 
       expect(auth.signUps, isEmpty);
       expect(find.textContaining('ne correspondent pas'), findsOneWidget);
@@ -77,11 +73,7 @@ void main() {
       // passerait le premier test sans rendre le moindre service.
       final auth = await pumpAuth(tester, const SignInScreen());
 
-      await fillSignUp(
-        tester,
-        password: 'motdepasse1',
-        confirm: 'motdepasse1',
-      );
+      await fillSignUp(tester, password: 'motdepasse1', confirm: 'motdepasse1');
 
       expect(auth.signUps, [('ami@exemple.fr', 'motdepasse1')]);
     });
@@ -139,7 +131,9 @@ void main() {
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), 'nouveaumdp1');
       await tester.enterText(fields.at(1), 'nouveaumdp2');
-      await tester.tap(find.widgetWithText(FilledButton, 'Changer le mot de passe'));
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Changer le mot de passe'),
+      );
       await tester.pumpAndSettle();
 
       expect(auth.passwordsSet, isEmpty);
@@ -154,7 +148,9 @@ void main() {
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), 'nouveaumdp1');
       await tester.enterText(fields.at(1), 'nouveaumdp1');
-      await tester.tap(find.widgetWithText(FilledButton, 'Changer le mot de passe'));
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Changer le mot de passe'),
+      );
       await tester.pumpAndSettle();
 
       expect(auth.passwordsSet, ['nouveaumdp1']);
@@ -170,7 +166,9 @@ void main() {
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), 'court');
       await tester.enterText(fields.at(1), 'court');
-      await tester.tap(find.widgetWithText(FilledButton, 'Changer le mot de passe'));
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Changer le mot de passe'),
+      );
       await tester.pumpAndSettle();
 
       expect(auth.passwordsSet, isEmpty);
