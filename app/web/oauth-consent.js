@@ -25,10 +25,23 @@
  *   dépend pas : l'assistant reçoit la sienne en échangeant le code.
  * - **Un consentement déjà donné** au même assistant fait répondre l'étape 2
  *   directement par une adresse de retour : on y va sans redemander.
- * - **L'adresse de retour est montrée** avant l'accord : c'est le seul moyen
- *   de reconnaître une application qui se ferait passer pour un assistant
- *   connu, l'inscription des clients étant ouverte. Une adresse en
- *   `javascript:`, `data:` ou `vbscript:` n'est jamais suivie.
+ * - **Seuls les assistants reconnus peuvent être autorisés** (`RETOURS_RECONNUS`).
+ *   Le jeton d'un assistant vaut presque la session de l'utilisateur : GoTrue
+ *   le laisse changer le mot de passe (pas de réidentification sur une session
+ *   de moins de 24 h) et lier une identité Google — mesuré sur la pile locale,
+ *   et hors de portée de la garde en base. L'inscription des clients étant
+ *   ouverte, une application malveillante peut s'appeler « Claude » ; elle ne
+ *   peut pas choisir où le code est remis sans le perdre. La page n'autorise
+ *   donc que les adresses de retour des assistants connus — claude.ai,
+ *   chatgpt.com, vscode.dev, Cursor — et celles de la machine même (Claude
+ *   Code, Cursor, VS Code écoutent sur `localhost`), où un code ne sort pas de
+ *   chez l'utilisateur. Toute autre adresse est refusée sans être suivie. Le
+ *   nom choisi par le client n'est montré que comme « se présente comme » :
+ *   c'est l'adresse vérifiée qui identifie l'assistant. Ajouter un assistant,
+ *   c'est ajouter une ligne à la liste, chemin compris (un domaine seul
+ *   laisserait passer une redirection ouverte de ce domaine).
+ * - Une adresse en `javascript:`, `data:` ou `vbscript:` n'est jamais suivie,
+ *   même reconnue par erreur.
  * - **Un compte Google sans compte DeckHand** en crée un à la connexion ; il
  *   est supprimé aussitôt, comme sur la page de suppression. Sa session est
  *   celle de cette page, sans `client_id` : la garde de l'assistant
@@ -51,6 +64,46 @@
   // Google vient elle-même de créer.
   const COMPTE_NEUF_MS = 10 * 1000;
   const SCHEMAS_INTERDITS = ['javascript:', 'data:', 'vbscript:'];
+  const MACHINE = ['localhost', '127.0.0.1', '[::1]'];
+
+  /** Les assistants qu'on peut autoriser, reconnus à leur adresse de retour. */
+  const RETOURS_RECONNUS = [
+    {
+      nom: 'Claude (claude.ai, Claude Desktop, mobile)',
+      reconnait: (u) => u.protocol === 'https:' && ['claude.ai', 'claude.com'].includes(u.hostname) &&
+        u.pathname === '/api/mcp/auth_callback',
+    },
+    {
+      nom: 'ChatGPT',
+      reconnait: (u) => u.protocol === 'https:' && u.hostname === 'chatgpt.com' &&
+        (u.pathname === '/connector_platform_oauth_redirect' || u.pathname.startsWith('/connector/oauth/')),
+    },
+    {
+      nom: 'VS Code',
+      reconnait: (u) => u.protocol === 'https:' && u.hostname === 'vscode.dev' && u.pathname === '/redirect',
+    },
+    {
+      nom: 'Cursor',
+      reconnait: (u) => u.protocol === 'cursor:' && u.host === 'anysphere.cursor-mcp' &&
+        u.pathname === '/oauth/callback',
+    },
+    {
+      nom: 'un outil installé sur cet ordinateur (Claude Code, Cursor, VS Code…)',
+      reconnait: (u) => u.protocol === 'http:' && MACHINE.includes(u.hostname),
+    },
+  ];
+
+  /** L'assistant reconnu pour cette adresse de retour, ou `null`. */
+  function assistantReconnu(adresse) {
+    let url;
+    try {
+      url = new URL(adresse);
+    } catch (_) {
+      return null;
+    }
+    const trouve = RETOURS_RECONNUS.find((r) => r.reconnait(url));
+    return trouve ? trouve.nom : null;
+  }
 
   const MESSAGES = {
     identifiants: 'Connexion impossible : vérifiez votre adresse et votre mot de passe. ' +
@@ -75,7 +128,7 @@
   }
 
   function afficher(etape) {
-    for (const id of ['connexion', 'demande', 'envoye', 'invalide', 'rien']) {
+    for (const id of ['connexion', 'demande', 'envoye', 'invalide', 'inconnu', 'rien']) {
       $(id).hidden = id !== etape;
     }
   }
@@ -157,10 +210,41 @@
     if (!reponse.ok) throw new Error('echec');
     const details = await reponse.json();
     if (details.redirect_url) {
+      // Déjà autorisé par le passé : on ne suit l'adresse que si elle reste
+      // celle d'un assistant reconnu.
+      if (!assistantReconnu(details.redirect_url)) {
+        montrerInconnu({}, details.redirect_url);
+        return;
+      }
       await retournerVers(details.redirect_url);
       return;
     }
+    if (!assistantReconnu(details.redirect_uri)) {
+      await refuserInconnu(details);
+      return;
+    }
     montrerDemande(details);
+  }
+
+  /** Clôt la demande d'un assistant inconnu, sans suivre son adresse. */
+  async function refuserInconnu(details) {
+    try {
+      await appeler(chemin() + '/consent', {
+        headers: avecJeton(),
+        body: JSON.stringify({ action: 'deny' }),
+      });
+    } catch (_) {
+      // La demande expire d'elle-même ; le refus n'est qu'une politesse.
+    }
+    montrerInconnu(details.client || {}, details.redirect_uri);
+    await seDeconnecter();
+  }
+
+  function montrerInconnu(client, adresse) {
+    $('inconnu-nom').textContent = client.name || 'Un assistant sans nom';
+    $('inconnu-retour').textContent = hoteDe(adresse);
+    afficher('inconnu');
+    statut('');
   }
 
   function hoteDe(adresse) {
@@ -174,7 +258,8 @@
 
   function montrerDemande(details) {
     const client = details.client || {};
-    $('client').textContent = client.name || 'Un assistant sans nom';
+    $('assistant').textContent = assistantReconnu(details.redirect_uri);
+    $('client').textContent = client.name || 'sans nom';
     $('compte').textContent = (details.user && details.user.email) || session.email;
     $('retour').textContent = hoteDe(details.redirect_uri);
     afficher('demande');
@@ -192,8 +277,9 @@
     await retournerVers(corps.redirect_url);
   }
 
-  async function apresConnexion() {
-    if (session.neuf) {
+  /** Après connexion ; seul un compte Google peut être né de la connexion même. */
+  async function apresConnexion(viaGoogle) {
+    if (viaGoogle && session.neuf) {
       // Aucun compte DeckHand derrière ce compte Google : la connexion vient
       // d'en créer un, qu'on efface aussitôt pour ne rien garder.
       const reponse = await appeler('/rest/v1/rpc/delete_my_account', {
@@ -264,7 +350,7 @@
     try {
       session = await ouvrirSession('/auth/v1/token?grant_type=id_token',
         { provider: 'google', id_token: reponse.credential }, 'google');
-      await apresConnexion();
+      await apresConnexion(true);
     } catch (erreur) {
       statut(MESSAGES[erreur.message] || MESSAGES.reseau, true);
     }
@@ -285,7 +371,7 @@
       session = await ouvrirSession('/auth/v1/token?grant_type=password',
         { email: email, password: motDePasse }, 'identifiants');
       $('password').value = '';
-      await apresConnexion();
+      await apresConnexion(false);
     } catch (erreur) {
       statut(MESSAGES[erreur.message] || MESSAGES.reseau, true);
     } finally {

@@ -58,10 +58,12 @@ jeton Google, jetons en mémoire seulement, adresse et clé injectées par
 `pages.yml`, refus de tourner dans un cadre, messages neutres. Ce qu'elle a en
 propre :
 
-- **l'adresse de retour est affichée** avant l'accord. L'inscription des
-  clients étant ouverte, c'est ce qui permet de reconnaître une application qui
-  se ferait passer pour un assistant connu ; une adresse en `javascript:`,
-  `data:` ou `vbscript:` n'est jamais suivie ;
+- **seuls les assistants reconnus peuvent être autorisés**, à leur adresse de
+  retour exacte, chemin compris (`RETOURS_RECONNUS`) — voir « Ce que le jeton
+  permet au-delà des outils » ci-dessous. Une demande inconnue est refusée
+  (`deny`) sans que son adresse soit suivie ; l'assistant est désigné par
+  l'adresse vérifiée, le nom qu'il se donne n'étant montré que comme « se
+  présente comme » ;
 - **la déconnexion est locale** (`/logout?scope=local`) : sans paramètre,
   GoTrue fermerait toutes les sessions du compte, téléphone compris ;
 - un compte Google sans compte DeckHand, créé par la connexion même, est
@@ -71,6 +73,48 @@ propre :
 Supabase n'accepte la lecture et la décision que depuis l'**origine du Site
 URL** : la page ne fonctionne que servie à `deckhand.heianenterprise.com` (ou
 `127.0.0.1:8099` sur la pile locale).
+
+### Les assistants reconnus
+
+| Assistant | Adresse de retour |
+|---|---|
+| Claude (claude.ai, Desktop, mobile) | `https://claude.ai/api/mcp/auth_callback` (et `claude.com`) |
+| ChatGPT | `https://chatgpt.com/connector_platform_oauth_redirect`, `…/connector/oauth/{id}` |
+| VS Code | `https://vscode.dev/redirect` |
+| Cursor | `cursor://anysphere.cursor-mcp/oauth/callback` |
+| Un outil de la machine (Claude Code, Cursor, VS Code) | `http://localhost`, `127.0.0.1`, `[::1]`, tout port et tout chemin |
+
+Une adresse sur la machine est sûre quel que soit son chemin : le code ne sort
+pas de chez l'utilisateur. Ailleurs, le chemin compte — un domaine seul
+laisserait passer une redirection ouverte de ce domaine. Ajouter un assistant,
+c'est une ligne de plus, avec son adresse exacte relevée dans sa documentation.
+
+## Ce que le jeton permet au-delà des outils
+
+Mesuré sur la pile locale, avec le jeton d'un assistant : GoTrue le laisse
+**changer le mot de passe** — aucune réidentification n'est exigée d'une session
+de moins de 24 h, et celle d'un assistant est neuve — et **tenter de lier une
+identité Google** (refusée ici faute d'un vrai jeton Google, pas à cause du
+`client_id`). Le changement d'adresse, lui, exige la confirmation des deux
+adresses. GoTrue n'offre aucun réglage pour restreindre un jeton OAuth, et la
+base n'y peut rien : ce ne sont pas des tables.
+
+Le jeton vaut donc presque la session de l'utilisateur, et la parade porte sur
+**qui peut en obtenir un** : la page de consentement est le seul endroit où
+l'utilisateur peut accorder l'accès — Supabase n'accepte la décision qu'avec sa
+session et depuis l'origine du Site URL —, et elle n'accorde qu'aux assistants
+reconnus. Une application malveillante peut s'appeler « Claude » ; elle ne peut
+pas faire remettre le code ailleurs qu'à l'adresse qu'elle a déclarée, et une
+adresse inconnue n'obtient rien. Le risque restant est celui de tout accès
+délégué : faire confiance à l'éditeur de l'assistant qu'on branche — d'où, sur
+la page, « n'autorisez qu'un assistant que vous utilisez vous-même ».
+
+Restent, pour qui détiendrait malgré tout un jeton : il peut faire accorder
+d'autres accès au nom de l'utilisateur (l'appel de décision n'exige qu'une
+en-tête `Origin`, qu'un programme forge) — la liste de l'application les montre
+tous, chacun révocable ; et il peut vider la collection par PostgREST sans la
+règle « ne devine pas » — chaque retrait est inscrit au journal des
+mouvements, donc réparable.
 
 ## La garde : un assistant agit sur les cartes, jamais sur le compte
 
@@ -85,7 +129,8 @@ soit le chemin :
 | Lire la collection, ajouter ou retirer des cartes | oui | oui |
 | Supprimer le compte (`delete_my_account`) | oui | **refusé** (42501) |
 | Modifier ou effacer la ligne `collections` — publier, dépublier, renommer | oui | **refusé** (zéro ligne touchée) |
-| Créer sa collection au premier ajout (`ensure_my_collection`) | oui | oui |
+| Créer sa collection au premier ajout (`ensure_my_collection`) | oui | oui, privée et sans adresse seulement |
+| Écrire ses préférences (`profiles`) | oui | **refusé** |
 
 Déjà fermés à tout jeton `authenticated`, donc à l'assistant : la clé du calque,
 l'écriture du journal, les écritures du calque. Mot de passe et adresse

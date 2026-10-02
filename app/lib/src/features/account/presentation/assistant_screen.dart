@@ -83,6 +83,11 @@ class AssistantScreen extends ConsumerWidget {
                 Text('Le brancher', style: theme.textTheme.titleSmall),
                 const SizedBox(height: 8),
                 const Text(
+                  'Assistants reconnus : Claude (web, Desktop, mobile et Claude Code), '
+                  "ChatGPT, Cursor et VS Code. Un autre sera refusé au moment d'autoriser.",
+                ),
+                const SizedBox(height: 12),
+                const Text(
                   'claude.ai (web et application) : Paramètres → Connecteurs → Ajouter un '
                   "connecteur personnalisé, puis collez l'adresse. Claude ouvre une page "
                   'DeckHand : connectez-vous, puis autorisez.',

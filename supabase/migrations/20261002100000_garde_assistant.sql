@@ -21,8 +21,19 @@
 -- 1. supprimer le compte (`delete_my_account`) ;
 -- 2. modifier ou effacer la ligne `collections` : c'est elle qui publie un
 --    classeur (`is_public`, `slug`, portée), et l'effacer emporterait toute la
---    collection par cascade. L'**insertion** reste permise : le premier ajout
---    d'un nouveau compte crée sa collection (`ensure_my_collection`).
+--    collection par cascade. L'**insertion** reste permise, mais privée : le
+--    premier ajout d'un nouveau compte crée sa collection
+--    (`ensure_my_collection`, valeurs par défaut), jamais une collection déjà
+--    publiée ;
+-- 3. toucher aux préférences du compte (`profiles`) : jeux joués, langue,
+--    booster. Sans gravité, mais ce sont des réglages de la personne, pas des
+--    cartes.
+--
+-- **Ce que la base ne peut pas garder** : GoTrue accepte ce jeton pour changer
+-- le mot de passe (aucune réidentification n'est exigée d'une session de moins
+-- de 24 h) et pour lier une identité Google — mesuré sur la pile locale. Ce
+-- n'est pas une table : la parade est en amont, la page de consentement
+-- n'autorisant que les assistants reconnus (`app/web/oauth-consent.js`).
 --
 -- **Ce qu'il fait** : lire et modifier `collection_items` (choix de
 -- l'utilisateur : l'agent écrit directement, §IV.8 de `CLAUDE.md`), sous les
@@ -93,6 +104,39 @@ CREATE POLICY collections_assistant_no_delete
     ON public.collections
     AS RESTRICTIVE
     FOR DELETE
+    TO authenticated
+    USING ((auth.jwt() ->> 'client_id') IS NULL);
+
+-- L'insertion reste ouverte (premier ajout), mais une collection créée sous un
+-- jeton d'assistant naît privée et sans adresse.
+DROP POLICY IF EXISTS collections_assistant_insert_private ON public.collections;
+CREATE POLICY collections_assistant_insert_private
+    ON public.collections
+    AS RESTRICTIVE
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        (auth.jwt() ->> 'client_id') IS NULL
+        OR (NOT is_public AND slug IS NULL AND shared_sets IS NULL)
+    );
+
+-- ---------------------------------------------------------------------------
+-- 3. Les préférences du compte ne s'écrivent pas sous un jeton d'assistant
+-- ---------------------------------------------------------------------------
+
+DROP POLICY IF EXISTS profiles_assistant_no_insert ON public.profiles;
+CREATE POLICY profiles_assistant_no_insert
+    ON public.profiles
+    AS RESTRICTIVE
+    FOR INSERT
+    TO authenticated
+    WITH CHECK ((auth.jwt() ->> 'client_id') IS NULL);
+
+DROP POLICY IF EXISTS profiles_assistant_no_update ON public.profiles;
+CREATE POLICY profiles_assistant_no_update
+    ON public.profiles
+    AS RESTRICTIVE
+    FOR UPDATE
     TO authenticated
     USING ((auth.jwt() ->> 'client_id') IS NULL);
 

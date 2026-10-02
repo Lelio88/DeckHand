@@ -32,8 +32,9 @@
         <li><strong>Ajouter et retirer des cartes</strong> de votre collection, en votre nom.</li>
       </ul>
       <p>
-        Il ne pourra <strong>pas</strong> supprimer votre compte, publier ou dépublier votre classeur, ni
-        changer votre mot de passe.
+        DeckHand lui refuse la suppression de votre compte et la publication de votre classeur. Mais
+        l'accès accordé est celui de votre compte : <strong>n'autorisez qu'un assistant que vous
+        utilisez vous-même</strong>, et que vous venez de brancher.
       </p>
       <p>
         Ce que l'assistant lit est transmis à son éditeur (Anthropic pour Claude, par exemple), qui le
@@ -68,10 +69,10 @@
 
       <form id="demande" hidden novalidate>
         <h2>2. Autorisez-vous cet assistant&nbsp;?</h2>
-        <p><strong id="client"></strong> demande l'accès à la collection de <strong id="compte"></strong>.</p>
+        <p><strong id="assistant"></strong> demande l'accès à la collection de <strong id="compte"></strong>.</p>
         <p>
-          L'autorisation sera remise à l'adresse <strong id="retour"></strong>.
-          Si ce n'est pas celle de l'assistant que vous venez de brancher, refusez.
+          Il se présente comme «&nbsp;<span id="client"></span>&nbsp;» ; l'autorisation sera remise à
+          <strong id="retour"></strong>. Si vous n'êtes pas en train de brancher cet assistant, refusez.
         </p>
         <button type="submit">Autoriser</button>
         <button type="button" id="refuser" class="secondary">Refuser</button>
@@ -86,6 +87,20 @@
       <div id="invalide" hidden>
         <h2>Demande introuvable</h2>
         <p>Cette demande a expiré, a déjà servi, ou le lien est incomplet. Relancez la connexion depuis votre assistant.</p>
+      </div>
+
+      <div id="inconnu" hidden>
+        <h2>Assistant non reconnu</h2>
+        <p>
+          «&nbsp;<strong id="inconnu-nom"></strong>&nbsp;» demande l'accès, mais l'autorisation partirait
+          vers <strong id="inconnu-retour"></strong>, qui n'est l'adresse d'aucun assistant reconnu par
+          DeckHand. Par sécurité, la demande est refusée et rien ne lui a été transmis.
+        </p>
+        <p>
+          C'est un outil que vous utilisez&nbsp;? Écrivez à
+          <a href="mailto:heianenterpriseyt@gmail.com?subject=Assistant%20IA%20pour%20DeckHand">heianenterpriseyt@gmail.com</a>
+          en donnant son nom : il pourra être ajouté.
+        </p>
       </div>
 
       <div id="rien" hidden>
