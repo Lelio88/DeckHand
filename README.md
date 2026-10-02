@@ -39,11 +39,25 @@ partagé.
 **Demander à un assistant IA.** Claude, ChatGPT, Cursor ou VS Code se branchent sur votre
 collection par MCP : « construis-moi un Commander mono-vert avec mes cartes », « que me
 manque-t-il pour ce deck Pauper ? », « ajoute ces douze cartes ». L'assistant ne devine
-jamais une carte ni une édition ; il demande. Vous l'autorisez une fois sur une page
-DeckHand, et vous lui retirez l'accès quand vous voulez. Il ne peut ni supprimer votre
-compte, ni publier votre classeur. L'adresse et le mode d'emploi sont dans l'application
-(*Compte → Assistant IA*) et sur
-[deckhand.heianenterprise.com/assistant.html](https://deckhand.heianenterprise.com/assistant.html).
+jamais une carte ni une édition ; il demande. Il ne peut ni supprimer votre compte, ni
+publier votre classeur. → [Brancher un assistant IA](#brancher-un-assistant-ia)
+
+## Brancher un assistant IA
+
+1. **Copier l'adresse du connecteur** : dans l'application, *Compte → Assistant IA →
+   Copier l'adresse*, ou sur
+   [deckhand.heianenterprise.com/assistant.html](https://deckhand.heianenterprise.com/assistant.html).
+2. **L'ajouter à l'assistant** :
+   - claude.ai (web, Desktop, mobile) : *Paramètres → Connecteurs → Ajouter un connecteur
+     personnalisé*, puis coller l'adresse ;
+   - Claude Code : `claude mcp add --transport http --scope user deckhand <adresse>`, puis
+     `/mcp` → *deckhand* → *Authenticate* ;
+   - ChatGPT, Cursor, VS Code : la page ci-dessus donne le geste de chacun.
+3. **Autoriser** : l'assistant ouvre une page DeckHand. Connectez-vous avec votre compte
+   DeckHand (Google, ou adresse et mot de passe), vérifiez l'assistant et l'adresse
+   affichés, puis *Autoriser*. Seuls les assistants reconnus peuvent l'être.
+4. **Retirer l'accès**, à tout moment : *Compte → Assistant IA → Révoquer*, ou dans les
+   réglages de l'assistant.
 
 ## Pourquoi Pauper d'abord
 
