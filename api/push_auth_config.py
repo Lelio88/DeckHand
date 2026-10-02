@@ -29,7 +29,14 @@ engagent la conformité du projet et doivent se relire en revue :
 - **Google** : l'identifiant du client Web, audience des jetons que l'application
   échange (`kGoogleWebClientId`), et la liaison manuelle d'un compte Google à un
   compte existant. Aucun secret Google n'est poussé : l'échange d'un jeton
-  d'identité n'en a pas besoin.
+  d'identité n'en a pas besoin ;
+- **le serveur OAuth 2.1**, par lequel un assistant IA (claude.ai, Claude
+  Code…) obtient le droit d'agir sur la collection d'un utilisateur, à travers
+  le serveur MCP (`supabase/functions/mcp/`, `docs/mcp-architecture.md`).
+  L'**inscription dynamique** des clients est ouverte, parce que c'est ainsi
+  qu'un assistant se présente ; elle ne donne rien par elle-même, la page de
+  consentement (`app/web/oauth-consent.html`) exige une connexion DeckHand et un
+  « Autoriser » explicite.
 
 Le script est **idempotent** : le rejouer réapplique le même état.
 
@@ -75,6 +82,11 @@ RETOURS = ",".join([
     "deckhand://reset-password",
     "deckhand://login-callback",
 ])
+
+#: La page où Supabase envoie l'utilisateur quand un assistant demande l'accès,
+#: relative à `SITE`. Un fichier statique et non une route de l'application :
+#: le build web publié ne sait que lire des classeurs (`DECKHAND_PUBLIC_ONLY`).
+CONSENTEMENT = "/oauth-consent.html"
 
 #: « Lettres et chiffres », dans la notation de l'API de gestion : des groupes
 #: séparés par `:`, dont chacun doit fournir au moins un caractère.
@@ -142,6 +154,9 @@ def main() -> int:
             "external_google_enabled": True,
             "external_google_client_id": google["GOOGLE_WEB_CLIENT_ID"],
             "security_manual_linking_enabled": True,
+            "oauth_server_enabled": True,
+            "oauth_server_allow_dynamic_registration": True,
+            "oauth_server_authorization_path": CONSENTEMENT,
         },
         timeout=60,
     )
@@ -173,6 +188,9 @@ def rapporter(cfg: dict) -> int:
     print(f"google            : {cfg.get('external_google_enabled')} "
           f"(client {cfg.get('external_google_client_id')})")
     print(f"liaison manuelle  : {cfg.get('security_manual_linking_enabled')}")
+    print(f"serveur OAuth     : {cfg.get('oauth_server_enabled')} "
+          f"(inscription dynamique {cfg.get('oauth_server_allow_dynamic_registration')}, "
+          f"consentement {cfg.get('oauth_server_authorization_path')})")
     return 0
 
 

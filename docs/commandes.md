@@ -287,14 +287,21 @@ cd api && .venv/Scripts/python -m app.measure.profiles_rls
 # et ses refus (ancienne porte, clé fausse, empreintes illisibles…)
 cd api && .venv/Scripts/python -m app.measure.spotlight_rls
 # Suppression de compte, clé du calque et purges, sur une base JETABLE : un
-# Supabase local où les migrations ont été rejouées (le CLI refuse les deux
-# migrations au même horodatage : `supabase start` sans migrations, puis psql)
+# Supabase local où les migrations ont été rejouées. Le CLI refuse les deux
+# migrations au même horodatage : démarrer sans elles, puis les jouer par psql
+SUPABASE_DB_MIGRATIONS_ENABLED=false supabase start
+for f in $(ls supabase/migrations/*.sql | sort); do
+  docker exec -i supabase_db_DeckHand psql -q -v ON_ERROR_STOP=1 -U postgres -d postgres < "$f" || break
+done
 docker exec -i supabase_db_DeckHand psql -v ON_ERROR_STOP=1 -U postgres -d postgres < supabase/tests/conformite.test.sql
+# Garde de l'assistant IA : un jeton à client_id ne supprime ni ne publie rien
+docker exec -i supabase_db_DeckHand psql -v ON_ERROR_STOP=1 -U postgres -d postgres < supabase/tests/assistant.test.sql
 
 # Migrations — jouées par psycopg, le CLI Supabase exigeant un lien interactif
 cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichier>.sql
 
 # Config d'authentification : relais d'envoi, adresses de retour, gabarits,
-# confirmation exigée, règle du mot de passe, réidentification, Google
+# confirmation exigée, règle du mot de passe, réidentification, Google,
+# serveur OAuth des assistants IA
 cd api && .venv/Scripts/python push_auth_config.py             # --verifier pour lire
 ```

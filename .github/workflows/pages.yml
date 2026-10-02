@@ -79,18 +79,20 @@ jobs:
       - name: Polices de secours
         run: sh tools/web/fallback_fonts.sh app/build/web
 
-      # La page de suppression de compte parle à Supabase sans passer par
-      # Flutter : son adresse et sa clé publiable y sont posées ici, depuis les
-      # mêmes secrets. Une marque restée en place ferait une page qui ne
-      # joint aucun serveur — la compilation échoue plutôt.
-      - name: Serveur de la page de suppression
+      # La page de suppression de compte et celle du consentement d'un
+      # assistant parlent à Supabase sans passer par Flutter : leur adresse et
+      # leur clé publiable y sont posées ici, depuis les mêmes secrets. Une
+      # marque restée en place ferait une page qui ne joint aucun serveur — la
+      # compilation échoue plutôt.
+      - name: Serveur des pages de compte
         working-directory: app/build/web
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
-          sed -i "s#__SUPABASE_URL__#${SUPABASE_URL}#g; s#__SUPABASE_PUBLISHABLE_KEY__#${SUPABASE_PUBLISHABLE_KEY}#g" suppression-compte.js suppression-compte.html
-          if grep -q "__SUPABASE_" suppression-compte.js suppression-compte.html; then
+          PAGES="suppression-compte.js suppression-compte.html oauth-consent.js oauth-consent.html"
+          sed -i "s#__SUPABASE_URL__#${SUPABASE_URL}#g; s#__SUPABASE_PUBLISHABLE_KEY__#${SUPABASE_PUBLISHABLE_KEY}#g" $PAGES
+          if grep -q "__SUPABASE_" $PAGES; then
             echo "marque de remplacement restée en place" >&2
             exit 1
           fi

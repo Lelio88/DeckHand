@@ -9,6 +9,7 @@ et le moteur de suggestion.
 | [`collection-architecture.md`](./collection-architecture.md) | Classeurs, journal des mouvements, lecture publique et hébergement |
 | [`multi-game.md`](./multi-game.md) | Ce que chaque jeu autre que Magic a demandé : catalogues, prix, corpus de decks, gabarits |
 | [`spread-detection.md`](./spread-detection.md) | Détection multi-cartes sur une photo, et les impasses mesurées |
+| [`mcp-architecture.md`](./mcp-architecture.md) | Assistant IA : serveur OAuth, page de consentement, garde en base, serveur MCP |
 
 ---
 
@@ -1477,6 +1478,14 @@ visible.
 `supabase/tests/conformite.test.sql` éprouve la suppression, la clé du calque
 et les purges sur une base jetable (un Supabase local où les migrations ont été
 rejouées) : 25 contrôles, dans une transaction annulée.
+
+- **Un assistant IA** branché par l'utilisateur reçoit de Supabase Auth (serveur
+  OAuth 2.1) un jeton d'utilisateur qui porte en plus un `client_id`. Il lit et
+  modifie la collection comme l'application, mais **ne touche jamais au
+  compte** : ni suppression, ni publication du classeur — refusées en base,
+  quel que soit le chemin (`20261002100000_garde_assistant.sql`, éprouvée par
+  `supabase/tests/assistant.test.sql`). Parcours et page de consentement :
+  [`mcp-architecture.md`](./mcp-architecture.md).
 
 ### Les jeux joués, déclarés à l'inscription
 

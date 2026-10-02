@@ -372,14 +372,13 @@ enabled = false
 # Obtain from https://clerk.com/setup/supabase
 # domain = "example.clerk.accounts.dev"
 
-# OAuth server configuration
+# Serveur OAuth 2.1 : un assistant IA obtient par lui l'accès au serveur MCP
+# (`functions/mcp`). Même réglage que la production (`api/push_auth_config.py`,
+# qui fait foi) ; la page de consentement est un fichier statique de `app/web/`.
 [auth.oauth_server]
-# Enable OAuth server functionality
-enabled = false
-# Path for OAuth consent flow UI
-authorization_url_path = "/oauth/consent"
-# Allow dynamic client registration
-allow_dynamic_registration = false
+enabled = true
+authorization_url_path = "/oauth-consent.html"
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true
