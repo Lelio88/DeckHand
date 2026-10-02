@@ -451,7 +451,12 @@ le build n'a pas besoin de `--base-href`.
 les mentions légales, que `flutter build web` copie telles quelles. Une feuille
 commune (`legal.css`) et aucun script ni style inline. CanvasKit
 (`--no-web-resources-cdn`) et la police Roboto (`app/pubspec.yaml`) sont
-embarqués : la page d'un classeur ne tire plus rien des serveurs de Google.
+embarqués, et les polices de secours du moteur (Noto : noms de cartes en
+japonais ou en chinois, emoji ; ~21 Mo) sont copiées au build dans
+`fonts/fallback/` par `tools/web/fallback_fonts.sh`, où `web/flutter_bootstrap.js`
+(`fontFallbackBaseUrl`) pointe le moteur. La liste est relevée dans
+`main.dart.js`, donc suit Flutter, et le build échoue s'il manque un fichier :
+la page d'un classeur ne tire rien des serveurs de Google.
 
 ### Le bot de chat lit par la même porte
 

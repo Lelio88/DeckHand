@@ -19,9 +19,12 @@
 # rien de compilé n'entre dans l'historique.
 #
 # **Rien n'est tiré de chez Google pour s'afficher** : CanvasKit est embarqué
-# (`--no-web-resources-cdn`) au lieu de venir de `www.gstatic.com`, et la
-# police Roboto l'est aussi (`app/pubspec.yaml`). Chaque visite transmettait
-# sinon l'adresse IP du visiteur à Google sans son accord.
+# (`--no-web-resources-cdn`) au lieu de venir de `www.gstatic.com`, la police
+# Roboto l'est aussi (`app/pubspec.yaml`), et les polices de secours (noms de
+# cartes en japonais ou en chinois, emoji) sont copiées au build dans
+# `fonts/fallback/` (`tools/web/fallback_fonts.sh`), où `web/flutter_bootstrap.js`
+# pointe le moteur. Chaque visite transmettait sinon l'adresse IP du visiteur à
+# Google sans son accord.
 
 name: Classeur partagé
 
@@ -30,6 +33,7 @@ on:
     branches: [main]
     paths:
       - 'app/**'
+      - 'tools/web/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -71,6 +75,9 @@ jobs:
           --dart-define=DECKHAND_PUBLIC_ONLY=true
           --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           --dart-define=SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Polices de secours
+        run: sh tools/web/fallback_fonts.sh app/build/web
 
       # La page de suppression de compte parle à Supabase sans passer par
       # Flutter : son adresse et sa clé publiable y sont posées ici, depuis les
