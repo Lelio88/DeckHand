@@ -1,0 +1,4 @@
+Branchez un assistant IA sur votre collection.
+
+- Nouvel écran Compte → Assistant IA : l'adresse à copier pour Claude, ChatGPT, Cursor ou VS Code, et la liste des assistants autorisés, que vous révoquez d'un geste.
+- L'assistant lit votre collection, propose des decks avec vos cartes, et ajoute ou retire des cartes à votre demande. Il ne peut ni supprimer votre compte, ni publier votre classeur.
