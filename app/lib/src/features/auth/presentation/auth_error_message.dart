@@ -18,6 +18,7 @@ library;
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../data/auth_repository.dart' show isAlreadyLinkedToCaller;
 import 'password_rules.dart';
 
 const _identifiants = 'Adresse e-mail ou mot de passe incorrect.';
@@ -48,7 +49,12 @@ String authErrorMessage(Object error) {
     case 'over_email_send_rate_limit':
       return 'Trop de tentatives : réessayez dans quelques minutes.';
     case 'identity_already_exists':
-      return 'Ce compte Google est déjà lié à un autre compte DeckHand.';
+      // Seule exception à « par code » : GoTrue donne ce code aussi pour un
+      // compte Google déjà lié au sien. Le dépôt absorbe ce cas ; ceci empêche
+      // seulement d'accuser un autre compte à tort.
+      return isAlreadyLinkedToCaller(error)
+          ? 'Ce compte Google est déjà lié à votre compte.'
+          : 'Ce compte Google est déjà lié à un autre compte DeckHand.';
     case 'single_identity_not_deletable':
       return 'Impossible : c\'est votre seul moyen de connexion.';
     case 'google_sign_in_failed':

@@ -1445,8 +1445,15 @@ visible.
   alors l'adresse IP de chaque visiteur à Google. Un compte Google à la
   même adresse qu'un compte existant **le retrouve** : Supabase lie les
   identités d'une même adresse vérifiée. « Lier mon compte Google », dans
-  l'écran Compte, lie à la main (liaison manuelle activée) ; délier est refusé
-  quand Google est le seul moyen de connexion.
+  l'écran Compte, lie à la main (liaison manuelle activée) ; délier demande
+  confirmation, et est refusé quand Google est le seul moyen de connexion.
+  **Lier ou délier est toujours suivi de `refreshSession()`** (`linkThenRefresh`,
+  `unlinkGoogle`) : GoTrue répond à une liaison avec l'utilisateur chargé
+  *avant* elle, que le client enregistre tel quel — sans rafraîchir, la session
+  ne voit pas Google, l'écran propose de le lier encore, et le second essai
+  échoue en `identity_already_exists`. Ce code vaut aussi pour un compte Google
+  déjà lié **au sien** : seul le texte (« … to another user ») distingue le
+  compte d'un autre, et le cas « déjà le mien » n'est pas une erreur.
 - **Supprimer son compte** : `delete_my_account()` efface l'utilisateur du
   jeton, et la base emporte le reste par ses cascades — collection, cases,
   journal, profil, partage, clé du calque. Depuis l'application (*Compte →

@@ -127,16 +127,18 @@ class AuthRepository {
   /// sans réseau.
   GoogleLink? get linkedGoogle => googleLinkOf(_client.currentUser);
 
-  /// Lie un compte Google au compte connecté ; rend faux si l'utilisateur a
-  /// refermé le sélecteur.
+  /// Lie un compte Google au compte connecté et laisse [linkedGoogle] à jour ;
+  /// rend faux si l'utilisateur a refermé le sélecteur. Un compte Google déjà
+  /// lié à ce compte n'est pas une erreur ; lié à un autre, si.
   Future<bool> linkGoogle() async {
     final idToken = await _pickGoogleAccount();
     if (idToken == null) return false;
-    // Met à jour elle-même l'utilisateur de la session (ses identités), ce
-    // qui émet un changement d'état : l'écran Compte suit.
-    await _client.linkIdentityWithIdToken(
-      provider: OAuthProvider.google,
-      idToken: idToken,
+    await linkThenRefresh(
+      link: () => _client.linkIdentityWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+      ),
+      refresh: _client.refreshSession,
     );
     return true;
   }
@@ -184,6 +186,38 @@ GoogleLink? googleLinkOf(User? user) {
     canUnlink: identities.length > 1,
   );
 }
+
+/// Lie une identité, puis rafraîchit la session pour qu'elle y figure.
+///
+/// **GoTrue répond à une liaison avec l'utilisateur chargé avant elle** :
+/// l'identité est insérée en base sans être ajoutée à l'utilisateur renvoyé,
+/// et c'est lui que le client enregistre. Sans le rafraîchissement, qui
+/// recharge l'utilisateur depuis la base, [googleLinkOf] ne voit toujours pas
+/// Google et l'écran Compte propose de le lier encore.
+///
+/// Une identité **déjà liée à ce compte** (`identity_already_exists` avec
+/// « Identity is already linked », et non « … to another user ») veut dire
+/// qu'une session périmée la cachait : rien à lier, le rafraîchissement la
+/// révèle. Tout autre échec remonte, sans rafraîchissement.
+@visibleForTesting
+Future<void> linkThenRefresh({
+  required Future<void> Function() link,
+  required Future<void> Function() refresh,
+}) async {
+  try {
+    await link();
+  } on AuthException catch (e) {
+    if (!isAlreadyLinkedToCaller(e)) rethrow;
+  }
+  await refresh();
+}
+
+/// Vrai quand GoTrue refuse une liaison parce que l'identité est **déjà à
+/// l'appelant**. Le même code sert pour une identité liée à un autre compte :
+/// seul le texte (« … to another user ») les sépare.
+bool isAlreadyLinkedToCaller(AuthException e) =>
+    e.code == 'identity_already_exists' &&
+    !e.message.toLowerCase().contains('another user');
 
 /// Joue une inscription et répond si elle attend le courriel de confirmation,
 /// **sans jamais révéler que l'adresse était déjà inscrite** (guide de

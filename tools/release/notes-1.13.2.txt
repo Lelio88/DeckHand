@@ -1,0 +1,4 @@
+Lier son compte Google fonctionne du premier coup.
+
+- Une fois lié, l'écran Compte affiche l'adresse Google avec un bouton « Délier », qui demande confirmation.
+- Refaire la liaison d'un compte Google déjà lié au sien n'affiche plus « déjà lié à un autre compte DeckHand ».

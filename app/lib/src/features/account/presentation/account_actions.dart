@@ -6,9 +6,11 @@
 /// retour : une confirmation d'un seul appui se franchit par réflexe. La même
 /// épreuve que sur la page web de suppression.
 ///
-/// **La liaison Google suit la session.** Lier ou délier met à jour les
-/// identités de l'utilisateur, ce qui émet un changement d'état : la tuile
-/// relit `sessionProvider` et se redessine d'elle-même.
+/// **La liaison Google suit la session.** Lier ou délier rafraîchit la
+/// session (le dépôt s'en charge : GoTrue renvoie sinon l'utilisateur d'avant),
+/// ce qui émet un changement d'état : la tuile relit `sessionProvider` et se
+/// redessine d'elle-même. Délier demande confirmation : un moyen de connexion
+/// ne se retire pas d'un appui réflexe.
 library;
 
 import 'package:flutter/material.dart';
@@ -47,6 +49,32 @@ class _GoogleLinkTileState extends ConsumerState<GoogleLinkTile> {
     }
   }
 
+  Future<void> _confirmUnlink() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Délier votre compte Google ?'),
+        content: const Text(
+          'Vous ne pourrez plus vous connecter avec Google. Votre compte '
+          'DeckHand et votre collection ne changent pas.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Délier'),
+          ),
+        ],
+      ),
+    );
+    if (ok ?? false) {
+      await _run(ref.read(authRepositoryProvider).unlinkGoogle);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(sessionProvider); // se redessine quand les identités changent
@@ -71,7 +99,7 @@ class _GoogleLinkTileState extends ConsumerState<GoogleLinkTile> {
       subtitle: Text(link.email ?? 'Connexion avec Google active'),
       trailing: link.canUnlink
           ? TextButton(
-              onPressed: _busy ? null : () => _run(repository.unlinkGoogle),
+              onPressed: _busy ? null : _confirmUnlink,
               child: const Text('Délier'),
             )
           : null,
@@ -108,7 +136,10 @@ class DeleteAccountTile extends ConsumerWidget {
     final theme = Theme.of(context);
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(Icons.delete_forever_outlined, color: theme.colorScheme.error),
+      leading: Icon(
+        Icons.delete_forever_outlined,
+        color: theme.colorScheme.error,
+      ),
       title: Text(
         'Supprimer mon compte',
         style: TextStyle(color: theme.colorScheme.error),

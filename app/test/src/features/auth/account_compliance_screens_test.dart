@@ -3,7 +3,8 @@
 ///
 /// **Ce que ces tests protègent.** Qu'une inscription mène toujours au même
 /// écran « Vérifiez vos e-mails » ; que le bouton Google n'apparaisse que là où
-/// il fonctionne ; que la suppression du compte ne parte qu'une fois
+/// il fonctionne ; qu'un compte Google lié s'affiche aussitôt, et ne se délie
+/// qu'après confirmation ; que la suppression du compte ne parte qu'une fois
 /// SUPPRIMER écrit ; que les pages légales s'ouvrent à leur adresse publiée.
 library;
 
@@ -125,19 +126,47 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(auth.googleLinks, 1);
+      expect(find.text('Compte Google lié'), findsOneWidget);
+      expect(find.text('moi@gmail.com'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Délier'), findsOneWidget);
     });
 
-    testWidgets('la tuile ne propose pas de délier le seul moyen de connexion', (
-      tester,
-    ) async {
+    testWidgets('délier demande confirmation', (tester) async {
       final auth = FakeAuthRepository()
         ..googleAvailable = true
-        ..google = const GoogleLink(email: 'moi@gmail.com', canUnlink: false);
+        ..google = const GoogleLink(email: 'moi@gmail.com', canUnlink: true);
       await _pump(tester, const GoogleLinkTile(), auth: auth);
+      final confirmer = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextButton, 'Délier'),
+      );
 
-      expect(find.text('moi@gmail.com'), findsOneWidget);
-      expect(find.text('Délier'), findsNothing);
+      await tester.tap(find.widgetWithText(TextButton, 'Délier'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Annuler'));
+      await tester.pumpAndSettle();
+      expect(auth.googleUnlinks, 0);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Délier'));
+      await tester.pumpAndSettle();
+      await tester.tap(confirmer);
+      await tester.pumpAndSettle();
+      expect(auth.googleUnlinks, 1);
+      expect(find.text('Lier mon compte Google'), findsOneWidget);
     });
+
+    testWidgets(
+      'la tuile ne propose pas de délier le seul moyen de connexion',
+      (tester) async {
+        final auth = FakeAuthRepository()
+          ..googleAvailable = true
+          ..google = const GoogleLink(email: 'moi@gmail.com', canUnlink: false);
+        await _pump(tester, const GoogleLinkTile(), auth: auth);
+
+        expect(find.text('moi@gmail.com'), findsOneWidget);
+        expect(find.text('Délier'), findsNothing);
+      },
+    );
   });
 
   group('la suppression du compte', () {

@@ -94,8 +94,10 @@ void main() {
 
     test('aucun message ne dit qu\'une adresse est déjà inscrite', () {
       final message = authErrorMessage(
-        const AuthApiException('User already registered',
-            code: 'user_already_exists'),
+        const AuthApiException(
+          'User already registered',
+          code: 'user_already_exists',
+        ),
       );
       expect(message.toLowerCase(), isNot(contains('existe')));
       expect(message.toLowerCase(), isNot(contains('déjà inscrit')));
@@ -138,7 +140,8 @@ void main() {
     test('une autre erreur remonte', () async {
       expect(
         () => blindSignUp(
-          () async => throw const AuthApiException('weak', code: 'weak_password'),
+          () async =>
+              throw const AuthApiException('weak', code: 'weak_password'),
         ),
         throwsA(isA<AuthException>()),
       );
@@ -161,6 +164,68 @@ void main() {
     test('délier est refusé quand Google est le seul', () {
       final link = googleLinkOf(_user([_identity('google')]));
       expect(link?.canUnlink, isFalse);
+    });
+  });
+
+  group('la liaison d\'un compte Google', () {
+    const dejaLeMien = AuthApiException(
+      'Identity is already linked',
+      statusCode: '422',
+      code: 'identity_already_exists',
+    );
+    const celuiDUnAutre = AuthApiException(
+      'Identity is already linked to another user',
+      statusCode: '422',
+      code: 'identity_already_exists',
+    );
+
+    test('rafraîchit la session une fois la liaison faite', () async {
+      final appels = <String>[];
+      await linkThenRefresh(
+        link: () async => appels.add('lier'),
+        refresh: () async => appels.add('rafraîchir'),
+      );
+      // GoTrue répond à la liaison avec l'utilisateur d'avant : seul le
+      // rafraîchissement fait entrer la nouvelle identité dans la session.
+      expect(appels, ['lier', 'rafraîchir']);
+    });
+
+    test(
+      'un compte Google déjà lié à ce compte n\'est pas une erreur',
+      () async {
+        var rafraichi = false;
+        await linkThenRefresh(
+          link: () async => throw dejaLeMien,
+          refresh: () async => rafraichi = true,
+        );
+        expect(rafraichi, isTrue);
+      },
+    );
+
+    test(
+      'un compte Google lié à quelqu\'un d\'autre échoue toujours',
+      () async {
+        var rafraichi = false;
+        await expectLater(
+          linkThenRefresh(
+            link: () async => throw celuiDUnAutre,
+            refresh: () async => rafraichi = true,
+          ),
+          throwsA(same(celuiDUnAutre)),
+        );
+        expect(rafraichi, isFalse);
+      },
+    );
+
+    test('le message ne prête pas à un autre le compte qu\'on a déjà', () {
+      expect(
+        authErrorMessage(dejaLeMien),
+        'Ce compte Google est déjà lié à votre compte.',
+      );
+      expect(
+        authErrorMessage(celuiDUnAutre),
+        'Ce compte Google est déjà lié à un autre compte DeckHand.',
+      );
     });
   });
 
