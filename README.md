@@ -36,6 +36,15 @@ quel nom — l'adresse se dicte. Un bot Twitch lit par cette même porte : `!car
 répond « Marvel Super Heroes #174, page 20 case 3 », et rien de ce que vous n'avez pas
 partagé.
 
+**Demander à un assistant IA.** Claude, ChatGPT, Cursor ou VS Code se branchent sur votre
+collection par MCP : « construis-moi un Commander mono-vert avec mes cartes », « que me
+manque-t-il pour ce deck Pauper ? », « ajoute ces douze cartes ». L'assistant ne devine
+jamais une carte ni une édition ; il demande. Vous l'autorisez une fois sur une page
+DeckHand, et vous lui retirez l'accès quand vous voulez. Il ne peut ni supprimer votre
+compte, ni publier votre classeur. L'adresse et le mode d'emploi sont dans l'application
+(*Compte → Assistant IA*) et sur
+[deckhand.heianenterprise.com/assistant.html](https://deckhand.heianenterprise.com/assistant.html).
+
 ## Pourquoi Pauper d'abord
 
 Les boosters sont majoritairement composés de cartes communes. Une collection ordinaire est
@@ -54,7 +63,9 @@ Deux têtes dans un seul dépôt, et **aucun serveur** entre les deux :
   decklists, et pour construire l'index d'empreintes que l'application télécharge.
 
 Le reste — base de données, authentification, calcul des suggestions — vit dans Supabase,
-sous forme de fonctions SQL.
+sous forme de fonctions SQL. Une seule fonction y est hébergée, sans logique propre : le
+serveur MCP des assistants IA (`supabase/functions/mcp/`), dont chaque outil appelle une de
+ces fonctions SQL.
 
 → Détail technique dans [`docs/architecture.md`](./docs/architecture.md).
 

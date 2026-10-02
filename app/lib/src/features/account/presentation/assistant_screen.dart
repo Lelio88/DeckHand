@@ -113,14 +113,24 @@ class AssistantScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: () => ref.read(externalLinkOpenerProvider)(
-                      Uri.parse('$webBase/privacy.html#destinataires'),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    // La page complète : outils, paramètres, branchement de
+                    // chaque assistant — celle que l'assistant lit aussi.
+                    TextButton(
+                      onPressed: () => ref.read(externalLinkOpenerProvider)(
+                        LegalLinks.assistant,
+                      ),
+                      child: const Text("Mode d'emploi complet"),
                     ),
-                    child: const Text("Ce que reçoit l'assistant"),
-                  ),
+                    TextButton(
+                      onPressed: () => ref.read(externalLinkOpenerProvider)(
+                        Uri.parse('$webBase/privacy.html#destinataires'),
+                      ),
+                      child: const Text("Ce que reçoit l'assistant"),
+                    ),
+                  ],
                 ),
               ],
             ),

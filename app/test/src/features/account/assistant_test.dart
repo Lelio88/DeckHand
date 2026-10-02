@@ -12,6 +12,7 @@ library;
 
 import 'dart:convert';
 
+import 'package:deckhand/src/common/legal_links.dart';
 import 'package:deckhand/src/features/account/data/assistant_repository.dart';
 import 'package:deckhand/src/features/account/presentation/assistant_screen.dart';
 import 'package:flutter/material.dart';
@@ -151,8 +152,9 @@ void main() {
   group('écran', () {
     Future<FauxGoTrue> ouvrir(
       WidgetTester tester,
-      List<Map<String, Object?>> lesAcces,
-    ) async {
+      List<Map<String, Object?>> lesAcces, {
+      List<Uri>? liensOuverts,
+    }) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(800, 1600);
       addTearDown(tester.view.reset);
@@ -161,6 +163,10 @@ void main() {
         ProviderScope(
           overrides: [
             assistantRepositoryProvider.overrideWithValue(gotrue.depot()),
+            externalLinkOpenerProvider.overrideWithValue((uri) async {
+              liensOuverts?.add(uri);
+              return true;
+            }),
           ],
           child: const MaterialApp(home: AssistantScreen()),
         ),
@@ -208,6 +214,16 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Accès retiré à Claude.'), findsOneWidget);
+    });
+
+    testWidgets("le mode d'emploi ouvre la page des assistants", (
+      tester,
+    ) async {
+      final liens = <Uri>[];
+      await ouvrir(tester, [], liensOuverts: liens);
+      await tester.tap(find.text("Mode d'emploi complet"));
+      await tester.pumpAndSettle();
+      expect(liens, [LegalLinks.assistant]);
     });
   });
 }

@@ -80,7 +80,7 @@ cd api && .venv/Scripts/python -m app.twitch                       # --game rift
 cd api && .venv/Scripts/python apply_migration.py ../supabase/migrations/<fichier>.sql
 
 # Serveur MCP — tests sans réseau, types, lint ; servi sur la pile locale
-cd supabase/functions/mcp && deno test && deno check index.ts && deno lint && deno fmt --check
+cd supabase/functions/mcp && deno test --allow-read && deno check index.ts && deno lint && deno fmt --check
 supabase functions serve                                           # → 127.0.0.1:54321/functions/v1/mcp
 ```
 
@@ -99,7 +99,7 @@ supabase functions serve                                           # → 127.0.0
 | Nouveau gabarit d'illustration, ou nouvelle maquette | `api/app/vision/art_box.py` **et** `app/lib/src/features/scan/domain/art_box.dart` (jumeaux, un test lit le Dart) |
 | Écriture d'OCR ajoutée (japonais, chinois…) | `app/lib/src/config/ocr_script.dart` **et** `app/android/app/build.gradle.kts` (le greffon les déclare `compileOnly`) |
 | Nouvelle impasse mesurée | Section « impasses » de l'annexe concernée |
-| Outil MCP ajouté ou modifié | [`docs/mcp-architecture.md`](./docs/mcp-architecture.md) (table des outils) ; une écriture s'éprouve sur la fausse base de `ecriture_test.ts` |
+| Outil MCP ajouté ou modifié | [`docs/mcp-architecture.md`](./docs/mcp-architecture.md) (table des outils) + `app/web/assistant.html`, la page publique (`documentation_test.ts` refuse qu'elle dérive) ; une écriture s'éprouve sur la fausse base de `ecriture_test.ts` |
 | Nouveau secret / clé d'API ; nouvelle commande ou banc de mesure | `../.deckhand-secrets/` (jamais dans le dépôt) ; [`docs/commandes.md`](./docs/commandes.md) |
 
 ## VIII. Contexte de Session

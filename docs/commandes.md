@@ -312,9 +312,9 @@ Annexe : [`mcp-architecture.md`](./mcp-architecture.md). Deno 2 sur `E:\dev\deno
 (`DENO_DIR` = `E:\dev\deno-cache`).
 
 ```bash
-# Tests sans réseau (règle « l'outil ne devine pas », orchestration sur fausse base),
-# types, lint, format
-cd supabase/functions/mcp && deno test && deno check index.ts && deno lint && deno fmt --check
+# Tests sans réseau (règle « l'outil ne devine pas », orchestration sur fausse base, page
+# publique fidèle aux outils — d'où --allow-read), types, lint, format
+cd supabase/functions/mcp && deno test --allow-read && deno check index.ts && deno lint && deno fmt --check
 
 # Servir la fonction sur la pile locale (démarrée comme au §8)
 supabase functions serve                     # → http://127.0.0.1:54321/functions/v1/mcp

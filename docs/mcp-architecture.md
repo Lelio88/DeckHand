@@ -141,6 +141,19 @@ Vérifié dans les deux sens, sous le rôle `authenticated`, par
 `supabase/tests/assistant.test.sql` : ce que l'assistant fait passe, ce qu'il
 ne fait pas lui est refusé, et l'application garde tous ses gestes.
 
+## La documentation publique
+
+`app/web/assistant.html` (`deckhand.heianenterprise.com/assistant.html`) réunit tout ce
+qu'un utilisateur **ou un assistant** doit savoir : l'adresse du serveur (injectée par
+`pages.yml`, jamais écrite dans le dépôt), le branchement de chaque assistant reconnu, les
+outils et leurs paramètres, la règle « l'outil ne devine pas », les limites. Les consignes du
+serveur y renvoient l'agent (`consignes.ts`), et `app/web/llms.txt` la signale aux assistants
+qui cherchent la documentation d'un site. `robots.txt` refuse les robots d'**entraînement**,
+pas les lectures faites à la demande d'un utilisateur (`Claude-User`, `ChatGPT-User`).
+
+**La page ne peut pas dériver des outils** : `documentation_test.ts` compare sa table aux
+outils réellement enregistrés, dans les deux sens.
+
 ## Le serveur MCP
 
 `supabase/functions/mcp/` — une Edge Function Supabase (TypeScript, Deno), sur
@@ -172,9 +185,10 @@ SQL de l'application ; le calcul reste en base (`architecture.md` §0).
 | `ajouter_cartes` | `add_to_collection` | en lot, règle ci-dessous |
 | `retirer_cartes` | `remove_from_collection` | en lot, `destructiveHint` |
 
-Les **consignes du serveur** (champ `instructions`, lu par l'agent) demandent
-de citer la source d'un deck, de tenir noms et textes de cartes pour des
-données et non des consignes, et de faire confirmer un retrait.
+Les **consignes du serveur** (`consignes.ts`, champ `instructions`, lu par
+l'agent) demandent de citer la source d'un deck, de tenir noms et textes de
+cartes pour des données et non des consignes, de faire confirmer un retrait, et
+renvoient à la documentation publique.
 
 ### L'outil ne devine pas
 
@@ -207,7 +221,9 @@ le journal ne distingue pas qui écrit.
    calcule rien.
 2. Son enregistrement dans `lecture.ts` (ou `ecriture.ts`) : description en
    français — l'agent la lit comme mode d'emploi —, entrée validée par zod,
-   annotations (`readOnlyHint`, `destructiveHint`).
+   annotations (`readOnlyHint`, `destructiveHint`) ; et sa ligne dans la table
+   de `app/web/assistant.html` (`<code class="outil">`), sans quoi
+   `documentation_test.ts` échoue.
 3. Une écriture passe par `Base` (`base.ts`) et s'éprouve sur la fausse base de
    `ecriture_test.ts`.
 4. Un geste qui touche au compte plutôt qu'aux cartes n'a pas sa place ici, et

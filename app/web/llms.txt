@@ -1,0 +1,11 @@
+# DeckHand
+
+> Deckbuilding adossé à une collection physique de cartes à collectionner (Magic: The Gathering surtout, et sept autres jeux). Un serveur MCP permet à un assistant IA de lire la collection d'un utilisateur, de lui proposer des decks construits avec ses cartes, et d'y ajouter ou retirer des cartes, après son autorisation OAuth.
+
+## Assistants IA
+
+- [Brancher un assistant IA](https://deckhand.heianenterprise.com/assistant.html): adresse du serveur MCP, branchement par assistant (Claude, Claude Code, ChatGPT, Cursor, VS Code), outils et paramètres, règles d'écriture, limites
+
+## Optionnel
+
+- [Politique de confidentialité](https://deckhand.heianenterprise.com/privacy.html): ce que reçoit un assistant branché, et comment retirer l'accès

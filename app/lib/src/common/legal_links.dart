@@ -20,7 +20,10 @@ abstract final class LegalLinks {
   static final Uri privacy = Uri.parse('$webBase/privacy.html');
   static final Uri terms = Uri.parse('$webBase/cgu.html');
   static final Uri legalNotice = Uri.parse('$webBase/mentions-legales.html');
-  static final Uri accountDeletion = Uri.parse('$webBase/suppression-compte.html');
+  static final Uri accountDeletion = Uri.parse(
+    '$webBase/suppression-compte.html',
+  );
+  static final Uri assistant = Uri.parse('$webBase/assistant.html');
 }
 
 /// Ouvre une adresse hors de l'application ; rend faux si rien n'a pu l'ouvrir.
@@ -28,5 +31,6 @@ abstract final class LegalLinks {
 /// Un provider plutôt qu'un appel direct à `url_launcher` : les tests le
 /// remplacent et vérifient l'adresse demandée sans ouvrir de navigateur.
 final externalLinkOpenerProvider = Provider<Future<bool> Function(Uri)>(
-  (ref) => (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
+  (ref) =>
+      (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
 );
