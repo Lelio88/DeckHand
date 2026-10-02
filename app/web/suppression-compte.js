@@ -15,7 +15,10 @@
  *   sinon le mot de passe à un autre serveur. La compilation échoue si l'une
  *   des deux marques ci-dessous reste en place.
  * - Jetons en mémoire seulement (ni localStorage ni cookie) ; « Annuler » et la
- *   fermeture de la page révoquent la session côté serveur.
+ *   fermeture de la page révoquent la session côté serveur — **celle de la page
+ *   seule** (`/logout?scope=local`). Sans paramètre, GoTrue révoque toutes les
+ *   sessions du compte : se connecter ici puis renoncer déconnectait aussi le
+ *   téléphone.
  * - Google : le script officiel (Google Identity Services) n'est chargé qu'au
  *   clic sur « Continuer avec Google », jamais pour un simple visiteur. Son
  *   bouton rend un jeton d'identité, échangé auprès de Supabase (grant
@@ -110,7 +113,7 @@
     const jeton = session.accessToken;
     session = null;
     try {
-      await appeler('/auth/v1/logout', { headers: { Authorization: 'Bearer ' + jeton }, keepalive: true });
+      await appeler('/auth/v1/logout?scope=local', { headers: { Authorization: 'Bearer ' + jeton }, keepalive: true });
     } catch (_) {
       // Le jeton d'accès expire seul au bout d'une heure ; rien d'autre à faire.
     }

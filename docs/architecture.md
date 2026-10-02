@@ -1468,7 +1468,9 @@ visible.
   (FedCM), le bouton officiel restant en secours. **Référent `strict-origin`,
   jamais `no-referrer`** : le bouton de Google vérifie l'origine de la page,
   et sans elle refuse son cadre pour un bouton de secours que la CSP défigure
-  (logo géant). **Le déclencheur du
+  (logo géant). « Annuler » et la fermeture de la page ne ferment que **la
+  session de la page** (`/logout?scope=local`) : sans paramètre, GoTrue révoque
+  toutes les sessions du compte, téléphone compris. **Le déclencheur du
   journal ignore les cases d'une collection qui disparaît** : il inscrivait
   sinon chaque retrait dans le journal d'une collection déjà effacée, et la clé
   étrangère faisait échouer toute suppression de compte.
