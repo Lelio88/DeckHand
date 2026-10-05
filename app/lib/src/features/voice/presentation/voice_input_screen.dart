@@ -29,48 +29,10 @@ import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/edition_line.dart';
 import '../../printings/presentation/printing_picker.dart' show PrintingChoice;
 import '../data/speech_service.dart';
+import '../data/spoken_printing_lookup.dart';
 import '../domain/dictation_parser.dart';
-
-/// Une carte dictée, avec ce que la recherche en a fait.
-class _Heard {
-  _Heard({
-    required this.spoken,
-    required this.quantity,
-    this.match,
-    this.alternatives = const [],
-  });
-
-  final String spoken;
-  int quantity;
-  final CardHit? match;
-  final List<CardHit> alternatives;
-
-  /// Édition retenue : d'office quand le catalogue n'en connaît qu'une, à la
-  /// main le reste du temps.
-  ///
-  /// **Elle se remplit seule, et se touche une fois l'écoute arrêtée.** La
-  /// dictée est la voie « mains occupées » : un sélecteur modal ouvert pendant
-  /// que le micro écoute laisserait les cartes s'accumuler derrière lui. Mais
-  /// cet argument tombe dès que l'on a coupé — c'est-à-dire au moment où l'on
-  /// relit sa liste avant de l'enregistrer, et où toutes les autres voies
-  /// d'ajout proposent de préciser. Sans ce geste, la dictée était la seule à
-  /// envoyer dans la pile à trier tout ce que le catalogue ne tranchait pas.
-  ///
-  /// Le remplissage d'office garde sa raison d'être : quand une carte n'admet
-  /// qu'une seule édition, la désigner n'apporte aucune information que la
-  /// carte elle-même ne porte déjà.
-  PrintingChoice? printing;
-
-  /// Vrai dès que l'utilisateur a lui-même statué sur l'édition.
-  ///
-  /// **Ce que ce drapeau protège.** Choisir « ne pas préciser » laisse
-  /// [printing] nul, exactement comme une carte jamais examinée ; sans marque,
-  /// la reprise de l'écoute relancerait le remplissage d'office et écraserait
-  /// ce choix par l'édition unique que l'on venait d'écarter.
-  bool printingIsUserSet = false;
-
-  bool get isResolved => match != null;
-}
+import '../domain/spoken_printing.dart';
+import 'heard_card.dart';
 
 extension _FirstOrNull<T> on List<T> {
   T? firstWhereOrNull(bool Function(T) test) {
@@ -90,7 +52,7 @@ class VoiceInputScreen extends ConsumerStatefulWidget {
 
 class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
   DictationLanguage _language = DictationLanguage.french;
-  final List<_Heard> _heard = [];
+  final List<HeardCard> _heard = [];
 
   bool _listening = false;
   bool _saving = false;
@@ -204,6 +166,7 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
 
     final cards = parseDictation(transcript);
     if (cards.isEmpty) return;
+    final added = <HeardCard>[];
 
     final repository = ref.read(cardRepositoryProvider);
     final found = await Future.wait(
@@ -229,9 +192,16 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
         // qu'on en a deux — mais deux lignes identiques à l'écran donnent
         // l'impression d'un bug, et empêchent de corriger la quantité d'un
         // geste. La collection reçoit le même total dans les deux cas.
+        //
+        // **Dans la même édition dite seulement.** « Foudre édition M21 »
+        // puis « foudre édition Dominaria » sont deux exemplaires distincts,
+        // qui ne se rangent pas dans la même case — « m21 » et « m 21 », eux,
+        // sont la même.
         if (match != null) {
           final existing = _heard.firstWhereOrNull(
-            (h) => h.match?.oracleId == match.oracleId,
+            (h) =>
+                h.match?.oracleId == match.oracleId &&
+                h.asked.sameRequest(cards[i].printing),
           );
           if (existing != null) {
             existing.quantity += cards[i].quantity;
@@ -239,18 +209,62 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
           }
         }
 
-        _heard.add(
-          _Heard(
-            spoken: cards[i].query,
-            quantity: cards[i].quantity,
-            match: match,
-            alternatives: hits.length > 1 ? hits.sublist(1) : const [],
-          ),
+        final heard = HeardCard(
+          spoken: cards[i].query,
+          quantity: cards[i].quantity,
+          match: match,
+          alternatives: hits.length > 1 ? hits.sublist(1) : const [],
+          asked: cards[i].printing,
         );
+        _heard.add(heard);
+        added.add(heard);
       }
       _partial = '';
     });
+    await _resolveSpokenEditions(added);
     await _fillSoleEditions();
+  }
+
+  /// Cherche l'édition dite des cartes qui viennent d'être entendues.
+  ///
+  /// Les recherches partent ensemble, comme celles des cartes ; un échec ne
+  /// coûte que l'édition de sa ligne, qui le dit.
+  ///
+  /// Le remplissage d'office qui suit ne peut pas défaire ce qui est établi
+  /// ici : l'édition unique d'une carte passe par la même résolution, donc par
+  /// l'extension dite, et une édition qui n'y répond pas n'est pas retenue.
+  Future<void> _resolveSpokenEditions(List<HeardCard> lines) async {
+    final asking = [
+      for (final item in lines)
+        if (item.match != null && item.asked.set != null) item,
+    ];
+    if (asking.isEmpty) return;
+
+    final repository = ref.read(printingRepositoryProvider);
+    final found = await Future.wait(
+      asking.map((item) async {
+        try {
+          return await lookUpSpokenPrinting(
+            repository,
+            oracleId: item.match!.oracleId,
+            lang: item.match!.matchedLang,
+            asked: item.asked,
+          );
+        } catch (_) {
+          return null;
+        }
+      }),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      for (var i = 0; i < asking.length; i++) {
+        asking[i].settle(
+          found[i]?.resolution,
+          pickerQuery: found[i]?.pickerQuery,
+        );
+      }
+    });
   }
 
   /// Précise d'office les cartes qui n'admettent qu'une seule édition.
@@ -296,15 +310,14 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
     if (!mounted || sole.isEmpty) return;
     setState(() {
       for (final item in _heard) {
-        if (item.printingIsUserSet) continue;
+        if (item.printingIsUserSet || item.printing != null) continue;
         final only = sole[item.match?.oracleId];
         if (only == null) continue;
-        // Une édition qui n'existe qu'en brillante l'est d'office : enregistrer
-        // sa jumelle normale reviendrait à inventer un exemplaire impossible.
-        item.printing ??= PrintingChoice(
-          only,
-          isFoil: !only.hasNonfoil && only.hasFoil,
-        );
+        // L'édition unique passe par la même résolution qu'une édition dite :
+        // retenue seulement si elle répond à l'extension entendue, brillante
+        // si la brillante est demandée et imprimée, et d'office quand elle
+        // n'existe qu'en brillante — sa jumelle normale n'existe pas.
+        item.settle(resolveSpokenPrinting(item.asked, [only]));
       }
     });
   }
@@ -394,10 +407,8 @@ class _VoiceInputScreenState extends ConsumerState<VoiceInputScreen> {
                                 setState(() => _heard.removeAt(index)),
                             onQuantity: (value) =>
                                 setState(() => _heard[index].quantity = value),
-                            onPrinting: (choice) => setState(() {
-                              _heard[index].printing = choice;
-                              _heard[index].printingIsUserSet = true;
-                            }),
+                            onPrinting: (choice) =>
+                                setState(() => _heard[index].choose(choice)),
                           ),
                         ),
                 ),
@@ -442,8 +453,9 @@ class _Hint extends StatelessWidget {
         children: [
           Text(
             listening
-                ? 'Enchaînez sans attendre : « quatre foudre, puis anneau solaire ». '
-                      'L\'écoute reprend d\'elle-même après chaque phrase.'
+                ? 'Enchaînez sans attendre : « quatre foudre édition M21, puis '
+                      'anneau solaire en foil ». L\'écoute reprend d\'elle-même '
+                      'après chaque phrase.'
                 : 'Appuyez sur le micro et dictez vos cartes les unes après les autres.',
             style: theme.textTheme.bodyMedium,
           ),
@@ -481,7 +493,7 @@ class _HeardTile extends StatelessWidget {
     required this.onPrinting,
   });
 
-  final _Heard item;
+  final HeardCard item;
 
   /// Vrai tant que l'utilisateur n'a pas coupé le micro.
   ///
@@ -544,7 +556,16 @@ class _HeardTile extends StatelessWidget {
                     printing: item.printing,
                     enabled: !listening,
                     onChanged: onPrinting,
+                    initialQuery: item.pickerQuery,
+                    preferFoil: item.asked.foil,
                   ),
+                  if (item.printing == null && item.note != null)
+                    Text(
+                      item.note!,
+                      style: muted,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
               ],
             ),
@@ -673,7 +694,9 @@ class _Empty extends StatelessWidget {
             Text('Aucune carte dictée', style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
             Text(
-              'Les quantités se disent avant le nom, et « puis » sépare deux cartes.',
+              'Les quantités se disent avant le nom, l\'édition et la finition '
+              'après : « deux foudre édition M21 numéro 137 brillante ». '
+              '« Puis » sépare deux cartes.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,

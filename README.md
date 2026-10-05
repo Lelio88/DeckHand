@@ -16,7 +16,7 @@ de cartes League of Legends.
 ## Ce que ça fait
 
 **Saisir.** Quatre chemins, du plus large au plus fin : photographier une dizaine de cartes
-étalées, dicter en continu, viser une carte, ou taper son nom. Le français et l'anglais sont
+étalées, dicter en continu (édition et finition comprises), viser une carte, ou taper son nom. Le français et l'anglais sont
 acceptés partout, et les fautes de frappe tolérées.
 
 **Ranger.** Un classeur est une extension, une case est un numéro. La page montre donc aussi

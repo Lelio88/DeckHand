@@ -76,12 +76,14 @@ Future<({_FakeSpeech speech, FakeCollectionRepository collection})> pumpVoice(
 
   /// Éditions que le sélecteur proposera, pour les cartes qui en ont plusieurs.
   List<CardPrinting> printings = const [],
+  Object? printingsError,
 }) async {
   final speech = _FakeSpeech();
   final collection = FakeCollectionRepository();
   final cards = FakeCardRepository()..results = catalogue;
   final printingRepo = FakePrintingRepository()
     ..printings = printings
+    ..forCardError = printingsError
     ..sole = sole
     ..soleError = soleError;
 
@@ -295,6 +297,278 @@ void main() {
             'le catalogue ne doit pas rendre une édition que l\'on vient '
             'd\'écarter',
       );
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(fakes.collection.added.single.printId, isNull);
+    });
+  });
+
+  group("l'édition et la finition se disent", () {
+    // **Ce que ce groupe protège.** Dire l'édition évite de la chercher au
+    // doigt une fois l'écoute arrêtée — mais une édition dite reste une
+    // édition entendue, donc parfois mal entendue. Elle n'est retenue que si
+    // rien ne reste à choisir (garde-fou §IV.8), et sinon la ligne dit
+    // pourquoi : « Préciser l'édition » seul laisserait croire qu'on n'a rien
+    // dit.
+    const m21 = CardPrinting(
+      printId: 'print-m21',
+      setCode: 'm21',
+      setName: 'Core Set 2021',
+      collectorNumber: '137',
+      lang: 'fr',
+      hasFoil: true,
+    );
+    const m21Vitrine = CardPrinting(
+      printId: 'print-m21-300',
+      setCode: 'm21',
+      setName: 'Core Set 2021',
+      collectorNumber: '300',
+      lang: 'fr',
+    );
+    const dmu = CardPrinting(
+      printId: 'print-dmu',
+      setCode: 'dmu',
+      setName: 'Dominaria United',
+      collectorNumber: '1',
+      lang: 'fr',
+    );
+    const dmr = CardPrinting(
+      printId: 'print-dmr',
+      setCode: 'dmr',
+      setName: 'Dominaria Remastered',
+      collectorNumber: '1',
+      lang: 'fr',
+    );
+
+    testWidgets("l'édition et la finition dites partent avec la carte", (
+      tester,
+    ) async {
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Foudre')],
+        printings: const [m21, m21Vitrine, dmu],
+      );
+
+      fakes.speech.say('foudre édition m21 numéro 137 brillante');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      final added = fakes.collection.added.single;
+      expect(added.printId, 'print-m21');
+      expect(added.isFoil, isTrue);
+    });
+
+    testWidgets("une extension qui laisse plusieurs éditions ouvre le "
+        "sélecteur sur elles", (tester) async {
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Foudre')],
+        printings: const [m21, dmu, dmr],
+      );
+
+      fakes.speech.say('foudre édition dominaria');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('plusieurs éditions'), findsOneWidget);
+
+      await tester.tap(find.text('Arrêter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text("Préciser l'édition"));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Dominaria Remastered'), findsOneWidget);
+      expect(
+        find.textContaining('Core Set 2021'),
+        findsNothing,
+        reason: "ce qui a été dit ne se retape pas : l'extension filtre déjà",
+      );
+
+      await tester.tap(find.textContaining('Dominaria United'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(fakes.collection.added.single.printId, 'print-dmu');
+    });
+
+    testWidgets("un nom approché, même seul candidat, se confirme au doigt", (
+      tester,
+    ) async {
+      // « dominaria » ne désigne pas Dominaria United : la carte n'existe que
+      // là, mais le mot dit pourrait être un mot mal entendu (garde-fou §IV.8).
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Foudre')],
+        printings: const [m21, dmu],
+      );
+
+      fakes.speech.say('foudre édition dominaria');
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Dominaria United ? À confirmer'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(fakes.collection.added.single.printId, isNull);
+    });
+
+    testWidgets('une extension introuvable est dite, et rien ne part', (
+      tester,
+    ) async {
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Foudre')],
+        printings: const [m21],
+      );
+
+      fakes.speech.say('foudre édition xyz');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('« xyz » introuvable'), findsOneWidget);
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(fakes.collection.added.single.printId, isNull);
+    });
+
+    testWidgets("une brillante que l'édition n'a jamais eue ne retient rien", (
+      tester,
+    ) async {
+      // Lequel des deux mots a été mal entendu ? Rien ne le dit : retenir
+      // l'édition sans la finition serait deviner.
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Foudre')],
+        printings: const [m21, m21Vitrine],
+      );
+
+      fakes.speech.say('foudre édition m21 numéro 300 brillante');
+      await tester.pumpAndSettle();
+      expect(find.textContaining("n'existe pas en brillante"), findsOneWidget);
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      final added = fakes.collection.added.single;
+      expect(added.printId, isNull);
+      expect(added.isFoil, isFalse);
+    });
+
+    testWidgets('chaque édition dite a sa ligne, et redire la même cumule', (
+      tester,
+    ) async {
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Foudre')],
+        printings: const [m21, dmu],
+      );
+
+      fakes.speech.say('foudre édition m21');
+      await tester.pumpAndSettle();
+      fakes.speech.say('foudre édition dominaria united');
+      await tester.pumpAndSettle();
+      fakes.speech.say('deux foudre édition m21');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(
+        {for (final a in fakes.collection.added) a.printId: a.quantity},
+        {'print-m21': 3, 'print-dmu': 1},
+      );
+    });
+
+    testWidgets("une édition dite n'est pas remplacée par l'édition unique", (
+      tester,
+    ) async {
+      // La carte n'a qu'une édition, et ce n'est pas celle qu'on a dite :
+      // la retenir quand même répondrait à côté de la demande.
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Agent d\'Atlas')],
+        sole: const {'id-1': mar},
+        printings: const [mar],
+      );
+
+      fakes.speech.say('agent d\'atlas édition xyz');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(fakes.collection.added.single.printId, isNull);
+    });
+
+    testWidgets("la brillante dite s'applique à l'édition unique", (
+      tester,
+    ) async {
+      const marBrillante = CardPrinting(
+        printId: 'print-mar',
+        setCode: 'mar',
+        setName: 'Marvel',
+        collectorNumber: '43',
+        lang: 'fr',
+        hasFoil: true,
+      );
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Agent d\'Atlas')],
+        sole: const {'id-1': marBrillante},
+      );
+
+      fakes.speech.say('agent d\'atlas foil');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      final added = fakes.collection.added.single;
+      expect(added.printId, 'print-mar');
+      expect(added.isFoil, isTrue);
+    });
+
+    testWidgets("la brillante sans édition ne part pas brillante, et le dit", (
+      tester,
+    ) async {
+      // Une carte brillante sans édition entre dans la pile à trier, d'où elle
+      // ne se range pas encore : la dictée ne l'y envoie pas.
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Foudre')],
+        printings: const [m21, dmu],
+      );
+
+      fakes.speech.say('foudre en foil');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Brillante : précisez'), findsOneWidget);
+
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      final added = fakes.collection.added.single;
+      expect(added.printId, isNull);
+      expect(added.isFoil, isFalse);
+    });
+
+    testWidgets("un catalogue d'éditions injoignable est dit, la carte reste", (
+      tester,
+    ) async {
+      final fakes = await pumpVoice(
+        tester,
+        catalogue: [_hit('id-1', 'Foudre')],
+        printingsError: Exception('catalogue injoignable'),
+      );
+
+      fakes.speech.say('foudre édition m21');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('catalogue injoignable'), findsOneWidget);
 
       await tester.tap(find.textContaining('Ajouter'));
       await tester.pumpAndSettle();

@@ -518,6 +518,9 @@ class FakePrintingRepository implements PrintingRepository {
   /// Finition demandée en dernier — `null` quand elle ne filtre rien.
   bool? lastFoil;
 
+  /// Erreur à lever à la place des éditions : le catalogue injoignable.
+  Object? forCardError;
+
   @override
   Future<List<CardPrinting>> forCard(
     String oracleId, {
@@ -534,6 +537,7 @@ class FakePrintingRepository implements PrintingRepository {
     lastEra = era;
     lastOffset = offset;
     lastFoil = foil;
+    if (forCardError != null) throw forCardError!;
 
     var result = printings;
     if (query != null && query.isNotEmpty) {

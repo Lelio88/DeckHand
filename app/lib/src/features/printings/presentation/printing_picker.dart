@@ -67,6 +67,7 @@ Future<PrintingChoice?> showPrintingPicker(
   bool allowUnspecified = false,
   String? lang,
   SetCodeReader? readSetCode,
+  String? initialQuery,
 }) {
   return showModalBottomSheet<PrintingChoice>(
     context: context,
@@ -80,6 +81,7 @@ Future<PrintingChoice?> showPrintingPicker(
       allowUnspecified: allowUnspecified,
       lang: lang,
       readSetCode: readSetCode,
+      initialQuery: initialQuery,
     ),
   );
 }
@@ -93,6 +95,7 @@ class _PrintingPicker extends ConsumerStatefulWidget {
     required this.allowUnspecified,
     required this.lang,
     required this.readSetCode,
+    required this.initialQuery,
   });
 
   final String oracleId;
@@ -103,14 +106,18 @@ class _PrintingPicker extends ConsumerStatefulWidget {
   final String? lang;
   final SetCodeReader? readSetCode;
 
+  /// Recherche déjà tapée à l'ouverture : l'extension entendue par la dictée,
+  /// quand elle en laisse plusieurs. Elle reste dans le champ, effaçable.
+  final String? initialQuery;
+
   @override
   ConsumerState<_PrintingPicker> createState() => _PrintingPickerState();
 }
 
 class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
-  final _controller = TextEditingController();
+  late final _controller = TextEditingController(text: widget.initialQuery);
   Timer? _debounce;
-  String _query = '';
+  late String _query = widget.initialQuery ?? '';
   late bool _foil = widget.currentIsFoil;
   PrintingEra _era = PrintingEra.all;
 

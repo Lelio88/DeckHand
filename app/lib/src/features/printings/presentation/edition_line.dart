@@ -45,6 +45,8 @@ class EditionLine extends StatelessWidget {
     required this.printing,
     required this.onChanged,
     this.enabled = true,
+    this.initialQuery,
+    this.preferFoil = false,
   });
 
   final String oracleId;
@@ -69,13 +71,24 @@ class EditionLine extends StatelessWidget {
   /// relit sa liste avant de l'enregistrer.
   final bool enabled;
 
+  /// Recherche à ouvrir dans le sélecteur tant qu'aucune édition n'est
+  /// retenue : l'extension entendue par la dictée, quand elle en laissait
+  /// plusieurs. Le choix se fait alors parmi elles, sans retaper ce qui a été
+  /// dit.
+  final String? initialQuery;
+
+  /// Finition à proposer tant qu'aucune édition n'est retenue : la brillante,
+  /// quand la dictée l'a entendue.
+  final bool preferFoil;
+
   Future<void> _choose(BuildContext context) async {
     final chosen = await showPrintingPicker(
       context,
       oracleId: oracleId,
       cardName: cardName,
       currentPrintId: printing?.printing.printId,
-      currentIsFoil: printing?.isFoil ?? false,
+      currentIsFoil: printing?.isFoil ?? preferFoil,
+      initialQuery: printing == null ? initialQuery : null,
       // La langue du nom trouvé restreint la liste : on a reconnu la carte par
       // son nom français, c'est donc l'impression française qu'on tient.
       lang: lang,
