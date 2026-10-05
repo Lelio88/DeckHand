@@ -1,0 +1,6 @@
+Dictez l'édition et la finition de vos cartes : elles arrivent rangées au lieu de finir dans la pile à trier.
+
+- Après le nom, dites l'extension (nom ou code, au besoin le numéro) puis la finition : « deux foudre édition M21 numéro 137 brillante ».
+- Une carte imprimée dans une seule édition la reçoit d'office, annoncée sur la ligne ; une autre édition dite ouvre une ligne à part.
+- Ce que la voix n'a pas tranché se choisit au doigt, l'écoute arrêtée.
+- Quitter l'écran coupe bien le micro.
