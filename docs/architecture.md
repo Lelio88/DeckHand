@@ -1893,6 +1893,17 @@ Or le code suffit presque toujours. Mesuré au catalogue par `api/app/measure/ed
 | Cartes n'existant que dans une seule extension | 46,5 % — déjà tranchées par `sole_editions` |
 | Pondéré par les exemplaires du corpus de decks | 72 % en cas moyen, 40,6 % en pire cas |
 
+**Avant M15, aucun code n'est imprimé**, et la ligne basse ne porte plus que l'année du copyright et, depuis Exodus, « numéro/total ». Ce qu'elles trancheraient, **lues sans faute**, est mesuré au catalogue par `api/app/measure/edition_from_print_line.py` (issue n°50) sur les 25 034 cases d'avant M15 des cartes à plusieurs cases. Seule la moitié (50,6 %) porte un numéro lisible : avant Exodus il n'y en a pas, et sur une promo sans taille imprimée le numéro de Scryfall n'est qu'un identifiant. La lecture « tolérée » admet un an d'écart entre copyright et sortie — c'est elle qui protège d'une édition fausse, la stricte n'est qu'un plafond :
+
+| Lecture | Stricte | Tolérée | Corpus (tolérée) |
+|---|---|---|---|
+| année seule | 55,5 % | 40,8 % | 42,0 % |
+| numéro seul | 46,2 % | 46,2 % | 45,0 % |
+| année + numéro | 71,7 % | 61,0 % | 56,3 % |
+| année + numéro + total | 71,8 % | 61,3 % | 57,0 % |
+
+Le total n'ajoute presque rien dès que le numéro est lu. **Le plafond est réel, la lecture ne l'est pas encore** : sur la photo d'étalement de l'issue, ML Kit n'a lu à 1600 px aucune des neuf lignes de numéro ni de copyright, une seule en pleine résolution. La suite — découper la bande basse en pleine résolution et la relire — se juge sur l'appareil, avec un taux d'édition fausse nul pour condition.
+
 La carte étant déjà identifiée par son nom, lire son extension précise donc son édition **sans caméra fixe et sans jamais lire le numéro**. Les deux lectures pondérées encadrent la réalité : le corpus ne dit pas de quelle extension vient l'exemplaire joué, le pire cas suppose qu'on possède toujours la réédition la plus alambiquée, le cas moyen qu'on en possède une au hasard.
 
 **On ne cherche pas un code dans l'absolu.** `readSetCode` reçoit les extensions où la carte identifiée existe — de une à quelques dizaines sur les 695 du catalogue — et ne retient qu'un mot entier, en capitales, qui coïncide avec l'une d'elles. Un nom d'illustrateur ou un mot du texte de règles n'a donc aucune chance d'en désigner une par accident, et l'exigence de capitales écarte le « one » d'un texte anglais qui désignerait sinon l'extension ONE. Deux codes distincts lus sur la même photo rendent `null` : deviner lequel est le bon serait deviner tout court.
