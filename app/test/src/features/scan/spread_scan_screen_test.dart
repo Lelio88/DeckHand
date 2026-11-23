@@ -103,6 +103,25 @@ class _FakePhotoSource implements PhotoSource {
 }
 
 /// Le vrai service, dont le résultat porte en plus une ligne basse choisie.
+/// Un service qui rend un résultat fixé, quelle que soit la photo.
+class _FixedScanService extends ScanService {
+  _FixedScanService(
+    FakeCardTextReader reader,
+    CardRepository cards,
+    this._outcome,
+  ) : super(ArtHashIndex.fromEntries(const []), reader, cards);
+
+  final PhotoOutcome _outcome;
+
+  @override
+  Future<PhotoOutcome> recognisePhoto(
+    Uint8List photoBytes, {
+    String? photoPath,
+    int limit = 3,
+    ScanPrecisions precisions = sansPrecision,
+  }) async => _outcome;
+}
+
 class _PrintLineScanService extends ScanService {
   _PrintLineScanService(
     FakeCardTextReader reader,
@@ -188,6 +207,10 @@ pumpSpreadScan(
 
   /// Éditions de la carte, quand le test en a besoin d'autres.
   List<CardPrinting>? editions,
+
+  /// Un résultat de photo imposé, pour les cas que la lecture factice ne sait
+  /// pas produire — une reconnaissance par l'illustration, notamment.
+  PhotoOutcome? outcome,
 }) async {
   final collection = FakeCollectionRepository();
   final printings = FakePrintingRepository()
@@ -222,7 +245,9 @@ pumpSpreadScan(
         collectionRepositoryProvider.overrideWithValue(collection),
         printingRepositoryProvider.overrideWithValue(printings),
         scanServiceProvider.overrideWith(
-          (ref) async => printLine == null
+          (ref) async => outcome != null
+              ? _FixedScanService(reader, cards, outcome)
+              : printLine == null
               ? ScanService(ArtHashIndex.fromEntries(const []), reader, cards)
               : _PrintLineScanService(reader, cards, printLine),
         ),
@@ -274,6 +299,54 @@ Future<void> _pickCard(
 }
 
 void main() {
+  group("une illustration sûre n'affirme que la carte reconnue", () {
+    // **Le défaut que ce groupe protège.** Le recours par l'illustration rend
+    // la carte reconnue et deux suggestions. Sûr de la première, il était
+    // tenu pour sûr des trois : toutes arrivaient cochées, et un appui sur
+    // « Ajouter » faisait entrer deux cartes qu'on n'a pas en collection
+    // (§IV.8 : affirmer à tort coûte plus cher que suggérer).
+    final reconnue = _hit('id-1', 'Nantuko Tracer');
+    final suggestions = [
+      _hit('id-2', 'Oathsworn Vampire'),
+      _hit('id-3', 'Thundercloud Elemental'),
+    ];
+
+    testWidgets('seule la carte reconnue atteint la collection', (
+      tester,
+    ) async {
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: const [],
+        outcome: PhotoOutcome(
+          [SpreadFind(reconnue), for (final s in suggestions) SpreadFind(s)],
+          namesRead: 1,
+          fromArtwork: true,
+        ),
+      );
+
+      expect(find.text('Oathsworn Vampire'), findsOneWidget);
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+
+      expect(fakes.collection.quantities.keys.map((k) => k.$1), ['id-1']);
+    });
+
+    testWidgets('une illustration incertaine ne coche rien', (tester) async {
+      await pumpSpreadScan(
+        tester,
+        found: const [],
+        outcome: PhotoOutcome(
+          [SpreadFind(reconnue), for (final s in suggestions) SpreadFind(s)],
+          namesRead: 1,
+          fromArtwork: true,
+          isConfident: false,
+        ),
+      );
+
+      expect(find.textContaining('Ajouter'), findsNothing);
+    });
+  });
+
   group("la ligne basse précise l'édition qu'elle désigne seule (n°50)", () {
     CardPrinting edition(String set, String number, int year) => CardPrinting(
       printId: 'print-$set',

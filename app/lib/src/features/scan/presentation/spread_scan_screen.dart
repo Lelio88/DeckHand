@@ -191,16 +191,12 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       setState(() {
         _spotted
           ..clear()
-          ..addAll(
-            found.cards.map(
-              // **Une carte suggérée arrive décochée.** Quand le recours par
-              // illustration hésite, il propose plusieurs candidats dont un
-              // seul est le bon : les cocher d'office ferait entrer les autres
-              // en collection au premier « Ajouter ». « Affirmer à tort coûte
-              // plus cher que suggérer » (§IV.8).
-              (find) => _Spotted(find, keep: found.isConfident),
-            ),
-          );
+          // **Une carte suggérée arrive décochée.** Quand le recours par
+          // illustration hésite, il propose plusieurs candidats dont un seul
+          // est le bon : les cocher d'office ferait entrer les autres en
+          // collection au premier « Ajouter ». « Affirmer à tort coûte plus
+          // cher que suggérer » (§IV.8).
+          ..addAll(_spottedFrom(found));
         _readButUnmatched = found.readButUnmatched;
         _fromArtwork = found.fromArtwork;
         _uncertain = found.fromArtwork && !found.isConfident;
@@ -243,9 +239,7 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       setState(() {
         _spotted
           ..clear()
-          ..addAll(
-            found.cards.map((find) => _Spotted(find, keep: found.isConfident)),
-          );
+          ..addAll(_spottedFrom(found));
         _readButUnmatched = found.readButUnmatched;
         _fromArtwork = found.fromArtwork;
         _uncertain = found.fromArtwork && !found.isConfident;
@@ -258,6 +252,22 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  /// Les lignes d'une photo, cochées ou non.
+  ///
+  /// **Une illustration sûre ne l'est que de sa première carte.** Le recours
+  /// par l'illustration rend la carte reconnue puis deux suggestions ; tenir
+  /// sa confiance pour celle des trois faisait entrer en collection, au
+  /// premier « Ajouter », deux cartes qu'on n'a pas. Les suggestions restent
+  /// à l'écran, décochées : elles servent quand la reconnue est fausse.
+  /// Une lecture par les noms, elle, affirme chacune des cartes qu'elle lit.
+  List<_Spotted> _spottedFrom(PhotoOutcome found) => [
+    for (final (index, find) in found.cards.indexed)
+      _Spotted(
+        find,
+        keep: found.isConfident && (!found.fromArtwork || index == 0),
+      ),
+  ];
 
   /// Précise d'office les cartes qui n'admettent qu'une seule édition.
   ///
