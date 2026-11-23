@@ -47,7 +47,9 @@ library;
 import 'dart:io';
 
 import 'package:deckhand/src/config/supabase_config.dart';
+import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/scan/application/scan_service.dart';
+import 'package:deckhand/src/features/scan/domain/print_line_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -93,16 +95,34 @@ void main() {
     // **Le dossier que l'application possède, pas un sous-dossier d'`adb`.**
     // `path_provider` le rend ; un chemin écrit en dur sous `Android/data`
     // échoue depuis Android 10, et en silence.
-    final dossier = await getExternalStorageDirectory();
-    expect(dossier, isNotNull, reason: 'dossier externe indisponible');
+    final externe = await getExternalStorageDirectory();
+    expect(externe, isNotNull, reason: 'dossier externe indisponible');
 
-    final photos =
-        dossier!
-            .listSync()
-            .whereType<File>()
-            .where((f) => f.path.toLowerCase().endsWith('.jpg'))
-            .toList()
-          ..sort((a, b) => a.path.compareTo(b.path));
+    // **Repli sur le dossier privé, garni par `run-as`.** Sur un émulateur
+    // neuf, l'application n'a jamais créé son dossier externe : celui qu'`adb`
+    // y crée appartient à `shell`, et la lecture échoue
+    // (`PathAccessException`). Voir `ligne_basse_test.dart`.
+    List<File> jpg(Directory d) => d.existsSync()
+        ? (d
+              .listSync()
+              .whereType<File>()
+              .where((f) => f.path.toLowerCase().endsWith('.jpg'))
+              .toList()
+            ..sort((a, b) => a.path.compareTo(b.path)))
+        : <File>[];
+    var dossier = externe!;
+    var photos = <File>[];
+    try {
+      photos = jpg(dossier);
+    } on FileSystemException {
+      photos = [];
+    }
+    if (photos.isEmpty) {
+      dossier = Directory(
+        '${(await getApplicationSupportDirectory()).path}/bench',
+      );
+      photos = jpg(dossier);
+    }
     expect(
       photos,
       isNotEmpty,
@@ -150,6 +170,37 @@ void main() {
         'ms=${chrono.elapsedMilliseconds} '
         'cartes=[$cartes]',
       );
+
+      // **Ce que l'écran ferait de la ligne basse** (issue n°50) : la même
+      // règle, `pickByPrintLine`, sur les mêmes éditions que
+      // `_fillFromPrintLine` demande — langue lue, toutes ou rien.
+      if (resultat.printLine.isNotEmpty) {
+        final carte = resultat.cards.first.card;
+        final editions = await PrintingRepository(
+          Supabase.instance.client,
+        ).forCard(carte.oracleId, lang: carte.matchedLang, limit: 200);
+        final retenue = editions.length >= 200
+            ? null
+            : pickByPrintLine(resultat.printLine, [
+                for (final e in editions)
+                  (
+                    id: e.printId,
+                    collectorNumber: e.collectorNumber,
+                    year: e.releasedAt?.year,
+                  ),
+              ]);
+        final edition = retenue == null
+            ? '-'
+            : () {
+                final e = editions.firstWhere((e) => e.printId == retenue);
+                return '${e.setCode}#${e.collectorNumber}';
+              }();
+        print(
+          'PLAFOND-LIGNE $nom edition=$edition '
+          'candidates=${editions.length} '
+          'ligne=[${resultat.printLine.join(" | ")}]',
+        );
+      }
     }
     print('PLAFOND-REEL fini');
   }, timeout: const Timeout(Duration(minutes: 30)));

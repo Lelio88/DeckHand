@@ -138,6 +138,11 @@ class FakeCardTextReader implements CardTextReader {
   /// affirmer, et non supposer.
   int reads = 0;
 
+  /// Fichiers lus, dans l'ordre : la photo, mais aussi les bandes découpées
+  /// (la ligne basse d'une carte seule, issue n°50). Compter les lectures
+  /// d'**un** fichier dit ce qu'un compteur global mélange.
+  final List<String> paths = [];
+
   /// Lectures faites depuis une image de flux, comptées à part.
   ///
   /// **Le flux et la photo n'ont pas le même coût ni le même moment.** Les
@@ -161,6 +166,7 @@ class FakeCardTextReader implements CardTextReader {
   Future<List<ReadLine>> readLines(String path) async {
     lastPath = path;
     reads++;
+    paths.add(path);
     return lines;
   }
 

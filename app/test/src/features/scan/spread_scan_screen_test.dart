@@ -21,6 +21,7 @@ import 'package:deckhand/src/features/printings/data/printing_repository.dart';
 import 'package:deckhand/src/features/printings/domain/card_printing.dart';
 import 'package:deckhand/src/features/scan/application/scan_service.dart';
 import 'package:deckhand/src/features/scan/data/photo_source.dart';
+import 'package:deckhand/src/features/scan/domain/art_box.dart';
 import 'package:deckhand/src/features/scan/domain/art_hash_index.dart';
 import 'package:deckhand/src/features/scan/domain/card_name_text.dart';
 import 'package:deckhand/src/features/scan/presentation/spread_scan_screen.dart';
@@ -101,6 +102,42 @@ class _FakePhotoSource implements PhotoSource {
   }) async => CapturedPhoto(bytes: Uint8List(0), path: 'etalement.jpg');
 }
 
+/// Le vrai service, dont le résultat porte en plus une ligne basse choisie.
+class _PrintLineScanService extends ScanService {
+  _PrintLineScanService(
+    FakeCardTextReader reader,
+    CardRepository cards,
+    this._printLine,
+  ) : super(ArtHashIndex.fromEntries(const []), reader, cards);
+
+  final List<String> _printLine;
+
+  @override
+  Future<PhotoOutcome> recognisePhoto(
+    Uint8List photoBytes, {
+    String? photoPath,
+    int limit = 3,
+    ScanPrecisions precisions = sansPrecision,
+  }) async {
+    final base = await super.recognisePhoto(
+      photoBytes,
+      photoPath: photoPath,
+      limit: limit,
+      precisions: precisions,
+    );
+    return PhotoOutcome(
+      base.cards,
+      namesRead: base.namesRead,
+      fromArtwork: base.fromArtwork,
+      isConfident: base.isConfident,
+      method: base.method,
+      error: base.error,
+      catalogueUnreachable: base.catalogueUnreachable,
+      printLine: _printLine,
+    );
+  }
+}
+
 CardHit _hit(
   String oracleId,
   String name, {
@@ -142,6 +179,15 @@ pumpSpreadScan(
   List<String>? readNames,
   Map<String, CardPrinting> sole = const {},
   Object? soleError,
+
+  /// Ce que la bande basse de l'unique carte a donné (issue n°50).
+  ///
+  /// La photo des tests est vide, donc indécodable : la bande ne peut pas
+  /// sortir du vrai service. [_PrintLineScanService] l'ajoute à son résultat.
+  List<String>? printLine,
+
+  /// Éditions de la carte, quand le test en a besoin d'autres.
+  List<CardPrinting>? editions,
 }) async {
   final collection = FakeCollectionRepository();
   final printings = FakePrintingRepository()
@@ -155,6 +201,7 @@ pumpSpreadScan(
     ]
     ..sole = sole
     ..soleError = soleError;
+  if (editions != null) printings.printings = editions;
   final cards = _FakeCatalogue([...found, ...alsoInCatalogue]);
   // Une ligne par carte, assez grande pour passer le filtre de taille : ce
   // n'est pas lui qu'on éprouve ici.
@@ -175,8 +222,9 @@ pumpSpreadScan(
         collectionRepositoryProvider.overrideWithValue(collection),
         printingRepositoryProvider.overrideWithValue(printings),
         scanServiceProvider.overrideWith(
-          (ref) async =>
-              ScanService(ArtHashIndex.fromEntries(const []), reader, cards),
+          (ref) async => printLine == null
+              ? ScanService(ArtHashIndex.fromEntries(const []), reader, cards)
+              : _PrintLineScanService(reader, cards, printLine),
         ),
       ],
       child: const MaterialApp(home: SpreadScanScreen()),
@@ -226,6 +274,51 @@ Future<void> _pickCard(
 }
 
 void main() {
+  group("la ligne basse précise l'édition qu'elle désigne seule (n°50)", () {
+    CardPrinting edition(String set, String number, int year) => CardPrinting(
+      printId: 'print-$set',
+      setCode: set,
+      collectorNumber: number,
+      lang: 'fr',
+      releasedAt: DateTime(year, 6),
+    );
+
+    testWidgets("le numéro et l'année lus retiennent la seule édition", (
+      tester,
+    ) async {
+      final fakes = await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Trou dans la coque')],
+        printLine: const [
+          'TM & © 1993-2001 Wizards of the Coast, Inc. 111/143',
+        ],
+        editions: [
+          edition('pls', '111', 2001),
+          edition('hop', '89', 2009),
+          edition('c13', '193', 2013),
+        ],
+      );
+
+      expect(find.text('PLS #111'), findsOneWidget);
+      await tester.tap(find.textContaining('Ajouter'));
+      await tester.pumpAndSettle();
+      expect(fakes.collection.quantities.keys.single.$2, 'print-pls');
+    });
+
+    testWidgets('deux éditions au même numéro et à la même année : rien', (
+      tester,
+    ) async {
+      await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Trou dans la coque')],
+        printLine: const ['© 2001 Wizards of the Coast 111/143'],
+        editions: [edition('pls', '111', 2001), edition('ppls', '111', 2001)],
+      );
+
+      expect(find.text("Préciser l'édition"), findsOneWidget);
+    });
+  });
+
   testWidgets('les cartes repérées sont proposées', (tester) async {
     await pumpSpreadScan(
       tester,
