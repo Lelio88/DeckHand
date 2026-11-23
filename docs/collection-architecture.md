@@ -146,10 +146,42 @@ d'ingestion.**
 que compter les cases d'une extension balayait ses 245 468 lignes. Mesuré sous
 `authenticated` : **7,85 s à froid**, quand le rôle coupe à 8 s — la fonction
 passait en répétant la mesure et serait tombée au premier appel après un
-redémarrage. `idx_card_prints_set (set_code, collector_number)` ramène la même
+redémarrage. Un index `(set_code, collector_number)` — aujourd'hui `idx_card_prints_set_shelf`, voir plus bas — ramène la même
 requête de **287 ms à 16 ms** à chaud, et le profil de 7,85 s à 2,92 s à froid.
 `my_binder_shelf` fait exactement ce calcul depuis toujours pour le taux de
 complétion de chaque classeur : l'étagère profite du même index.
+
+*L'index présent, mais parcouru en entier.* Un index ne sert que si le
+planificateur le lit par extension. Sur l'étagère d'une collection publiée
+(87 extensions), il estimait 200 lignes pour le CTE des extensions possédées et
+choisissait un `Merge Semi Join` qui parcourt **tout** `idx_card_prints_set`,
+deux fois (taille de l'extension, carte-vedette) : 364 k pages, **5,3 s à
+froid**. Sous `anon`, qui coupe à **3 s**, la page publique d'un classeur
+recevait donc un 500 au premier chargement (issue n°52). Un `LATERAL` par
+extension possédée — et `LIMIT 1` pour la carte-vedette — rend les mêmes lignes
+en lisant chaque extension par l'index, mais **encore ligne par ligne dans la
+table** : 38 304 lignes, réparties sur 6 100 des 6 174 pages, l'ingestion ne
+rangeant pas une extension d'un seul tenant. Le premier appel tombait toujours
+(3,4 s). Deux index ont fini le travail :
+`idx_card_prints_set_shelf (set_code, collector_number) INCLUDE (set_name,
+released_at)`, qui remplace `idx_card_prints_set` et sert la taille de
+l'extension en `Index Only Scan`, et `idx_card_prints_set_star (set_code,
+price_eur DESC NULLS LAST, collector_number) WHERE art_crop_url IS NOT NULL`,
+dont la première entrée *est* la carte-vedette. Étagère publique : 0,9 s au
+premier appel, index neufs compris, puis 0,2 s.
+
+*La carte de visibilité, condition de tout `Index Only Scan`.* Elle était vide
+(0 page « toute visible » sur 6 174) : un `VACUUM FULL` réécrit la table sans la
+reconstruire, et chaque lecture « index seul » retournait alors à la table
+(38 304 *heap fetches*). `jeux_actifs --compacter` lance désormais un `VACUUM`
+ordinaire derrière chaque `VACUUM FULL`. Après tout autre geste qui réécrit
+`card_prints`, vérifier `relallvisible` contre `relpages` dans `pg_class`.
+
+**Règles** : une fonction accordée à `anon` se mesure à froid sous `anon`, dont
+le délai est le plus court ; une agrégation par extension se rédige extension
+par extension (`LATERAL`), plutôt que `IN (SELECT … FROM cte)` sur toute la
+table ; et une mesure « à froid » prise juste après une autre version de la même
+requête ne l'est pas — la première a chargé les pages de la seconde.
 
 *L'inlining des CTE.* La première version de la fonction dépassait
 le `statement_timeout` de huit secondes du rôle `authenticated` : depuis
