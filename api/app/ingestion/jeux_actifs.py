@@ -210,6 +210,13 @@ def compacter(conn: psycopg.Connection, journal=None) -> None:
                     "SELECT pg_total_relation_size(%s)", (f"public.{table}",)
                 ).fetchone()[0]
                 cur.execute(f"VACUUM (FULL, ANALYZE) public.{table}")
+                # **Un VACUUM ordinaire derrière le FULL.** Le FULL réécrit la
+                # table sans reconstruire sa carte de visibilité : aucune page
+                # n'y est « toute visible », et tout `Index Only Scan` retourne
+                # alors à la table ligne par ligne. Mesuré le 2026-11-23 sur
+                # `card_prints` : 0 page visible sur 6 174, et l'étagère d'un
+                # classeur public dépassait les 3 s du rôle `anon` (issue n°52).
+                cur.execute(f"VACUUM public.{table}")
                 apres_octets = cur.execute(
                     "SELECT pg_total_relation_size(%s)", (f"public.{table}",)
                 ).fetchone()[0]
