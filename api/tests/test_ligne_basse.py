@@ -71,3 +71,14 @@ def test_parse_log():
     lines, missing = parse_log(log)
     assert lines == {("a.jpg", 0, "x", 1): ["0348 C"], ("a.jpg", 2, "r", 2): ["© 2025"]}
     assert missing == {("b.jpg", "r")}
+
+
+def test_verdict_d_etalement():
+    from app.measure.ligne_basse import spread_verdict
+
+    truth = {43, 185, 22}
+    assert spread_verdict({43}, truth) == "juste"
+    assert spread_verdict({43, 22}, truth) == "ambigu"
+    assert spread_verdict({44}, truth) == "faux"
+    assert spread_verdict({43, 44}, truth) == "faux"
+    assert spread_verdict(set(), truth) == "rien"
