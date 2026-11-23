@@ -1902,7 +1902,18 @@ Or le code suffit presque toujours. Mesuré au catalogue par `api/app/measure/ed
 | année + numéro | 71,7 % | 61,0 % | 56,3 % |
 | année + numéro + total | 71,8 % | 61,3 % | 57,0 % |
 
-Le total n'ajoute presque rien dès que le numéro est lu. **Le plafond est réel, la lecture ne l'est pas encore** : sur la photo d'étalement de l'issue, ML Kit n'a lu à 1600 px aucune des neuf lignes de numéro ni de copyright, une seule en pleine résolution. La suite — découper la bande basse en pleine résolution et la relire — se juge sur l'appareil, avec un taux d'édition fausse nul pour condition.
+Le total n'ajoute presque rien dès que le numéro est lu.
+
+**La lecture, mesurée : c'est le découpage qui compte, pas la résolution.** Lue sur la photo entière, la ligne basse ne sortait presque jamais (aucune des neuf lignes de la photo d'étalement de l'issue à 1600 px). Découpée — les 10 % du bas du carton détouré, redressés par homographie (`sampleArt`) et donnés seuls à ML Kit — elle sort. Banc `app/integration_test/ligne_basse_test.dart`, analysé par `api/app/measure/ligne_basse.py`, sur les 44 photos de `carte-seule/` dont l'extension et le numéro sont connus :
+
+| Source | Numéro juste et seul lu | Faux | Rien | Année juste (±1) |
+|---|---|---|---|---|
+| pleine résolution | 24 / 44 | **0** | 20 | 24 / 44 |
+| réduite à 1600 px (`image_picker`) | 24 / 44 | 1 | 19 | 24 / 44 |
+
+Les cartes anciennes du banc (Judgment, Prophecy, Dragon's Maze) : 4 photos sur 5 justes. Deux pièges, déjà parés dans l'analyse et à reprendre tels quels dans toute lecture produit : **la force et l'endurance** (« 4/4 ») sont imprimées dans la même bande et ont la forme « n/total » — un total de moins de vingt n'en est pas un ; et ML Kit rend souvent « C 0195 » en « CO195 » — un O collé à un chiffre est un zéro. Le seul faux (1600 px) mêlait trois nombres mutilés : il tombe sous la règle « deux numéros lus, on ne tranche pas ».
+
+**Ce que le banc ne dit pas** : sur une carte seule, le carton occupe la photo, et 1600 px suffisent. Sur un étalement, chaque carte est trois à quatre fois plus petite ; la pleine résolution y deviendrait nécessaire, et c'est là que lever `maxWidth: 1600` se jugera — `etalement/` n'a pas encore de vérité d'édition carte par carte. L'émulateur sert ML Kit comme l'appareil : la mesure ne demande pas le téléphone, seulement ses photos.
 
 La carte étant déjà identifiée par son nom, lire son extension précise donc son édition **sans caméra fixe et sans jamais lire le numéro**. Les deux lectures pondérées encadrent la réalité : le corpus ne dit pas de quelle extension vient l'exemplaire joué, le pire cas suppose qu'on possède toujours la réédition la plus alambiquée, le cas moyen qu'on en possède une au hasard.
 

@@ -173,6 +173,17 @@ cd api && .venv/Scripts/python -m app.measure.plafond_reel <journal.log>
 # extensions de Scryfall (printed_size), le reste en base.
 cd api && .venv/Scripts/python -m app.measure.edition_from_print_line
 
+# … et ML Kit la lit-il ? — la bande basse découpée, pleine résolution contre 1600 px (#50)
+# Un émulateur suffit (ML Kit y tourne). Les photos passent par `run-as` : poussées
+# dans Android/data avant que l'application y ait créé son dossier, elles
+# appartiennent à `shell` et lui sont illisibles. `flutter test` désinstalle en
+# sortant : réinstaller et recopier avant chaque passe.
+adb install -r app/build/app/outputs/flutter-apk/app-debug.apk
+adb push ../.deckhand-bench/photos/carte-seule/. /data/local/tmp/bench/
+adb shell run-as app.deckhand.debug sh -c 'mkdir -p files/bench && cp /data/local/tmp/bench/*.jpg files/bench/'
+cd app && flutter test integration_test/ligne_basse_test.dart -d <appareil> > ligne_basse.log
+cd api && .venv/Scripts/python -m app.measure.ligne_basse ../app/ligne_basse.log
+
 # Le Y d'une webcam est-il lisible par l'index ? — la plage vidéo (#41), avant le pont
 # Ouvrir api/app/measure/webcam_capture.html dans Chrome (Chromium seul rend les
 # plans natifs), viser ../../.deckhand-bench/webcam/, capturer une trentaine de
