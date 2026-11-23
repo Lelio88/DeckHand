@@ -1,0 +1,4 @@
+Photographiez une carte seule : son édition se lit sur le bas du carton.
+
+- L'année du copyright et le numéro de collection désignent souvent une seule édition, y compris sur les cartes d'avant 2014, qui n'impriment pas leur code d'extension.
+- L'édition n'est retenue que si la lecture ne laisse aucun doute ; sinon la carte reste « édition à préciser », comme avant.
