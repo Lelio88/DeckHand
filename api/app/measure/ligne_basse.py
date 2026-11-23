@@ -124,12 +124,14 @@ def load_truth() -> dict[str, tuple[str, int]]:
     return truth
 
 
-#: Les numéros des huit cartes Marvel (MSH) des photos d'`etalement/`, identifiées
+#: Les numéros des onze cartes Marvel (MSH) des photos d'`etalement/`, identifiées
 #: à l'œil sur les photos et numérotées par `carte-seule/attendu.csv`, qui porte
 #: les mêmes cartes photographiées seules : Doombot aérien, Dinosaure de la
 #: Terre sauvage, Oiseau Moqueur, Haut responsable chez Stark Industries, Agent
-#: d'Atlas, Shuri, Crescendo brûlant, Sortilège magique.
-SPREAD_NUMBERS = {43, 185, 22, 153, 3, 75, 125, 133}
+#: d'Atlas, Shuri, Crescendo brûlant, Sortilège magique — et, sur les photos de
+#: 17 h 24 à 17 h 27, Levée de bouclier, Garde royale du Wakanda, Salle de
+#: surveillance.
+SPREAD_NUMBERS = {43, 185, 22, 153, 3, 75, 125, 133, 348, 195, 274}
 
 
 def spread_verdict(read: set[int], truth: set[int]) -> str:
