@@ -124,4 +124,37 @@ void main() {
       expect(pickByPrintLine(['© 2019 Wizards 111/143'], hullBreach), isNull);
     });
   });
+
+  group('pickBySetCode', () {
+    // Lignes relevées au banc réel : le numéro y manque, le code y est.
+    const ligne = ['MSH FR loHAN GRENIER', 'MARVEL', 'IM&C2026 Wizards'];
+
+    test('le code lu désigne la seule édition de cette extension', () {
+      expect(
+        pickBySetCode(ligne, const [
+          (id: 'msh-348', setCode: 'msh'),
+          (id: 'pmsh-348', setCode: 'pmsh'),
+          (id: 'mar-12', setCode: 'mar'),
+        ]),
+        'msh-348',
+      );
+    });
+
+    test('deux éditions dans l\'extension lue : rien', () {
+      expect(
+        pickBySetCode(ligne, const [
+          (id: 'msh-348', setCode: 'msh'),
+          (id: 'msh-412', setCode: 'msh'),
+        ]),
+        isNull,
+      );
+    });
+
+    test('« MARVEL » ne désigne pas l\'extension MAR', () {
+      expect(
+        pickBySetCode(const ['MARVEL'], const [(id: 'mar-12', setCode: 'mar')]),
+        isNull,
+      );
+    });
+  });
 }

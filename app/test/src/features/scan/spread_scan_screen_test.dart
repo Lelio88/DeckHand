@@ -378,6 +378,25 @@ void main() {
       expect(fakes.collection.quantities.keys.single.$2, 'print-pls');
     });
 
+    testWidgets("sans numéro lisible, le code d'extension tranche", (
+      tester,
+    ) async {
+      // Relevé au banc réel : le numéro manque, « MSH FR » est lu. C'est la
+      // lecture du code que la fusion des deux modes photo avait débranchée.
+      await pumpSpreadScan(
+        tester,
+        found: [_hit('id-1', 'Levée de bouclier')],
+        printLine: const [
+          'MSH FR loHAN GRENIER',
+          'MARVEL',
+          'IM&C2026 Wizards of the Coast',
+        ],
+        editions: [edition('msh', '348', 2026), edition('pmsh', '348', 2026)],
+      );
+
+      expect(find.text('MSH #348'), findsOneWidget);
+    });
+
     testWidgets('deux éditions au même numéro et à la même année : rien', (
       tester,
     ) async {
