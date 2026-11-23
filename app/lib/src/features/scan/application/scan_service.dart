@@ -22,6 +22,8 @@
 /// suggestions de decks.
 library;
 
+import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,6 +43,7 @@ import '../domain/card_edges.dart';
 import '../domain/card_framing.dart';
 import '../domain/card_name_text.dart';
 import '../domain/card_segmentation.dart';
+import '../domain/print_line_text.dart';
 import '../domain/spread_attribution.dart';
 import '../domain/spread_names.dart';
 
@@ -213,7 +216,17 @@ class PhotoOutcome {
     this.method,
     this.error,
     this.catalogueUnreachable = false,
+    this.printLine = const [],
   });
+
+  /// Lignes lues sur la **bande basse** de la carte, quand la photo n'en porte
+  /// qu'une (issue n°50) : copyright, numéro de collection, total.
+  ///
+  /// Vide dans tous les autres cas — plusieurs cartes, carte non détourée,
+  /// sens du carton incertain, jeu autre que Magic. L'écran s'en sert pour
+  /// préciser l'édition par `pickByPrintLine`, et seulement s'il n'en reste
+  /// qu'une.
+  final List<String> printLine;
 
   /// Cartes proposées, dans l'ordre de lecture pour un étalement, par
   /// pertinence décroissante pour un recours à l'illustration.
@@ -462,7 +475,15 @@ class ScanService {
         ? const SpreadOutcome([])
         : await recogniseSpread(photoPath, photoBytes: photoBytes);
     if (spread.cards.isNotEmpty) {
-      return PhotoOutcome(spread.cards, namesRead: spread.namesRead);
+      return PhotoOutcome(
+        spread.cards,
+        namesRead: spread.namesRead,
+        printLine: await _printLineOf(
+          spread.cards.length == 1 && spread.cards.single.copies == 1,
+          photoBytes,
+          photoPath,
+        ),
+      );
     }
 
     final byArt = await recognise(
@@ -510,7 +531,90 @@ class ScanService {
       fromArtwork: true,
       isConfident: byArt.isConfident,
       method: byArt.method,
+      // **Une illustration sûre désigne la première carte** ; les suivantes ne
+      // sont que des suggestions. Une illustration qui hésite ne désigne rien.
+      printLine: await _printLineOf(
+        details.length == 1 || byArt.isConfident,
+        photoBytes,
+        photoPath,
+      ),
     );
+  }
+
+  /// La bande basse de l'unique carte de la photo, lue par ML Kit (issue n°50).
+  ///
+  /// **Une carte, un exemplaire, Magic** — [oneCard] le dit : un seul nom lu
+  /// pour un seul exemplaire, ou une illustration sûre, dont la première carte
+  /// est la reconnue. Sur un étalement, rien ne dit à quelle carte
+  /// appartiendrait une ligne basse ; les règles de lecture (force et
+  /// endurance, « n/total ») sont celles de Magic, mesurées sur ses cartons.
+  ///
+  /// **Découpée, et non lue sur la photo entière** : c'est ce qui la rend
+  /// lisible (`integration_test/ligne_basse_test.dart` : 24 photos sur 44,
+  /// aucune lecture fausse, à 1600 px comme en pleine résolution). Seuls les
+  /// deux sens où la bande est le **petit côté** du carton sont lus — le bas
+  /// d'une carte debout —, puis [bottomBand] garde celui qui porte le
+  /// copyright. Deux lectures d'une bande étroite, pas quatre.
+  ///
+  /// **Ne peut rien casser** : toute erreur rend une liste vide, et la carte
+  /// reste reconnue comme avant, édition à préciser.
+  Future<List<String>> _printLineOf(
+    bool oneCard,
+    Uint8List photoBytes,
+    String? photoPath,
+  ) async {
+    if (!oneCard || photoPath == null || game != Game.magic) return const [];
+
+    final band = File('$photoPath.ligne-basse.png');
+    try {
+      final photo = img.decodeImage(photoBytes);
+      if (photo == null) return const [];
+      final quad = largestPlausible(
+        [findCardByEdges(photo, game: game.id), findCard(photo, game: game.id)],
+        width: photo.width,
+        height: photo.height,
+      );
+      if (quad == null) return const [];
+
+      final byTurn = <int, List<String>>{};
+      for (var turn = 0; turn < 4; turn++) {
+        final q = quad.quarterTurned(turn);
+        final width = _distance(q.topLeft, q.topRight);
+        final height = _distance(q.topLeft, q.bottomLeft);
+        if (width > height) continue;
+        final pixels = sampleArt(
+          photo,
+          q,
+          printLineBand,
+          width: width.round(),
+          height: (height * (printLineBand.bottom - printLineBand.top)).round(),
+        );
+        band.writeAsBytesSync(img.encodePng(pixels));
+        byTurn[turn] = [
+          for (final line in await _reader.readLines(band.path)) line.text,
+        ];
+      }
+      final turn = bottomBand(byTurn);
+      diagnose('print_line', {
+        'turn': turn,
+        'lines': turn == null ? null : byTurn[turn],
+      });
+      return turn == null ? const [] : byTurn[turn]!;
+    } catch (error) {
+      diagnose('print_line_failed', {'error': '$error'});
+      return const [];
+    } finally {
+      try {
+        if (band.existsSync()) band.deleteSync();
+      } on FileSystemException {
+        // Un fichier temporaire resté là ne gêne rien : le cache l'emportera.
+      }
+    }
+  }
+
+  static double _distance(Point a, Point b) {
+    final dx = a.x - b.x, dy = a.y - b.y;
+    return math.sqrt(dx * dx + dy * dy);
   }
 
   /// Repère **toutes** les cartes visibles sur une photo d'étalement.

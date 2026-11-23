@@ -30,6 +30,7 @@ import '../../printings/presentation/card_art_view.dart';
 import '../../printings/presentation/edition_line.dart';
 import '../../printings/presentation/printing_picker.dart';
 import '../application/scan_service.dart';
+import '../domain/print_line_text.dart';
 import '../data/photo_source.dart';
 import 'copies_stepper.dart';
 
@@ -103,6 +104,10 @@ class SpreadScanScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<SpreadScanScreen> createState() => _SpreadScanScreenState();
 }
+
+/// Le plafond de `card_printings` (200) : une page pleine laisse supposer une
+/// suite, et une édition « unique » ne l'est alors peut-être pas.
+const _allPrintings = 200;
 
 class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
   final List<_Spotted> _spotted = [];
@@ -202,6 +207,7 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         _scanned = true;
       });
       await _fillSoleEditions();
+      await _fillFromPrintLine(found.printLine);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {
@@ -245,6 +251,7 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         _uncertain = found.fromArtwork && !found.isConfident;
       });
       await _fillSoleEditions();
+      await _fillFromPrintLine(found.printLine);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {
@@ -305,6 +312,64 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
           isFoil: !only.hasNonfoil && only.hasFoil,
         );
       }
+    });
+  }
+
+  /// L'édition lue sur la **ligne basse** de l'unique carte (issue n°50).
+  ///
+  /// **Lire n'est pas deviner** (§IV.8). Avant M15 aucune carte n'imprime son
+  /// code d'extension ; son copyright et son numéro de collection désignent
+  /// pourtant souvent une seule édition. `pickByPrintLine` ne tranche que dans
+  /// ce cas — un seul numéro lu, une seule édition qui le porte à l'année
+  /// lue —, sinon la carte reste « édition non précisée », comme avant.
+  ///
+  /// **Toutes les éditions, ou rien.** La candidate n'est unique que parmi
+  /// celles qu'on a vues : si la page revient pleine, d'autres pourraient
+  /// suivre, et l'on renonce plutôt que de conclure sur une liste tronquée.
+  ///
+  /// Après `_fillSoleEditions`, et jamais à sa place : une édition déjà fixée
+  /// — unique au catalogue, ou choisie à la main — n'est pas remplacée.
+  Future<void> _fillFromPrintLine(List<String> printLine) async {
+    if (printLine.isEmpty || _spotted.isEmpty) return;
+    // La carte que la ligne basse décrit : l'unique lue, ou la première d'une
+    // illustration sûre — les suivantes n'y sont que des suggestions.
+    if (_spotted.length > 1 && (!_fromArtwork || _uncertain)) return;
+    final spotted = _spotted.first;
+    if (spotted.printing != null) return;
+
+    final List<CardPrinting> printings;
+    try {
+      printings = await ref
+          .read(printingRepositoryProvider)
+          .forCard(
+            spotted.card.oracleId,
+            lang: spotted.card.matchedLang,
+            limit: _allPrintings,
+          );
+    } catch (e) {
+      diagnose('print_line_printings_failed', {'error': '$e'});
+      return;
+    }
+    if (printings.length >= _allPrintings) return;
+
+    final id = pickByPrintLine(printLine, [
+      for (final p in printings)
+        (
+          id: p.printId,
+          collectorNumber: p.collectorNumber,
+          year: p.releasedAt?.year,
+        ),
+    ]);
+    diagnose('print_line_pick', {'picked': id, 'candidates': printings.length});
+    if (id == null || !mounted || spotted.printing != null) return;
+    final chosen = printings.firstWhere((p) => p.printId == id);
+    setState(() {
+      // Même règle que pour l'édition unique : une édition qui n'existe
+      // qu'en brillante l'est d'office.
+      spotted.printing ??= PrintingChoice(
+        chosen,
+        isFoil: !chosen.hasNonfoil && chosen.hasFoil,
+      );
     });
   }
 

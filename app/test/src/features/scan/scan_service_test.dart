@@ -7,6 +7,7 @@
 /// devrait pas.
 library;
 
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:deckhand/src/config/selected_game.dart';
@@ -420,6 +421,40 @@ void main() {
       expect(outcome.frame, CardFrame.modern);
     });
   });
+
+  test(
+    "un étalement ne lit pas de ligne basse : rien ne dirait à qui elle est",
+    () async {
+      // Issue n°50 : la bande basse ne se lit que sur une photo à une carte.
+      final card = fakeCard(CardFrame.modern, seed: 44);
+      final reader = FakeCardTextReader()
+        ..lines = const [
+          ReadLine('Foudre', 0.10, 0.03),
+          ReadLine('Anneau solaire', 0.50, 0.03),
+        ];
+      final service = ScanService(
+        indexOf({'cible': card}, CardFrame.modern),
+        reader,
+        FakeCardRepository()
+          ..results = [
+            _spreadHit('11111111-1111-1111-1111-111111111111', 'Foudre'),
+            _spreadHit(
+              '22222222-2222-2222-2222-222222222222',
+              'Anneau solaire',
+            ),
+          ],
+      );
+
+      final outcome = await service.recognisePhoto(
+        photoOf(card),
+        photoPath: 'etalement.jpg',
+      );
+
+      expect(outcome.cards, hasLength(2));
+      expect(reader.paths, ['etalement.jpg']);
+      expect(outcome.printLine, isEmpty);
+    },
+  );
 
   group("l'étalement interroge le catalogue en un seul aller-retour", () {
     ScanService serviceReading(
@@ -848,7 +883,11 @@ void main() {
 
       await service.recognisePhoto(photoOf(card), photoPath: 'photo.jpg');
 
-      expect(reader.reads, 1, reason: 'une seule lecture, pas deux');
+      expect(
+        reader.paths.where((path) => path == 'photo.jpg').length,
+        1,
+        reason: 'une seule lecture de la photo, pas deux',
+      );
     });
 
     test(
@@ -875,7 +914,52 @@ void main() {
 
         expect(outcome.cards.single.card.oracleId, 'cible');
         expect(outcome.fromArtwork, isTrue);
-        expect(reader.reads, 2, reason: 'le nom unique se cherche autrement');
+        expect(
+          reader.paths.where((path) => path == 'photo.jpg').length,
+          2,
+          reason: 'le nom unique se cherche autrement',
+        );
+      },
+    );
+
+    test(
+      'une photo à une carte lit aussi sa bande basse, et en doute la tait',
+      () async {
+        // Issue n°50 : la ligne basse (copyright, numéro) se lit sur une bande
+        // découpée, dans les deux sens où elle est le petit côté du carton.
+        // La doublure rend les mêmes lignes partout : les deux sens portent
+        // donc autant de repères, et le sens reste indécis — rien n'est rendu.
+        final card = fakeCard(CardFrame.modern, seed: 43);
+        final reader = FakeCardTextReader()
+          ..lines = [
+            const ReadLine('Nom Illisible Xyz', 0.10, 0.03),
+            const ReadLine('© 2001 Wizards of the Coast 111/143', 0.95, 0.02),
+          ];
+        final service = ScanService(
+          indexOf({'cible': card}, CardFrame.modern),
+          reader,
+          FakeCardRepository()..results = [_spreadHit('cible', 'Cible')],
+        );
+
+        final outcome = await service.recognisePhoto(
+          photoOf(card),
+          photoPath: 'photo.jpg',
+        );
+
+        final bands = reader.paths.where(
+          (p) => p.endsWith('.ligne-basse.png'),
+        );
+        expect(
+          bands.length,
+          inInclusiveRange(1, 2),
+          reason: 'deux sens au plus',
+        );
+        expect(
+          outcome.printLine,
+          isEmpty,
+          reason: 'sens indécis : on ne devine pas',
+        );
+        expect(File('photo.jpg.ligne-basse.png').existsSync(), isFalse);
       },
     );
 
