@@ -41,6 +41,7 @@ import 'package:deckhand/src/config/ocr_script.dart';
 import 'package:deckhand/src/features/scan/data/card_text_reader.dart';
 import 'package:deckhand/src/features/scan/domain/card_bounds.dart';
 import 'package:deckhand/src/features/scan/domain/card_edges.dart';
+import 'package:deckhand/src/features/scan/domain/card_segmentation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:integration_test/integration_test.dart';
@@ -57,6 +58,64 @@ const _echelles = [1, 2];
 
 /// La borne `maxWidth` qu'`image_picker` applique aujourd'hui à l'étalement.
 const _largeurPicker = 1600;
+
+/// Mode étalement : chaque carte isolée par `findCards` est recadrée, puis
+/// détourée comme une carte seule (`files/etalement` au lieu de `files/bench`).
+/// Une seule échelle : sur la carte seule, ×2 n'apportait que 2 photos sur 44.
+const bool _etalement = bool.fromEnvironment('DECKHAND_ETALEMENT');
+
+/// Marge ajoutée autour du rectangle d'une carte d'étalement avant de la
+/// détourer : `findCards` serre la forme, la détection fine veut voir le bord.
+const _marge = 0.06;
+
+/// Les cartes de la photo, chacune avec son nom de ligne et ses coins.
+List<(String, CardQuad)> _cartes(img.Image image, String nom) {
+  CardQuad? detourer(img.Image i) => largestPlausible(
+    [findCardByEdges(i), findCard(i)],
+    width: i.width,
+    height: i.height,
+  );
+  if (!_etalement) {
+    final quad = detourer(image);
+    return quad == null ? const [] : [(nom, quad)];
+  }
+  final cartes = <(String, CardQuad)>[];
+  final boites = singleCards(findCards(image));
+  for (final (i, b) in boites.indexed) {
+    final x0 = ((b.left - _marge * b.width) * image.width)
+        .clamp(0, image.width - 1)
+        .floor();
+    final y0 = ((b.top - _marge * b.height) * image.height)
+        .clamp(0, image.height - 1)
+        .floor();
+    final x1 = ((b.right + _marge * b.width) * image.width)
+        .clamp(0, image.width)
+        .ceil();
+    final y1 = ((b.bottom + _marge * b.height) * image.height)
+        .clamp(0, image.height)
+        .ceil();
+    final recadre = img.copyCrop(
+      image,
+      x: x0,
+      y: y0,
+      width: x1 - x0,
+      height: y1 - y0,
+    );
+    final q = detourer(recadre);
+    if (q == null) continue;
+    Point decale(Point p) => (x: p.x + x0, y: p.y + y0);
+    cartes.add((
+      '$nom#$i',
+      CardQuad(
+        topLeft: decale(q.topLeft),
+        topRight: decale(q.topRight),
+        bottomRight: decale(q.bottomRight),
+        bottomLeft: decale(q.bottomLeft),
+      ),
+    ));
+  }
+  return cartes;
+}
 
 double _longueur(Point a, Point b) {
   final dx = a.x - b.x, dy = a.y - b.y;
@@ -76,7 +135,9 @@ void main() {
     // (`PathAccessException`). `run-as`, permis sur une version de débogage,
     // copie au contraire sous l'identité de l'application.
     final support = await getApplicationSupportDirectory();
-    final dossier = Directory('${support.path}/bench');
+    final dossier = Directory(
+      '${support.path}/${_etalement ? 'etalement' : 'bench'}',
+    );
     final photos =
         dossier
             .listSync()
@@ -114,33 +175,32 @@ void main() {
 
       for (final MapEntry(key: source, value: image) in sources.entries) {
         // La détection du scan photo (`ScanService`), à l'identique : droites
-        // et clarté, le plus grand rectangle plausible des deux.
-        final quad = largestPlausible(
-          [findCardByEdges(image), findCard(image)],
-          width: image.width,
-          height: image.height,
-        );
-        if (quad == null) {
+        // et clarté, le plus grand rectangle plausible des deux — appliquée à
+        // chaque carte recadrée en mode étalement.
+        final cartes = _cartes(image, nom);
+        if (cartes.isEmpty) {
           print('BANDE $nom $source sans-carte ${image.width}x${image.height}');
           continue;
         }
-        for (var tour = 0; tour < 4; tour++) {
-          final q = quad.quarterTurned(tour);
-          final largeur = _longueur(q.topLeft, q.topRight);
-          final hauteur = _longueur(q.topLeft, q.bottomLeft);
-          for (final echelle in _echelles) {
-            final w = (largeur * echelle).round();
-            final h = (hauteur * (_bande.bottom - _bande.top) * echelle)
-                .round();
-            if (w < 8 || h < 8) continue;
-            final bande = sampleArt(image, q, _bande, width: w, height: h);
-            final fichier = File('${temp.path}/bande.png')
-              ..writeAsBytesSync(img.encodePng(bande));
-            final lignes = await lecteur.readLines(fichier.path);
-            final cle = '$nom tour=$tour $source$echelle';
-            print('BANDE $cle ${w}x$h lignes=${lignes.length}');
-            for (final ligne in lignes) {
-              print('BANDE $cle « ${ligne.text} »');
+        for (final (etiquette, quad) in cartes) {
+          for (var tour = 0; tour < 4; tour++) {
+            final q = quad.quarterTurned(tour);
+            final largeur = _longueur(q.topLeft, q.topRight);
+            final hauteur = _longueur(q.topLeft, q.bottomLeft);
+            for (final echelle in _etalement ? const [1] : _echelles) {
+              final w = (largeur * echelle).round();
+              final h = (hauteur * (_bande.bottom - _bande.top) * echelle)
+                  .round();
+              if (w < 8 || h < 8) continue;
+              final bande = sampleArt(image, q, _bande, width: w, height: h);
+              final fichier = File('${temp.path}/bande.png')
+                ..writeAsBytesSync(img.encodePng(bande));
+              final lignes = await lecteur.readLines(fichier.path);
+              final cle = '$etiquette tour=$tour $source$echelle';
+              print('BANDE $cle ${w}x$h lignes=${lignes.length}');
+              for (final ligne in lignes) {
+                print('BANDE $cle « ${ligne.text} »');
+              }
             }
           }
         }

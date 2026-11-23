@@ -124,8 +124,57 @@ def load_truth() -> dict[str, tuple[str, int]]:
     return truth
 
 
+#: Les numéros des huit cartes Marvel (MSH) des photos d'`etalement/`, identifiées
+#: à l'œil sur les photos et numérotées par `carte-seule/attendu.csv`, qui porte
+#: les mêmes cartes photographiées seules : Doombot aérien, Dinosaure de la
+#: Terre sauvage, Oiseau Moqueur, Haut responsable chez Stark Industries, Agent
+#: d'Atlas, Shuri, Crescendo brûlant, Sortilège magique.
+SPREAD_NUMBERS = {43, 185, 22, 153, 3, 75, 125, 133}
+
+
+def spread_verdict(read: set[int], truth: set[int]) -> str:
+    """Verdict d'une carte d'étalement, faute de savoir laquelle est laquelle.
+
+    Faux dès qu'un nombre lu n'est celui d'aucune carte de la photo ; juste
+    pour un seul numéro, de la photo. Le numéro d'une **voisine** passerait pour
+    juste : la mesure dit le taux de lecture et l'absence d'invention, pas
+    l'attribution — que l'étalement fait par ailleurs, par le nom.
+    """
+    if not read:
+        return "rien"
+    if read - truth:
+        return "faux"
+    return "juste" if len(read) == 1 else "ambigu"
+
+
+def main_spread(read, missing) -> int:
+    for source, name in (("x", "pleine résolution"), ("r", "réduite à 1600 px")):
+        cards = sorted({p for (p, _, s, _) in read if s == source and "#" in p})
+        photos = sorted({c.split("#")[0] for c in cards})
+        count: dict[str, int] = defaultdict(int)
+        for card in cards:
+            by_turn: dict[int, list[str]] = defaultdict(list)
+            for (p, turn, s, _), texts in read.items():
+                if p == card and s == source:
+                    by_turn[turn].extend(texts)
+            turn = bottom_turn(by_turn)
+            texts = by_turn.get(turn, []) if turn is not None else []
+            numbers = set().union(*(read_numbers(x) for x in texts)) if texts else set()
+            count[spread_verdict(numbers, SPREAD_NUMBERS)] += 1
+        lost = sum(1 for (_, s) in missing if s == source)
+        print(
+            f"{name:<18} {len(photos)} photos, {len(cards)} cartes détourées "
+            f"({lost} photo(s) sans carte) : juste {count['juste']}  "
+            f"ambigu {count['ambigu']}  faux {count['faux']}  rien {count['rien']}"
+        )
+    return 0
+
+
 def main() -> int:
     log = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
+    if "--etalement" in sys.argv:
+        read, missing = parse_log(log)
+        return main_spread(read, missing)
     read, missing = parse_log(log)
     truth = load_truth()
     with psycopg.connect(SupabaseConfig.load().db_url, connect_timeout=30) as conn:
