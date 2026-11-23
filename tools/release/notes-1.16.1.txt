@@ -1,0 +1,4 @@
+Deux corrections de la photo d'une carte :
+
+- Quand l'illustration reconnaît la carte, seule elle arrive cochée : les suggestions affichées en dessous n'entrent plus en collection par mégarde.
+- Le code d'extension imprimé en bas de la carte (« MSH • FR ») précise de nouveau l'édition quand le numéro ne se lit pas.
