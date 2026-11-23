@@ -362,7 +362,9 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
     }
     if (printings.length >= _allPrintings) return;
 
-    final id = pickByPrintLine(printLine, [
+    // Le numéro d'abord ; à défaut, le code d'extension de la même ligne —
+    // imprimé depuis M15, et que le flux photo unique avait cessé de lire.
+    final byNumber = pickByPrintLine(printLine, [
       for (final p in printings)
         (
           id: p.printId,
@@ -370,7 +372,16 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
           year: p.releasedAt?.year,
         ),
     ]);
-    diagnose('print_line_pick', {'picked': id, 'candidates': printings.length});
+    final id =
+        byNumber ??
+        pickBySetCode(printLine, [
+          for (final p in printings) (id: p.printId, setCode: p.setCode),
+        ]);
+    diagnose('print_line_pick', {
+      'picked': id,
+      'by': byNumber != null ? 'number' : (id != null ? 'set_code' : null),
+      'candidates': printings.length,
+    });
     if (id == null || !mounted || spotted.printing != null) return;
     final chosen = printings.firstWhere((p) => p.printId == id);
     setState(() {

@@ -37,6 +37,8 @@
 library;
 
 import 'art_box.dart';
+import 'card_name_text.dart';
+import 'set_code_text.dart';
 
 /// La bande lue, en proportions du carton debout : les 10 % du bas, là où
 /// vivent copyright, numéro et total. Celle que le banc a mesurée.
@@ -128,4 +130,29 @@ String? pickByPrintLine(
         c.id,
   ];
   return left.length == 1 ? left.single : null;
+}
+
+/// Une édition candidate, réduite à son extension.
+typedef SetCodeCandidate = ({String id, String setCode});
+
+/// L'édition que le **code d'extension** lu sur la bande basse désigne seule.
+///
+/// Le recours quand le numéro ne tranche pas : depuis M15, la ligne basse porte
+/// aussi le code (« MSH • FR »), et [readSetCode] le lit — mesuré dix codes sur
+/// onze, aucun faux. Il ne tranche que si l'extension lue ne compte qu'une
+/// édition de la carte : deux variantes dans la même extension, et l'on ne
+/// choisit pas.
+String? pickBySetCode(
+  List<String> bandLines,
+  List<SetCodeCandidate> candidates,
+) {
+  final code = readSetCode([
+    for (final text in bandLines) ReadLine(text, 0, 0),
+  ], {for (final c in candidates) c.setCode});
+  if (code == null) return null;
+  final inSet = [
+    for (final c in candidates)
+      if (c.setCode == code) c.id,
+  ];
+  return inSet.length == 1 ? inSet.single : null;
 }
