@@ -168,6 +168,11 @@ cd app && flutter test integration_test/plafond_reel_test.dart -d <appareil> \
     --dart-define=DECKHAND_TEST_EMAIL=... --dart-define=DECKHAND_TEST_PASSWORD=...
 cd api && .venv/Scripts/python -m app.measure.plafond_reel <journal.log>
 
+# L'édition d'avant M15 se déduit-elle de la ligne basse ? — plafond au catalogue (#50)
+# Année du copyright, numéro et total supposés lus sans faute ; une requête aux
+# extensions de Scryfall (printed_size), le reste en base.
+cd api && .venv/Scripts/python -m app.measure.edition_from_print_line
+
 # Le Y d'une webcam est-il lisible par l'index ? — la plage vidéo (#41), avant le pont
 # Ouvrir api/app/measure/webcam_capture.html dans Chrome (Chromium seul rend les
 # plans natifs), viser ../../.deckhand-bench/webcam/, capturer une trentaine de
