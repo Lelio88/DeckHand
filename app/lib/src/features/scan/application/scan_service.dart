@@ -356,6 +356,18 @@ class ScanService {
     String? photoPath,
     int limit = 3,
     ScanPrecisions precisions = sansPrecision,
+  }) => _recognise(
+    _Photo(photoBytes),
+    photoPath: photoPath,
+    limit: limit,
+    precisions: precisions,
+  );
+
+  Future<ScanOutcome> _recognise(
+    _Photo photo, {
+    String? photoPath,
+    int limit = 3,
+    ScanPrecisions precisions = sansPrecision,
   }) async {
     // **Le texte passe devant, et il ne peut rien emporter avec lui.** L'ordre
     // était inverse, au motif que l'empreinte ne dépend d'aucun service
@@ -370,7 +382,7 @@ class ScanService {
         ? const <ReadLine>[]
         : await _reader.readLines(photoPath);
     final art = _byArt(
-      photoBytes,
+      photo,
       limit: limit,
       lines: lines,
       precisions: precisions,
@@ -477,23 +489,27 @@ class ScanService {
     int limit = 3,
     ScanPrecisions precisions = sansPrecision,
   }) async {
+    // **Une photo, un décodage.** En pleine résolution, décoder coûte plus
+    // d'une seconde sur l'émulateur ; l'attribution de l'étalement,
+    // l'illustration et la ligne basse se partagent donc la même image.
+    final photo = _Photo(photoBytes);
     final spread = photoPath == null
         ? const SpreadOutcome([])
-        : await recogniseSpread(photoPath, photoBytes: photoBytes);
+        : await _recogniseSpread(photoPath, photo);
     if (spread.cards.isNotEmpty) {
       return PhotoOutcome(
         spread.cards,
         namesRead: spread.namesRead,
         printLine: await _printLineOf(
           spread.cards.length == 1 && spread.cards.single.copies == 1,
-          photoBytes,
+          photo,
           photoPath,
         ),
       );
     }
 
-    final byArt = await recognise(
-      photoBytes,
+    final byArt = await _recognise(
+      photo,
       // Rien de lu la première fois : inutile de relire.
       photoPath: spread.namesRead == 0 ? null : photoPath,
       limit: limit,
@@ -541,7 +557,7 @@ class ScanService {
       // sont que des suggestions. Une illustration qui hésite ne désigne rien.
       printLine: await _printLineOf(
         details.length == 1 || byArt.isConfident,
-        photoBytes,
+        photo,
         photoPath,
       ),
     );
@@ -555,11 +571,13 @@ class ScanService {
   /// [recogniseSpread]. Voir [PrintLineReader].
   Future<List<String>> _printLineOf(
     bool oneCard,
-    Uint8List photoBytes,
+    _Photo photo,
     String? photoPath,
   ) async {
     if (!oneCard || photoPath == null) return const [];
-    return _printLines.readSingle(photoBytes, photoPath);
+    final image = photo.image;
+    if (image == null) return const [];
+    return _printLines.readSingle(image, photoPath);
   }
 
   /// Repère **toutes** les cartes visibles sur une photo d'étalement.
@@ -575,7 +593,12 @@ class ScanService {
   Future<SpreadOutcome> recogniseSpread(
     String photoPath, {
     Uint8List? photoBytes,
-  }) async {
+  }) => _recogniseSpread(
+    photoPath,
+    photoBytes == null ? null : _Photo(photoBytes),
+  );
+
+  Future<SpreadOutcome> _recogniseSpread(String photoPath, _Photo? photo) async {
     final lines = await _reader.readLines(photoPath);
     final candidates = spreadNameCandidates(lines);
     _diagnoseRead(lines, candidates);
@@ -634,7 +657,7 @@ class ScanService {
     // Une carte n'existe que par une lecture qui la désigne, et ses
     // exemplaires ne se comptent que sur celles-là : une mention absorbée par
     // la carte qui la porte ne fait ni carte ni exemplaire.
-    final placed = _attribute(readings, photoBytes, found);
+    final placed = _attribute(readings, photo, found);
     final places = <String, List<NameCandidate>>{};
     final boxes = <String, Set<int>>{};
     for (final reading in placed.attribution.kept) {
@@ -672,8 +695,27 @@ class ScanService {
             boxOfCard.values,
             photoPath,
           );
+    // Pourquoi une carte n'a pas sa ligne basse : chaque condition écarte
+    // combien de cartes. C'est ce qui dit laquelle coûte le plus.
     diagnose('spread_print_lines', {
-      'cards': boxOfCard.length,
+      'cards': places.length,
+      'copies': copies.values.where((n) => n > 1).length,
+      'no_box': [
+        for (final e in boxes.entries)
+          if (copies[e.key] == 1 && e.value.isEmpty) e.key,
+      ].length,
+      'many_boxes': [
+        for (final e in boxes.entries)
+          if (copies[e.key] == 1 && e.value.length > 1) e.key,
+      ].length,
+      'shared_box': [
+        for (final e in boxes.entries)
+          if (copies[e.key] == 1 &&
+              e.value.length == 1 &&
+              owners[e.value.single]!.length > 1)
+            e.key,
+      ].length,
+      'eligible': boxOfCard.length,
       'read': bands.length,
     });
 
@@ -709,7 +751,7 @@ class ScanService {
   ({Attribution attribution, img.Image? photo, List<CardBounds> cards})
   _attribute(
     List<MatchedReading> readings,
-    Uint8List? photoBytes,
+    _Photo? source,
     Map<String, CardHit> found,
   ) {
     final unchanged = (
@@ -717,15 +759,14 @@ class ScanService {
       photo: null,
       cards: const <CardBounds>[],
     );
-    if (photoBytes == null || photoBytes.isEmpty || readings.length < 2) {
+    if (source == null || source.bytes.isEmpty || readings.length < 2) {
       return unchanged;
     }
 
-    final img.Image? photo;
+    final photo = source.image;
+    if (photo == null) return unchanged;
     final List<CardBounds> cards;
     try {
-      photo = img.decodeImage(photoBytes);
-      if (photo == null) return unchanged;
       cards = singleCards(findCards(photo));
     } catch (error) {
       diagnose('spread_cards_failed', {'error': error.toString()});
@@ -829,20 +870,12 @@ class ScanService {
   /// [lines] sert à écarter les hypothèses retournées, pas à chercher : voir
   /// [_hypothesesPlausibles].
   ScanOutcome _byArt(
-    Uint8List photoBytes, {
+    _Photo photo, {
     required int limit,
     List<ReadLine> lines = const [],
     ScanPrecisions precisions = sansPrecision,
   }) {
-    // `decodeImage` renvoie null sur un format inconnu, mais **lève** sur des
-    // octets tronqués ou corrompus — les deux arrivent avec une photo
-    // interrompue en cours d'écriture.
-    final img.Image? decoded;
-    try {
-      decoded = img.decodeImage(photoBytes);
-    } on Object {
-      return ScanOutcome.failure('Image illisible.');
-    }
+    final decoded = photo.image;
     if (decoded == null) return ScanOutcome.failure('Image illisible.');
     if (_index.length == 0) {
       return ScanOutcome.failure('Index de reconnaissance non chargé.');
@@ -1127,3 +1160,32 @@ final scanServiceProvider = FutureProvider<ScanService>((ref) async {
     fallbackReaders: ref.watch(fallbackCardTextReadersProvider),
   );
 });
+
+/// La photo d'un passage de reconnaissance, décodée **une fois**, à la
+/// première demande.
+///
+/// Rien ne la garde au-delà du passage : une image de 12 Mpx décodée pèse
+/// une quarantaine de mégaoctets, et l'écran ne conserve que les octets.
+class _Photo {
+  _Photo(this.bytes);
+
+  final Uint8List bytes;
+
+  bool _done = false;
+  img.Image? _image;
+
+  /// L'image, ou nulle si les octets ne se décodent pas. `decodeImage` rend
+  /// null sur un format inconnu, mais **lève** sur des octets tronqués ou
+  /// corrompus — les deux arrivent avec une photo interrompue en cours
+  /// d'écriture.
+  img.Image? get image {
+    if (_done) return _image;
+    _done = true;
+    try {
+      _image = img.decodeImage(bytes);
+    } on Object catch (error) {
+      diagnose('photo_decode_failed', {'error': '$error'});
+    }
+    return _image;
+  }
+}

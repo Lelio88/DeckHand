@@ -38,7 +38,6 @@ library;
 
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
@@ -68,14 +67,12 @@ class PrintLineReader {
   final Game game;
 
   /// La ligne basse de l'unique carte de la photo, ou rien.
-  Future<List<String>> readSingle(
-    Uint8List photoBytes,
-    String photoPath,
-  ) async {
+  ///
+  /// [photo] est déjà décodée : en pleine résolution, le décodage est la part
+  /// la plus chère, et l'appelant l'a fait pour l'illustration.
+  Future<List<String>> readSingle(img.Image photo, String photoPath) async {
     if (game != Game.magic) return const [];
     try {
-      final photo = img.decodeImage(photoBytes);
-      if (photo == null) return const [];
       final quad = _detect(photo);
       if (quad == null) return const [];
       return await _readBand(photo, quad, photoPath);
@@ -102,8 +99,15 @@ class PrintLineReader {
       if (index < 0 || index >= boxes.length) continue;
       try {
         final quad = cardInBox(photo, boxes[index]);
-        if (quad == null) continue;
+        if (quad == null) {
+          diagnose('print_line_box', {'box': index, 'outcome': 'no_card'});
+          continue;
+        }
         final band = await _readBand(photo, quad, photoPath);
+        diagnose('print_line_box', {
+          'box': index,
+          'outcome': band.isEmpty ? 'no_band' : 'read',
+        });
         if (band.isNotEmpty) lines[index] = band;
       } catch (error) {
         diagnose('print_line_failed', {'box': index, 'error': '$error'});

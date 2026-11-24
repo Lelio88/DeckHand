@@ -168,6 +168,9 @@ cd app && adb push <photos>/. /sdcard/Android/data/app.deckhand.debug/files/
 # lit à défaut. Les lignes PLAFOND-LIGNE disent l'édition que l'écran retiendrait
 # de la ligne basse (#50) ; avec `--dart-define=DECKHAND_ETALEMENT=true`, les photos
 # de files/etalement, et les lignes PLAFOND-ETAL l'édition de chaque carte.
+# `--dart-define=DECKHAND_DIAG=true` ajoute `spread_print_lines` : combien de cartes
+# chaque condition écarte (hors rectangle, exemplaires, rectangle partagé). Les
+# durées ne se comparent qu'entre passes alternées d'une même session d'émulateur.
 cd app && flutter test integration_test/plafond_reel_test.dart -d <appareil> \
     --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=... \
     --dart-define=DECKHAND_TEST_EMAIL=... --dart-define=DECKHAND_TEST_PASSWORD=...
