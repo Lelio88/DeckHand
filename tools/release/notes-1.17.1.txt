@@ -1,0 +1,1 @@
+La reconnaissance d'une photo est un peu plus rapide : l'image n'est plus traitée qu'une fois, quand plusieurs étapes la relisaient.

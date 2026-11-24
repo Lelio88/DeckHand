@@ -49,15 +49,6 @@ class PrintingChoice {
 
 const _unspecified = CardPrinting(printId: '', setCode: '', lang: 'en');
 
-/// Désigne, parmi les extensions où la carte existe, celle qui a été lue.
-///
-/// **Pourquoi une fonction plutôt qu'un code tout fait.** Seul le sélecteur sait
-/// dans quelles extensions la carte existe — il vient de les charger — et seul
-/// l'appelant sait ce qui a été lu sur la photo. Aucun des deux ne peut trancher
-/// seul, et se passer une fonction évite au sélecteur de connaître le scan, ou
-/// au scan de recharger les éditions pour rien.
-typedef SetCodeReader = String? Function(Set<String> setCodes);
-
 Future<PrintingChoice?> showPrintingPicker(
   BuildContext context, {
   required String oracleId,
@@ -66,7 +57,6 @@ Future<PrintingChoice?> showPrintingPicker(
   bool currentIsFoil = false,
   bool allowUnspecified = false,
   String? lang,
-  SetCodeReader? readSetCode,
   String? initialQuery,
 }) {
   return showModalBottomSheet<PrintingChoice>(
@@ -80,7 +70,6 @@ Future<PrintingChoice?> showPrintingPicker(
       currentIsFoil: currentIsFoil,
       allowUnspecified: allowUnspecified,
       lang: lang,
-      readSetCode: readSetCode,
       initialQuery: initialQuery,
     ),
   );
@@ -94,7 +83,6 @@ class _PrintingPicker extends ConsumerStatefulWidget {
     required this.currentIsFoil,
     required this.allowUnspecified,
     required this.lang,
-    required this.readSetCode,
     required this.initialQuery,
   });
 
@@ -104,7 +92,6 @@ class _PrintingPicker extends ConsumerStatefulWidget {
   final bool currentIsFoil;
   final bool allowUnspecified;
   final String? lang;
-  final SetCodeReader? readSetCode;
 
   /// Recherche déjà tapée à l'ouverture : l'extension entendue par la dictée,
   /// quand elle en laisse plusieurs. Elle reste dans le champ, effaçable.
@@ -124,30 +111,6 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
   /// Pages chargées. Revient à une dès qu'un filtre change : la suite d'une
   /// autre recherche ne dit rien de celle-ci.
   int _pages = 1;
-
-  /// Vrai dès que le code lu a désigné l'édition à notre place.
-  ///
-  /// Le choix se referme sur la feuille, donc au cours d'une construction :
-  /// sans ce drapeau, une reconstruction survenue entre-temps le rejouerait.
-  bool _autoChose = false;
-
-  /// Referme la feuille sur l'édition que le code lu désigne seul.
-  ///
-  /// **Un seul candidat n'est pas un choix**, et le demander revenait à faire
-  /// ouvrir une liste d'un seul élément — le même raisonnement qui précise
-  /// d'office les cartes à édition unique lors d'un étalement. La différence
-  /// tient à ce qui restreint : là le catalogue, ici le code d'extension lu sur
-  /// la carte. Éprouvé sur onze cartes réelles, dix codes lus, aucun faux.
-  ///
-  /// Le geste reste réversible : l'édition d'une case se corrige depuis le
-  /// classeur, et c'est là qu'on verra si la lecture s'est trompée.
-  void _acceptSoleReading(CardPrinting only) {
-    _autoChose = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      Navigator.of(context).pop(PrintingChoice(only, isFoil: _foil));
-    });
-  }
 
   @override
   void dispose() {
@@ -296,51 +259,12 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                   return _Empty(query: _query, foil: _foil, era: _era);
                 }
 
-                // L'extension lue sur la photo remonte en tête. C'est tout ce
-                // qu'on en fait : elle n'est ni cochée ni ajoutée d'office,
-                // parce qu'une édition fausse range la carte dans la mauvaise
-                // case (garde-fou §IV.8 — l'utilisateur confirme en tapant).
-                // Sur une carte rééditée quarante fois, ce simple ordre est ce
-                // qui rend le geste tenable.
-                final read = widget.readSetCode?.call({
-                  for (final p in matching) p.setCode,
-                });
-                final shown = read == null
-                    ? matching
-                    : [
-                        ...matching.where((p) => p.setCode == read),
-                        ...matching.where((p) => p.setCode != read),
-                      ];
-                final readCount = read == null
-                    ? 0
-                    : matching.where((p) => p.setCode == read).length;
-
-                // **Le code lu tranche quand il ne laisse qu'une case.** Sur
-                // une carte rééditée treize fois, c'est la différence entre une
-                // édition précisée et une carte qui atterrit « à trier ». On ne
-                // le fait qu'à l'ajout : rouvrir le sélecteur pour corriger une
-                // édition doit laisser choisir, sinon la correction serait
-                // impossible.
-                if (!_autoChose &&
-                    readCount == 1 &&
-                    widget.currentPrintId == null &&
-                    _query.isEmpty &&
-                    _era == PrintingEra.all) {
-                  _acceptSoleReading(shown.first);
-                }
-
                 return ListView.builder(
                   controller: scrollController,
                   itemCount:
-                      shown.length +
-                      (read == null ? 0 : 1) +
-                      (hasFooter ? 1 : 0),
+                      matching.length + (hasFooter ? 1 : 0),
                   itemBuilder: (context, index) {
-                    if (read != null) {
-                      if (index == 0) return _ReadOnCard(setCode: read);
-                      index -= 1;
-                    }
-                    if (index == shown.length) {
+                    if (index == matching.length) {
                       return _MoreEditions(
                         loading: pending != null && !pending.hasError,
                         failed: pending?.hasError ?? false,
@@ -351,15 +275,14 @@ class _PrintingPickerState extends ConsumerState<_PrintingPicker> {
                       );
                     }
                     return _PrintingTile(
-                      printing: shown[index],
+                      printing: matching[index],
                       foil: _foil,
-                      readOnCard: index < readCount,
                       selected:
-                          shown[index].printId == widget.currentPrintId &&
+                          matching[index].printId == widget.currentPrintId &&
                           _foil == widget.currentIsFoil,
                       onTap: () => Navigator.of(
                         context,
-                      ).pop(PrintingChoice(shown[index], isFoil: _foil)),
+                      ).pop(PrintingChoice(matching[index], isFoil: _foil)),
                     );
                   },
                 );
@@ -557,60 +480,18 @@ class _YearFilter extends StatelessWidget {
 const double _thumbWidth = 92;
 const double _thumbHeight = 68;
 
-/// En-tête annonçant l'extension lue sur la photo.
-///
-/// Dire **ce qui a été lu** plutôt que réordonner en silence : si la lecture se
-/// trompe, l'utilisateur comprend pourquoi les mauvaises éditions sont en tête
-/// au lieu de subir un ordre inexplicable. C'est la même règle que le nom lu,
-/// affiché tel quel après un scan.
-class _ReadOnCard extends StatelessWidget {
-  const _ReadOnCard({required this.setCode});
-
-  final String setCode;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Row(
-        children: [
-          Icon(
-            Icons.center_focus_weak,
-            size: 16,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Extension lue sur la carte : ${setCode.toUpperCase()}',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _PrintingTile extends StatelessWidget {
   const _PrintingTile({
     required this.printing,
     required this.foil,
     required this.selected,
     required this.onTap,
-    this.readOnCard = false,
   });
 
   final CardPrinting printing;
   final bool foil;
   final bool selected;
   final VoidCallback onTap;
-
-  /// Vrai quand cette édition porte le code lu sur la photo.
-  final bool readOnCard;
 
   @override
   Widget build(BuildContext context) {
@@ -638,17 +519,6 @@ class _PrintingTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          // Le code peut désigner plusieurs éditions d'une même extension —
-          // 17 % des cas mesurés. Le marquer sur chacune évite de laisser
-          // croire que la première est la bonne.
-          if (readOnCard) ...[
-            const SizedBox(width: 6),
-            Icon(
-              Icons.center_focus_weak,
-              size: 14,
-              color: theme.colorScheme.primary,
-            ),
-          ],
         ],
       ),
       subtitle: Text(
