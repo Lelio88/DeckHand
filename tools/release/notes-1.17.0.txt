@@ -1,0 +1,3 @@
+Sur une photo de plusieurs cartes, l'édition de chaque carte se lit désormais sur son numéro de collection, imprimé en bas du carton : elle est précisée d'office quand elle est seule à le porter.
+
+La photo est prise en pleine résolution, condition pour lire ces numéros.
