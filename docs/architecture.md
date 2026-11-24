@@ -1180,8 +1180,13 @@ photos du banc réel, en pleine résolution comme `image_picker` les rend
 chaîne **entière** ; toutes les autres portent sur le recours. Le tableau
 ci-dessous date de la borne à 1600 px ; levée, la carte seule rend 37 justes sur
 44 contre 38 à 1600 px sur le même passage — une photo à départager de plus,
-aucune carte affirmée à tort de plus —, pour 1,1 s de plus par photo sur
-l'émulateur (médiane 3,4 s contre 2,2 s : le décodage d'une photo de 12 Mpx).
+aucune carte affirmée à tort de plus —, pour environ 1,1 s de plus par photo sur
+l'émulateur. **Une photo n'est décodée qu'une fois** par passage (`_Photo`) :
+attribution de l'étalement, illustration et ligne basse partagent l'image.
+Mesuré en alternance ancien / nouveau / ancien dans une même session — les
+durées de l'émulateur dérivent d'une session à l'autre, seules des passes
+alternées se comparent —, ce partage rend 0,2 s par photo en moyenne, 0,3 à
+0,45 s sur celles qui concluent par l'illustration, à résultats identiques.
 
 | | photos | justes |
 |---|---|---|
@@ -1929,6 +1934,8 @@ Les cartes anciennes du banc (Judgment, Prophecy, Dragon's Maze) : 4 photos sur 
 À 1600 px, plus rien ne se lit. Les deux ambigus sont des rectangles qui englobaient deux cartes jointives : deux numéros lus, rien de tranché — la règle a tenu. La vérité ne dit pas *quelle* carte porte quel numéro, seulement qu'il est de la photo : l'attribution, l'étalement la fait par le nom. L'émulateur sert ML Kit comme l'appareil : la mesure ne demande pas le téléphone, seulement ses photos.
 
 **Branché dans l'app : l'étalement, carte par carte.** `recogniseSpread` garde la photo décodée et les rectangles de `findCards` que l'attribution a déjà calculés ; `Attribution.boxOf` dit dans quel rectangle siège chaque nom gardé. Une carte reçoit sa ligne basse (`SpreadFind.printLine`) à trois conditions : **vue en un exemplaire** (deux cartons peuvent être de deux éditions, l'écran n'a qu'une ligne pour eux), **dans un seul rectangle que nulle autre carte ne partage**, et **une carte détourée qui couvre au moins 60 % de ce rectangle** (`PrintLineReader.minBoxCoverage`) — deux cartes soudées n'en laissent à chacune que la moitié, et la bande lue serait peut-être celle de la voisine. L'écran applique ensuite à chaque carte la même règle qu'à la carte seule. Mesuré avec le vrai code (lignes `PLAFOND-ETAL`, `DECKHAND_ETALEMENT=true`) sur les 17 photos d'`etalement/` : **13 éditions retenues sur 3 photos, 13 justes, aucune fausse** ; à 1600 px, une seule, par le code d'extension. La pleine résolution ne ralentit pas l'étalement (médiane 10,3 s contre 10,6 s sur l'émulateur, la lecture des noms dominant) et ne change pas la lecture des noms (112 vraies cartes et 36 fausses, contre 110 et 34) — **à une règle près** : le copyright devient lisible et trouvait *Wizards of the _____* et *Of the Coast*, cinq fausses cartes ; `isCopyrightLine` l'écarte des noms.
+
+**Le goulot est le repérage des cartes, pas la lecture.** Le journal `spread_print_lines` (`DECKHAND_DIAG`) dit ce que chaque condition écarte. Sur les 17 photos : 148 cartes reconnues, **127 hors de tout rectangle**, aucune écartée pour ses exemplaires ni pour un rectangle partagé ; 21 éligibles, 13 bandes lues, 13 éditions. `findCards` ne sépare que des cartes espacées : il isole 6 à 8 cartes sur les trois photos où un jour les sépare, une ou deux ailleurs, où les cartes jointives forment un seul bloc (`recommendedGapMillimetres`). Lire l'édition de cartes jointives demanderait de situer le carton depuis son nom, sans rectangle.
 
 La carte étant déjà identifiée par son nom, lire son extension précise donc son édition **sans caméra fixe et sans jamais lire le numéro**. Les deux lectures pondérées encadrent la réalité : le corpus ne dit pas de quelle extension vient l'exemplaire joué, le pire cas suppose qu'on possède toujours la réédition la plus alambiquée, le cas moyen qu'on en possède une au hasard.
 
