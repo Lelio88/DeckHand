@@ -727,6 +727,96 @@ void main() {
     });
   });
 
+  group("la ligne basse de chaque carte d'un étalement (n°50)", () {
+    /// Deux cartes sombres de 400 × 559 px sur une table claire, nommées en
+    /// haut : les rectangles de `findCards` les séparent.
+    Uint8List deuxCartes() {
+      final photo = img.Image(width: 1200, height: 800)
+        ..clear(img.ColorRgb8(235, 232, 225));
+      for (final x in [100, 700]) {
+        img.fillRect(
+          photo,
+          x1: x,
+          y1: 120,
+          x2: x + 400,
+          y2: 120 + 559,
+          color: img.ColorRgb8(28, 28, 34),
+        );
+      }
+      return img.encodePng(photo);
+    }
+
+    test('chaque carte vue une fois reçoit la bande de son carton', () async {
+      // La première bande lue porte le copyright : c'est le bas de la
+      // première carte. Toutes les autres reviennent vides.
+      final reader =
+          _BandReader([
+              const [ReadLine('© 2001 Wizards of the Coast 111/143', 0.5, 0.2)],
+            ])
+            ..lines = const [
+              ReadLine('Foudre', 0.17, 0.02, 0.10, 0.20),
+              ReadLine('Anneau', 0.17, 0.02, 0.60, 0.20),
+            ];
+      final service = ScanService(
+        ArtHashIndex.fromEntries(const []),
+        reader,
+        FakeCardRepository()
+          ..results = [
+            _spreadHit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Foudre'),
+            _spreadHit('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Anneau'),
+          ],
+      );
+
+      final found = (await service.recogniseSpread(
+        'etalement.jpg',
+        photoBytes: deuxCartes(),
+      )).cards;
+
+      final parNom = {for (final f in found) f.card.name: f.printLine};
+      expect(parNom['Foudre'], ['© 2001 Wizards of the Coast 111/143']);
+      expect(parNom['Anneau'], isEmpty, reason: 'aucun copyright lu');
+      expect(
+        reader.paths.where((p) => p.endsWith('.ligne-basse.png')).length,
+        4,
+        reason: 'deux sens par carte, deux cartes',
+      );
+      expect(File('etalement.jpg.ligne-basse.png').existsSync(), isFalse);
+    });
+
+    test('deux exemplaires ne lisent pas de bande', () async {
+      // Deux cartons d'une même carte peuvent être de deux éditions : l'écran
+      // n'a qu'une ligne pour les deux, aucune bande ne la décrit.
+      final reader =
+          _BandReader([
+              const [ReadLine('© 2001 Wizards of the Coast 111/143', 0.5, 0.2)],
+            ])
+            ..lines = const [
+              ReadLine('Foudre', 0.17, 0.02, 0.10, 0.20),
+              ReadLine('Foudre', 0.17, 0.02, 0.60, 0.20),
+            ];
+      final service = ScanService(
+        ArtHashIndex.fromEntries(const []),
+        reader,
+        FakeCardRepository()
+          ..results = [
+            _spreadHit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Foudre'),
+          ],
+      );
+
+      final found = (await service.recogniseSpread(
+        'etalement.jpg',
+        photoBytes: deuxCartes(),
+      )).cards;
+
+      expect(found.single.copies, 2);
+      expect(found.single.printLine, isEmpty);
+      expect(
+        reader.paths.where((p) => p.endsWith('.ligne-basse.png')),
+        isEmpty,
+      );
+    });
+  });
+
   group('un étalement vide dit laquelle des deux causes', () {
     // **Le geste à faire n'est pas le même**, et l'écran donnait toujours le
     // premier conseil. Mesuré sur une carte Riftbound française : « Archer du
@@ -1151,3 +1241,19 @@ CardHit _spreadHit(String oracleId, String name) => CardHit(
   legalCommander: true,
   score: 1,
 );
+
+/// Un OCR qui rend, pour chaque bande découpée, la suivante de [bands] — puis
+/// rien —, et les lignes ordinaires pour la photo.
+class _BandReader extends FakeCardTextReader {
+  _BandReader(this.bands);
+
+  final List<List<ReadLine>> bands;
+
+  @override
+  Future<List<ReadLine>> readLines(String path) async {
+    if (!path.endsWith('.ligne-basse.png')) return super.readLines(path);
+    paths.add(path);
+    reads++;
+    return bands.isEmpty ? const [] : bands.removeAt(0);
+  }
+}

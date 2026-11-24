@@ -397,6 +397,28 @@ void main() {
       expect(find.text('MSH #348'), findsOneWidget);
     });
 
+    testWidgets("sur un étalement, chaque carte lit l'édition de son carton", (
+      tester,
+    ) async {
+      // Deux cartes : la bande de la première porte son
+      // numéro, la seconde n'a rien donné et reste à préciser.
+      await pumpSpreadScan(
+        tester,
+        found: const [],
+        editions: [edition('msh', '43', 2026), edition('pmsh', '185', 2026)],
+        outcome: PhotoOutcome([
+          SpreadFind(
+            _hit('id-1', 'Levée de bouclier'),
+            printLine: const ['C 0043', 'TM&O2026 Wizards of the Coast'],
+          ),
+          SpreadFind(_hit('id-2', 'Shuri')),
+        ]),
+      );
+
+      expect(find.text('MSH #43'), findsOneWidget);
+      expect(find.text("Préciser l'édition"), findsOneWidget);
+    });
+
     testWidgets('deux éditions au même numéro et à la même année : rien', (
       tester,
     ) async {

@@ -22,8 +22,6 @@
 /// suggestions de decks.
 library;
 
-import 'dart:io';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,9 +41,9 @@ import '../domain/card_edges.dart';
 import '../domain/card_framing.dart';
 import '../domain/card_name_text.dart';
 import '../domain/card_segmentation.dart';
-import '../domain/print_line_text.dart';
 import '../domain/spread_attribution.dart';
 import '../domain/spread_names.dart';
+import 'print_line_reader.dart';
 
 /// Comment une carte a été identifiée. Détermine ce que l'écran annonce.
 enum ScanMethod {
@@ -271,9 +269,15 @@ class PhotoOutcome {
 /// lus quatre fois par l'appareil, puis fusionnés en une seule carte de
 /// quantité 1 — la perte était silencieuse.
 class SpreadFind {
-  const SpreadFind(this.card, {this.copies = 1});
+  const SpreadFind(this.card, {this.copies = 1, this.printLine = const []});
 
   final CardHit card;
+
+  /// Lignes lues sur la **bande basse** de cette carte, sur un étalement
+  /// (issue n°50) : seulement pour une carte vue en un exemplaire, dans un
+  /// rectangle qui ne porte qu'elle. Vide sinon — l'écran laisse alors
+  /// l'édition à préciser.
+  final List<String> printLine;
 
   /// Nombre d'exemplaires distincts vus sur la photo.
   ///
@@ -339,6 +343,8 @@ class ScanService {
   /// la voie **principale** pour ce jeu, faute de catalogue traduit, et non le
   /// recours qu'elle est en Magic.
   final Game game;
+
+  PrintLineReader get _printLines => PrintLineReader(_reader, game: game);
 
   /// Reconnaît la carte photographiée.
   ///
@@ -541,80 +547,19 @@ class ScanService {
     );
   }
 
-  /// La bande basse de l'unique carte de la photo, lue par ML Kit (issue n°50).
+  /// La bande basse de l'unique carte de la photo (issue n°50).
   ///
-  /// **Une carte, un exemplaire, Magic** — [oneCard] le dit : un seul nom lu
-  /// pour un seul exemplaire, ou une illustration sûre, dont la première carte
-  /// est la reconnue. Sur un étalement, rien ne dit à quelle carte
-  /// appartiendrait une ligne basse ; les règles de lecture (force et
-  /// endurance, « n/total ») sont celles de Magic, mesurées sur ses cartons.
-  ///
-  /// **Découpée, et non lue sur la photo entière** : c'est ce qui la rend
-  /// lisible (`integration_test/ligne_basse_test.dart` : 24 photos sur 44,
-  /// aucune lecture fausse, à 1600 px comme en pleine résolution). Seuls les
-  /// deux sens où la bande est le **petit côté** du carton sont lus — le bas
-  /// d'une carte debout —, puis [bottomBand] garde celui qui porte le
-  /// copyright. Deux lectures d'une bande étroite, pas quatre.
-  ///
-  /// **Ne peut rien casser** : toute erreur rend une liste vide, et la carte
-  /// reste reconnue comme avant, édition à préciser.
+  /// **Une carte, un exemplaire** — [oneCard] le dit : un seul nom lu pour un
+  /// seul exemplaire, ou une illustration sûre, dont la première carte est la
+  /// reconnue. Un étalement lit la sienne carte par carte, dans
+  /// [recogniseSpread]. Voir [PrintLineReader].
   Future<List<String>> _printLineOf(
     bool oneCard,
     Uint8List photoBytes,
     String? photoPath,
   ) async {
-    if (!oneCard || photoPath == null || game != Game.magic) return const [];
-
-    final band = File('$photoPath.ligne-basse.png');
-    try {
-      final photo = img.decodeImage(photoBytes);
-      if (photo == null) return const [];
-      final quad = largestPlausible(
-        [findCardByEdges(photo, game: game.id), findCard(photo, game: game.id)],
-        width: photo.width,
-        height: photo.height,
-      );
-      if (quad == null) return const [];
-
-      final byTurn = <int, List<String>>{};
-      for (var turn = 0; turn < 4; turn++) {
-        final q = quad.quarterTurned(turn);
-        final width = _distance(q.topLeft, q.topRight);
-        final height = _distance(q.topLeft, q.bottomLeft);
-        if (width > height) continue;
-        final pixels = sampleArt(
-          photo,
-          q,
-          printLineBand,
-          width: width.round(),
-          height: (height * (printLineBand.bottom - printLineBand.top)).round(),
-        );
-        band.writeAsBytesSync(img.encodePng(pixels));
-        byTurn[turn] = [
-          for (final line in await _reader.readLines(band.path)) line.text,
-        ];
-      }
-      final turn = bottomBand(byTurn);
-      diagnose('print_line', {
-        'turn': turn,
-        'lines': turn == null ? null : byTurn[turn],
-      });
-      return turn == null ? const [] : byTurn[turn]!;
-    } catch (error) {
-      diagnose('print_line_failed', {'error': '$error'});
-      return const [];
-    } finally {
-      try {
-        if (band.existsSync()) band.deleteSync();
-      } on FileSystemException {
-        // Un fichier temporaire resté là ne gêne rien : le cache l'emportera.
-      }
-    }
-  }
-
-  static double _distance(Point a, Point b) {
-    final dx = a.x - b.x, dy = a.y - b.y;
-    return math.sqrt(dx * dx + dy * dy);
+    if (!oneCard || photoPath == null) return const [];
+    return _printLines.readSingle(photoBytes, photoPath);
   }
 
   /// Repère **toutes** les cartes visibles sur une photo d'étalement.
@@ -689,14 +634,57 @@ class ScanService {
     // Une carte n'existe que par une lecture qui la désigne, et ses
     // exemplaires ne se comptent que sur celles-là : une mention absorbée par
     // la carte qui la porte ne fait ni carte ni exemplaire.
+    final placed = _attribute(readings, photoBytes, found);
     final places = <String, List<NameCandidate>>{};
-    for (final reading in _attribute(readings, photoBytes, found).kept) {
+    final boxes = <String, Set<int>>{};
+    for (final reading in placed.attribution.kept) {
       places.putIfAbsent(reading.identity, () => []).add(reading.line);
+      final box = placed.attribution.boxOf[reading];
+      boxes.putIfAbsent(reading.identity, () => {});
+      if (box != null) boxes[reading.identity]!.add(box);
     }
+    final copies = {
+      for (final entry in places.entries) entry.key: _countCopies(entry.value),
+    };
+
+    // **La ligne basse d'une carte d'étalement** (issue n°50) : seulement pour
+    // une carte vue en un exemplaire, logée dans un seul rectangle que nulle
+    // autre carte ne partage. Deux exemplaires peuvent être de deux éditions ;
+    // un rectangle partagé ne dit pas à qui est la bande.
+    final owners = <int, Set<String>>{};
+    for (final entry in boxes.entries) {
+      for (final box in entry.value) {
+        owners.putIfAbsent(box, () => {}).add(entry.key);
+      }
+    }
+    final boxOfCard = <String, int>{
+      for (final entry in boxes.entries)
+        if (copies[entry.key] == 1 &&
+            entry.value.length == 1 &&
+            owners[entry.value.single]!.length == 1)
+          entry.key: entry.value.single,
+    };
+    final bands = placed.photo == null || boxOfCard.isEmpty
+        ? const <int, List<String>>{}
+        : await _printLines.readBoxes(
+            placed.photo!,
+            placed.cards,
+            boxOfCard.values,
+            photoPath,
+          );
+    diagnose('spread_print_lines', {
+      'cards': boxOfCard.length,
+      'read': bands.length,
+    });
+
     return SpreadOutcome([
       for (final entry in found.entries)
-        if (places[entry.key] case final lectures?)
-          SpreadFind(entry.value, copies: _countCopies(lectures)),
+        if (places.containsKey(entry.key))
+          SpreadFind(
+            entry.value,
+            copies: copies[entry.key]!,
+            printLine: bands[boxOfCard[entry.key]] ?? const [],
+          ),
     ], namesRead: candidates.length);
   }
 
@@ -714,12 +702,21 @@ class ScanService {
   /// inattendu, mémoire —, toutes les lectures sont gardées, comme avant qu'il
   /// existe. Une reconnaissance qui marche ne peut pas être mise en échec par
   /// son garde-fou.
-  Attribution _attribute(
+  ///
+  /// Rend aussi la photo décodée et ses rectangles : la ligne basse de chaque
+  /// carte s'y lit ensuite, sans décoder une seconde fois une photo en pleine
+  /// résolution.
+  ({Attribution attribution, img.Image? photo, List<CardBounds> cards})
+  _attribute(
     List<MatchedReading> readings,
     Uint8List? photoBytes,
     Map<String, CardHit> found,
   ) {
-    final unchanged = Attribution(readings, const []);
+    final unchanged = (
+      attribution: Attribution(readings, const []),
+      photo: null,
+      cards: const <CardBounds>[],
+    );
     if (photoBytes == null || photoBytes.isEmpty || readings.length < 2) {
       return unchanged;
     }
@@ -759,7 +756,7 @@ class ScanService {
         ],
       });
     }
-    return attribution;
+    return (attribution: attribution, photo: photo, cards: cards);
   }
 
   /// Combien de cartes physiques ces lectures représentent.

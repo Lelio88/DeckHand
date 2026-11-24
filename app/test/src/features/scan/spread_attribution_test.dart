@@ -41,6 +41,23 @@ void main() {
       expect(_identites(r.absorbed), {'Vol'});
     });
 
+    test('chaque nom gardé dit son rectangle, une mention aucun', () {
+      // Le rectangle relie un nom à son carton : c'est là que se lit sa ligne
+      // basse (issue n°50).
+      final revenant = _lu('Revenant rampant', 0.12, 0.12);
+      final vol = _lu('Vol', 0.265, 0.12);
+      final gerrard = _lu('Gerrard', 0.12, 0.72);
+      final dehors = _lu('Hors champ', 0.80, 0.50);
+
+      final r = attributeToCards([revenant, vol, gerrard, dehors], _rangee);
+
+      expect(r.boxOf[revenant], 0);
+      expect(r.boxOf[gerrard], 2);
+      expect(r.boxOf.containsKey(vol), isFalse, reason: 'absorbée');
+      expect(r.boxOf.containsKey(dehors), isFalse, reason: 'hors de tout');
+      expect(r.kept, contains(dehors));
+    });
+
     test('le nom cité dans les règles ne compte pas un second exemplaire', () {
       // « : Régénérez le Meneur de Rakdos. » marquait 0,607 et comptait pour
       // un deuxième carton, à 82 % de la carte.

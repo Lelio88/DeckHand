@@ -1175,9 +1175,13 @@ carte mal cadrée, d'un étalement ou d'une carte scindée, jamais du décor.
 
 `app/integration_test/plafond_reel_test.dart` appelle le vrai `recognisePhoto`
 sur l'appareil, avec le vrai OCR, le vrai index et le vrai catalogue, sur les
-photos du banc réel réduites comme `image_picker` les réduit (1600 px, qualité
-92). C'est la seule mesure de la chaîne **entière** ; toutes les autres portent
-sur le recours.
+photos du banc réel, en pleine résolution comme `image_picker` les rend
+(`DECKHAND_LARGEUR=1600` rejoue l'ancienne borne). C'est la seule mesure de la
+chaîne **entière** ; toutes les autres portent sur le recours. Le tableau
+ci-dessous date de la borne à 1600 px ; levée, la carte seule rend 37 justes sur
+44 contre 38 à 1600 px sur le même passage — une photo à départager de plus,
+aucune carte affirmée à tort de plus —, pour 1,1 s de plus par photo sur
+l'émulateur (médiane 3,4 s contre 2,2 s : le décodage d'une photo de 12 Mpx).
 
 | | photos | justes |
 |---|---|---|
@@ -1913,16 +1917,18 @@ Le total n'ajoute presque rien dès que le numéro est lu.
 
 Les cartes anciennes du banc (Judgment, Prophecy, Dragon's Maze) : 4 photos sur 5 justes. Deux pièges, déjà parés dans l'analyse et à reprendre tels quels dans toute lecture produit : **la force et l'endurance** (« 4/4 ») sont imprimées dans la même bande et ont la forme « n/total » — un total de moins de vingt n'en est pas un ; et ML Kit rend souvent « C 0195 » en « CO195 » — un O collé à un chiffre est un zéro. Le seul faux (1600 px) mêlait trois nombres mutilés : il tombe sous la règle « deux numéros lus, on ne tranche pas ».
 
-**Branché dans l'app : la photo d'une seule carte.** Quand la photo ne porte qu'une carte en un exemplaire — ou que l'illustration est sûre, dont la première carte est la reconnue —, `ScanService` découpe sa bande basse dans les deux sens où elle est le petit côté du carton, la lit, et garde le sens qui porte le copyright (`bottomBand`). L'écran photo, après les éditions uniques, charge toutes les éditions de la carte dans la langue lue et retient celle que `pickByPrintLine` désigne **seule** ; sinon rien ne change. Règles et pièges : `scan/domain/print_line_text.dart`. Mesuré avec le vrai code (`integration_test/plafond_reel_test.dart`, lignes `PLAFOND-LIGNE`) sur les 47 photos de `carte-seule/` réduites à 1600 px : **15 éditions retenues, 15 justes, aucune fausse** ; abstention sur les terrains de base (200 éditions et plus : on ne conclut pas sur une liste tronquée) et sur une année mal lue (« 2020 » pour 2026). Le gain net est sur les cartes rééditées — *Levée de bouclier*, six éditions, retenue juste sur huit photos ; les cartes anciennes du banc n'existent qu'en une édition dans leur langue, que `sole_editions` précisait déjà.
+**Branché dans l'app : la photo d'une seule carte.** Quand la photo ne porte qu'une carte en un exemplaire — ou que l'illustration est sûre, dont la première carte est la reconnue —, `ScanService` découpe sa bande basse dans les deux sens où elle est le petit côté du carton, la lit, et garde le sens qui porte le copyright (`bottomBand`). L'écran photo, après les éditions uniques, charge toutes les éditions de la carte dans la langue lue et retient celle que `pickByPrintLine` désigne **seule** ; sinon rien ne change. Règles et pièges : `scan/domain/print_line_text.dart`. Mesuré avec le vrai code (`integration_test/plafond_reel_test.dart`, lignes `PLAFOND-LIGNE`) sur les 47 photos de `carte-seule/` : **15 éditions retenues, 15 justes, aucune fausse** (14 à 1600 px) ; abstention sur les terrains de base (200 éditions et plus : on ne conclut pas sur une liste tronquée) et sur une année mal lue (« 2020 » pour 2026). Le gain net est sur les cartes rééditées — *Levée de bouclier*, six éditions, retenue juste sur huit photos ; les cartes anciennes du banc n'existent qu'en une édition dans leur langue, que `sole_editions` précisait déjà.
 
-**Sur un étalement, la pleine résolution est la condition.** Sur une carte seule, le carton occupe la photo, et 1600 px suffisent. Sur un étalement, chaque carte est trois à quatre fois plus petite. Mode `DECKHAND_ETALEMENT` du même banc — chaque carte isolée par `findCards` est recadrée puis détourée comme une carte seule — sur les 17 photos d'`etalement/` (onze cartes MSH dont les numéros sont établis par `carte-seule/attendu.csv`) :
+**Sur un étalement, la pleine résolution est la condition** — c'est pourquoi `image_picker` ne borne plus la largeur. Sur une carte seule, le carton occupe la photo, et 1600 px suffisent. Sur un étalement, chaque carte est trois à quatre fois plus petite. Mode `DECKHAND_ETALEMENT` du même banc — chaque carte isolée par `findCards` est recadrée puis détourée comme une carte seule — sur les 17 photos d'`etalement/` (onze cartes MSH dont les numéros sont établis par `carte-seule/attendu.csv`) :
 
 | Source | Cartes détourées | Numéro juste | Ambigu | Faux | Rien |
 |---|---|---|---|---|---|
 | pleine résolution | 31 | 14 | 2 | **0** | 15 |
 | réduite à 1600 px | 30 | **0** | 0 | 0 | 30 |
 
-À 1600 px, plus rien ne se lit : préciser l'édition sur un étalement suppose de lever `maxWidth: 1600` (mémoire, décodage, durée d'OCR, à mesurer sur l'appareil). Les deux ambigus sont des rectangles qui englobaient deux cartes jointives : deux numéros lus, rien de tranché — la règle a tenu. La vérité ne dit pas *quelle* carte porte quel numéro, seulement qu'il est de la photo : l'attribution, l'étalement la fait par le nom. L'émulateur sert ML Kit comme l'appareil : la mesure ne demande pas le téléphone, seulement ses photos.
+À 1600 px, plus rien ne se lit. Les deux ambigus sont des rectangles qui englobaient deux cartes jointives : deux numéros lus, rien de tranché — la règle a tenu. La vérité ne dit pas *quelle* carte porte quel numéro, seulement qu'il est de la photo : l'attribution, l'étalement la fait par le nom. L'émulateur sert ML Kit comme l'appareil : la mesure ne demande pas le téléphone, seulement ses photos.
+
+**Branché dans l'app : l'étalement, carte par carte.** `recogniseSpread` garde la photo décodée et les rectangles de `findCards` que l'attribution a déjà calculés ; `Attribution.boxOf` dit dans quel rectangle siège chaque nom gardé. Une carte reçoit sa ligne basse (`SpreadFind.printLine`) à trois conditions : **vue en un exemplaire** (deux cartons peuvent être de deux éditions, l'écran n'a qu'une ligne pour eux), **dans un seul rectangle que nulle autre carte ne partage**, et **une carte détourée qui couvre au moins 60 % de ce rectangle** (`PrintLineReader.minBoxCoverage`) — deux cartes soudées n'en laissent à chacune que la moitié, et la bande lue serait peut-être celle de la voisine. L'écran applique ensuite à chaque carte la même règle qu'à la carte seule. Mesuré avec le vrai code (lignes `PLAFOND-ETAL`, `DECKHAND_ETALEMENT=true`) sur les 17 photos d'`etalement/` : **13 éditions retenues sur 3 photos, 13 justes, aucune fausse** ; à 1600 px, une seule, par le code d'extension. La pleine résolution ne ralentit pas l'étalement (médiane 10,3 s contre 10,6 s sur l'émulateur, la lecture des noms dominant) et ne change pas la lecture des noms (112 vraies cartes et 36 fausses, contre 110 et 34) — **à une règle près** : le copyright devient lisible et trouvait *Wizards of the _____* et *Of the Coast*, cinq fausses cartes ; `isCopyrightLine` l'écarte des noms.
 
 La carte étant déjà identifiée par son nom, lire son extension précise donc son édition **sans caméra fixe et sans jamais lire le numéro**. Les deux lectures pondérées encadrent la réalité : le corpus ne dit pas de quelle extension vient l'exemplaire joué, le pire cas suppose qu'on possède toujours la réédition la plus alambiquée, le cas moyen qu'on en possède une au hasard.
 

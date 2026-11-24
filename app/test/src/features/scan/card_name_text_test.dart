@@ -228,6 +228,33 @@ void main() {
     });
   });
 
+  group("le copyright n'est pas un nom (n°50)", () {
+    test('lu en pleine résolution, même mutilé', () {
+      // Lignes réellement rendues par ML Kit sur les étalements du banc.
+      for (final ligne in [
+        'TM&C 2026 Wizards of the Coast',
+        "N&C 2026 W'izards of the Coast",
+        'T&C3026 Wzard of the Caast',
+        'Of the Coast',
+        'IV&C2026 Wizards',
+      ]) {
+        expect(isCopyrightLine(ligne), isTrue, reason: ligne);
+        expect(looksLikeCardName(ligne), isFalse, reason: ligne);
+      }
+    });
+
+    test('un vrai nom passe, même avec « Wizard »', () {
+      for (final nom in [
+        "Wizard's Lightning",
+        'Coastal Piracy',
+        'Lord of the Pit',
+        'Prodigal Sorcerer',
+      ]) {
+        expect(isCopyrightLine(nom), isFalse, reason: nom);
+      }
+    });
+  });
+
   group("le texte d'ambiance signe son auteur", () {
     test("une attribution ouverte par un tiret n'est pas un nom", () {
       // **Observé sur le terrain.** En bas d'une carte, un personnage parle, et
