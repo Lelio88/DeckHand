@@ -60,7 +60,12 @@ class MatchedReading {
 
 /// Le partage des lectures entre cartes et simples mentions.
 class Attribution {
-  const Attribution(this.kept, this.absorbed, {this.namesSitLow});
+  const Attribution(
+    this.kept,
+    this.absorbed, {
+    this.namesSitLow,
+    this.boxOf = const {},
+  });
 
   /// Lectures qui désignent une carte posée : une par rectangle, plus celles
   /// qu'aucun rectangle ne porte. Les exemplaires se comptent sur elles seules.
@@ -71,6 +76,13 @@ class Attribution {
 
   /// Le bout des cartes qui porte les noms, s'il a pu être lu dans la photo.
   final bool? namesSitLow;
+
+  /// Le rectangle, rang dans la liste reçue, de chaque lecture **gardée** qui
+  /// siège dans l'un d'eux. Absente : la lecture n'est portée par aucun.
+  ///
+  /// Sert à lire la ligne basse de la carte que la lecture nomme (issue n°50) :
+  /// le rectangle est la seule chose qui relie un nom à un carton.
+  final Map<MatchedReading, int> boxOf;
 }
 
 /// Partage [readings] entre cartes et mentions, au vu des rectangles [cards].
@@ -105,7 +117,8 @@ Attribution attributeToCards(
   // rectangle : ils ne se chevauchent pas.
   final portees = <List<({MatchedReading reading, double at})>>[];
   final attribuees = <MatchedReading>{};
-  for (final card in cards) {
+  final rangDe = <MatchedReading, int>{};
+  for (final (rang, card) in cards.indexed) {
     final dedans = <({MatchedReading reading, double at})>[];
     portees.add(dedans);
     if (horizontal(card) != majoriteCouchee) continue;
@@ -129,6 +142,7 @@ Attribution attributeToCards(
       if (at < 0 || at > 1) continue;
       dedans.add((reading: reading, at: at));
       attribuees.add(reading);
+      rangDe[reading] = rang;
     }
   }
 
@@ -172,6 +186,10 @@ Attribution attributeToCards(
     List.unmodifiable(readings.where((r) => !absorbees.contains(r))),
     List.unmodifiable(readings.where(absorbees.contains)),
     namesSitLow: low,
+    boxOf: Map.unmodifiable({
+      for (final e in rangDe.entries)
+        if (!absorbees.contains(e.key)) e.key: e.value,
+    }),
   );
 }
 

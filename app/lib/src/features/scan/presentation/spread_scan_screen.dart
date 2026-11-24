@@ -39,6 +39,7 @@ class _Spotted {
   _Spotted(SpreadFind find, {this.keep = true})
     : card = find.card,
       quantity = find.copies,
+      printLine = find.printLine,
       fromPhoto = true;
 
   /// Une carte que la photo n'a pas vue, ajoutée à la main.
@@ -46,7 +47,15 @@ class _Spotted {
   /// Elle arrive **cochée** : on ne la désigne pas par accident, on est allé la
   /// chercher dans le catalogue. C'est l'inverse exact du recours par
   /// illustration, qui propose sans qu'on ait rien demandé.
-  _Spotted.manual(this.card) : quantity = 1, keep = true, fromPhoto = false;
+  _Spotted.manual(this.card)
+    : quantity = 1,
+      keep = true,
+      fromPhoto = false,
+      printLine = const [];
+
+  /// La ligne basse lue sur **ce** carton d'un étalement (issue n°50), ou
+  /// rien. Elle décrit la carte photographiée : un remplacement l'oublie.
+  List<String> printLine;
 
   /// La carte retenue. **Remplaçable** : une ligne mal lue se corrige sur
   /// place, faute de quoi la seule issue était de la décocher et de ressaisir
@@ -95,6 +104,7 @@ class _Spotted {
   void replaceWith(CardHit replacement) {
     card = replacement;
     printing = null;
+    printLine = const [];
   }
 }
 
@@ -203,7 +213,7 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         _scanned = true;
       });
       await _fillSoleEditions();
-      await _fillFromPrintLine(found.printLine);
+      await _fillFromPrintLines(found);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {
@@ -245,7 +255,7 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
         _uncertain = found.fromArtwork && !found.isConfident;
       });
       await _fillSoleEditions();
-      await _fillFromPrintLine(found.printLine);
+      await _fillFromPrintLines(found);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     } finally {
@@ -325,7 +335,8 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
     });
   }
 
-  /// L'édition lue sur la **ligne basse** de l'unique carte (issue n°50).
+  /// L'édition lue sur la **ligne basse** des cartes photographiées (issue
+  /// n°50).
   ///
   /// **Lire n'est pas deviner** (§IV.8). Avant M15 aucune carte n'imprime son
   /// code d'extension ; son copyright et son numéro de collection désignent
@@ -333,19 +344,38 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
   /// ce cas — un seul numéro lu, une seule édition qui le porte à l'année
   /// lue —, sinon la carte reste « édition non précisée », comme avant.
   ///
-  /// **Toutes les éditions, ou rien.** La candidate n'est unique que parmi
-  /// celles qu'on a vues : si la page revient pleine, d'autres pourraient
-  /// suivre, et l'on renonce plutôt que de conclure sur une liste tronquée.
+  /// **Deux sources de lignes.** La photo d'une carte seule porte la sienne
+  /// sur le résultat ([PhotoOutcome.printLine]) : l'unique lue, ou la première
+  /// d'une illustration sûre — les suivantes n'y sont que des suggestions. Un
+  /// étalement porte la sienne sur chaque carte ([SpreadFind.printLine]).
   ///
   /// Après `_fillSoleEditions`, et jamais à sa place : une édition déjà fixée
   /// — unique au catalogue, ou choisie à la main — n'est pas remplacée.
-  Future<void> _fillFromPrintLine(List<String> printLine) async {
-    if (printLine.isEmpty || _spotted.isEmpty) return;
-    // La carte que la ligne basse décrit : l'unique lue, ou la première d'une
-    // illustration sûre — les suivantes n'y sont que des suggestions.
-    if (_spotted.length > 1 && (!_fromArtwork || _uncertain)) return;
-    final spotted = _spotted.first;
+  Future<void> _fillFromPrintLines(PhotoOutcome found) async {
+    if (_spotted.isEmpty) return;
+    final targets = <(_Spotted, List<String>)>[
+      if (found.printLine.isNotEmpty &&
+          (_spotted.length == 1 || (_fromArtwork && !_uncertain)))
+        (_spotted.first, found.printLine),
+      for (final spotted in _spotted)
+        if (spotted.printLine.isNotEmpty) (spotted, spotted.printLine),
+    ];
+    final seen = <_Spotted>{};
+    await Future.wait([
+      for (final (spotted, lines) in targets)
+        if (seen.add(spotted)) _fillFromPrintLine(spotted, lines),
+    ]);
+  }
+
+  /// **Toutes les éditions, ou rien.** La candidate n'est unique que parmi
+  /// celles qu'on a vues : si la page revient pleine, d'autres pourraient
+  /// suivre, et l'on renonce plutôt que de conclure sur une liste tronquée.
+  Future<void> _fillFromPrintLine(
+    _Spotted spotted,
+    List<String> printLine,
+  ) async {
     if (spotted.printing != null) return;
+    final oracleId = spotted.card.oracleId;
 
     final List<CardPrinting> printings;
     try {
@@ -382,7 +412,14 @@ class _SpreadScanScreenState extends ConsumerState<SpreadScanScreen> {
       'by': byNumber != null ? 'number' : (id != null ? 'set_code' : null),
       'candidates': printings.length,
     });
-    if (id == null || !mounted || spotted.printing != null) return;
+    // La ligne a pu être remplacée pendant la requête : la bande lue décrivait
+    // l'ancienne carte.
+    if (id == null ||
+        !mounted ||
+        spotted.printing != null ||
+        spotted.card.oracleId != oracleId) {
+      return;
+    }
     final chosen = printings.firstWhere((p) => p.printId == id);
     setState(() {
       // Même règle que pour l'édition unique : une édition qui n'existe

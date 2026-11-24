@@ -78,9 +78,11 @@ class PhotoSource {
   }) async {
     final picked = await ImagePicker().pickImage(
       source: source,
-      // Au-delà, on transporte des pixels que l'empreinte n'exploitera jamais :
-      // elle réduit l'illustration à une grille de 9 × 8.
-      maxWidth: 1600,
+      // **Pleine résolution, sans borne de largeur.** L'empreinte n'en a pas
+      // besoin — elle réduit l'illustration à une grille de 9 × 8 —, mais la
+      // ligne basse d'une carte d'étalement, si : à 1600 px, aucun numéro ne
+      // s'y lit ; en pleine résolution, quatorze sur trente et une cartes, et
+      // aucun faux (issue n°50, `docs/commandes.md`).
       imageQuality: 92,
     );
     if (picked == null) return null;

@@ -159,14 +159,15 @@ cd api && .venv/Scripts/python -m app.measure.magic_art_window --langue zhs --se
 
 # Ce que l'app reconnaît VRAIMENT — sur l'appareil, OCR compris (seule mesure entière)
 # **À repousser avant CHAQUE banc** : `flutter test` désinstalle l'application en
-# sortant, et le dossier part avec elle. Les photos doivent être réduites comme
-# `image_picker` le ferait — largeur 1600, qualité 92 — sans quoi on mesure une
-# chaîne que l'application ne voit jamais.
+# sortant, et le dossier part avec elle. Les photos passent en pleine résolution,
+# comme `image_picker` les rend ; `--dart-define=DECKHAND_LARGEUR=1600` rejoue
+# l'ancienne borne pour comparer.
 cd app && adb push <photos>/. /sdcard/Android/data/app.deckhand.debug/files/
 # Sur un émulateur neuf, ce dossier est illisible pour l'application : passer par
 # `run-as` vers files/bench (procédure de ligne_basse_test, plus bas), que le banc
 # lit à défaut. Les lignes PLAFOND-LIGNE disent l'édition que l'écran retiendrait
-# de la ligne basse (#50).
+# de la ligne basse (#50) ; avec `--dart-define=DECKHAND_ETALEMENT=true`, les photos
+# de files/etalement, et les lignes PLAFOND-ETAL l'édition de chaque carte.
 cd app && flutter test integration_test/plafond_reel_test.dart -d <appareil> \
     --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=... \
     --dart-define=DECKHAND_TEST_EMAIL=... --dart-define=DECKHAND_TEST_PASSWORD=...

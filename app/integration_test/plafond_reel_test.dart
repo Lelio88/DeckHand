@@ -28,9 +28,11 @@
 /// (voir `android/app/build.gradle.kts`). Pousser vers le dossier de
 /// l'application réelle ne lui parvient donc pas.
 ///
-/// **Réduites comme `image_picker` les réduirait** — largeur 1600, qualité 92.
-/// Les passer en pleine résolution mesurerait une chaîne que l'application ne
-/// voit jamais : le sélecteur de photo borne la largeur avant tout traitement.
+/// **En pleine résolution, comme `image_picker` les rend** : le sélecteur ne
+/// borne plus la largeur (issue n°50). `--dart-define=DECKHAND_LARGEUR=1600`
+/// rejoue l'ancienne chaîne — réduites au plus proche, qualité 92 — pour
+/// comparer les deux sur les mêmes photos. Le dossier `files/etalement` passe
+/// à la place de `files/bench` avec `--dart-define=DECKHAND_ETALEMENT=true`.
 ///
 /// Lancement :
 ///
@@ -45,6 +47,7 @@ library;
 // ignore_for_file: avoid_print
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:deckhand/src/config/supabase_config.dart';
 import 'package:deckhand/src/features/printings/data/printing_repository.dart';
@@ -52,6 +55,7 @@ import 'package:deckhand/src/features/scan/application/scan_service.dart';
 import 'package:deckhand/src/features/scan/domain/print_line_text.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -72,6 +76,58 @@ const String _motDePasse = String.fromEnvironment('DECKHAND_TEST_PASSWORD');
 const bool _toutesOrientations = bool.fromEnvironment(
   'DECKHAND_TOUTES_ORIENTATIONS',
 );
+
+/// Largeur à laquelle réduire les photos ; zéro : pleine résolution.
+const int _largeur = int.fromEnvironment('DECKHAND_LARGEUR');
+
+/// Passer les photos d'étalement (`files/etalement`) au lieu du banc.
+const bool _etalement = bool.fromEnvironment('DECKHAND_ETALEMENT');
+
+/// La photo telle que l'application la recevrait : ses octets et un fichier,
+/// réduits à [_largeur] quand il est fixé.
+Future<(Uint8List, String)> _commeLeSelecteur(File photo) async {
+  final octets = await photo.readAsBytes();
+  if (_largeur <= 0) return (octets, photo.path);
+  final image = img.decodeImage(octets)!;
+  if (image.width <= _largeur) return (octets, photo.path);
+  final reduite = img.encodeJpg(
+    img.copyResize(
+      image,
+      width: _largeur,
+      interpolation: img.Interpolation.nearest,
+    ),
+    quality: 92,
+  );
+  final chemin = '${Directory.systemTemp.path}/${photo.uri.pathSegments.last}';
+  await File(chemin).writeAsBytes(reduite);
+  return (reduite, chemin);
+}
+
+/// Ce que l'écran ferait de la ligne basse d'une carte (issue n°50) : la même
+/// règle, `pickByPrintLine` puis le code d'extension, sur les mêmes éditions
+/// que `_fillFromPrintLine` demande — langue lue, toutes ou rien.
+Future<String> _editionLue(SpreadFind find, List<String> ligne) async {
+  final carte = find.card;
+  final editions = await PrintingRepository(
+    Supabase.instance.client,
+  ).forCard(carte.oracleId, lang: carte.matchedLang, limit: 200);
+  if (editions.length >= 200) return '-';
+  final retenue =
+      pickByPrintLine(ligne, [
+        for (final e in editions)
+          (
+            id: e.printId,
+            collectorNumber: e.collectorNumber,
+            year: e.releasedAt?.year,
+          ),
+      ]) ??
+      pickBySetCode(ligne, [
+        for (final e in editions) (id: e.printId, setCode: e.setCode),
+      ]);
+  if (retenue == null) return '-';
+  final e = editions.firstWhere((e) => e.printId == retenue);
+  return '${e.setCode}#${e.collectorNumber}';
+}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -119,7 +175,8 @@ void main() {
     }
     if (photos.isEmpty) {
       dossier = Directory(
-        '${(await getApplicationSupportDirectory()).path}/bench',
+        '${(await getApplicationSupportDirectory()).path}/'
+        '${_etalement ? 'etalement' : 'bench'}',
       );
       photos = jpg(dossier);
     }
@@ -130,7 +187,7 @@ void main() {
     );
     print(
       'PLAFOND-REEL ${photos.length} photos dans ${dossier.path} '
-      'toutesOrientations=$_toutesOrientations',
+      'toutesOrientations=$_toutesOrientations largeur=$_largeur',
     );
 
     final container = ProviderContainer();
@@ -140,13 +197,13 @@ void main() {
 
     for (final photo in photos) {
       final nom = photo.uri.pathSegments.last;
-      final octets = await photo.readAsBytes();
+      final (octets, chemin) = await _commeLeSelecteur(photo);
       final chrono = Stopwatch()..start();
       PhotoOutcome resultat;
       try {
         resultat = await service.recognisePhoto(
           octets,
-          photoPath: photo.path,
+          photoPath: chemin,
           precisions: (toutesOrientations: _toutesOrientations),
         );
       } catch (erreur) {
@@ -171,34 +228,21 @@ void main() {
         'cartes=[$cartes]',
       );
 
-      // **Ce que l'écran ferait de la ligne basse** (issue n°50) : la même
-      // règle, `pickByPrintLine`, sur les mêmes éditions que
-      // `_fillFromPrintLine` demande — langue lue, toutes ou rien.
+      // La ligne basse : celle de la photo pour une carte seule, celle de
+      // chaque carte sur un étalement.
       if (resultat.printLine.isNotEmpty) {
-        final carte = resultat.cards.first.card;
-        final editions = await PrintingRepository(
-          Supabase.instance.client,
-        ).forCard(carte.oracleId, lang: carte.matchedLang, limit: 200);
-        final retenue = editions.length >= 200
-            ? null
-            : pickByPrintLine(resultat.printLine, [
-                for (final e in editions)
-                  (
-                    id: e.printId,
-                    collectorNumber: e.collectorNumber,
-                    year: e.releasedAt?.year,
-                  ),
-              ]);
-        final edition = retenue == null
-            ? '-'
-            : () {
-                final e = editions.firstWhere((e) => e.printId == retenue);
-                return '${e.setCode}#${e.collectorNumber}';
-              }();
         print(
-          'PLAFOND-LIGNE $nom edition=$edition '
-          'candidates=${editions.length} '
+          'PLAFOND-LIGNE $nom '
+          'edition=${await _editionLue(resultat.cards.first, resultat.printLine)} '
           'ligne=[${resultat.printLine.join(" | ")}]',
+        );
+      }
+      for (final carte in resultat.cards) {
+        if (carte.printLine.isEmpty) continue;
+        print(
+          'PLAFOND-ETAL $nom ${carte.card.name} '
+          'edition=${await _editionLue(carte, carte.printLine)} '
+          'ligne=[${carte.printLine.join(" | ")}]',
         );
       }
     }

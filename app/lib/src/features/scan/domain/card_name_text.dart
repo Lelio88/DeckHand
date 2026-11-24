@@ -183,6 +183,27 @@ bool listsKeywords(String text) {
 /// ou cadratin selon la police et la netteté ; les trois signent la même chose.
 const _attributionDashes = '-‐‑‒–—―−';
 
+/// Vrai si la ligne est la mention de copyright du bas de la carte.
+///
+/// **La pleine résolution l'a rendue lisible sur un étalement**, et elle y
+/// trouvait des cartes : « TM & © 2026 Wizards of the Coast » rencontrait
+/// *Wizards of the _____* et *Of the Coast* — cinq fausses cartes sur dix-sept
+/// photos (issue n°50). Le filtre `©.*` ne la prend qu'en tête de ligne, et
+/// l'OCR rend le « © » en « C », « O » ou « &C ».
+///
+/// Deux signes, chacun propre au copyright : « of the Coast » sous ses
+/// lectures mutilées (« Caast », « Cast »), et une année suivie de
+/// « Wizards ». *Wizards of the _____* elle-même s'y perd : une carte posée
+/// qui porte ce nom se lit exactement comme le copyright de toutes les autres.
+bool isCopyrightLine(String text) =>
+    _ofTheCoast.hasMatch(text) || _yearThenWizards.hasMatch(text);
+
+final _ofTheCoast = RegExp(r'\bof\s+the\s+c\w{0,3}st\b', caseSensitive: false);
+final _yearThenWizards = RegExp(
+  r'(19|20)\d\d.*\bw\w{0,2}zards?\b',
+  caseSensitive: false,
+);
+
 /// Vrai si la ligne attribue un texte d'ambiance à un personnage.
 ///
 /// **Le personnage qui parle porte souvent le nom d'une carte.** En bas d'une
@@ -283,6 +304,7 @@ bool looksLikeCardName(String text, {int minLength = _minNameLength}) {
   if (_typeLine.hasMatch(text)) return false;
   if (listsKeywords(text)) return false;
   if (isFlavourAttribution(text)) return false;
+  if (isCopyrightLine(text)) return false;
   if (startsLowercase(text)) return false;
   return true;
 }
